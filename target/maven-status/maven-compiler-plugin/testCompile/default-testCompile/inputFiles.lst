@@ -1,1 +1,8 @@
+D:\DP1\src\test\java\pe\edu\pucp\paqrap\planner\domain\DomainRulesSmokeTest.java
+D:\DP1\src\test\java\pe\edu\pucp\paqrap\planner\domain\OperationalSnapshotSmokeTest.java
+D:\DP1\src\test\java\pe\edu\pucp\paqrap\planner\domain\RoadNetworkSmokeTest.java
+D:\DP1\src\test\java\pe\edu\pucp\paqrap\planner\replan\DynamicReplanningSmokeTest.java
+D:\DP1\src\test\java\pe\edu\pucp\paqrap\planner\route\DeliveryRouteSmokeTest.java
+D:\DP1\src\test\java\pe\edu\pucp\paqrap\planner\route\OperationalPlanEvaluatorSmokeTest.java
+D:\DP1\src\test\java\pe\edu\pucp\paqrap\planner\sa\OperationalSimulatedAnnealingSmokeTest.java
 D:\DP1\src\test\java\pe\edu\pucp\paqrap\planner\sa\SimulatedAnnealingSmokeTest.java

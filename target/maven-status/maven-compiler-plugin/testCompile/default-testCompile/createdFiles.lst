@@ -1,1 +1,8 @@
+pe\edu\pucp\paqrap\planner\replan\DynamicReplanningSmokeTest.class
+pe\edu\pucp\paqrap\planner\domain\DomainRulesSmokeTest.class
+pe\edu\pucp\paqrap\planner\route\OperationalPlanEvaluatorSmokeTest.class
+pe\edu\pucp\paqrap\planner\route\DeliveryRouteSmokeTest.class
 pe\edu\pucp\paqrap\planner\sa\SimulatedAnnealingSmokeTest.class
+pe\edu\pucp\paqrap\planner\sa\OperationalSimulatedAnnealingSmokeTest.class
+pe\edu\pucp\paqrap\planner\domain\OperationalSnapshotSmokeTest.class
+pe\edu\pucp\paqrap\planner\domain\RoadNetworkSmokeTest.class

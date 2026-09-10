@@ -2,18 +2,18 @@ package pe.edu.pucp.paqrap.planner.domain;
 
 import java.util.Objects;
 
-/** Central warehouses have unlimited stock; intermediate warehouses have finite stock. */
+/** Immutable warehouse definition. Per-iteration stock belongs to the operational state, not this entity. */
 public final class Warehouse {
     private final String id;
     private final Location location;
     private final boolean central;
-    private int availableStock;
+    private final int initialStock;
 
     private Warehouse(String id, Location location, boolean central, int availableStock) {
         this.id = Objects.requireNonNull(id, "id is required");
         this.location = Objects.requireNonNull(location, "location is required");
         this.central = central;
-        this.availableStock = availableStock;
+        this.initialStock = availableStock;
     }
 
     public static Warehouse central(String id, Location location) {
@@ -30,15 +30,10 @@ public final class Warehouse {
     public String id() { return id; }
     public Location location() { return location; }
     public boolean isCentral() { return central; }
-    public int availableStock() { return availableStock; }
-    public boolean hasStockFor(int packages) { return central || availableStock >= packages; }
+    public int capacity() { return central ? Integer.MAX_VALUE : 1_000; }
+    public int initialStock() { return initialStock; }
 
-    public void dispatch(int packages) {
-        if (packages <= 0 || !hasStockFor(packages)) {
-            throw new IllegalArgumentException("Insufficient warehouse stock");
-        }
-        if (!central) {
-            availableStock -= packages;
-        }
-    }
+    /** Compatibility API until InventorySnapshot replaces direct stock checks in phase 2. */
+    public int availableStock() { return initialStock; }
+    public boolean hasStockFor(int packages) { return packages > 0 && (central || initialStock >= packages); }
 }
