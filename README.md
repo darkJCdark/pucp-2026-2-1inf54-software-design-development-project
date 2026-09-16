@@ -116,6 +116,10 @@ propio commit, con la razón documentada en el mensaje.
   real de colapso, no un artefacto del orden de procesamiento. Prioridad
   ya existente en `esMejorQue` (factibilidad > menos noAtendidos > costo)
   se mantiene intacta -- este cambio hace que se cumpla más seguido.
+- **Señal explícita de colapso.** `ResultadoPlanificacion.esColapso()`
+  (`!noAtendidos.isEmpty()` sobre el resultado FINAL que devuelve
+  `planificar()`) reemplaza el hábito de restar "49 de 50" a mano en el
+  log -- el reporte ahora dice directamente `COLAPSO: SI/no`.
 - **Coordenadas de almacén actualizadas**: Central (27, 14), Este (57,
   27) — la fila más reciente de la hoja de preguntas y respuestas
   reemplaza a la anterior, (25, 15) y (55, 27). Nor-Oeste (12, 38) no

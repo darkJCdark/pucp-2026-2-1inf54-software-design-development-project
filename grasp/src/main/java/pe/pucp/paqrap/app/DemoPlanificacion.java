@@ -80,6 +80,7 @@ public class DemoPlanificacion {
         }
         System.out.println("Costo total: S/ " + resultado.costoTotal());
         System.out.println("Pedidos no atendidos: " + resultado.noAtendidos().size());
+        System.out.println("COLAPSO: " + (resultado.esColapso() ? "SI (no toda la demanda fue cubierta)" : "no"));
         for (DeliveryRoute ruta : resultado.plan().routes()) {
             System.out.println("Vehiculo " + ruta.vehicle().id() + ":");
             for (RouteStop stop : ruta.stops()) {

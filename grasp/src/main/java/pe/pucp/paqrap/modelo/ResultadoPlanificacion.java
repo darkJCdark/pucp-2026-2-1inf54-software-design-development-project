@@ -20,4 +20,19 @@ public record ResultadoPlanificacion(OperationalPlan plan, PlanEvaluation evalua
     public boolean esFactible() {
         return evaluacion.isFeasible();
     }
+
+    /** Senal explicita de colapso logistico: quedo al menos un pedido sin
+     *  atender en el MEJOR resultado que GraspPlanificador.planificar()
+     *  encontro tras todas sus iteraciones (construccion + busqueda local +
+     *  reparacion de pendientes). No es lo mismo que esFactible()==false --
+     *  un plan puede ser factible (sus rutas cumplen todas las reglas) y
+     *  aun asi haber colapsado porque no le alcanzo la flota/tiempo para
+     *  cubrir toda la demanda. Se calcula sobre el resultado FINAL ya
+     *  elegido, no por iteracion intermedia -- evita tener que restar
+     *  "49 de 50" a mano para notar que el escenario no se resolvio del
+     *  todo.
+     */
+    public boolean esColapso() {
+        return !noAtendidos.isEmpty();
+    }
 }
