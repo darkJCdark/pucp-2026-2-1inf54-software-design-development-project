@@ -112,4 +112,40 @@ class GraspPlanificadorTest {
             }
         }
     }
+
+    @Test
+    void pasoInsercionPendientesRescataUnPedidoQueCabeEnUnaRutaYaConstruida() {
+        // Regresion del "hueco" reportado: un pedido puede quedar en
+        // noAtendidos solo por el orden en que la construccion greedy lo
+        // proceso, no porque fuera imposible. Se arma a mano un plan con UNA
+        // ruta ya devuelta al almacen (como llega desde
+        // construirGreedyAleatorizada) que tiene un segundo tramo (recarga
+        // intermedia en almacen con pickup=0, dejado sin usar), y un pedido
+        // "varado" que si cabe ahi -- pasoInsercionPendientes debe
+        // encontrarlo y rescatarlo ajustando el pickup de esa recarga ya
+        // existente, sin abrir ningun WarehouseVisit nuevo.
+        List<Warehouse> almacenes = List.of(central, intNorOeste, intEste);
+        Vehicle auto = InicializadorFlota.crearFlotaInicial().stream()
+                .filter(v -> v.type() == VehicleType.CAR).findFirst().orElseThrow();
+        Order pedidoYaEnRuta = new Order("C-EN-RUTA", new Location(28, 15), 5, horaInicio, horaInicio.plusSeconds(8 * 3600));
+        Order pedidoVarado = new Order("C-VARADO", new Location(29, 16), 6, horaInicio, horaInicio.plusSeconds(8 * 3600));
+
+        DeliveryRoute ruta = DeliveryRoute.startScenarioAtCentral(auto.id() + "-R", auto, central, 5, horaInicio)
+                .withAppendedStop(new DeliveryStop(pedidoYaEnRuta, 5))
+                .withAppendedStop(new WarehouseVisit(central, 0))
+                .returningTo(central);
+        OperationalPlan plan = OperationalPlan.empty().withRoute(ruta);
+
+        GraspPlanificador grasp = planificadorDePrueba(1L);
+        List<Order> pendientes = new ArrayList<>(List.of(pedidoVarado));
+        GraspPlanificador.ResultadoInsercion insercion = grasp.pasoInsercionPendientes(
+                plan, pendientes, snapshotDePrueba(almacenes), List.of());
+
+        assertNotNull(insercion, "el pedido varado deberia haber sido rescatado, cabe en la ruta existente");
+        assertEquals("C-VARADO", insercion.pedidoInsertado().id());
+        DeliveryRoute rutaActualizada = insercion.plan().routes().stream()
+                .filter(r -> r.vehicle().id().equals(auto.id())).findFirst().orElseThrow();
+        long entregas = rutaActualizada.stops().stream().filter(s -> s instanceof DeliveryStop).count();
+        assertEquals(2, entregas, "la ruta rescatada deberia tener ambas entregas");
+    }
 }

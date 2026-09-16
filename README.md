@@ -105,6 +105,17 @@ propio commit, con la razón documentada en el mensaje.
   (`OperationalPlan.withoutRoute`) en vez de quedar como un "viaje" con
   cero paradas, que inflaba artificialmente el conteo de viajes de
   `ValidadorUtilizacionFlota` sin aportar carga real.
+- **`noAtendidos` reparado en `busquedaLocal`.** Antes, un pedido quedaba
+  marcado como no atendido apenas la fase constructiva no encontraba
+  candidato en ESE momento del barrido greedy, y nunca se reintentaba --
+  ni siquiera dentro de la misma iteración, aunque la búsqueda local
+  reordenara las rutas después. Ahora `pasoInsercionPendientes` intenta,
+  tras cada pase de 2-opt/reubicación/intercambio, insertar cada pendiente
+  en un tramo ya abierto de alguna ruta (nunca abre un `WarehouseVisit`
+  nuevo). Solo si sigue sin caber después de esto se considera un caso
+  real de colapso, no un artefacto del orden de procesamiento. Prioridad
+  ya existente en `esMejorQue` (factibilidad > menos noAtendidos > costo)
+  se mantiene intacta -- este cambio hace que se cumpla más seguido.
 - **Coordenadas de almacén actualizadas**: Central (27, 14), Este (57,
   27) — la fila más reciente de la hoja de preguntas y respuestas
   reemplaza a la anterior, (25, 15) y (55, 27). Nor-Oeste (12, 38) no

@@ -22,7 +22,13 @@ import java.util.*;
  *    pedido sin vehiculo factible en esta corrida queda pendiente para la
  *    siguiente, sin invalidar el resto del plan ya construido. Comparación
  *    lexicográfica: primero factibilidad, luego menos noAtendidos, luego
- *    menor costo.
+ *    menor costo -- por eso "todos los pedidos llegan" siempre le gana a
+ *    "cuesta menos" entre iteraciones. Ademas, busquedaLocal reintenta
+ *    insertar cada noAtendido en el plan ya reordenado (pasoInsercionPendientes)
+ *    antes de rendirse, porque el barrido greedy de la construccion puede
+ *    dejar un pedido varado solo por el orden en que lo proceso, no porque
+ *    fuera imposible de atender -- si sigue sin caber despues de ese intento,
+ *    si es un caso real de colapso (demanda que excede la flota disponible).
  * 2. Costeo en la fase CONSTRUCTIVA: costo marginal barato para rankear el
  *    RCL + verificación exacta pierna por pierna solo para filtrar
  *    candidatos, ambas cacheadas por origen-destino-hora-velocidad (ver
@@ -359,16 +365,77 @@ public class GraspPlanificador {
 
     private ResultadoPlanificacion busquedaLocal(ResultadoPlanificacion actual, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
         OperationalPlan plan = actual.plan();
+        List<Order> pendientes = new ArrayList<>(actual.noAtendidos());
         boolean mejorado = true;
         while (mejorado) {
             mejorado = false;
+            ResultadoInsercion insercion;
+            if (!pendientes.isEmpty() && (insercion = pasoInsercionPendientes(plan, pendientes, snapshot, bloqueos)) != null) {
+                plan = insercion.plan();
+                pendientes.remove(insercion.pedidoInsertado());
+                mejorado = true;
+                continue;
+            }
             OperationalPlan siguiente;
             if ((siguiente = pasoDosOpt(plan, snapshot, bloqueos)) != null) { plan = siguiente; mejorado = true; continue; }
             if ((siguiente = pasoReubicacion(plan, snapshot, bloqueos)) != null) { plan = siguiente; mejorado = true; continue; }
             if ((siguiente = pasoIntercambio(plan, snapshot, bloqueos)) != null) { plan = siguiente; mejorado = true; }
         }
         PlanEvaluation evaluacion = evaluator.evaluate(plan, snapshot, pedidosEnPlan(plan), bloqueos);
-        return new ResultadoPlanificacion(plan, evaluacion, actual.noAtendidos());
+        return new ResultadoPlanificacion(plan, evaluacion, List.copyOf(pendientes));
+    }
+
+    /** Repara pedidos que la fase constructiva dejo en noAtendidos solo por
+     *  el orden en que el barrido greedy los proceso (branch (a) de
+     *  generarCandidatos: insertar en el tramo de entregas ya abierto de
+     *  alguna ruta), no porque fueran imposibles de atender. Se ejecuta
+     *  DESPUES de 2-opt/reubicacion/intercambio, sobre el plan ya
+     *  reordenado, con prioridad sobre el costo -- reducir noAtendidos pesa
+     *  mas que el costo (ver esMejorQue), asi que se acepta la insercion
+     *  factible mas barata encontrada sin comparar contra "no insertar".
+     *  A proposito NO abre WarehouseVisit nuevos (esa rama de
+     *  generarCandidatos consume inventario, que aqui ya no se rastrea tras
+     *  la fase constructiva) -- si el pedido solo cabe abriendo una recarga
+     *  o un vehiculo nuevo, sigue quedando en noAtendidos: eso ya es
+     *  colapso real, no un artefacto del greedy. */
+    ResultadoInsercion pasoInsercionPendientes(OperationalPlan plan, List<Order> pendientes,
+            OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
+        for (Order pedido : pendientes) {
+            DeliveryRoute mejorRuta = null;
+            double mejorCosto = Double.POSITIVE_INFINITY;
+            for (DeliveryRoute ruta : plan.routes()) {
+                int capacidad = snapshot.fleetProfile().parametersFor(ruta.vehicle().type()).capacity();
+                int posMax = ultimaPosicionValidaParaInsertar(ruta.stops());
+                // Recorre TODAS las posiciones (como pasoReubicacion), no solo
+                // el ultimo tramo: una ruta puede tener varios viajes/recargas.
+                for (int pos = 0; pos <= posMax; pos++) {
+                    if (cargaDelSegmento(ruta.stops(), pos) + pedido.packages() > capacidad) continue;
+                    // El tramo inicial (antes de cualquier WarehouseVisit) esta
+                    // gobernado por initialLoad, inmutable -- igual que en
+                    // pasoReubicacion, se descarta ese caso.
+                    int indiceAlmacen = indiceAlmacenQueAbreSegmento(ruta.stops(), pos);
+                    if (indiceAlmacen == -1) continue;
+                    List<RouteStop> stopsCandidatos = new ArrayList<>(ruta.stops());
+                    WarehouseVisit visitaOriginal = (WarehouseVisit) stopsCandidatos.get(indiceAlmacen);
+                    stopsCandidatos.set(indiceAlmacen, new WarehouseVisit(visitaOriginal.warehouse(),
+                            visitaOriginal.pickupPackages() + pedido.packages()));
+                    stopsCandidatos.add(pos, new DeliveryStop(pedido, pedido.packages()));
+                    DeliveryRoute candidata = ruta.withReplacedStops(stopsCandidatos);
+                    Optional<Double> costo = costoSiFactible(candidata, snapshot, bloqueos);
+                    if (costo.isPresent() && costo.get() < mejorCosto) {
+                        mejorCosto = costo.get();
+                        mejorRuta = candidata;
+                    }
+                }
+            }
+            if (mejorRuta != null) {
+                return new ResultadoInsercion(plan.withRoute(mejorRuta), pedido);
+            }
+        }
+        return null;
+    }
+
+    record ResultadoInsercion(OperationalPlan plan, Order pedidoInsertado) {
     }
 
     /** Inversion (2-opt): invierte un tramo dentro de un mismo segmento de
