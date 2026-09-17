@@ -43,8 +43,23 @@ import java.util.*;
  *    no se prestan a un delta simple en una red con bloqueos dependientes
  *    del tiempo. OperationalPlanEvaluator sobre el plan completo solo se
  *    llama una vez por iteración, no por candidato.
- * 3. Un vehículo solo recarga (agrega un WarehouseVisit) cuando su carga
- *    actual es exactamente 0 -- ver EstadoConstruccion.
+ * 3. Recarga (agregar un WarehouseVisit) es SIEMPRE una alternativa ofrecida
+ *    a "seguir apilando en el tramo abierto" para cualquier vehiculo que ya
+ *    tenga ruta (ver generarCandidatos, rama (b)). Version anterior lo
+ *    ofrecia solo cuando estado.cargaActual==0 -- una condicion que, tal
+ *    como se calcula cargaActual (solo acumula durante la construccion, no
+ *    se resetea sola), nunca se cumplia, dejando la recarga inalcanzable:
+ *    cualquier vehiculo con 2+ pedidos los apilaba TODOS en el mismo tramo
+ *    inicial, cuyo initialLoad es inmutable y solo cubre el primer pedido
+ *    -- eso producia NEGATIVE_LOAD en cuanto se probo con data real (con
+ *    pocos pedidos sinteticos y 37 vehiculos casi nunca hacia falta apilar
+ *    2 pedidos en un mismo vehiculo, por eso las pruebas nunca lo agarraron).
+ *    El fix real tiene dos partes: (a) apilar en un tramo abierto por una
+ *    recarga SI es seguro, porque su WarehouseVisit es mutable -- se le
+ *    suma el pedido nuevo al pickup, igual que pasoReubicacion; (b) apilar
+ *    en el tramo INICIAL nunca es seguro (initialLoad no se puede tocar),
+ *    asi que esas posiciones se descartan y la recarga queda como la unica
+ *    salida para el 2do+ pedido de un vehiculo -- ver indiceAlmacenQueAbreSegmento.
  * 4. Limite de 80 km por tramo (hoja "Flota"): se verifica tanto aqui
  *    (esFactibleCandidato, para no generar candidatos que de todas formas
  *    seran rechazados) como en OperationalPlanEvaluator (autoritativo) --
@@ -171,7 +186,20 @@ public class GraspPlanificador {
                 List<RouteStop> stops = estado.ruta.stops();
                 int desde = indiceUltimoAlmacen(stops) + 1;
                 for (int pos = desde; pos <= stops.size(); pos++) {
-                    DeliveryRoute candidataRuta = estado.ruta.withInsertedStop(pos, new DeliveryStop(pedido, pedido.packages()));
+                    // El tramo inicial (antes de cualquier WarehouseVisit) esta
+                    // gobernado por initialLoad, fijado UNA vez al crear la ruta
+                    // (rama (b) mas abajo) para cubrir exactamente el primer
+                    // pedido -- es inmutable, asi que no se le puede apilar un
+                    // 2do pedido sin invalidar el balance de carga (NEGATIVE_LOAD).
+                    // Un tramo abierto por una recarga real si se puede ampliar.
+                    int indiceAlmacen = indiceAlmacenQueAbreSegmento(stops, pos);
+                    if (indiceAlmacen == -1) continue;
+                    List<RouteStop> stopsCandidatos = new ArrayList<>(stops);
+                    WarehouseVisit visitaOriginal = (WarehouseVisit) stopsCandidatos.get(indiceAlmacen);
+                    stopsCandidatos.set(indiceAlmacen, new WarehouseVisit(visitaOriginal.warehouse(),
+                            visitaOriginal.pickupPackages() + pedido.packages()));
+                    stopsCandidatos.add(pos, new DeliveryStop(pedido, pedido.packages()));
+                    DeliveryRoute candidataRuta = estado.ruta.withReplacedStops(stopsCandidatos);
                     if (esFactibleCandidato(candidataRuta, snapshot, bloqueos)) {
                         double costo = costoInsercionMarginal(estado.ruta, pos, pedido, snapshot, bloqueos);
                         candidatos.add(new Candidato(vehiculo.id(), candidataRuta, false, pedido, null, 0, costo));
@@ -190,7 +218,7 @@ public class GraspPlanificador {
                         double costo = costoInsercionMarginal(rutaBase, 0, pedido, snapshot, bloqueos);
                         candidatos.add(new Candidato(vehiculo.id(), candidataRuta, true, pedido, central, carga, costo));
                     }
-                } else if (estado.cargaActual == 0) {
+                } else {
                     double velocidad = perfil.parametersFor(vehiculo.type()).speedKmPerHour();
                     Warehouse mejorAlmacen = elegirAlmacen(estado.ubicacionActual(),
                             List.copyOf(snapshot.inventory().warehouses()), pedido.packages(), inventario,
