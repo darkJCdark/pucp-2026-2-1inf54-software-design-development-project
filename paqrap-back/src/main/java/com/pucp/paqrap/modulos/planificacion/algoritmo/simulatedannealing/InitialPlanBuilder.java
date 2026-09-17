@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 
 /** Builds a deterministic, evaluator-validated seed without depending on GRASP. */
 final class InitialPlanBuilder {
@@ -44,10 +43,9 @@ final class InitialPlanBuilder {
         List<Order> unattended = new ArrayList<>();
         for (Order order : ordered) {
             Candidate best = null;
-            for (VehicleOperationalState vehicleState : vehicles) {
-                Optional<DeliveryRoute> route = appendOrder(plan, vehicleState, central, order, snapshot);
-                if (route.isEmpty()) continue;
-                OperationalPlan candidatePlan = plan.withRoute(route.get());
+            for (int startingVehicle = 0; startingVehicle < vehicles.size(); startingVehicle++) {
+                OperationalPlan candidatePlan = appendOrderInDeliveries(
+                        plan, vehicles, startingVehicle, central, order, snapshot);
                 List<Order> candidateOrders = new ArrayList<>(attended);
                 candidateOrders.add(order);
                 var evaluation = evaluator.evaluate(candidatePlan, snapshot, candidateOrders, blocks);
@@ -65,24 +63,42 @@ final class InitialPlanBuilder {
         return new SeedPlan(plan, attended, unattended);
     }
 
-    private Optional<DeliveryRoute> appendOrder(OperationalPlan plan, VehicleOperationalState state,
-                                                 Warehouse central, Order order, OperationalSnapshot snapshot) {
-        int capacity = snapshot.fleetProfile().parametersFor(state.vehicle().type()).capacity();
-        if (order.packages() > capacity) return Optional.empty();
-        return plan.routeForVehicle(state.vehicle().id())
-                .map(route -> appendAfterReturn(route, central, order))
-                .or(() -> Optional.of(DeliveryRoute.startScenarioAtCentral(
-                        "SA-" + state.vehicle().id(), state.vehicle(), central, order.packages(), snapshot.planningTime())
-                        .withAppendedStop(new DeliveryStop(order, order.packages()))
-                        .returningTo(central)));
+    private OperationalPlan appendOrderInDeliveries(OperationalPlan plan, List<VehicleOperationalState> vehicles,
+                                                     int startingVehicle, Warehouse central, Order order,
+                                                     OperationalSnapshot snapshot) {
+        OperationalPlan candidatePlan = plan;
+        int remainingPackages = order.packages();
+        int vehicleIndex = startingVehicle;
+        while (remainingPackages > 0) {
+            VehicleOperationalState vehicleState = vehicles.get(vehicleIndex % vehicles.size());
+            int capacity = snapshot.fleetProfile().parametersFor(vehicleState.vehicle().type()).capacity();
+            int deliveredPackages = Math.min(remainingPackages, capacity);
+            DeliveryRoute route = appendDelivery(candidatePlan, vehicleState, central, order,
+                    deliveredPackages, snapshot);
+            candidatePlan = candidatePlan.withRoute(route);
+            remainingPackages -= deliveredPackages;
+            vehicleIndex++;
+        }
+        return candidatePlan;
     }
 
-    private DeliveryRoute appendAfterReturn(DeliveryRoute route, Warehouse central, Order order) {
+    private DeliveryRoute appendDelivery(OperationalPlan plan, VehicleOperationalState state,
+                                         Warehouse central, Order order, int deliveredPackages,
+                                         OperationalSnapshot snapshot) {
+        return plan.routeForVehicle(state.vehicle().id())
+                .map(route -> appendAfterReturn(route, central, order, deliveredPackages))
+                .orElseGet(() -> DeliveryRoute.startScenarioAtCentral(
+                        "SA-" + state.vehicle().id(), state.vehicle(), central, deliveredPackages, snapshot.planningTime())
+                        .withAppendedStop(new DeliveryStop(order, deliveredPackages))
+                        .returningTo(central));
+    }
+
+    private DeliveryRoute appendAfterReturn(DeliveryRoute route, Warehouse central, Order order, int deliveredPackages) {
         List<RouteStop> stops = new ArrayList<>(route.stops());
         if (!stops.isEmpty() && stops.getLast() instanceof WarehouseVisit) stops.removeLast();
         return route.withReplacedStops(stops)
-                .withAppendedStop(new WarehouseVisit(central, order.packages()))
-                .withAppendedStop(new DeliveryStop(order, order.packages()))
+                .withAppendedStop(new WarehouseVisit(central, deliveredPackages))
+                .withAppendedStop(new DeliveryStop(order, deliveredPackages))
                 .returningTo(central);
     }
 
