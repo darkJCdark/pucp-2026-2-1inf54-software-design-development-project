@@ -289,10 +289,12 @@ public class GraspPlanificador {
     /** Verificacion EXACTA, pierna por pierna: recorre toda la ruta
      *  candidata comprobando que exista camino hacia cada parada, que
      *  ningun tramo supere el limite de 80 km (hoja "Flota"), y que ningun
-     *  DeliveryStop llegue despues de su deadline. Usa la misma cache de
-     *  caminos. No valida capacidad -- eso ya lo garantiza el llamador
-     *  (estado.cargaActual). */
+     *  DeliveryStop llegue despues de su deadline y que la carga se mantenga
+     *  dentro de los limites en toda la secuencia. Usa la misma cache de
+     *  caminos. */
     private boolean esFactibleCandidato(DeliveryRoute candidataRuta, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
+        if (!respetaCargaSecuencial(candidataRuta, snapshot)) return false;
+
         double velocidad = snapshot.fleetProfile().parametersFor(candidataRuta.vehicle().type()).speedKmPerHour();
         Location posicion = candidataRuta.startLocation();
         Instant tiempo = candidataRuta.departureAt();
@@ -311,6 +313,23 @@ public class GraspPlanificador {
         return true;
     }
 
+    private boolean respetaCargaSecuencial(DeliveryRoute ruta, OperationalSnapshot snapshot) {
+        int capacidad = snapshot.fleetProfile().parametersFor(ruta.vehicle().type()).capacity();
+        int cargaActual = ruta.initialLoad();
+        if (cargaActual < 0 || cargaActual > capacidad) return false;
+
+        for (RouteStop parada : ruta.stops()) {
+            if (parada instanceof WarehouseVisit visita) {
+                cargaActual += visita.pickupPackages();
+                if (cargaActual > capacidad) return false;
+            } else if (parada instanceof DeliveryStop entrega) {
+                if (entrega.deliveredPackages() > cargaActual) return false;
+                cargaActual -= entrega.deliveredPackages();
+            }
+        }
+        return true;
+    }
+
     private record ConsultaCamino(Location origen, Location destino, Instant horaSalida, double velocidadKmH) {
     }
 
@@ -320,6 +339,8 @@ public class GraspPlanificador {
      *  simple en una red con bloqueos dependientes del tiempo, asi que
      *  siguen recalculando la ruta completa via RouteScheduler. */
     private Optional<Double> costoSiFactible(DeliveryRoute candidataRuta, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
+        if (!respetaCargaSecuencial(candidataRuta, snapshot)) return Optional.empty();
+
         try {
             ScheduledDeliveryRoute programada = scheduler.schedule(candidataRuta, snapshot, bloqueos);
             for (ScheduledRouteStop parada : programada.scheduledStops()) {
