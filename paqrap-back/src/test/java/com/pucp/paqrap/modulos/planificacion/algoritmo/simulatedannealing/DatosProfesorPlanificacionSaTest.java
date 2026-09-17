@@ -50,7 +50,7 @@ class DatosProfesorPlanificacionSaTest {
                 .toList();
         List<RoadBlock> bloqueosVigentes = new CargadorBloqueos().cargar(recurso("bloqueos/bloqueo.2601.txt"), ENERO_2026,
                 ShiftSchedule.DEFAULT_ZONE).stream().filter(bloqueo -> bloqueo.isActiveAt(VENTANA_ENERO)).toList();
-        Warehouse central = Warehouse.central("CENTRAL", new com.pucp.paqrap.modulos.redvial.entity.Location(35, 25));
+        Warehouse central = Warehouse.central("CENTRAL", new com.pucp.paqrap.modulos.redvial.entity.Location(27, 14));
         List<Vehicle> flota = List.of(new Vehicle("TA01", VehicleType.CAR, true), new Vehicle("TA02", VehicleType.CAR, true),
                 new Vehicle("TM01", VehicleType.MOTORCYCLE, true), new Vehicle("TB01", VehicleType.BICYCLE, true));
         OperationalSnapshot snapshot = snapshot(central, flota, VENTANA_ENERO, List.of());

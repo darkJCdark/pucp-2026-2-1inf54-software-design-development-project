@@ -78,7 +78,7 @@ class DemoDatosProfesorSaTest {
                 .toList();
         List<RoadBlock> bloqueos = dataset.bloqueosPorPeriodoCargados().get(ventasEnero.periodo()).stream()
                 .filter(bloqueo -> bloqueo.isActiveAt(instantePlanificacion)).toList();
-        Warehouse central = Warehouse.central("CENTRAL", new Location(35, 25));
+        Warehouse central = Warehouse.central("CENTRAL", new Location(27, 14));
         List<Vehicle> flota = List.of(new Vehicle("TA01", VehicleType.CAR, true), new Vehicle("TA02", VehicleType.CAR, true),
                 new Vehicle("TM01", VehicleType.MOTORCYCLE, true), new Vehicle("TB01", VehicleType.BICYCLE, true));
         OperationalSnapshot snapshot = snapshot(central, flota, instantePlanificacion, List.of());
