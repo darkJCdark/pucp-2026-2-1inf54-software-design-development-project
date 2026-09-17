@@ -309,19 +309,33 @@ public class GraspPlanificador {
     /** Verificacion EXACTA, pierna por pierna: recorre toda la ruta
      *  candidata comprobando que exista camino hacia cada parada, que
      *  ningun tramo supere el limite de 80 km (hoja "Flota"), y que ningun
-     *  DeliveryStop llegue despues de su deadline. Usa la misma cache de
-     *  caminos. No valida capacidad -- eso ya lo garantiza el llamador
-     *  (estado.cargaActual). */
+     *  DeliveryStop llegue despues de su deadline -- incluyendo el
+     *  refrigerio (RouteScheduler.schedule() lo aplica antes de comparar
+     *  contra el deadline; si esta verificacion no lo hiciera tambien,
+     *  aceptaria candidatos durante la construccion que el evaluador
+     *  autoritativo rechaza despues por SLA_MISSED, justo la 1h que el
+     *  refrigerio agrega no estaba contemplada aqui -- encontrado probando
+     *  con data real, ver README). Usa la misma cache de caminos. No valida
+     *  capacidad -- eso ya lo garantiza el llamador (estado.cargaActual). */
     private boolean esFactibleCandidato(DeliveryRoute candidataRuta, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
         double velocidad = snapshot.fleetProfile().parametersFor(candidataRuta.vehicle().type()).speedKmPerHour();
         Location posicion = candidataRuta.startLocation();
         Instant tiempo = candidataRuta.departureAt();
+        Instant turnoConRefrigerioTomado = null;
 
         for (RouteStop stop : candidataRuta.stops()) {
             Optional<RoadPath> camino = caminoCacheado(posicion, stop.location(), tiempo, velocidad, bloqueos);
             if (camino.isEmpty()) return false;
             if (camino.get().distanceKm() > DISTANCIA_MAXIMA_POR_TRAMO_KM) return false;
             tiempo = camino.get().arrivesAt();
+
+            ShiftSchedule.ShiftWindow turno = snapshot.shiftSchedule().shiftAt(tiempo);
+            ShiftSchedule.ShiftWindow ventanaRefrigerio = snapshot.shiftSchedule().mealWindow(tiempo);
+            if (!turno.startsAt().equals(turnoConRefrigerioTomado) && !tiempo.isBefore(ventanaRefrigerio.startsAt())) {
+                tiempo = tiempo.plus(Duration.ofHours(1));
+                turnoConRefrigerioTomado = turno.startsAt();
+            }
+
             if (stop instanceof DeliveryStop entrega) {
                 if (tiempo.isAfter(entrega.order().deadline())) return false;
                 tiempo = tiempo.plus(DeliveryStop.SERVICE_TIME);
