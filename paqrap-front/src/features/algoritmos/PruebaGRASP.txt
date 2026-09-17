@@ -1,0 +1,58 @@
+Esto es nomas para probar GRASP.
+
+Esta primera versión sí considerará:
+
+- almacén central (25,15);
+- pedidos con coordenadas, cantidad y plazo;
+- autos, motos y bicicletas;
+- capacidad máxima;
+- velocidad;
+- costo por kilómetro;
+- distancia Manhattan;
+- plazos como restricción dura;
+- 1 hora de acondicionamiento después de llegar al cliente;
+- parámetro \(\alpha\) de GRASP;
+- número de iteraciones;
+- semilla reproducible;
+- búsqueda local sencilla.
+
+Aun no se considera replanificacion, almacenes intermedios, 
+entregas parciales, bloqueos, averias :v
+
+Explicacion breve de como funciona el GRASP:
+
+Los vehiculos empiezan con rutas vacias
+
+AUTO-001 → []
+MOT-001  → []
+BIC-001  → []
+
+Comienza a probar combinaciones factibles 
+
+PED-001 → AUTO
+PED-001 → MOTO
+PED-001 → BICI
+
+y descarta las que llegan tarde o no entran en el vehiculo (capacidad)
+
+Luego, asigna una puntuacion greedy
+
+  Prioriza -> Menor incremento de costo + pedidos mas .
+
+----
+y crea el RCL (la lista esta de candidatos que cumplen las condiciones)
+
+
+Con: 
+ g(c)≤gmin​+α(gmax​−gmin​)
+
+ g(c) es el puntaje
+
+
+ -----
+
+Escoge aleatoriamente de la RCL
+y tras hacer su lista hace una busqueda local (intercambia pedidos dentro de una ruta),
+esto para ver si encuentra algo ligeramente mejor.
+
+y se repite todo varias veces
