@@ -133,6 +133,62 @@ propio commit, con la razón documentada en el mensaje.
   sin relación a la demanda real obligaría al algoritmo a generar viajes
   vacíos o redundantes solo para "cumplir cuota". Si la intención es que
   sea una restricción dura real, es un cambio distinto — avisar antes.
+- **`NEGATIVE_LOAD` real, corregido** (distinto del `NEGATIVE_LOAD` de
+  reubicación/intercambio ya corregido arriba). Encontrado probando con
+  data real (ver "Data real" abajo): `generarCandidatos` apilaba un 2do
+  pedido en el tramo inicial de una ruta sin aumentar la carga recogida —
+  ese tramo esta gobernado por `initialLoad`, fijado una vez al crear la
+  ruta e inmutable despues. La alternativa correcta (recargar en un
+  almacen antes de tomar mas pedidos) existia pero nunca se activaba por
+  una condicion que usaba una variable que jamas volvia a 0 -- codigo
+  muerto. Con 6 pedidos sinteticos y 37 vehiculos casi nunca hacia falta
+  apilar 2 pedidos en un mismo vehiculo, por eso las pruebas nunca lo
+  agarraron.
+- **`SLA_MISSED` real, corregido.** `esFactibleCandidato` (el chequeo de
+  deadline durante la construcción) no modelaba el refrigerio de 1h que sí
+  aplica `RouteScheduler` (el evaluador autoritativo) — aceptaba
+  candidatos que, segun su propio calculo, llegaban a tiempo, pero que el
+  evaluador final rechazaba por llegar 1h tarde. Mismo calculo de
+  refrigerio agregado a ambos lugares.
+
+## Data real y escenario real
+
+`data/` (raíz del repo) tiene la data real entregada por el docente:
+bloqueos (`data/bloqueos/bloqueo<aammm>.txt`), pedidos
+(`data/ventas/ventas<aaaamm>.txt`) y mantenimiento preventivo
+(`data/mant.preventivo.09.10.txt`) — formato exacto en la hoja "Preguntas y
+Respuestas" del curso, preguntas 7, 8 y 19.
+
+`grasp/src/main/java/pe/pucp/paqrap/modelo/{CargadorPedidos,CargadorBloqueos,
+CargadorMantenimiento}.java` parsean esos 3 formatos. Los dos primeros
+aceptan una ventana de tiempo opcional para acotar el mes completo (miles de
+pedidos) a un escenario concreto — necesario en la práctica, ver
+rendimiento abajo. `CargadorMantenimiento` usa la única regla de duración
+confirmada por el docente (1 día completo, para cualquier tipo de
+vehículo) — la nota que menciona duraciones distintas por tipo
+(bicicleta=1 turno, moto=1 día, auto=2 días) está marcada por el propio
+docente como pendiente ("FALTA..."), así que no se adivinó ese valor.
+
+`grasp/src/main/java/pe/pucp/paqrap/app/EscenarioReal.java` corre
+`GraspPlanificador` de punta a punta contra esta data (no los 3 pedidos de
+juguete de `DemoPlanificacion`). Ventana y `maxIteraciones` configurables
+por argumentos:
+
+```bash
+cd grasp
+mvn compile exec:java -Dexec.mainClass=pe.pucp.paqrap.app.EscenarioReal -Dexec.args="7 8 20"
+# horaInicio horaFin maxIteraciones, 09-sep-2026 -- todos opcionales
+```
+
+**Rendimiento con data real, sin resolver todavía:** el turno completo
+(07:00-15:00, 52 pedidos reales) no terminó ni en 5 minutos con
+`maxIteraciones=50` — se detuvo la corrida. La generación de candidatos
+escala con el largo de ruta ya construido, así que el costo crece más
+rápido que lineal con la cantidad de pedidos; con 3-6 pedidos sintéticos
+nunca se notó. Recomendación: subir la ventana de a poco (1h → 2h → ...)
+para encontrar en qué punto se vuelve impráctico, antes de asumir que un
+turno completo corre en un tiempo razonable — esto quedó pendiente de
+terminar de explorar.
 
 ## Pendiente (sin resolver a propósito, ver el código)
 
