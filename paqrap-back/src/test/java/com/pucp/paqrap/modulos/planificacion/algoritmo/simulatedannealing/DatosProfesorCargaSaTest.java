@@ -27,9 +27,9 @@ class DatosProfesorCargaSaTest {
 
     @Test
     void cargaLosTresArchivosRealesDelProfesor() throws Exception {
-        List<Order> pedidos = new CargadorPedidos().cargar(recurso("ventas.202601.txt"), ENERO_2026,
+        List<Order> pedidos = new CargadorPedidos().cargar(recurso("ventas/ventas.202601.txt"), ENERO_2026,
                 ShiftSchedule.DEFAULT_ZONE);
-        List<RoadBlock> bloqueos = new CargadorBloqueos().cargar(recurso("bloqueo.2601.txt"), ENERO_2026,
+        List<RoadBlock> bloqueos = new CargadorBloqueos().cargar(recurso("bloqueos/bloqueo.2601.txt"), ENERO_2026,
                 ShiftSchedule.DEFAULT_ZONE);
         List<MaintenanceDay> mantenimientos = new CargadorMantenimiento().cargar(recurso("mant.preventivo.09.10.txt"));
 

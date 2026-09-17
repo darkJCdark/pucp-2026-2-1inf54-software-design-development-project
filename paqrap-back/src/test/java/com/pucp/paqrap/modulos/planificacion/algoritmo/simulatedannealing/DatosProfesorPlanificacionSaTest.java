@@ -44,11 +44,11 @@ class DatosProfesorPlanificacionSaTest {
 
     @Test
     void planificaPedidosYBloqueosRealesDeLaVentanaDelPrimeroDeEnero() throws Exception {
-        List<Order> pedidos = new CargadorPedidos().cargar(recurso("ventas.202601.txt"), ENERO_2026,
+        List<Order> pedidos = new CargadorPedidos().cargar(recurso("ventas/ventas.202601.txt"), ENERO_2026,
                 ShiftSchedule.DEFAULT_ZONE).stream()
                 .filter(pedido -> !pedido.registeredAt().isAfter(VENTANA_ENERO))
                 .toList();
-        List<RoadBlock> bloqueosVigentes = new CargadorBloqueos().cargar(recurso("bloqueo.2601.txt"), ENERO_2026,
+        List<RoadBlock> bloqueosVigentes = new CargadorBloqueos().cargar(recurso("bloqueos/bloqueo.2601.txt"), ENERO_2026,
                 ShiftSchedule.DEFAULT_ZONE).stream().filter(bloqueo -> bloqueo.isActiveAt(VENTANA_ENERO)).toList();
         Warehouse central = Warehouse.central("CENTRAL", new com.pucp.paqrap.modulos.redvial.entity.Location(35, 25));
         List<Vehicle> flota = List.of(new Vehicle("TA01", VehicleType.CAR, true), new Vehicle("TA02", VehicleType.CAR, true),
