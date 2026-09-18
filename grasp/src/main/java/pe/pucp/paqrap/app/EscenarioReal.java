@@ -35,6 +35,9 @@ import java.util.*;
  *    mvn compile exec:java -Dexec.mainClass=pe.pucp.paqrap.app.EscenarioReal
  *    mvn compile exec:java -Dexec.mainClass=pe.pucp.paqrap.app.EscenarioReal -Dexec.args="7 9 20"
  *        (horaInicio horaFin maxIteraciones -- todos opcionales, en ese orden)
+ *    mvn compile exec:java -Dexec.mainClass=pe.pucp.paqrap.app.EscenarioReal -Dexec.args="0 24 5"
+ *        (dia completo, 174 pedidos reales -- empezar con pocas iteraciones,
+ *        ver README seccion de rendimiento antes de subir maxIteraciones)
  */
 public class EscenarioReal {
     public static void main(String[] args) throws Exception {
@@ -44,8 +47,13 @@ public class EscenarioReal {
 
         ZoneId zona = ShiftSchedule.DEFAULT_ZONE;
         YearMonth setiembre2026 = YearMonth.of(2026, 9);
-        Instant inicioTurno = LocalDateTime.of(2026, 9, 9, horaInicio, 0).atZone(zona).toInstant();
-        Instant finTurno = LocalDateTime.of(2026, 9, 9, horaFin, 0).atZone(zona).toInstant();
+        // horaFin=24 (dia completo) se sale del rango valido de LocalDateTime.of
+        // (0-23) -- plusHours lo interpreta correctamente como medianoche del
+        // dia siguiente, sin necesitar un caso especial.
+        LocalDateTime inicioLocal = LocalDateTime.of(2026, 9, 9, 0, 0).plusHours(horaInicio);
+        LocalDateTime finLocal = LocalDateTime.of(2026, 9, 9, 0, 0).plusHours(horaFin);
+        Instant inicioTurno = inicioLocal.atZone(zona).toInstant();
+        Instant finTurno = finLocal.atZone(zona).toInstant();
 
         Warehouse central = Warehouse.central("CENTRAL", new Location(27, 14));
         Warehouse intNorOeste = Warehouse.intermediate("INT-NOROESTE", new Location(12, 38), 1000);
@@ -72,22 +80,42 @@ public class EscenarioReal {
         List<RoadBlock> bloqueos = CargadorBloqueos.desdeArchivo(
                 Path.of("../data/bloqueos/bloqueo.2609.txt"), setiembre2026, zona, inicioTurno, finTurno);
 
-        System.out.printf("Escenario: 09-sep-2026 %02d:00-%02d:00, maxIteraciones=%d%n", horaInicio, horaFin, maxIteraciones);
-        System.out.println("Pedidos cargados en la ventana: " + pedidos.size());
-        System.out.println("Bloqueos activos en la ventana: " + bloqueos.size());
-        System.out.println("Entradas de mantenimiento (archivo completo): " + mantenimiento.size());
-        System.out.println("Flota disponible: " + flota.size() + " vehiculos");
-        System.out.println();
+        double alpha = 0.3;
+        long semilla = 42L;
+        String archivoVelocidades = "src/main/resources/velocidades-situacion-autentica.properties";
+
+        System.out.println("=== Configuracion del algoritmo ===");
+        System.out.printf("Fecha/ventana: 09-sep-2026 %02d:00-%02d:00%n", horaInicio, horaFin);
+        System.out.println("maxIteraciones (reinicios GRASP): " + maxIteraciones);
+        System.out.println("alpha (umbral RCL): " + alpha);
+        System.out.println("Semilla aleatoria: " + semilla + " (deterministica: misma entrada -> mismo resultado)");
+        System.out.println("Archivo de velocidades: " + archivoVelocidades);
+        System.out.println("Almacenes: CENTRAL " + central.location() + ", INT-NOROESTE " + intNorOeste.location()
+                + ", INT-ESTE " + intEste.location());
+        System.out.println("Flota disponible: " + flota.size() + " vehiculos (10 CAR, 15 MOTORCYCLE, 12 BICYCLE)");
+        System.out.println("Entradas de mantenimiento (archivo completo, set-oct 2026): " + mantenimiento.size());
+
+        System.out.println("\n=== Pedidos cargados en la ventana (" + pedidos.size() + ") ===");
+        for (Order pedido : pedidos) {
+            System.out.printf("  %s: destino %s, %d u., llega %s, deadline %s%n",
+                    pedido.id(), pedido.destination(), pedido.packages(), pedido.registeredAt(), pedido.deadline());
+        }
+
+        System.out.println("\n=== Bloqueos activos en la ventana (" + bloqueos.size() + ") ===");
+        for (RoadBlock bloqueo : bloqueos) {
+            System.out.printf("  %s a %s: nodos %s%n", bloqueo.startsAt(), bloqueo.endsAt(), bloqueo.nodes());
+        }
 
         RoadNetwork roadNetwork = new RoadNetwork();
         RouteScheduler scheduler = new RouteScheduler(roadNetwork);
         OperationalPlanEvaluator evaluator = new OperationalPlanEvaluator(scheduler);
-        GraspPlanificador grasp = new GraspPlanificador(roadNetwork, scheduler, evaluator, 42L);
+        GraspPlanificador grasp = new GraspPlanificador(roadNetwork, scheduler, evaluator, semilla);
 
         long inicioCronometro = System.currentTimeMillis();
-        ResultadoPlanificacion resultado = grasp.planificar(snapshot, pedidos, bloqueos, 0.3, maxIteraciones);
+        ResultadoPlanificacion resultado = grasp.planificar(snapshot, pedidos, bloqueos, alpha, maxIteraciones);
         long segundos = (System.currentTimeMillis() - inicioCronometro) / 1000;
 
+        System.out.println("\n=== Resultado ===");
         System.out.println("Tiempo de planificacion: " + segundos + "s");
         System.out.println("Plan factible: " + resultado.esFactible());
         if (!resultado.esFactible()) {
@@ -95,8 +123,21 @@ public class EscenarioReal {
         }
         System.out.println("Costo total: S/ " + resultado.costoTotal());
         System.out.println("Pedidos no atendidos: " + resultado.noAtendidos().size() + " / " + pedidos.size());
+        resultado.noAtendidos().forEach(p -> System.out.println("  NO ATENDIDO: " + p.id()));
         System.out.println("COLAPSO: " + (resultado.esColapso() ? "SI (no toda la demanda fue cubierta)" : "no"));
-        System.out.println("Rutas generadas: " + resultado.plan().routes().size());
+
+        System.out.println("\n=== Rutas generadas (" + resultado.plan().routes().size() + ") ===");
+        for (DeliveryRoute ruta : resultado.plan().routes()) {
+            System.out.println("Vehiculo " + ruta.vehicle().id() + " (" + ruta.vehicle().type() + "):");
+            for (RouteStop stop : ruta.stops()) {
+                if (stop instanceof DeliveryStop entrega) {
+                    System.out.println("   -> entrega " + entrega.order().id() + " en " + entrega.order().destination()
+                            + " (" + entrega.deliveredPackages() + " u.)");
+                } else if (stop instanceof WarehouseVisit visita) {
+                    System.out.println("   -> almacen " + visita.warehouse().id() + " (" + visita.pickupPackages() + " u. recogidas)");
+                }
+            }
+        }
 
         System.out.println("\n--- Utilizacion vs. hoja Flota (informativo) ---");
         var validador = new ValidadorUtilizacionFlota(ValidadorUtilizacionFlota.OBJETIVOS_HOJA_FLOTA);
