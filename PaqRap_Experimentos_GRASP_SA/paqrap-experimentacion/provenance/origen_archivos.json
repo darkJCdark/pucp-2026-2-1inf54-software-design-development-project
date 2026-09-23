@@ -1,0 +1,1118 @@
+[
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/RouteAssignmentService.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "1247e8d41e268b8943840bfc2c1a54887f8d9b1294fbb536b6cf40f5c45f3d22",
+    "delivered_sha256": "1247e8d41e268b8943840bfc2c1a54887f8d9b1294fbb536b6cf40f5c45f3d22",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/RouteScheduler.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "a24d83d601e443fd1603e8738d59e8c36401008c2ee9d202ddd95caa1bb2874d",
+    "delivered_sha256": "da7504f5f38d92b9ee2b3aa083fa73a4a666f5bf5a5f4767209965c88c7ec3c9",
+    "status": "modified"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/InitialPlanBuilder.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "7b0388fa43b1cf0659cb0aea4806ebcf20918f565cda25782c032a3aa006695c",
+    "delivered_sha256": "c83d246d25f018df659cf23952dbad19042e33128aa8c07e96001631f7385033",
+    "status": "modified"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/OperationalPlanEvaluator.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "cf4b8c049d8bf541b153e61c18e80d4acaa0e3976164f11603d7bc95c2e5378c",
+    "delivered_sha256": "ad02277e172c8b39932fad051b032d83f87167dff370cede173a097979fe746c",
+    "status": "modified"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/DeliveryRoute.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "6f074ae5199292c26592fd3f629f1f1c28fb7bc0c831c10e8e7fa90cf0d63a18",
+    "delivered_sha256": "6f074ae5199292c26592fd3f629f1f1c28fb7bc0c831c10e8e7fa90cf0d63a18",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/Route.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "132a940d9382f2280696f2759f136c05ee1a58c35108a9b40db1f33919c9fd00",
+    "delivered_sha256": "132a940d9382f2280696f2759f136c05ee1a58c35108a9b40db1f33919c9fd00",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/InventoryTimeline.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "1d06c921923fd7c48cace123f7309c12de48a43a3babd9d1de428e9468b70cc9",
+    "delivered_sha256": "1d06c921923fd7c48cace123f7309c12de48a43a3babd9d1de428e9468b70cc9",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/PlanViolation.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "77c24f835f8a62ee7cb8e32ef41c5891016f27d16fb6f97f1df10fc93bb6b358",
+    "delivered_sha256": "77c24f835f8a62ee7cb8e32ef41c5891016f27d16fb6f97f1df10fc93bb6b358",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/OperationalPlan.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "078d152926902ee160af9eda28d37fb5c9a03a7fc846019f7c157d6521c6f266",
+    "delivered_sha256": "9b783663b01d969683ab1116ede315f6100725970c19f92eae47e9e4b0cb86f7",
+    "status": "modified"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/PlanEvaluator.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "67fc9e2018c9e40c834a531ac892b84092aeabcc364d253eadf0eb1f632e18db",
+    "delivered_sha256": "67fc9e2018c9e40c834a531ac892b84092aeabcc364d253eadf0eb1f632e18db",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/DeliveryStop.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "dba6cdbdf9d27c1eeb3d106d42451b1255efbc13d28844f496abd24e15f6509d",
+    "delivered_sha256": "dba6cdbdf9d27c1eeb3d106d42451b1255efbc13d28844f496abd24e15f6509d",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/PlanEvaluation.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "a20a742e9ce44f58b85af337ae962f06013686fa46d8d59b25d9e5c3db9c41ef",
+    "delivered_sha256": "725c4d46000b15fe5c30220644a72c3d9572c73083f9aca31454bec4cebfb3e0",
+    "status": "modified"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/OperationProjection.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "8a21704010c5db4ccfa565dfa22479695f1dcbe8e6adf67baaba10e26b61d680",
+    "delivered_sha256": "8a21704010c5db4ccfa565dfa22479695f1dcbe8e6adf67baaba10e26b61d680",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/WarehouseVisit.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "ec37ab832f9866985dd77a5cc5fd2e8da8c3a6ef8ac7e7e11fccde812f484c47",
+    "delivered_sha256": "ec37ab832f9866985dd77a5cc5fd2e8da8c3a6ef8ac7e7e11fccde812f484c47",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/RoutePlan.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "0d9eb26b6773cb3a86e2e2639fa6ba82e3e4f3e06c486435fca7f4f2361b0eca",
+    "delivered_sha256": "0d9eb26b6773cb3a86e2e2639fa6ba82e3e4f3e06c486435fca7f4f2361b0eca",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/RouteStop.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "2ac63885caca43037217f40801c57680c6a0aa7fb1e4f81265fcb6e6b07d1a4f",
+    "delivered_sha256": "2ac63885caca43037217f40801c57680c6a0aa7fb1e4f81265fcb6e6b07d1a4f",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/RouteProgressProjector.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "474f5240a1f8b23e49e3cdfbbeb9db411a4eb1783812a8e1edca64343b063207",
+    "delivered_sha256": "474f5240a1f8b23e49e3cdfbbeb9db411a4eb1783812a8e1edca64343b063207",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/ScheduledDeliveryRoute.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "c40c31212505391205a4b9a3f322f2bc2a3c4981cd97c4772a1216e66aff6443",
+    "delivered_sha256": "c40c31212505391205a4b9a3f322f2bc2a3c4981cd97c4772a1216e66aff6443",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/ReplanningPlanBuilder.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "8b7aaea8c709f91cac9f4d7e9d4e78d26c7fc77860e6c6fe66b618aeb339f503",
+    "delivered_sha256": "8b7aaea8c709f91cac9f4d7e9d4e78d26c7fc77860e6c6fe66b618aeb339f503",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/ScheduledRouteStop.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "3b0c7a6bcc0a374586f5381e37c45384d4ecc6e9999886908bb7b5ed7fe53e4f",
+    "delivered_sha256": "3b0c7a6bcc0a374586f5381e37c45384d4ecc6e9999886908bb7b5ed7fe53e4f",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/PlanViolationType.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "de50ec58f778c7e61f6cc4ceb73ae85b01cdbce7064506989e13afc6ecdea182",
+    "delivered_sha256": "de50ec58f778c7e61f6cc4ceb73ae85b01cdbce7064506989e13afc6ecdea182",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/VehicleType.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "cacf29e588ecf2a068e588cd515c46e9c188f93cdcc7650cd413db037a8f9cc2",
+    "delivered_sha256": "cacf29e588ecf2a068e588cd515c46e9c188f93cdcc7650cd413db037a8f9cc2",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/Order.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "95284f46976928d6444240963e029fb5990c29fa8bbdbe2d4cbedd52528177cb",
+    "delivered_sha256": "95284f46976928d6444240963e029fb5990c29fa8bbdbe2d4cbedd52528177cb",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/VehicleParameters.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "35ea91cbb71579a15dd8abb24c06ecd9f1fcb8e4e87218a9320a137976aa1fba",
+    "delivered_sha256": "35ea91cbb71579a15dd8abb24c06ecd9f1fcb8e4e87218a9320a137976aa1fba",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/Location.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "6885b0d70a52ce38e125ec1ccef82a8665447a4d6e6fa632eab9e8b9b2021d9b",
+    "delivered_sha256": "6885b0d70a52ce38e125ec1ccef82a8665447a4d6e6fa632eab9e8b9b2021d9b",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/FleetProfile.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "866c4fb40e74817b5e23ccb93ee31c8bfa2e6ade4fa7387d20144fc21fa611cf",
+    "delivered_sha256": "4c1d1026cb4295277365d9439a6778c787698b07aeb18990bfd528b0803ab735",
+    "status": "modified"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/BreakdownEvent.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "9029d9a8cc3f7c5b772db9afb0b7448182588371a56f3662dbb4a95e34ea0a02",
+    "delivered_sha256": "9029d9a8cc3f7c5b772db9afb0b7448182588371a56f3662dbb4a95e34ea0a02",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/VehicleOperationalState.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "7def78dc63d0985a656c5413172b03ac8014eed11c6d0b89d8dc0728d67860cd",
+    "delivered_sha256": "7def78dc63d0985a656c5413172b03ac8014eed11c6d0b89d8dc0728d67860cd",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/BreakdownType.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "2b16fa4c281470929bb5845919ea638c2bb69ec5a61ace364590618d3416473c",
+    "delivered_sha256": "2b16fa4c281470929bb5845919ea638c2bb69ec5a61ace364590618d3416473c",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/VehicleStatus.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "cc911e82641dc9f4f53a0afd7489214ab905cb93f0ba3349ca3ce93fd6f7a7f6",
+    "delivered_sha256": "cc911e82641dc9f4f53a0afd7489214ab905cb93f0ba3349ca3ce93fd6f7a7f6",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/PlanningIterationCoordinator.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "b4ce0982fcc2f131db6bdf29fd1d5d5beb92f96ec163c484b13848318349353d",
+    "delivered_sha256": "b4ce0982fcc2f131db6bdf29fd1d5d5beb92f96ec163c484b13848318349353d",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/TraversalOutcome.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "4a776995719efb472520ba81e6042829389bfa906ff0f34817bf5e005bade215",
+    "delivered_sha256": "4a776995719efb472520ba81e6042829389bfa906ff0f34817bf5e005bade215",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/BreakdownAvailabilityCalculator.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "88ab027427b9b9e7fc114406fb6b816e8354e6b2bc24ab99cc7c675df0c66946",
+    "delivered_sha256": "88ab027427b9b9e7fc114406fb6b816e8354e6b2bc24ab99cc7c675df0c66946",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/Warehouse.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "f6968d1fecf577d66b3ef85a9d8384cb482994b07e001fe5924bbdba6d5036d1",
+    "delivered_sha256": "f6968d1fecf577d66b3ef85a9d8384cb482994b07e001fe5924bbdba6d5036d1",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/Vehicle.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "ee4a2b5c770dd749d9ea2ca4eb8504f8612c223025edd350450c6e166089dcbd",
+    "delivered_sha256": "ee4a2b5c770dd749d9ea2ca4eb8504f8612c223025edd350450c6e166089dcbd",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/RoadNetwork.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "0d0718641c85ef9fa4f916994503d014d87b702a110a5e6c8f1c0cb18ca38723",
+    "delivered_sha256": "af7e3682496f714ea1bb74aade7bc6b284ef3afe6c78de20e2b133ed45f9da6c",
+    "status": "modified"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/MaintenanceDay.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "4f7675f5b04ef7686467e73b6ba7c77f10392fedf68ebe070fb467a96c97b975",
+    "delivered_sha256": "4f7675f5b04ef7686467e73b6ba7c77f10392fedf68ebe070fb467a96c97b975",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/RoadBlock.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "87c61abef6f26e3163e7e15b284f77e345b1cd9b1334d30a9ce68b816343e42f",
+    "delivered_sha256": "87c61abef6f26e3163e7e15b284f77e345b1cd9b1334d30a9ce68b816343e42f",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/RoadLeg.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "2a145f42c5e3afbec78eaf573afa46a1a10e99b1bab396151f0e4ef851848cf9",
+    "delivered_sha256": "2a145f42c5e3afbec78eaf573afa46a1a10e99b1bab396151f0e4ef851848cf9",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/ShiftSchedule.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "1b387ed6700f1d776e63afc5caa5b14d2110a3dce29002a5aa80d3156347be9e",
+    "delivered_sha256": "1b387ed6700f1d776e63afc5caa5b14d2110a3dce29002a5aa80d3156347be9e",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/BreakdownResolution.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "7208e5716922243437f5def9bfc65abd94cd0c779208417d6a26de544d7ace49",
+    "delivered_sha256": "7208e5716922243437f5def9bfc65abd94cd0c779208417d6a26de544d7ace49",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/PaqRapNetwork.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "718383c803a9ad1a3ffd8b7b1a6cd4ade35cb1507d5d9b0c9e01075cc7e79986",
+    "delivered_sha256": "718383c803a9ad1a3ffd8b7b1a6cd4ade35cb1507d5d9b0c9e01075cc7e79986",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/OperationalSnapshot.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "6055e1bee907c01386385511dde254c04d492fc7bfc415b625d89a4d4aa26c02",
+    "delivered_sha256": "93b405ef6fd914e433e83de79ab50c028e556ef0bbeac40277cf4d7e644b7347",
+    "status": "modified"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/StreetSegment.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "efcecd0f2e256a1338542219dcc20fef54c6a42224a665d8e3e51f7ca7796f2b",
+    "delivered_sha256": "efcecd0f2e256a1338542219dcc20fef54c6a42224a665d8e3e51f7ca7796f2b",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/InventorySnapshot.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "88c77aedfdee334c2f2fd965a584d27dea2a95eb1a2fe2ef9d56659988fed5a1",
+    "delivered_sha256": "dfa2ad053cb2dd1e8d30c7af0099eea1a27d20708a662f316e3661d135b6a9e3",
+    "status": "modified"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/MaintenanceCalendar.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "4f7cd8091f58cc1d44a17a116eb5206f9a8934c3ce90749815f3afdf27fb2f82",
+    "delivered_sha256": "4f7cd8091f58cc1d44a17a116eb5206f9a8934c3ce90749815f3afdf27fb2f82",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/RoadPath.java",
+    "source": "GRASP ZIP / dominio",
+    "original_sha256": "12c3c33b17806d4a341a9786d3bf182551fa16b6b1f6f8cf76ef27d5e076f75b",
+    "delivered_sha256": "12c3c33b17806d4a341a9786d3bf182551fa16b6b1f6f8cf76ef27d5e076f75b",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/test/java/pe/edu/pucp/paqrap/planner/route/OperationalPlanEvaluatorLegDistanceTest.java",
+    "source": "GRASP ZIP / tests dominio",
+    "original_sha256": "7382e35205b4fc65bc4e0cb4c0c0be0633a5b710e6a4dad17a46e225fa0d4e4f",
+    "delivered_sha256": "7382e35205b4fc65bc4e0cb4c0c0be0633a5b710e6a4dad17a46e225fa0d4e4f",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/test/java/pe/edu/pucp/paqrap/planner/route/RouteSchedulerRefrigerioTest.java",
+    "source": "GRASP ZIP / tests dominio",
+    "original_sha256": "3b3875cf6487a8791e750ec55007576cc61f0c99f62ff1513375a8e8956c30cd",
+    "delivered_sha256": "3b3875cf6487a8791e750ec55007576cc61f0c99f62ff1513375a8e8956c30cd",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/test/java/pe/edu/pucp/paqrap/planner/domain/RoadNetworkBloqueoTest.java",
+    "source": "GRASP ZIP / tests dominio",
+    "original_sha256": "796757635c1e42d46fe9745fccdff99927cbc1efad6567bee4738ac781b1c5fd",
+    "delivered_sha256": "796757635c1e42d46fe9745fccdff99927cbc1efad6567bee4738ac781b1c5fd",
+    "status": "unchanged"
+  },
+  {
+    "file": "sa/src/main/java/pe/edu/pucp/paqrap/planner/sa/AnnealingConfig.java",
+    "source": "SA ZIP / sa",
+    "original_sha256": "8661752addd1b35c761626370464b593d71cfd109fe08058770fd75299995464",
+    "delivered_sha256": "8661752addd1b35c761626370464b593d71cfd109fe08058770fd75299995464",
+    "status": "unchanged"
+  },
+  {
+    "file": "sa/src/main/java/pe/edu/pucp/paqrap/planner/sa/OperationalAnnealingResult.java",
+    "source": "SA ZIP / sa",
+    "original_sha256": "f504a5639a04e379d1c1ac3bb90f6f8d02a26a22de6ca14700c2428838c171e1",
+    "delivered_sha256": "f504a5639a04e379d1c1ac3bb90f6f8d02a26a22de6ca14700c2428838c171e1",
+    "status": "unchanged"
+  },
+  {
+    "file": "sa/src/main/java/pe/edu/pucp/paqrap/planner/sa/OperationalNeighborGenerator.java",
+    "source": "SA ZIP / sa",
+    "original_sha256": "f954bc10a72f725bbf1774a70e3fccdf47195de724ae9f306b524b702cf5e3c9",
+    "delivered_sha256": "f954bc10a72f725bbf1774a70e3fccdf47195de724ae9f306b524b702cf5e3c9",
+    "status": "unchanged"
+  },
+  {
+    "file": "sa/src/main/java/pe/edu/pucp/paqrap/planner/sa/OperationalRouteNeighborGenerator.java",
+    "source": "SA ZIP / sa",
+    "original_sha256": "f65f03618db1ca06f6c5bb294b1e977cf07c67ddfbb8de5096b2699764d95b02",
+    "delivered_sha256": "f65f03618db1ca06f6c5bb294b1e977cf07c67ddfbb8de5096b2699764d95b02",
+    "status": "unchanged"
+  },
+  {
+    "file": "sa/src/main/java/pe/edu/pucp/paqrap/planner/sa/OperationalSimulatedAnnealingPlanner.java",
+    "source": "SA ZIP / sa",
+    "original_sha256": "7a7dd2a2d4156a80541ad5e2105abf3e42fd382174196c77e770b10df8f533fe",
+    "delivered_sha256": "1467ade01692ef329615b01a64e586b04c310d32047401a6d3017447255c2939",
+    "status": "modified"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/pucp/paqrap/reportes/ValidadorUtilizacionFlota.java",
+    "source": "GRASP ZIP / cargadores y reporte",
+    "original_sha256": "977197413a55929431e7ceb6961cd3fb7b5ff5f4375307169f0ce52929a50b21",
+    "delivered_sha256": "977197413a55929431e7ceb6961cd3fb7b5ff5f4375307169f0ce52929a50b21",
+    "status": "unchanged"
+  },
+  {
+    "file": "grasp/src/main/java/pe/pucp/paqrap/planificador/GraspPlanificador.java",
+    "source": "GRASP ZIP / algoritmo",
+    "original_sha256": "d839cd4afa48b3afb2d7b4fc0d35b296f1d374a3d924c5fbae6bd054339a0efd",
+    "delivered_sha256": "e8430cb37fc3e2edcbe2f8ceb186fb52d35364d8887c91cad167fdeceba7c6c1",
+    "status": "modified"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/pucp/paqrap/modelo/CargadorBloqueos.java",
+    "source": "GRASP ZIP / cargadores y reporte",
+    "original_sha256": "730d53e78c33950921b6e90184b46cddf272767ae77a473232213a597fa56e35",
+    "delivered_sha256": "730d53e78c33950921b6e90184b46cddf272767ae77a473232213a597fa56e35",
+    "status": "unchanged"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/pucp/paqrap/modelo/CargadorMantenimiento.java",
+    "source": "GRASP ZIP / cargadores y reporte",
+    "original_sha256": "20002c8680a0dc7519f91c77ebd151e3923ab56405c5f188dffc3b31e2161152",
+    "delivered_sha256": "20002c8680a0dc7519f91c77ebd151e3923ab56405c5f188dffc3b31e2161152",
+    "status": "unchanged"
+  },
+  {
+    "file": "grasp/src/main/java/pe/pucp/paqrap/modelo/ResultadoPlanificacion.java",
+    "source": "GRASP ZIP / algoritmo",
+    "original_sha256": "08ca20a1abe4bd239f7a6fc8d38fed6ec28b98423e89634abf0fe31e56728b35",
+    "delivered_sha256": "08ca20a1abe4bd239f7a6fc8d38fed6ec28b98423e89634abf0fe31e56728b35",
+    "status": "unchanged"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/pucp/paqrap/modelo/InicializadorFlota.java",
+    "source": "GRASP ZIP / cargadores y reporte",
+    "original_sha256": "2961beb3b2e805b08f758fb1e91712f284d05293fde1d0a6c739ddbfd510641e",
+    "delivered_sha256": "2961beb3b2e805b08f758fb1e91712f284d05293fde1d0a6c739ddbfd510641e",
+    "status": "unchanged"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/pucp/paqrap/modelo/CargadorParametros.java",
+    "source": "GRASP ZIP / cargadores y reporte",
+    "original_sha256": "b1c6c8482b868f5ab7112510ebe5662b665f5238b4194f0d9328395c272bf27f",
+    "delivered_sha256": "b1c6c8482b868f5ab7112510ebe5662b665f5238b4194f0d9328395c272bf27f",
+    "status": "unchanged"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/pucp/paqrap/modelo/CargadorPedidos.java",
+    "source": "GRASP ZIP / cargadores y reporte",
+    "original_sha256": "8b6e2e2dae3fadcea9f9420add09e02c6e0ee36f1b45abae6149dfab96847720",
+    "delivered_sha256": "8b6e2e2dae3fadcea9f9420add09e02c6e0ee36f1b45abae6149dfab96847720",
+    "status": "unchanged"
+  },
+  {
+    "file": "sa/src/test/java/pe/edu/pucp/paqrap/planner/sa/OperationalSimulatedAnnealingSmokeTest.java",
+    "source": "SA ZIP / test operativo",
+    "original_sha256": "bb2d444e7072f467555237f32193cb99cd9d93413ebb28c04f57fd2da9fe1fb2",
+    "delivered_sha256": "bb2d444e7072f467555237f32193cb99cd9d93413ebb28c04f57fd2da9fe1fb2",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/test/java/pe/edu/pucp/paqrap/planner/route/OperationalPlanEvaluatorSmokeTest.java",
+    "source": "SA ZIP / tests dominio",
+    "original_sha256": "25cfa8a4205519bfe99eb3325c155b0d124385cfef49c69b19810b3acb8d9107",
+    "delivered_sha256": "25cfa8a4205519bfe99eb3325c155b0d124385cfef49c69b19810b3acb8d9107",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/test/java/pe/edu/pucp/paqrap/planner/route/DeliveryRouteSmokeTest.java",
+    "source": "SA ZIP / tests dominio",
+    "original_sha256": "114eaeca18785f83e9910140d6a45882f4a6b80cba374bf1ef93f0fa79d0be58",
+    "delivered_sha256": "114eaeca18785f83e9910140d6a45882f4a6b80cba374bf1ef93f0fa79d0be58",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/test/java/pe/edu/pucp/paqrap/planner/domain/RoadNetworkSmokeTest.java",
+    "source": "SA ZIP / tests dominio",
+    "original_sha256": "cd7396787d9dd98e8a0f4db3dffd01c2a7437f636cc4411d6f6d775bca381191",
+    "delivered_sha256": "cd7396787d9dd98e8a0f4db3dffd01c2a7437f636cc4411d6f6d775bca381191",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/test/java/pe/edu/pucp/paqrap/planner/domain/DomainRulesSmokeTest.java",
+    "source": "SA ZIP / tests dominio",
+    "original_sha256": "82fb5a4e07fbaf15e646e446e146e6407b31c46ddac639e9b04372536663d5dd",
+    "delivered_sha256": "82fb5a4e07fbaf15e646e446e146e6407b31c46ddac639e9b04372536663d5dd",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/test/java/pe/edu/pucp/paqrap/planner/domain/OperationalSnapshotSmokeTest.java",
+    "source": "SA ZIP / tests dominio",
+    "original_sha256": "03d601b7ecabf6aea4fa638c28f8a10f36a439fd607c49f0a44a05cae0d463c9",
+    "delivered_sha256": "03d601b7ecabf6aea4fa638c28f8a10f36a439fd607c49f0a44a05cae0d463c9",
+    "status": "unchanged"
+  },
+  {
+    "file": "grasp/src/test/java/pe/pucp/paqrap/planificador/GraspPlanificadorTest.java",
+    "source": "GRASP ZIP / tests",
+    "original_sha256": "f6117b1bed47b74e9dfbd91ffe8c5d6ca5c62ce6dc3ec862cb6044b4bdc9d96d",
+    "delivered_sha256": "f6117b1bed47b74e9dfbd91ffe8c5d6ca5c62ce6dc3ec862cb6044b4bdc9d96d",
+    "status": "unchanged"
+  },
+  {
+    "file": "grasp/src/test/java/pe/pucp/paqrap/modelo/InicializadorFlota.java",
+    "source": "GRASP ZIP / fixture de test",
+    "original_sha256": "2961beb3b2e805b08f758fb1e91712f284d05293fde1d0a6c739ddbfd510641e",
+    "delivered_sha256": "2961beb3b2e805b08f758fb1e91712f284d05293fde1d0a6c739ddbfd510641e",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/mant.preventivo.09.10.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "72589c0946614a8e2cb0740eedbdbe96b863953458d3c7e45c75ac41c8d8a8b0",
+    "delivered_sha256": "72589c0946614a8e2cb0740eedbdbe96b863953458d3c7e45c75ac41c8d8a8b0",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2702.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "663cd07243a5a5c259ae47978b3ab4eb64a05453024745002de2c19248bab0d6",
+    "delivered_sha256": "663cd07243a5a5c259ae47978b3ab4eb64a05453024745002de2c19248bab0d6",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2605.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "932e1c3c597f0c8702f374f80536d4b418a8a8712142f7318986a7f76e3c2357",
+    "delivered_sha256": "932e1c3c597f0c8702f374f80536d4b418a8a8712142f7318986a7f76e3c2357",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2704.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "90052bdeed39129dd09bf86e81514854d95fa26453a5a73ed6219059507bb38c",
+    "delivered_sha256": "90052bdeed39129dd09bf86e81514854d95fa26453a5a73ed6219059507bb38c",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2712.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "9bde3b2ae19b4697cfc3f62c5dbe169a505f9238a05298ca5d688b4bf339745f",
+    "delivered_sha256": "9bde3b2ae19b4697cfc3f62c5dbe169a505f9238a05298ca5d688b4bf339745f",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2607.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "05139f070769d4d88c7c79ca11ff5a58776ea7b166747cd0b6b054ce4492e8a0",
+    "delivered_sha256": "05139f070769d4d88c7c79ca11ff5a58776ea7b166747cd0b6b054ce4492e8a0",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2709.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "5cb23e72ab00a4a50a5d069feba170140730c787bd9ec8835f7df279c6bd3b37",
+    "delivered_sha256": "5cb23e72ab00a4a50a5d069feba170140730c787bd9ec8835f7df279c6bd3b37",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2606.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "11b5471e3f9d1e2f28a5cb13e5f27c464b0d94097415cc32604d7816cc2c8f39",
+    "delivered_sha256": "11b5471e3f9d1e2f28a5cb13e5f27c464b0d94097415cc32604d7816cc2c8f39",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2806.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "b1e9ee8e453c6f7c1045e71a866a0696e25aee2908a82b200a11f88a0b54afb0",
+    "delivered_sha256": "b1e9ee8e453c6f7c1045e71a866a0696e25aee2908a82b200a11f88a0b54afb0",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2602.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "18214e840967d95d9fe9197c2cae1ca029298d8f1ac9014cf1b8fcb979d10f53",
+    "delivered_sha256": "18214e840967d95d9fe9197c2cae1ca029298d8f1ac9014cf1b8fcb979d10f53",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2603.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "262e2db91f7caf102c6d87f39d7e873836ba833862ba1ab914183178fe03adc5",
+    "delivered_sha256": "262e2db91f7caf102c6d87f39d7e873836ba833862ba1ab914183178fe03adc5",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2809.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "835508b9c292d9d1ad47baa05be107da9c1c5490cb40214da302ad831d41041e",
+    "delivered_sha256": "835508b9c292d9d1ad47baa05be107da9c1c5490cb40214da302ad831d41041e",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2612.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "71207ad02f8079af1ee5b8be516822a539e604275d6350c6ad5c1eaf184d9901",
+    "delivered_sha256": "71207ad02f8079af1ee5b8be516822a539e604275d6350c6ad5c1eaf184d9901",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2711.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "46b3cc766a3c3404c7e3972b553bcc7e2865d0df21e5d45df60a89ac3e20a553",
+    "delivered_sha256": "46b3cc766a3c3404c7e3972b553bcc7e2865d0df21e5d45df60a89ac3e20a553",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2609.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "3482bfeb5fe837a69d7ddfc670634cd3cc7969c9d9c710fdd467de3373d01a9d",
+    "delivered_sha256": "3482bfeb5fe837a69d7ddfc670634cd3cc7969c9d9c710fdd467de3373d01a9d",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2812.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "679b35a33bccefdb2488b32fa09199141adf1ff1c0d9a547844740fe3f484f88",
+    "delivered_sha256": "679b35a33bccefdb2488b32fa09199141adf1ff1c0d9a547844740fe3f484f88",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2706.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "9dd1c25fe23fafbc23349bf26e8b9c4e83532723e4cb4d34d9a6c2c5e4e53a83",
+    "delivered_sha256": "9dd1c25fe23fafbc23349bf26e8b9c4e83532723e4cb4d34d9a6c2c5e4e53a83",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2701.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "896c748b0dcc6371a40e8df504f78ae562b558fee86ce41db7a73500d16a6d23",
+    "delivered_sha256": "896c748b0dcc6371a40e8df504f78ae562b558fee86ce41db7a73500d16a6d23",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2601.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "45462e0c55242007d58127722c9d65275917a538af8b036a17a30aaf914feb21",
+    "delivered_sha256": "45462e0c55242007d58127722c9d65275917a538af8b036a17a30aaf914feb21",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2803.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "8b79b8996a46ecdd7fa30c425d79b1800d29c2a546bc4efe5a4a07b753bb4cc9",
+    "delivered_sha256": "8b79b8996a46ecdd7fa30c425d79b1800d29c2a546bc4efe5a4a07b753bb4cc9",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2807.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "567f5a5f3902b053b74997bf360520c18b9454ee8f9eada4f0e7372c60bbc4c0",
+    "delivered_sha256": "567f5a5f3902b053b74997bf360520c18b9454ee8f9eada4f0e7372c60bbc4c0",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2610.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "0cbc7d3c9f933b1500e74ab17f9d79656307156daaf3994e636874bcca5565d2",
+    "delivered_sha256": "0cbc7d3c9f933b1500e74ab17f9d79656307156daaf3994e636874bcca5565d2",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2802.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "1c31fedc362c6a68603a14ff1432e7a3f8bbf74fbc5c3ec294f4877ad8628638",
+    "delivered_sha256": "1c31fedc362c6a68603a14ff1432e7a3f8bbf74fbc5c3ec294f4877ad8628638",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2710.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "71fad330b53b5fde0cc8de5e9e9b78e1dbf5dcfd30a5367a889f8179915a3f64",
+    "delivered_sha256": "71fad330b53b5fde0cc8de5e9e9b78e1dbf5dcfd30a5367a889f8179915a3f64",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2808.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "7da1599808ad12d59801cd78ee70432daec2d055a69bd9760c78c4169a5dc2be",
+    "delivered_sha256": "7da1599808ad12d59801cd78ee70432daec2d055a69bd9760c78c4169a5dc2be",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2703.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "af63b0fb74239d3be4575a0493a71d5cf256352a4bd611ef18cb574cd4acbfda",
+    "delivered_sha256": "af63b0fb74239d3be4575a0493a71d5cf256352a4bd611ef18cb574cd4acbfda",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2804.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "0b72a7bd4a691cc563bda5c053a9e5cce44d30b3c01719d4da907a2d463e3635",
+    "delivered_sha256": "0b72a7bd4a691cc563bda5c053a9e5cce44d30b3c01719d4da907a2d463e3635",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2608.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "c48e932df7421d98067fc95be52c4fb7ea54f21eb69b0fd8a6965881a254a32b",
+    "delivered_sha256": "c48e932df7421d98067fc95be52c4fb7ea54f21eb69b0fd8a6965881a254a32b",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2805.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "c3a16bb0e79b25cb80f2294125aa046265f6c2c91b3d7a4b65b510afde4f2de7",
+    "delivered_sha256": "c3a16bb0e79b25cb80f2294125aa046265f6c2c91b3d7a4b65b510afde4f2de7",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2707.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "476bc177a7068b130927320776a17488bdd69f480e9cf082515a1e7df65144c0",
+    "delivered_sha256": "476bc177a7068b130927320776a17488bdd69f480e9cf082515a1e7df65144c0",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2604.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "5962bc1e2a53af6df069b52e67d2e704b6fb01d2ee58daa0322bcdceb6fa62db",
+    "delivered_sha256": "5962bc1e2a53af6df069b52e67d2e704b6fb01d2ee58daa0322bcdceb6fa62db",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2810.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "4fee7ff46fad34edd6192a07791a192de9467687c1f830723d6a7737488d4fa0",
+    "delivered_sha256": "4fee7ff46fad34edd6192a07791a192de9467687c1f830723d6a7737488d4fa0",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2811.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "9d864138219f23ffaeeba259ab3648626868bb50382105df42afb8a94df68fd4",
+    "delivered_sha256": "9d864138219f23ffaeeba259ab3648626868bb50382105df42afb8a94df68fd4",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2801.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "8c6e0b13f81e962f64f8fabab5879093007ab8cf5b5e39123b9a4f628363a137",
+    "delivered_sha256": "8c6e0b13f81e962f64f8fabab5879093007ab8cf5b5e39123b9a4f628363a137",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2708.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "31173b019f04d9748802d971200c27a62ace00922dd46657ef72514394f1c8af",
+    "delivered_sha256": "31173b019f04d9748802d971200c27a62ace00922dd46657ef72514394f1c8af",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2611.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "613ac3f8f403ec7b9b72a1b06cacadd73d3d52de6763f9f2c697daadc578e1cc",
+    "delivered_sha256": "613ac3f8f403ec7b9b72a1b06cacadd73d3d52de6763f9f2c697daadc578e1cc",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/bloqueos/bloqueo.2705.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "cd547065411a055e96da83a93a88188fbcd1b4c51cbbb67308093cee33b3749a",
+    "delivered_sha256": "cd547065411a055e96da83a93a88188fbcd1b4c51cbbb67308093cee33b3749a",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202610.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "7303a1c8c287430199e5cd8926c8f46c389dd27edad2d7e829bf71b15425099b",
+    "delivered_sha256": "7303a1c8c287430199e5cd8926c8f46c389dd27edad2d7e829bf71b15425099b",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202605.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "9b3c2424678f8c838fd1c3d00600fb44d751fc1e019396680de4f3ed0d35fe1c",
+    "delivered_sha256": "9b3c2424678f8c838fd1c3d00600fb44d751fc1e019396680de4f3ed0d35fe1c",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202607.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "ea76ee53a6bfbed5d1c6559f0390e20cc1d0d22bd6bf1fcb94c97de9e41cddde",
+    "delivered_sha256": "ea76ee53a6bfbed5d1c6559f0390e20cc1d0d22bd6bf1fcb94c97de9e41cddde",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202609.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "5c6bf9c1c17ab54a227a34ab502d43ef1d864a40647d7df3b8ebe9ae8b18fcca",
+    "delivered_sha256": "5c6bf9c1c17ab54a227a34ab502d43ef1d864a40647d7df3b8ebe9ae8b18fcca",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202703.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "08b2e840be0fc5e194ca49901f611363b8eebea2eec1aeb4ded26e57d052febe",
+    "delivered_sha256": "08b2e840be0fc5e194ca49901f611363b8eebea2eec1aeb4ded26e57d052febe",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202601.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "96e7340ff953e9afad8bbfb31c27019b0b48ef8750d4e5fa9526bfb4f21f7462",
+    "delivered_sha256": "96e7340ff953e9afad8bbfb31c27019b0b48ef8750d4e5fa9526bfb4f21f7462",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202802.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "003217b86a4be2651402417e0ac82bc86bab8d69b9b532c98645ca169ff48fd9",
+    "delivered_sha256": "003217b86a4be2651402417e0ac82bc86bab8d69b9b532c98645ca169ff48fd9",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202811.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "a837f49cb1a8c3103a7ab06e4b967d96a478423252a9c50fb547c53b2347a84a",
+    "delivered_sha256": "a837f49cb1a8c3103a7ab06e4b967d96a478423252a9c50fb547c53b2347a84a",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202810.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "15e0287eaa9bfcd9b890f79b9d172a0a6bc69d8bf6e11965d8bc3e7a40444ee9",
+    "delivered_sha256": "15e0287eaa9bfcd9b890f79b9d172a0a6bc69d8bf6e11965d8bc3e7a40444ee9",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202709.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "feb875147cb8800686a20ab3c26891efee30e34ba26a72aecf53d23dd6f5c79c",
+    "delivered_sha256": "feb875147cb8800686a20ab3c26891efee30e34ba26a72aecf53d23dd6f5c79c",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202711.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "b4123828aa8ed65c96ab2618860ae6dc998e4499759b9caf43191e4b9fc45777",
+    "delivered_sha256": "b4123828aa8ed65c96ab2618860ae6dc998e4499759b9caf43191e4b9fc45777",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202806.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "e674ff0381366266d474bf06ada308684fa00a900964a7b375314d4f694a9dac",
+    "delivered_sha256": "e674ff0381366266d474bf06ada308684fa00a900964a7b375314d4f694a9dac",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202803.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "e5035e489274ec0378703e4f9caeb638728b316d406c07d387914d388888dfc7",
+    "delivered_sha256": "e5035e489274ec0378703e4f9caeb638728b316d406c07d387914d388888dfc7",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202710.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "77b8e5e7c673ea0192464d327b59d1e0ece674125be75c052a2ef852d01c1c16",
+    "delivered_sha256": "77b8e5e7c673ea0192464d327b59d1e0ece674125be75c052a2ef852d01c1c16",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202809.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "ac19b5e51c1956be59ea396bf70c22b4feb6e2a62d13e296a745579ac67e0e7c",
+    "delivered_sha256": "ac19b5e51c1956be59ea396bf70c22b4feb6e2a62d13e296a745579ac67e0e7c",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202612.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "faa053d8a96b769d6d581fa9d20daae28ad12c5b37536d525075d840c7baa799",
+    "delivered_sha256": "faa053d8a96b769d6d581fa9d20daae28ad12c5b37536d525075d840c7baa799",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202812.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "9e7e7f43dc808f98e40b6f5600ea90dc3ce6ce7532803a1f484f23319e56786c",
+    "delivered_sha256": "9e7e7f43dc808f98e40b6f5600ea90dc3ce6ce7532803a1f484f23319e56786c",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202801.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "41939f3767d87b97aeac15c9d4834e6086d563e81d585d6303fb72f4b58c195a",
+    "delivered_sha256": "41939f3767d87b97aeac15c9d4834e6086d563e81d585d6303fb72f4b58c195a",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202602.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "75e75d0ac3ed9cc705d957fb1c62302d28b0b5a2fba2591fc72752ebe910f9c3",
+    "delivered_sha256": "75e75d0ac3ed9cc705d957fb1c62302d28b0b5a2fba2591fc72752ebe910f9c3",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202606.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "8777e825e10eb9725d0a3c629bf22a8144e9ffb0373bdd31d192efa1511302aa",
+    "delivered_sha256": "8777e825e10eb9725d0a3c629bf22a8144e9ffb0373bdd31d192efa1511302aa",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202603.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "091ca017aaa028aa3f8898a122cef7cd35d709facf6f8b0728a0b30fe8b61b39",
+    "delivered_sha256": "091ca017aaa028aa3f8898a122cef7cd35d709facf6f8b0728a0b30fe8b61b39",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202805.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "5e74aa7158511ff7a92e4a7435f749ff6653fc1e75524ab09711aeeff3449f3a",
+    "delivered_sha256": "5e74aa7158511ff7a92e4a7435f749ff6653fc1e75524ab09711aeeff3449f3a",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202807.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "74042785aae6cca3a1a4e63d12cd0a1d7be0c9f33c786f48455d258e1018b02c",
+    "delivered_sha256": "74042785aae6cca3a1a4e63d12cd0a1d7be0c9f33c786f48455d258e1018b02c",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202604.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "db17ff9856404a3f69c651b3f568d76563d01c9eab04b210b9133d8baddf78f2",
+    "delivered_sha256": "db17ff9856404a3f69c651b3f568d76563d01c9eab04b210b9133d8baddf78f2",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202712.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "47e02942b21cc057edfb064be7c67b0a3eee37499e0ad21a56f97da525756cdb",
+    "delivered_sha256": "47e02942b21cc057edfb064be7c67b0a3eee37499e0ad21a56f97da525756cdb",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202707.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "3be002fb035bddffb363b06a93965e79e7359bff4947abc13d7e28ece2965819",
+    "delivered_sha256": "3be002fb035bddffb363b06a93965e79e7359bff4947abc13d7e28ece2965819",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202705.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "3b56f97a4f94acef27645524d259042079df0415a56d8bd5aa26fce9034ed728",
+    "delivered_sha256": "3b56f97a4f94acef27645524d259042079df0415a56d8bd5aa26fce9034ed728",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202608.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "cdb3d9cc1d0d78c5db43b1b4b79eb2fd34d0a9156b4afb381561a81846004fac",
+    "delivered_sha256": "cdb3d9cc1d0d78c5db43b1b4b79eb2fd34d0a9156b4afb381561a81846004fac",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202701.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "83bd7bb2423a5df398f62e9878f3b8f9648e122613a02becfe274f2c99a430ac",
+    "delivered_sha256": "83bd7bb2423a5df398f62e9878f3b8f9648e122613a02becfe274f2c99a430ac",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202704.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "04dbb0b2e27c8e5b76bcc851d14f9c0bb7660411ae4b5a5f8d51c8aa5010a00e",
+    "delivered_sha256": "04dbb0b2e27c8e5b76bcc851d14f9c0bb7660411ae4b5a5f8d51c8aa5010a00e",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202706.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "f97dcae56c92ced70e2858354363a90dee27a6a629de8644769f21b3ac3a1abe",
+    "delivered_sha256": "f97dcae56c92ced70e2858354363a90dee27a6a629de8644769f21b3ac3a1abe",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202702.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "d7e38bcac44fdc6f07250d3f42dbe46b2354130f9a3aac3346dfd2137e1e7971",
+    "delivered_sha256": "d7e38bcac44fdc6f07250d3f42dbe46b2354130f9a3aac3346dfd2137e1e7971",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202708.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "b6580518f17e6bc5a0ddc52627e93cd353f128ae1892c9d05072b29d20c7d51e",
+    "delivered_sha256": "b6580518f17e6bc5a0ddc52627e93cd353f128ae1892c9d05072b29d20c7d51e",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202611.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "5f493b9743823d9d84e2236a64a6b08ecdcac6a44fe866066dfa8c2d3989745f",
+    "delivered_sha256": "5f493b9743823d9d84e2236a64a6b08ecdcac6a44fe866066dfa8c2d3989745f",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202804.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "431f1bc6aa89018aa01195984d4074b13dd2a979151197e16f083ad11dfdcc1f",
+    "delivered_sha256": "431f1bc6aa89018aa01195984d4074b13dd2a979151197e16f083ad11dfdcc1f",
+    "status": "unchanged"
+  },
+  {
+    "file": "data/ventas/ventas.202808.txt",
+    "source": "GRASP ZIP / datos proporcionados",
+    "original_sha256": "a69316e3fd0a8452113b863ff2093f99a63ede2f3f51174ffe9ae9ed76b3bb27",
+    "delivered_sha256": "a69316e3fd0a8452113b863ff2093f99a63ede2f3f51174ffe9ae9ed76b3bb27",
+    "status": "unchanged"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/search/SearchControl.java",
+    "source": "New experimental harness or regression test",
+    "status": "added",
+    "delivered_sha256": "88ad5b2a89b275165347c74009c8255440d2b3252bf2760a4f3ffc10e8309df4"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/search/SearchStopped.java",
+    "source": "New experimental harness or regression test",
+    "status": "added",
+    "delivered_sha256": "ba1d8c96d0e1650e88756fca406f3cb8e6c0f752111f2a239ff92143c75df6cb"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/AlgorithmOutput.java",
+    "source": "New experimental harness or regression test",
+    "status": "added",
+    "delivered_sha256": "0ce9a0a913100199132e6616af1d9586449205d51855d98e62629e1ebb3b766e"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/CommonAudit.java",
+    "source": "New experimental harness or regression test",
+    "status": "added",
+    "delivered_sha256": "0f99b946893366c72f6bc3013ecf9939a7ce995c9029c53261bf4b4f3ec90cec"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/Csv.java",
+    "source": "New experimental harness or regression test",
+    "status": "added",
+    "delivered_sha256": "3c039c7831df8a13bb908f1694b118c552d5251bb01f23aeb38c44afeb4e9b24"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/ExperimentConfig.java",
+    "source": "New experimental harness or regression test",
+    "status": "added",
+    "delivered_sha256": "0a6e67ffac41d0c3ab39cb7995ae6d8700de50c43a2d4dc72116fcc861fc3059"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/ExperimentMain.java",
+    "source": "New experimental harness or regression test",
+    "status": "added",
+    "delivered_sha256": "82c4c3ebd45ff5f6560c66ce370e385b39c60d20a8a5741c56e7f27d85533390"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/GraspAdapter.java",
+    "source": "New experimental harness or regression test",
+    "status": "added",
+    "delivered_sha256": "49183917b376f3db75e749bd88b281fcb014445d8b498cda5aad1a09a89dc73f"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/HtmlReport.java",
+    "source": "New experimental harness or regression test",
+    "status": "added",
+    "delivered_sha256": "4107e79a80ea4f821c8e47d89e13fc9531dbf8c2aea28d3c8a9dc3fa5459e9cf"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/InstanceFactory.java",
+    "source": "New experimental harness or regression test",
+    "status": "added",
+    "delivered_sha256": "a643bcb370fe27649c719b246f6134a4c39314dc3224a64f050b813e83d46e96"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/Json.java",
+    "source": "New experimental harness or regression test",
+    "status": "added",
+    "delivered_sha256": "1c780e46e833bd5584e4edff7a8182ebfff0a3789e7c7199cd3e873706922611"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/ProblemInstance.java",
+    "source": "New experimental harness or regression test",
+    "status": "added",
+    "delivered_sha256": "ad731fe909f4fd551894623d566a0cb36917c6cf7e1674daca2d8bff76b46a39"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/SaAdapter.java",
+    "source": "New experimental harness or regression test",
+    "status": "added",
+    "delivered_sha256": "77e6602658f7a68dce58bb524e11479a2c3ab4e12a4a8bc996715e282428eace"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/ScenarioSpec.java",
+    "source": "New experimental harness or regression test",
+    "status": "added",
+    "delivered_sha256": "a72661e6250584702d5a0986ddf9e78ed0cc9eb90c1845644b1e3db9d1069410"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/TrialMain.java",
+    "source": "New experimental harness or regression test",
+    "status": "added",
+    "delivered_sha256": "9fb4ceb0288a4fd19d72010ee66d618667c59ae3c82fda324ef350f9b2f334bc"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/UnifiedPlanner.java",
+    "source": "New experimental harness or regression test",
+    "status": "added",
+    "delivered_sha256": "badabd3123864c171477afe920491e62e52edec64d256fa6c1075a1426a36d0e"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/VerificationMain.java",
+    "source": "New experimental harness or regression test",
+    "status": "added",
+    "delivered_sha256": "01d8cc27eec45bc9245d990010514e0a7faae765010b0dcfa71827611f30d145"
+  },
+  {
+    "file": "experimentos/src/test/java/pe/edu/pucp/paqrap/experiment/ExperimentRegressionTest.java",
+    "source": "New experimental harness or regression test",
+    "status": "added",
+    "delivered_sha256": "1dc466cd89e67f177f425e31047a83ab5f94ef2bad8d5c4cb45ddcf46102677d"
+  }
+]

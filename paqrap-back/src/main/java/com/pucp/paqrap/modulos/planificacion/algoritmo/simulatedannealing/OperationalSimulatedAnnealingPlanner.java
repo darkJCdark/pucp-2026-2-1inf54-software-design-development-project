@@ -30,14 +30,14 @@ public final class OperationalSimulatedAnnealingPlanner {
         this.initialPlanBuilder = new InitialPlanBuilder(evaluator);
     }
 
-    /** Public backend result: the same type returned by GRASP. */
+    
     public ResultadoPlanificacion planificar(OperationalSnapshot snapshot, Collection<Order> orders,
                                              List<RoadBlock> blocks, AnnealingConfig config,
                                              RandomGenerator random) {
         return ejecutar(snapshot, orders, blocks, config, random).resultado();
     }
 
-    /** Package-private metrics support deterministic tests without exposing a second backend result. */
+    
     Ejecucion ejecutar(OperationalSnapshot snapshot, Collection<Order> orders, List<RoadBlock> blocks,
                        AnnealingConfig config, RandomGenerator random) {
         Objects.requireNonNull(snapshot, "snapshot is required");

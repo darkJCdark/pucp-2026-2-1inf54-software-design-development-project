@@ -1,0 +1,11 @@
+build/
+**/target/
+results/
+*.log
+.idea/
+.vscode/
+.env
+__pycache__/
+.venv/
+node_modules/
+.m2/

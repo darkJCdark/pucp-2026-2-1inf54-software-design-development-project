@@ -1,0 +1,5 @@
+# Optional only. Java experiment and CSV/HTML report do NOT need Python packages.
+# Versions used to verify the optional analysis in the delivered environment.
+numpy==2.3.5
+scipy==1.17.0
+matplotlib==3.10.8

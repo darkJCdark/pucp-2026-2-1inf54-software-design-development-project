@@ -1,0 +1,15 @@
+{
+  "runs": 16,
+  "paired_runs": 8,
+  "independent_instance_labels": 4,
+  "warnings": [
+    "Las semillas son repeticiones dentro de instancia; no se tratan como instancias independientes.",
+    "La factibilidad se compara con todas las corridas, incluidos los fallos. El costo se compara solo en parejas factibles.",
+    "La inferencia de costo (opcional) usa SOLO instancias con todas sus repeticiones factibles en ambos algoritmos; su alcance es condicional a ese subconjunto.",
+    "No se demuestra imposibilidad ni optimalidad. No extrapolar esta muestra a los tres escenarios operativos completos.",
+    "Las medias de costo por algoritmo sobre sus propios éxitos pueden usar muestras distintas: NO elegir ganador con ellas.",
+    "La independencia entre días reales no está garantizada. La inferencia es exploratoria para el conjunto de instancias definido."
+  ],
+  "statistics_requested": false,
+  "tests": []
+}
