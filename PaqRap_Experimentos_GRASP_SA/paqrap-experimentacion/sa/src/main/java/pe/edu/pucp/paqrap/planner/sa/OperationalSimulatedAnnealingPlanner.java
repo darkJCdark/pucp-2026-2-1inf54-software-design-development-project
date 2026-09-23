@@ -39,8 +39,10 @@ public final class OperationalSimulatedAnnealingPlanner {
         OperationalPlan current = initial;
         OperationalPlan best = initial;
         PlanEvaluation bestEvaluation = currentEvaluation;
+        double initialCost = currentEvaluation.totalCost();
         double temperature = config.initialTemperature();
         int iterations = 0;
+        int evaluated = 0;
         int accepted = 0;
         int withoutImprovement = 0;
 
@@ -59,6 +61,7 @@ public final class OperationalSimulatedAnnealingPlanner {
                     continue;
                 }
                 PlanEvaluation candidateEvaluation = evaluator.evaluate(candidate.get(), snapshot, requiredOrders, blocks);
+                evaluated++;
                 if (!candidateEvaluation.isFeasible()) {
                     SearchControl.invalidNeighbor();
                     continue;
@@ -84,6 +87,7 @@ public final class OperationalSimulatedAnnealingPlanner {
         } catch (SearchStopped exhausted) {
             // Return the best feasible plan completed before the deadline.
         }
-        return new OperationalAnnealingResult(best, bestEvaluation, iterations, accepted);
+        return new OperationalAnnealingResult(best, bestEvaluation, initialCost, iterations,
+                evaluated, accepted, temperature);
     }
 }

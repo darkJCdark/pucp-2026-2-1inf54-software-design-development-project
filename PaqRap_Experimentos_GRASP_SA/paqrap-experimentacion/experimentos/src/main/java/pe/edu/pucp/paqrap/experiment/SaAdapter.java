@@ -10,7 +10,7 @@ import java.util.Random;
 /** Includes SA's ORIGINAL deterministic initializer in the measured run; never seeds it with GRASP. */
 public final class SaAdapter implements UnifiedPlanner {
     @Override public String name(){return "SA";}
-    @Override public String version(){return "SA-Operational (algoritmo sin cambios; dominio compartido 2026-09-23)";}
+    @Override public String version(){return "SA-operational-v1.1 + shared-domain-v2 (metricas; 2026-09-23)";}
     @Override public AlgorithmOutput solve(ProblemInstance p,ExperimentConfig c,long seed){
         RouteScheduler scheduler=new RouteScheduler(new RoadNetwork());
         OperationalPlanEvaluator evaluator=new OperationalPlanEvaluator(scheduler);
@@ -36,7 +36,9 @@ public final class SaAdapter implements UnifiedPlanner {
         try {
             var result=solver.optimize(initial,p.snapshot(),p.orders(),p.blocks(),parameters);
             return new AlgorithmOutput(result.bestPlan(),"BUILT","RETURNED",initializationMs,
-                    "Original SA constructor + original neighborhoods; shared domain and evaluator");
+                    "SA original; initialCost="+result.initialCost()+"; iterations="+result.iterations()
+                            +"; evaluatedNeighbors="+result.evaluatedNeighbors()+"; acceptedNeighbors="
+                            +result.acceptedNeighbors()+"; finalTemperature="+result.finalTemperature());
         } catch(SearchStopped exhausted){
             // Timeout during optimize's initial re-evaluation: retain the already validated initializer.
             return new AlgorithmOutput(initial,"BUILT","TIME_LIMIT_AFTER_INITIALIZATION",initializationMs,"Returning validated seed");
