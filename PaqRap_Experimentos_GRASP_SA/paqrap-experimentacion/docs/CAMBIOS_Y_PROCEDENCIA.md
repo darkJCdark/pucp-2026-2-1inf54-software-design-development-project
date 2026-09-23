@@ -1,5 +1,27 @@
 # Cambios y procedencia
 
+## Versión 3 (23 de septiembre de 2026): Simulated Annealing validado e instrumentado
+
+### Base y alcance
+
+Esta revisión parte de GRASP v2 y `shared-domain-v2`, commit `c96b49c289a54e7495f4f619f81a9613d5ef1e64`, y de la familia SA experimental ya incluida allí. `origin/test/validacion-datos-profesor-sa` (`a02988ab59fc5165d1732195531fd138d8db9eb4`) se leyó como referencia de comportamiento y pruebas; no se copió su implementación. La etiqueta de las corridas SA pasa a `SA-operational-v1.1 + shared-domain-v2 (metricas; 2026-09-23)`. El sufijo 1.1 identifica corrección de métricas y validación, no una nueva heurística.
+
+### Cambios SA
+
+- `OperationalAnnealingResult` expone `initialCost`, `iterations`, `evaluatedNeighbors`, `acceptedNeighbors` y `finalTemperature`.
+- `OperationalSimulatedAnnealingPlanner` cuenta un vecino como evaluado solo cuando el evaluador devuelve su resultado, incluso si es inviable. Antes llenaba `evaluatedNeighbors` con el número de iteraciones. Una propuesta vacía o una evaluación interrumpida no se contabilizan como vecino evaluado.
+- `SaAdapter` identifica la versión SA y expone esas métricas adicionales en `detail`. Las columnas compartidas y los contadores de `SearchControl` conservan su significado.
+
+### Pruebas añadidas
+
+Se añadieron diez métodos JUnit: seis de búsqueda SA (Metropolis, enfriamiento, límites, factibilidad, contadores, semilla fija y plazo cooperativo), tres de reglas operativas (pedido de 30 unidades, capacidades 24/8/4 y mantenimiento TA/TM/TB) y uno de integración con los archivos reales de ventas, bloqueos y mantenimiento del 1-sep-2026 a las 02:00 en `America/Lima`. La prueba real usa los cargadores existentes; TA01 queda sin ruta, se verifican cargas, plazos y bloqueo de tramos.
+
+### Cambios que no se hicieron e impacto
+
+Permanecen intactos `InitialPlanBuilder`, la fórmula de Metropolis, el enfriamiento, los siete operadores, los parámetros, `SearchControl`, GRASP, `RoadNetwork` y el evaluador común. No se migró código Spring ni infraestructura backend. La corrección cambia telemetría y `algorithm_version`, no la selección de planes: en el smoke v3, las 16 filas conservaron estado, costo y `plan_sha256` de v2; dos ejecuciones `FIXED` de SA conservaron también sus contadores deterministas. No mezclar resultados de versiones sin considerar `algorithm_version`, aunque los planes de esta comprobación coincidan.
+
+Sigue siendo posible `NO_INITIAL_PLAN` por la heurística de la semilla. El laboratorio continúa siendo planificador batch, no simulador online de cinco días. También permanecen las limitaciones del dominio documentadas en `LIMITACIONES.md` y la diferencia entre presupuesto máximo y tiempo realmente usado. La evidencia ejecutada de esta revisión está en `evidencia/v3/`; el detalle de verificación se encuentra en `VERIFICACION.md`. En esta fase no se ejecutaron piloto, formal ni escalabilidad.
+
 ## Versión 2 (23 de septiembre de 2026): GRASP optimizado y corregido
 
 Esta versión cambia **deliberadamente y de forma visible** GRASP y la infraestructura compartida. Todas las corridas exportan `algorithm_version` (`GRASP-v2 2026-09-23`); no mezclar resultados de la versión 1 con los de esta versión. La diferencia exacta respecto del ZIP recibido está en `provenance/v2/`.

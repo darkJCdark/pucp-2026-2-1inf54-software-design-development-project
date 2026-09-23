@@ -1,5 +1,23 @@
 # Verificación del entregable
 
+## Versión 3 (23 de septiembre de 2026): validación SA
+
+Entorno de esta verificación: Windows, Java/Javac 22 compilando con `--release 21`, Maven 3.9.9. El primer `mvn clean verify` dentro del sandbox no pudo crear `C:\.m2\repository`; el mismo comando ejecutado con acceso al repositorio local terminó correctamente. Después de la última aserción de servicio por parada se repitió `mvn -q clean verify` con salida 0. `scripts/build.ps1` compiló el JAR de `dist/` desde el código actualizado; SHA-256: `58651887e58efe4300d33301bdad16bc815e7093ae91a6702bf170e569ad026d`.
+
+| Comprobación ejecutada | Resultado observado |
+|---|---|
+| JUnit, `mvn clean verify` | 32 métodos: 12 dominio, 8 GRASP, 10 SA, 2 experimentos; 0 fallos, 0 errores. Base v2: 22; nuevos: 10 |
+| Pedido de 30 unidades | Construcción y evaluación factibles; múltiples `DeliveryStop` suman 30; una hora de servicio por parada; cargas dentro de capacidad y nunca negativas |
+| Mantenimiento TA/TM/TB | Los tres vehículos programados se excluyen; las alternativas del mismo tipo reciben rutas factibles |
+| Datos reales, 1-sep-2026 02:00 Lima | Se cargaron `ventas.202609.txt`, `bloqueo.2609.txt` y `mant.preventivo.09.10.txt`; pedidos y bloqueos activos presentes; TA01 sin ruta; plan completo factible, sin carga negativa, exceso de capacidad, vencimiento ni cruce de bloqueos vigentes |
+| `--self-test` del JAR actualizado | 22/22 comprobaciones correctas; el contador no se aumentó por los nuevos JUnit |
+| Smoke con `config/smoke.properties` intacto | 16/16 `OK`: GRASP 8/8, SA 8/8; las 16 filas tienen el mismo estado, costo y `plan_sha256` que `evidencia/v2/smoke/runs.csv` |
+| Dos ejecuciones `FIXED` con `config/deterministic.properties` intacto | Las dos filas SA repiten entrada, costo, huella de plan, iteraciones, intentos, inválidos, aceptados y evaluaciones; planes y costos coinciden también con `evidencia/v2/determinismo-a/runs.csv` |
+
+Evidencia de corrida: `evidencia/v3/smoke/runs.csv`, `evidencia/v3/smoke/metadata.json`, `evidencia/v3/determinismo-a/runs.csv` y `evidencia/v3/determinismo-b/runs.csv`. Los directorios completos generados localmente están bajo `results/` (ignorado por Git). La nueva telemetría `initialCost`, `evaluatedNeighbors` y `finalTemperature` aparece en `detail` de cada corrida SA terminada; no se cambió el esquema común de CSV. El nuevo JUnit demuestra `iterations=2`, `neighbor_attempts=2`, `evaluatedNeighbors=1` y `acceptedNeighbors=1` para una propuesta vacía seguida de una evaluada.
+
+En esta fase no se ejecutaron `pilot`, `formal` ni `escalabilidad`. La evidencia de escalabilidad de la versión 2 queda como resultado histórico de esa versión.
+
 ## Versión 2 (23 de septiembre de 2026)
 
 Entorno: Windows 11 Home (10.0.26200), JDK 21, Maven 3, Git Bash; Python 3.14 para el análisis. Mismo JAR de `dist/` para todas las corridas de esta sección.

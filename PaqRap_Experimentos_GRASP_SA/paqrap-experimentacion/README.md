@@ -6,6 +6,8 @@ Proyecto independiente para comparar **las implementaciones Java entregadas por 
 
 > **Versión 2 (23-sep-2026).** GRASP corregido y optimizado (`GRASP-v2 2026-09-23`: entregas divididas, consolidación en el primer viaje, costo exacto por tramo, factibilidad alineada con el evaluador) y cálculo de caminos compartido ~30× más rápido con resultado idéntico. SA no se modificó. Nuevo perfil `escalabilidad`. Detalle y verificación en `docs/CAMBIOS_Y_PROCEDENCIA.md` y `docs/VERIFICACION.md`. No mezclar resultados de la versión 1 con los de la versión 2 (la columna `algorithm_version` los distingue).
 
+> **Versión 3 (23-sep-2026).** SA conserva constructor, fórmula, vecindario y parámetros. Se corrigió `evaluatedNeighbors`, se añadió telemetría de costo inicial/iteraciones/temperatura final y se amplió la suite de regresión. La etiqueta SA es `SA-operational-v1.1 + shared-domain-v2 (metricas; 2026-09-23)`. La campaña smoke conservó exactamente planes y costos de v2; ver `docs/VERIFICACION.md`. Piloto y formal siguen pendientes.
+
 ## 1. Empezar en Windows / VS Code
 
 Descomprime el ZIP. Abre la carpeta `paqrap-experimentacion` —la que contiene `pom.xml`, `config`, `data` y `dist`— y abre una terminal PowerShell allí.
@@ -213,3 +215,5 @@ Lee `docs/LIMITACIONES.md` antes de redactar conclusiones. El documento de refer
 `dominio`, `grasp` y `sa` son módulos independientes del experimento. El futuro servicio de aplicación de Spring Boot puede invocarlos sin depender del ejecutor de CSV. Los adaptadores experimentales ilustran cómo normalizar sus entradas y salidas sin duplicar el dominio.
 
 **Estado verificado (versión 2, 23-sep-2026, Windows 11):** `mvn clean verify` con 22 pruebas JUnit sin fallos (incluye la prueba diferencial de exactitud de la red de caminos); `--self-test` con 22 comprobaciones; smoke 16/16 `OK`; repetibilidad FIXED en dos ejecuciones; SA con planes idénticos bit a bit a la versión 1; perfil `escalabilidad` completo (96 corridas). Piloto y campaña formal están configurados y sus instancias cargan, pero **no** se ejecutaron: son la experimentación que debe correr el equipo. Resultados y cifras en `docs/VERIFICACION.md`; evidencia en `evidencia/v2/`.
+
+**Estado verificado (versión 3, 23-sep-2026):** 32 pruebas JUnit sin fallos, `--self-test` 22/22, smoke 16/16 `OK` y dos ejecuciones `FIXED` reproducibles. El JAR de `dist/` se compiló con `scripts/build.ps1` y Java 22 con `--release 21`. El perfil `escalabilidad` no se volvió a ejecutar en esta versión; piloto y formal siguen sin ejecutarse. Evidencia y limitaciones en `docs/VERIFICACION.md`.
