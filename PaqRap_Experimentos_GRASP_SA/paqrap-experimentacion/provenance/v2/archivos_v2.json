@@ -1,0 +1,158 @@
+[
+  {
+    "file": "README.md",
+    "status": "modified",
+    "v1_sha256": "fb2095a9a434766f77708de2c702d08b966cad94c6b947f8421354cb1929499f",
+    "v2_sha256": "817020c4b323e5e67775fd300ac4436741878e3c7a6760e648d5d984b1efe9b4"
+  },
+  {
+    "file": "config/escalabilidad.csv",
+    "status": "added",
+    "v1_sha256": null,
+    "v2_sha256": "3edc04abfaf656ac92c0a374853e94ffcb27d8e3845ac6ab5604ed48f5ff0007"
+  },
+  {
+    "file": "config/escalabilidad.properties",
+    "status": "added",
+    "v1_sha256": null,
+    "v2_sha256": "d42fdc39483e65e505df9a8ebdcf30ba0ff39e367605e8b350d31c35689a5c2b"
+  },
+  {
+    "file": "dist/paqrap-experimentos.jar",
+    "status": "modified",
+    "v1_sha256": "44108c3058f1cf137caf93eb3f876c8999836df7576c65070053e6db0e8e22fb",
+    "v2_sha256": "c4c2c8574cac36b1c3fe3fd6dd8e4d7a83d7bb5a09d809b6898f1424da797fdf"
+  },
+  {
+    "file": "docs/CAMBIOS_Y_PROCEDENCIA.md",
+    "status": "modified",
+    "v1_sha256": "d29a674d4c8e201f9cce9560a4dd62cc64391ea35367ddba159225d1457226bb",
+    "v2_sha256": "3c28a691993b9ba010a48ceb2e2c8e1a4634d31aab2bc183f53485f722e64f0e"
+  },
+  {
+    "file": "docs/GUIA_RESULTADOS.md",
+    "status": "modified",
+    "v1_sha256": "d7adb4d3c82b54ab0e97e73c84bbe1f595c58db8eadb2537a61a984e57cd536b",
+    "v2_sha256": "2e2c1e3add87127d01b460c6f40a74346c5a032ea0604b913cec91c26d3b0d76"
+  },
+  {
+    "file": "docs/LIMITACIONES.md",
+    "status": "modified",
+    "v1_sha256": "a880622c0cbff233df629472ccd227bdb78d6358547312590f338437d97236f0",
+    "v2_sha256": "a55722c22f1ffceb04c6d8995ab1a186836a0bb4c910fe989e91a832e0837b66"
+  },
+  {
+    "file": "docs/PROTOCOLO.md",
+    "status": "modified",
+    "v1_sha256": "8aaa4b46b0f91827b4acf3f3b46050e4493e82242dd9075ffc831710d83de3e2",
+    "v2_sha256": "0f94866d4fe9ea6030e9cd60f347ab583ded9bf03759894d993c5cd59048af10"
+  },
+  {
+    "file": "docs/VERIFICACION.md",
+    "status": "modified",
+    "v1_sha256": "4304ffae90a49b114e9dd69894eab60532d90e2f1f4bc0b1145559387d8a313e",
+    "v2_sha256": "4f2bdb280568bda58d1c745bc50aca23e55765c8c6225cff2f6f07446f023880"
+  },
+  {
+    "file": "dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/RoadNetwork.java",
+    "status": "modified",
+    "v1_sha256": "af7e3682496f714ea1bb74aade7bc6b284ef3afe6c78de20e2b133ed45f9da6c",
+    "v2_sha256": "8711cdb4304ade3f131827d10d4f6c36c57166e314e51d4c576dd992d5ddfc63"
+  },
+  {
+    "file": "dominio/src/test/java/pe/edu/pucp/paqrap/planner/domain/ReferenceRoadNetwork.java",
+    "status": "added",
+    "v1_sha256": null,
+    "v2_sha256": "1c67fc7a51f2f904e977e31d94b1410c31cf18520e8116b4bcee43591666c77f"
+  },
+  {
+    "file": "dominio/src/test/java/pe/edu/pucp/paqrap/planner/domain/RoadNetworkDifferentialTest.java",
+    "status": "added",
+    "v1_sha256": null,
+    "v2_sha256": "939ca152474ed703e79a97d2c5bf75a43b1012ad15af04267b1a009127d904e4"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/CommonAudit.java",
+    "status": "modified",
+    "v1_sha256": "0f99b946893366c72f6bc3013ecf9939a7ce995c9029c53261bf4b4f3ec90cec",
+    "v2_sha256": "c98fcae1161f18ba22734026abb15b4ea8a61e5446eddb8c7ec90078b1274a70"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/Csv.java",
+    "status": "modified",
+    "v1_sha256": "3c039c7831df8a13bb908f1694b118c552d5251bb01f23aeb38c44afeb4e9b24",
+    "v2_sha256": "7e71a3e156d139e6fc811997257733ef6171ef752c06461eaf76be530044c587"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/ExperimentMain.java",
+    "status": "modified",
+    "v1_sha256": "82c4c3ebd45ff5f6560c66ce370e385b39c60d20a8a5741c56e7f27d85533390",
+    "v2_sha256": "728e5299ce5f0c726d72ff09f12c6f150a43166b01012ae6409f904e6750dc6d"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/GraspAdapter.java",
+    "status": "modified",
+    "v1_sha256": "49183917b376f3db75e749bd88b281fcb014445d8b498cda5aad1a09a89dc73f",
+    "v2_sha256": "c35cc526cac3f7a06367cf6cdfb66a2830b284b6d72f498651df22065200f401"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/HtmlReport.java",
+    "status": "modified",
+    "v1_sha256": "4107e79a80ea4f821c8e47d89e13fc9531dbf8c2aea28d3c8a9dc3fa5459e9cf",
+    "v2_sha256": "427e7761e9e221b4d7e87c917db239c1600c0fdce45c5c9a6c00897f34abb61e"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/InstanceFactory.java",
+    "status": "modified",
+    "v1_sha256": "a643bcb370fe27649c719b246f6134a4c39314dc3224a64f050b813e83d46e96",
+    "v2_sha256": "4950b2a32195852c6209f7afc003c6de80b4713a4b0f22a195bde726045aa767"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/SaAdapter.java",
+    "status": "modified",
+    "v1_sha256": "77e6602658f7a68dce58bb524e11479a2c3ab4e12a4a8bc996715e282428eace",
+    "v2_sha256": "6756a7b8a0d7cf7e99c3177547bf3b74cb2a49e26d0ff0e7f9bab97b6508b1ec"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/TrialMain.java",
+    "status": "modified",
+    "v1_sha256": "9fb4ceb0288a4fd19d72010ee66d618667c59ae3c82fda324ef350f9b2f334bc",
+    "v2_sha256": "53233a1613c1f809cce3cf923bd4d2f01fe1f531f8e6ca69d4a8d66873886bb8"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/UnifiedPlanner.java",
+    "status": "modified",
+    "v1_sha256": "badabd3123864c171477afe920491e62e52edec64d256fa6c1075a1426a36d0e",
+    "v2_sha256": "00e1780fe5a61ed4d86b25d51eb9a64c0b5043a747c5ec24d9bc66f34ae84486"
+  },
+  {
+    "file": "experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/VerificationMain.java",
+    "status": "modified",
+    "v1_sha256": "01d8cc27eec45bc9245d990010514e0a7faae765010b0dcfa71827611f30d145",
+    "v2_sha256": "05bd9edc968900df642c9ed96b2a743bed04752aaf6b3a02a2b71abdff6b1735"
+  },
+  {
+    "file": "grasp/src/main/java/pe/pucp/paqrap/planificador/GraspPlanificador.java",
+    "status": "modified",
+    "v1_sha256": "e8430cb37fc3e2edcbe2f8ceb186fb52d35364d8887c91cad167fdeceba7c6c1",
+    "v2_sha256": "a6be9f10357bded914f2adfa043d0c304ac0e658ad870796aba26a80c8f0e36b"
+  },
+  {
+    "file": "grasp/src/test/java/pe/pucp/paqrap/planificador/GraspPlanificadorTest.java",
+    "status": "modified",
+    "v1_sha256": "f6117b1bed47b74e9dfbd91ffe8c5d6ca5c62ce6dc3ec862cb6044b4bdc9d96d",
+    "v2_sha256": "8452353ca65ad756db7b47814f8a501377c04701e9d388dcf4226c2c94c1ee65"
+  },
+  {
+    "file": "provenance/README.md",
+    "status": "modified",
+    "v1_sha256": "d4f9c367b5ec652cb76015d83731e19b8a317da454ebeaba073c98ccf089f850",
+    "v2_sha256": "4a7029be45699804b56b354a9b322a625b17ce9c15a1912881947370fd9ea010"
+  },
+  {
+    "file": "scripts/analyze.py",
+    "status": "modified",
+    "v1_sha256": "cf2ca2d9cadbca719e66c024929213b4b0e947e1c7c1e72e1061aa6a1382bdbe",
+    "v2_sha256": "a7f51d5753cd3be97d7f72e27dab5a651d9624bcbfbd7e8b913a5e26f4155d49"
+  }
+]

@@ -1,0 +1,9 @@
+Comparacion perfil FIXED (config/deterministic.properties): v1 (evidencia/determinismo-a) vs v2 (evidencia/v2/determinismo-a)
+SA no cambio entre versiones: si la nueva RoadNetwork es exacta, sus planes deben ser identicos bit a bit.
+SMOKE01 GRASP | entrada igual: True | plan igual: False | costo 624.000000 -> 624.000000 | path_queries 124 -> 633
+SMOKE01 SA | entrada igual: True | plan igual: True | costo 1296.000000 -> 1296.000000 | path_queries 430 -> 430
+SMOKE02 GRASP | entrada igual: True | plan igual: False | costo 978.000000 -> 942.000000 | path_queries 165 -> 1050
+SMOKE02 SA | entrada igual: True | plan igual: True | costo 1320.000000 -> 1320.000000 | path_queries 743 -> 743
+
+Repetibilidad v2 (determinismo-a vs determinismo-b): planes identicos = True
+GRASP difiere de v1 por ser GRASP-v2 (algoritmo corregido); su path_queries ya no oculta repeticiones con una cache privada.

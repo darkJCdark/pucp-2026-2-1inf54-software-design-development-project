@@ -40,6 +40,7 @@ public final class ExperimentMain {
                 "available_processors_parent",Runtime.getRuntime().availableProcessors(),"worker_heap_mb",config.integer("worker.heap.mb",512),
                 "worker_active_processor_count",config.integer("worker.processors",2),"warmup_rounds_both_algorithms",config.integer("warmup.rounds",1),
                 "settings",config.asMap(),"config_sha256",Json.sha256(Json.encode(config.asMap())),"classpath_sha256",classpathHashes(classpath),
+                "algorithm_versions",obj("GRASP",new GraspAdapter().version(),"SA",new SaAdapter().version()),
                 "protocol","Each trial in a fresh child JVM; paired inputs and search seeds; alternating order. IO/startup/warmup/final audit excluded from search time; SA initialization included.");
         if(!resume)Files.writeString(out.resolve("metadata.json"),Json.encode(metadata),StandardCharsets.UTF_8);
         Path csv=out.resolve("runs.csv");Files.writeString(csv,String.join(",",Csv.COLUMNS)+"\n",StandardCharsets.UTF_8);
@@ -79,7 +80,8 @@ public final class ExperimentMain {
                     if(finished&&process.exitValue()==0&&Files.exists(resultFile)){
                         Properties r=new Properties();try(var reader=Files.newBufferedReader(resultFile,StandardCharsets.UTF_8)){r.load(reader);}r.forEach((k,v)->row.put(k.toString(),v.toString()));
                     }else{
-                        TrialMain.put(row,"run_id",id,"instance_id",spec.id(),"family",spec.family(),"source",spec.source(),"search_seed",seed,"instance_seed",spec.instanceSeed(),"repetition",rep+1,"algorithm",algorithm,"mode",config.text("mode","TIME"),"budget_ms",config.effectiveBudget(budget),"status",finished?"WORKER_ERROR":"HARD_TIMEOUT","full_feasible",false,"orders_total",instance.orders().size(),"input_sha256",instance.sha256(),"config_sha256",Json.sha256(Json.encode(config.asMap())),"detail","Worker did not produce a result. Inspect jobs/"+id+".log");
+                        TrialMain.put(row,"run_id",id,"instance_id",spec.id(),"family",spec.family(),"source",spec.source(),"search_seed",seed,"instance_seed",spec.instanceSeed(),"repetition",rep+1,"algorithm",algorithm,"mode",config.text("mode","TIME"),"budget_ms",config.effectiveBudget(budget),"status",finished?"WORKER_ERROR":"HARD_TIMEOUT","full_feasible",false,"orders_total",instance.orders().size(),"input_sha256",instance.sha256(),"config_sha256",Json.sha256(Json.encode(config.asMap())),
+                                "algorithm_version",(algorithm.equals("GRASP")?new GraspAdapter():new SaAdapter()).version(),"detail","Worker did not produce a result. Inspect jobs/"+id+".log");
                     }
                     if(!Files.exists(resultFile)){
                         Properties failureResult=new Properties();failureResult.putAll(row);

@@ -46,6 +46,22 @@ public final class VerificationMain {
         ProblemInstance r=InstanceFactory.create(real,c);
         check(!r.orders().isEmpty()&&r.orders().stream().noneMatch(o->o.registeredAt().isAfter(r.snapshot().planningTime())),"Real batch includes only already registered orders");
         check(r.blocks().stream().anyMatch(bk->bk.startsAt().isAfter(r.snapshot().planningTime())),"Future relevant road blocks are not truncated to the arrival window");
+        Properties splitProps=new Properties();splitProps.putAll(props);splitProps.setProperty("grasp.iterations","3");
+        ExperimentConfig splitConfig=new ExperimentConfig(splitProps,Path.of(""));
+        ProblemInstance split=InstanceFactory.create(new ScenarioSpec("SPLIT_TEST","SPLIT","SYNTHETIC",3,903,LocalDate.of(2026,9,9),7,8),splitConfig);
+        int largest=split.orders().stream().mapToInt(Order::packages).max().orElse(0);
+        check(largest>VehicleType.CAR.capacity() && CommonAudit.evaluate(split,new GraspAdapter().solve(split,splitConfig,42).plan()).fullFeasible(),
+                "GRASP divides an order larger than any vehicle into partial deliveries (P&R 13)");
+        ProblemInstance longWindow=InstanceFactory.create(new ScenarioSpec("REAL_LONG","REAL","REAL",0,0,LocalDate.of(2026,9,13),7,15),c);
+        check(longWindow.orders().stream().allMatch(o->o.deadline().isAfter(longWindow.snapshot().planningTime()))
+                && longWindow.manifest().containsKey("orders_expired_before_planning_excluded"),
+                "Long real windows exclude and record orders already expired at planning time");
+        Instant at=p.snapshot().planningTime();
+        Order impossible=new Order("IMPOSSIBLE",new Location(65,48),3,at,at.plusSeconds(600));
+        Order easy=new Order("EASY",new Location(28,15),3,at,at.plusSeconds(8*3600));
+        ProblemInstance certificate=new ProblemInstance(p.spec(),p.snapshot(),List.of(impossible,easy),p.blocks(),p.manifest(),p.sha256());
+        check(CommonAudit.provablyUnservable(certificate).equals(Set.of("IMPOSSIBLE")),
+                "Provably unservable orders are flagged; servable ones are not");
         var resources=Collections.list(VerificationMain.class.getClassLoader().getResources("pe/edu/pucp/paqrap/planner/route/OperationalPlanEvaluator.class"));
         check(resources.size()==1,"Exactly one shared evaluator on the runtime classpath");
         System.out.println("PASS: "+checks+" experimental regression checks.");

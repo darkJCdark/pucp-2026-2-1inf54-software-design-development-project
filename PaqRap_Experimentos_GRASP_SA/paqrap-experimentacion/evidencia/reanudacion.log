@@ -1,0 +1,18 @@
+[1/16] SMOKE01-r1-b1500-GRASP | retained OK
+[2/16] SMOKE01-r1-b1500-SA | retained OK
+[3/16] SMOKE01-r2-b1500-SA | retained OK
+[4/16] SMOKE01-r2-b1500-GRASP | retained OK
+[5/16] SMOKE02-r1-b1500-SA | retained OK
+[6/16] SMOKE02-r1-b1500-GRASP | retained OK
+[7/16] SMOKE02-r2-b1500-GRASP | retained OK
+[8/16] SMOKE02-r2-b1500-SA | retained OK
+[9/16] SMOKE03-r1-b1500-GRASP | retained PARTIAL
+[10/16] SMOKE03-r1-b1500-SA | retained OK
+[11/16] SMOKE03-r2-b1500-SA | retained OK
+[12/16] SMOKE03-r2-b1500-GRASP | retained PARTIAL
+[13/16] SMOKE04-r1-b1500-SA | retained OK
+[14/16] SMOKE04-r1-b1500-GRASP | retained TIME_LIMIT_NO_PLAN
+[15/16] SMOKE04-r2-b1500-GRASP | retained OK
+[16/16] SMOKE04-r2-b1500-SA | retained OK
+Done. Open: /mnt/data/paqrap-experimentacion/evidencia/smoke-verificado/report.html
+Raw, paired results: /mnt/data/paqrap-experimentacion/evidencia/smoke-verificado/runs.csv

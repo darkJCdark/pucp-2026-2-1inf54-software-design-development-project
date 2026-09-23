@@ -2,90 +2,62 @@ package pe.pucp.paqrap.planificador;
 
 import pe.edu.pucp.paqrap.planner.domain.*;
 import pe.edu.pucp.paqrap.planner.route.*;
+import pe.edu.pucp.paqrap.planner.search.SearchControl;
+import pe.edu.pucp.paqrap.planner.search.SearchStopped;
 import pe.pucp.paqrap.modelo.ResultadoPlanificacion;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
-import pe.edu.pucp.paqrap.planner.search.SearchControl;
-import pe.edu.pucp.paqrap.planner.search.SearchStopped;
 
 /**
- * GRASP para PaqRap, operando sobre el modelo de dominio unico compartido
- * (paqrap-dominio, paquete pe.edu.pucp.paqrap.planner) -- ver README.md
- * raiz para el historial de la unificacion. Este modulo no tiene ni copia
- * ni duplica domain/route: depende de paqrap-dominio via Maven.
+ * GRASP para PaqRap sobre el dominio unico compartido (paqrap-dominio).
  *
- * Decisiones de diseño (pendientes de confirmar con Cristhian/Jorge):
+ * <p>Esqueleto GRASP sin cambios: multi-arranque; en cada iteracion, construccion greedy
+ * aleatorizada con RCL (umbral cMin + alpha*(cMax-cMin)) seguida de busqueda local de primera
+ * mejora (insercion de pendientes, 2-opt, reubicacion, intercambio); se conserva la mejor
+ * solucion por (factible, menos no atendidos, menor costo).
  *
- * 1. "noAtendidos": se excluyen del conjunto requiredOrders pasado a
- *    OperationalPlanEvaluator, por lo que nunca hacen infactible el plan
- *    completo -- decision confirmada por el docente (ver README): un
- *    pedido sin vehiculo factible en esta corrida queda pendiente para la
- *    siguiente, sin invalidar el resto del plan ya construido. Comparación
- *    lexicográfica: primero factibilidad, luego menos noAtendidos, luego
- *    menor costo -- por eso "todos los pedidos llegan" siempre le gana a
- *    "cuesta menos" entre iteraciones. Ademas, busquedaLocal reintenta
- *    insertar cada noAtendido en el plan ya reordenado (pasoInsercionPendientes)
- *    antes de rendirse, porque el barrido greedy de la construccion puede
- *    dejar un pedido varado solo por el orden en que lo proceso, no porque
- *    fuera imposible de atender -- si sigue sin caber despues de ese intento,
- *    si es un caso real de colapso (demanda que excede la flota disponible).
- * 2. Costeo en la fase CONSTRUCTIVA: costo marginal barato para rankear el
- *    RCL + verificación exacta pierna por pierna solo para filtrar
- *    candidatos, ambas cacheadas por origen-destino-hora-velocidad (ver
- *    costoInsercionMarginal / esFactibleCandidato) en vez de recalcular la
- *    ruta completa vía RouteScheduler por cada candidato. GRASP evalúa
- *    muchos candidatos por pedido (vehículo × posición) para construir el
- *    RCL -- a diferencia de SA, que solo evalúa un vecino por iteración --
- *    así que el "recálculo completo por evaluación" que usa SA penaliza
- *    desproporcionadamente a GRASP (medido: ~22s para 50 iteraciones con
- *    solo 3 pedidos usando recalculo completo). La búsqueda LOCAL sigue
- *    recalculando la ruta completa vía RouteScheduler -- sus movimientos
- *    no se prestan a un delta simple en una red con bloqueos dependientes
- *    del tiempo. OperationalPlanEvaluator sobre el plan completo solo se
- *    llama una vez por iteración, no por candidato.
- * 3. Recarga (agregar un WarehouseVisit) es SIEMPRE una alternativa ofrecida
- *    a "seguir apilando en el tramo abierto" para cualquier vehiculo que ya
- *    tenga ruta (ver generarCandidatos, rama (b)). Version anterior lo
- *    ofrecia solo cuando estado.cargaActual==0 -- una condicion que, tal
- *    como se calcula cargaActual (solo acumula durante la construccion, no
- *    se resetea sola), nunca se cumplia, dejando la recarga inalcanzable:
- *    cualquier vehiculo con 2+ pedidos los apilaba TODOS en el mismo tramo
- *    inicial, cuyo initialLoad es inmutable y solo cubre el primer pedido
- *    -- eso producia NEGATIVE_LOAD en cuanto se probo con data real (con
- *    pocos pedidos sinteticos y 37 vehiculos casi nunca hacia falta apilar
- *    2 pedidos en un mismo vehiculo, por eso las pruebas nunca lo agarraron).
- *    El fix real tiene dos partes: (a) apilar en un tramo abierto por una
- *    recarga SI es seguro, porque su WarehouseVisit es mutable -- se le
- *    suma el pedido nuevo al pickup, igual que pasoReubicacion; (b) apilar
- *    en el tramo INICIAL nunca es seguro (initialLoad no se puede tocar),
- *    asi que esas posiciones se descartan y la recarga queda como la unica
- *    salida para el 2do+ pedido de un vehiculo -- ver indiceAlmacenQueAbreSegmento.
- * 4. Limite de 80 km por tramo (hoja "Flota"): se verifica tanto aqui
- *    (esFactibleCandidato, para no generar candidatos que de todas formas
- *    seran rechazados) como en OperationalPlanEvaluator (autoritativo) --
- *    ver LEG_DISTANCE_EXCEEDED en el dominio compartido.
+ * <p>Version {@value #VERSION}. Cambios respecto de la version anterior, todos visibles aqui:
+ * <ol>
+ *   <li><b>Entregas divididas.</b> El enunciado admite entregas parciales (P&amp;R 13). Un pedido
+ *   mayor que la mayor capacidad disponible se reparte en partes que caben en un vehiculo; si
+ *   alguna parte no encuentra candidato, se deshacen todas las partes de ese pedido (nunca queda
+ *   un pedido atendido a medias). Antes, esos pedidos quedaban siempre sin atender.</li>
+ *   <li><b>Costo del candidato exacto.</b> El costo que ordena la RCL es la diferencia real de
+ *   kilometros de la ruta completa (incluido el regreso al central) a las horas reales de paso,
+ *   no una aproximacion con la hora de salida de la ruta. Evita costos infinitos que dejaban la
+ *   RCL vacia (y hacian fallar la corrida) y alinea el criterio con el costo que mide el evaluador.</li>
+ *   <li><b>Factibilidad en construccion alineada con el evaluador:</b> ademas de camino, 80 km por
+ *   tramo, plazo y refrigerio, ahora considera el regreso final al central, el mantenimiento o
+ *   averia del vehiculo durante toda la ruta, y descuenta inventario al apilar en un tramo de recarga.</li>
+ *   <li><b>Consolidacion en el primer viaje.</b> Antes, el primer tramo de una ruta solo podia
+ *   llevar el primer pedido asignado (se trataba la carga inicial como inmutable), asi que todo
+ *   pedido adicional obligaba a volver a un almacen. GRASP construye la ruta: al apilar en ese
+ *   tramo la reconstruye desde el central con una carga inicial mayor. Igual en la busqueda local.</li>
+ *   <li><b>Evaluacion incremental:</b> cada vehiculo guarda el estado temporal de su ruta tras
+ *   cada parada; un candidato solo recorre la parte que cambia (lo nuevo, lo que sigue y el regreso).</li>
+ *   <li><b>Busqueda local:</b> memoriza la evaluacion de cada ruta ya programada (la exploracion
+ *   de primera mejora vuelve a visitar muchas rutas identicas), evita recalculos repetidos dentro
+ *   de los bucles, respeta el stock de almacenes intermedios, y al quitar una entrega de un tramo
+ *   de recarga devuelve su carga (y elimina la recarga si quedo vacia).</li>
+ * </ol>
+ * Las consultas de camino repetidas se resuelven en la RoadNetwork compartida (ver su Javadoc),
+ * con resultado identico al calculo original.
  */
 public class GraspPlanificador {
 
-    /** Debe coincidir con OperationalPlanEvaluator.MAX_LEG_DISTANCE_KM del
-     *  modulo dominio -- duplicado aqui solo para poder rechazar candidatos
-     *  temprano sin depender de un getter publico en el evaluador. */
+    public static final String VERSION = "GRASP-v2 2026-09-23";
+
+    /** Debe coincidir con OperationalPlanEvaluator.MAX_LEG_DISTANCE_KM (hoja "Flota"). */
     private static final double DISTANCIA_MAXIMA_POR_TRAMO_KM = 80.0;
+    private static final int LIMITE_MEMO_RUTAS = 100_000;
 
     private final RoadNetwork roadNetwork;
     private final RouteScheduler scheduler;
     private final OperationalPlanEvaluator evaluator;
     private final Random random;
-
-    /** Cachea Location+Location+horaSalida+velocidad -> RoadPath durante UN
-     *  planificar(). GRASP evalua muchos candidatos por pedido (vehiculo x
-     *  posicion) que a menudo repiten la misma consulta de camino (misma
-     *  ruta.horaSalida, mismo par origen-destino) -- a diferencia de SA, que
-     *  solo evalua un vecino por iteracion y nunca necesito esto. Se limpia
-     *  al inicio de cada planificar() por si cambian los bloqueos. */
-    private final Map<ConsultaCamino, Optional<RoadPath>> cacheCaminos = new HashMap<>();
+    private final Map<ClaveRuta, EvaluacionRuta> memoRutas = new HashMap<>();
 
     public GraspPlanificador(RoadNetwork roadNetwork, RouteScheduler scheduler,
                               OperationalPlanEvaluator evaluator, long semilla) {
@@ -100,13 +72,13 @@ public class GraspPlanificador {
         if (!Double.isFinite(alpha) || alpha < 0 || alpha > 1 || maxIteraciones <= 0) {
             throw new IllegalArgumentException("alpha must be in [0,1] and maxIteraciones > 0");
         }
-        cacheCaminos.clear();
+        memoRutas.clear();
         ResultadoPlanificacion mejor = null;
         try {
             for (int iter = 0; iter < maxIteraciones; iter++) {
                 SearchControl.iteration();
                 ResultadoPlanificacion candidata = construirGreedyAleatorizada(snapshot, pedidos, bloqueos, alpha);
-                // An evaluated construction is already an incumbent. Preserve it if local search times out.
+                // Una construccion ya evaluada es incumbente: se conserva si la busqueda local agota el plazo.
                 if (esMejorQue(candidata, mejor)) mejor = candidata;
                 SearchControl.observe(candidata.esFactible(), candidata.noAtendidos().size(), candidata.costoTotal());
                 candidata = busquedaLocal(candidata, snapshot, bloqueos);
@@ -114,7 +86,9 @@ public class GraspPlanificador {
                 SearchControl.observe(candidata.esFactible(), candidata.noAtendidos().size(), candidata.costoTotal());
             }
         } catch (SearchStopped exhausted) {
-            // No complete iteration/constructive result => null, explicitly reported by the adapter.
+            // Sin ninguna construccion evaluada => null, reportado explicitamente por el adaptador.
+        } finally {
+            memoRutas.clear();
         }
         return mejor;
     }
@@ -132,14 +106,13 @@ public class GraspPlanificador {
 
     private ResultadoPlanificacion construirGreedyAleatorizada(OperationalSnapshot snapshot, Collection<Order> pedidos,
                                                                 List<RoadBlock> bloqueos, double alpha) {
-        Warehouse central = snapshot.inventory().warehouses().stream()
-                .filter(Warehouse::isCentral).findFirst()
-                .orElseThrow(() -> new IllegalStateException("El snapshot no tiene almacen central"));
-
-        Map<String, EstadoConstruccion> estadoPorVehiculo = new LinkedHashMap<>();
+        Warehouse central = central(snapshot);
+        Map<String, EstadoConstruccion> estados = new LinkedHashMap<>();
+        int capacidadMaxima = 0;
         for (VehicleOperationalState estado : snapshot.vehiclesById().values()) {
             if (snapshot.isVehiclePlannableAt(estado.vehicle().id(), snapshot.planningTime())) {
-                estadoPorVehiculo.put(estado.vehicle().id(), new EstadoConstruccion(estado));
+                estados.put(estado.vehicle().id(), new EstadoConstruccion(estado, horaDisponible(estado, snapshot)));
+                capacidadMaxima = Math.max(capacidadMaxima, capacidad(snapshot, estado.vehicle()));
             }
         }
 
@@ -148,30 +121,40 @@ public class GraspPlanificador {
         pendientes.sort(Comparator.comparing(Order::deadline));
         List<Order> noAtendidos = new ArrayList<>();
 
-        while (!pendientes.isEmpty()) {
+        for (Order pedido : pendientes) {
             SearchControl.checkpoint();
-            Order pedido = pendientes.remove(0);
-            List<Candidato> candidatos = generarCandidatos(pedido, snapshot, estadoPorVehiculo, inventario, central, bloqueos);
-
-            if (candidatos.isEmpty()) {
+            List<Integer> partes = partesDe(pedido.packages(), capacidadMaxima);
+            Map<String, Respaldo> respaldos = new LinkedHashMap<>();
+            InventorySnapshot inventarioAntes = inventario;
+            boolean atendido = !partes.isEmpty();
+            for (int cantidad : partes) {
+                List<Candidato> candidatos = generarCandidatos(pedido, cantidad, snapshot, estados, inventario, central, bloqueos);
+                if (candidatos.isEmpty()) {
+                    atendido = false;
+                    break;
+                }
+                Candidato elegido = elegirDeLaRcl(candidatos, alpha);
+                if (elegido.almacenRetiro() != null) {
+                    inventario = inventario.withdraw(elegido.almacenRetiro().id(), elegido.cantidad());
+                }
+                EstadoConstruccion estado = estados.get(elegido.vehiculoId());
+                respaldos.putIfAbsent(elegido.vehiculoId(), estado.respaldo());
+                Linea linea = calcularLinea(elegido.rutaResultante(), snapshot, central, bloqueos);
+                if (linea == null) {
+                    throw new IllegalStateException("Candidato aceptado sin linea temporal factible: inconsistencia interna");
+                }
+                estado.aplicar(elegido, linea);
+            }
+            if (!atendido) {
+                // Todas las partes o ninguna: un pedido nunca queda atendido a medias.
+                respaldos.forEach((id, respaldo) -> estados.get(id).restaurar(respaldo));
+                inventario = inventarioAntes;
                 noAtendidos.add(pedido);
-                continue;
             }
-
-            double cMin = candidatos.stream().mapToDouble(Candidato::costo).min().orElseThrow();
-            double cMax = candidatos.stream().mapToDouble(Candidato::costo).max().orElseThrow();
-            double umbral = cMin + alpha * (cMax - cMin);
-            List<Candidato> rcl = candidatos.stream().filter(c -> c.costo() <= umbral).toList();
-            Candidato elegido = rcl.get(random.nextInt(rcl.size()));
-
-            if (elegido.almacenReabastecimiento() != null) {
-                inventario = inventario.withdraw(elegido.almacenReabastecimiento().id(), elegido.cargaReabastecida());
-            }
-            estadoPorVehiculo.get(elegido.vehiculoId()).aplicar(elegido);
         }
 
         OperationalPlan plan = OperationalPlan.empty();
-        for (EstadoConstruccion estado : estadoPorVehiculo.values()) {
+        for (EstadoConstruccion estado : estados.values()) {
             if (estado.ruta != null) {
                 plan = plan.withRoute(estado.ruta.returningTo(central));
             }
@@ -181,75 +164,99 @@ public class GraspPlanificador {
         return new ResultadoPlanificacion(plan, evaluacion, List.copyOf(noAtendidos));
     }
 
-    /** Genera, para un pedido, los candidatos de ASIGNACION DE RUTA: (a)
-     *  insertar el DeliveryStop en el tramo de entregas actualmente abierto
-     *  de un vehiculo, o (b) si esta vacio, agregar un WarehouseVisit de
-     *  recarga (o iniciar su primera DeliveryRoute desde el central)
-     *  seguido del DeliveryStop. */
-    private List<Candidato> generarCandidatos(Order pedido, OperationalSnapshot snapshot,
-            Map<String, EstadoConstruccion> estadoPorVehiculo, InventorySnapshot inventario,
+    /** Un pedido que cabe en algun vehiculo va entero; si no, en partes del tamano de la mayor capacidad. */
+    static List<Integer> partesDe(int paquetes, int capacidadMaxima) {
+        if (capacidadMaxima <= 0) return List.of();
+        if (paquetes <= capacidadMaxima) return List.of(paquetes);
+        List<Integer> partes = new ArrayList<>();
+        int restante = paquetes;
+        while (restante > 0) {
+            int parte = Math.min(restante, capacidadMaxima);
+            partes.add(parte);
+            restante -= parte;
+        }
+        return partes;
+    }
+
+    private Candidato elegirDeLaRcl(List<Candidato> candidatos, double alpha) {
+        double cMin = Double.POSITIVE_INFINITY;
+        double cMax = Double.NEGATIVE_INFINITY;
+        for (Candidato c : candidatos) {
+            if (Double.isFinite(c.costo())) {
+                cMin = Math.min(cMin, c.costo());
+                cMax = Math.max(cMax, c.costo());
+            }
+        }
+        List<Candidato> rcl;
+        if (Double.isFinite(cMin)) {
+            double umbral = cMin + alpha * (cMax - cMin);
+            rcl = candidatos.stream().filter(c -> Double.isFinite(c.costo()) && c.costo() <= umbral).toList();
+        } else {
+            rcl = candidatos;
+        }
+        return rcl.get(random.nextInt(rcl.size()));
+    }
+
+    /**
+     * Candidatos para asignar {@code cantidad} paquetes de {@code pedido}: (a) apilar la entrega
+     * en el tramo abierto del vehiculo (desde su ultima carga), aumentando lo que se recoge en esa
+     * carga: el pickup de la recarga o, en el primer tramo, la carga inicial de la ruta desde el
+     * central; (b) si el vehiculo esta libre, iniciar su ruta desde el central; si ya tiene ruta,
+     * recargar en el almacen con stock mas cercano y entregar.
+     * El costo es el aumento exacto de km de la ruta completa por el costo/km del vehiculo.
+     */
+    private List<Candidato> generarCandidatos(Order pedido, int cantidad, OperationalSnapshot snapshot,
+            Map<String, EstadoConstruccion> estados, InventorySnapshot inventario,
             Warehouse central, List<RoadBlock> bloqueos) {
 
         List<Candidato> candidatos = new ArrayList<>();
-        FleetProfile perfil = snapshot.fleetProfile();
+        DeliveryStop entrega = new DeliveryStop(pedido, cantidad);
 
-        for (EstadoConstruccion estado : estadoPorVehiculo.values()) {
+        for (EstadoConstruccion estado : estados.values()) {
             Vehicle vehiculo = estado.estadoInicial.vehicle();
-            int capacidad = perfil.parametersFor(vehiculo.type()).capacity();
+            int capacidad = capacidad(snapshot, vehiculo);
+            if (cantidad > capacidad) continue;
+            double costoKm = snapshot.fleetProfile().parametersFor(vehiculo.type()).costPerKm();
 
-            if (estado.ruta != null && estado.cargaActual + pedido.packages() <= capacidad) {
-                List<RouteStop> stops = estado.ruta.stops();
-                int desde = indiceUltimoAlmacen(stops) + 1;
-                for (int pos = desde; pos <= stops.size(); pos++) {
-                    // El tramo inicial (antes de cualquier WarehouseVisit) esta
-                    // gobernado por initialLoad, fijado UNA vez al crear la ruta
-                    // (rama (b) mas abajo) para cubrir exactamente el primer
-                    // pedido -- es inmutable, asi que no se le puede apilar un
-                    // 2do pedido sin invalidar el balance de carga (NEGATIVE_LOAD).
-                    // Un tramo abierto por una recarga real si se puede ampliar.
-                    int indiceAlmacen = indiceAlmacenQueAbreSegmento(stops, pos);
-                    if (indiceAlmacen == -1) continue;
-                    List<RouteStop> stopsCandidatos = new ArrayList<>(stops);
-                    WarehouseVisit visitaOriginal = (WarehouseVisit) stopsCandidatos.get(indiceAlmacen);
-                    stopsCandidatos.set(indiceAlmacen, new WarehouseVisit(visitaOriginal.warehouse(),
-                            visitaOriginal.pickupPackages() + pedido.packages()));
-                    stopsCandidatos.add(pos, new DeliveryStop(pedido, pedido.packages()));
-                    DeliveryRoute candidataRuta = estado.ruta.withReplacedStops(stopsCandidatos);
-                    if (esFactibleCandidato(candidataRuta, snapshot, bloqueos)) {
-                        double costo = costoInsercionMarginal(estado.ruta, pos, pedido, snapshot, bloqueos);
-                        candidatos.add(new Candidato(vehiculo.id(), candidataRuta, false, pedido, null, 0, costo));
-                    }
+            if (estado.ruta == null) {
+                DeliveryRoute base = DeliveryRoute.startScenarioAtCentral(
+                        vehiculo.id() + "-R", vehiculo, central, cantidad, estado.horaDisponible);
+                Paso inicio = new Paso(central.location(), estado.horaDisponible, null, 0);
+                double total = recorrer(inicio, List.of(entrega), List.of(), base, snapshot, central, bloqueos);
+                if (!Double.isNaN(total)) {
+                    candidatos.add(new Candidato(vehiculo.id(), base.withAppendedStop(entrega), true,
+                            pedido, cantidad, central, total * costoKm));
+                }
+                continue;
+            }
+
+            List<RouteStop> stops = estado.ruta.stops();
+            int ultimoAlmacen = indiceUltimoAlmacen(stops);
+
+            // (a) Apilar en el tramo abierto: lo recoge la ultima recarga o, si aun no hubo, la carga inicial.
+            Warehouse proveedor = almacenDelTramo(estado.ruta, stops.size());
+            if (proveedor != null && estado.cargaActual + cantidad <= capacidad
+                    && inventario.hasStockFor(proveedor.id(), cantidad)) {
+                for (int pos = ultimoAlmacen + 1; pos <= stops.size(); pos++) {
+                    double total = recorrer(estado.linea.pasos().get(pos), List.of(entrega),
+                            stops.subList(pos, stops.size()), estado.ruta, snapshot, central, bloqueos);
+                    if (Double.isNaN(total)) continue;
+                    DeliveryRoute nueva = insertar(estado.ruta, pos, entrega);
+                    if (nueva == null) continue;
+                    candidatos.add(new Candidato(vehiculo.id(), nueva, false, pedido, cantidad, proveedor,
+                            (total - estado.linea.distanciaConRegreso()) * costoKm));
                 }
             }
 
-            if (pedido.packages() <= capacidad) {
-                if (estado.ruta == null) {
-                    Instant horaDisponible = horaDisponible(estado.estadoInicial, snapshot);
-                    int carga = Math.min(capacidad, pedido.packages());
-                    DeliveryRoute rutaBase = DeliveryRoute.startScenarioAtCentral(
-                            vehiculo.id() + "-R", vehiculo, central, carga, horaDisponible);
-                    DeliveryRoute candidataRuta = rutaBase.withAppendedStop(new DeliveryStop(pedido, pedido.packages()));
-                    if (esFactibleCandidato(candidataRuta, snapshot, bloqueos)) {
-                        double costo = costoInsercionMarginal(rutaBase, 0, pedido, snapshot, bloqueos);
-                        candidatos.add(new Candidato(vehiculo.id(), candidataRuta, true, pedido, central, carga, costo));
-                    }
-                } else {
-                    double velocidad = perfil.parametersFor(vehiculo.type()).speedKmPerHour();
-                    Warehouse mejorAlmacen = elegirAlmacen(estado.ubicacionActual(),
-                            List.copyOf(snapshot.inventory().warehouses()), pedido.packages(), inventario,
-                            snapshot.planningTime(), velocidad, bloqueos);
-                    if (mejorAlmacen != null) {
-                        int carga = Math.min(capacidad, pedido.packages());
-                        DeliveryRoute rutaBase = estado.ruta.withAppendedStop(new WarehouseVisit(mejorAlmacen, carga));
-                        DeliveryRoute candidataRuta = rutaBase.withAppendedStop(new DeliveryStop(pedido, pedido.packages()));
-                        if (esFactibleCandidato(candidataRuta, snapshot, bloqueos)) {
-                            double distanciaAlAlmacen = distanciaKmCacheada(estado.ubicacionActual(), mejorAlmacen.location(),
-                                    snapshot.planningTime(), velocidad, bloqueos);
-                            double costo = distanciaAlAlmacen * perfil.parametersFor(vehiculo.type()).costPerKm()
-                                    + costoInsercionMarginal(rutaBase, rutaBase.stops().size(), pedido, snapshot, bloqueos);
-                            candidatos.add(new Candidato(vehiculo.id(), candidataRuta, true, pedido, mejorAlmacen, carga, costo));
-                        }
-                    }
+            // (b) Recargar en el almacen con stock mas cercano y entregar.
+            Paso ultimo = estado.linea.pasos().getLast();
+            Warehouse almacen = elegirAlmacen(ultimo, cantidad, inventario, vehiculo, snapshot, bloqueos);
+            if (almacen != null) {
+                WarehouseVisit recarga = new WarehouseVisit(almacen, cantidad);
+                double total = recorrer(ultimo, List.of(recarga, entrega), List.of(), estado.ruta, snapshot, central, bloqueos);
+                if (!Double.isNaN(total)) {
+                    candidatos.add(new Candidato(vehiculo.id(), estado.ruta.withAppendedStop(recarga).withAppendedStop(entrega),
+                            true, pedido, cantidad, almacen, (total - estado.linea.distanciaConRegreso()) * costoKm));
                 }
             }
         }
@@ -261,140 +268,150 @@ public class GraspPlanificador {
                 ? estadoInicial.availableAt() : snapshot.planningTime();
     }
 
-    /** Elige, entre los almacenes con stock suficiente, el mas cercano por
-     *  distancia real de calles (RoadNetwork, consciente de bloqueos con
-     *  ventana de tiempo). Usa la cache: es habitual volver a preguntar por
-     *  el mismo origen-almacen entre varios pedidos seguidos. */
-    private Warehouse elegirAlmacen(Location desde, List<Warehouse> elegibles, int cantidadNecesaria,
-            InventorySnapshot inventario, Instant horaReferencia, double velocidadKmH, List<RoadBlock> bloqueos) {
+    /** El almacen con stock suficiente mas cercano por calles reales, desde donde y cuando queda el vehiculo. */
+    private Warehouse elegirAlmacen(Paso desde, int cantidadNecesaria, InventorySnapshot inventario, Vehicle vehiculo,
+                                    OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
         Warehouse mejor = null;
         double mejorDistancia = Double.POSITIVE_INFINITY;
-        for (Warehouse almacen : elegibles) {
+        for (Warehouse almacen : List.copyOf(snapshot.inventory().warehouses())) {
             if (!inventario.hasStockFor(almacen.id(), cantidadNecesaria)) continue;
-            double distancia = distanciaKmCacheada(desde, almacen.location(), horaReferencia, velocidadKmH, bloqueos);
-            if (distancia < mejorDistancia) { mejorDistancia = distancia; mejor = almacen; }
+            Optional<RoadPath> camino = camino(desde.posicion(), almacen.location(), desde.tiempo(), vehiculo, snapshot, bloqueos);
+            double distancia = camino.map(c -> (double) c.distanceKm()).orElse(Double.POSITIVE_INFINITY);
+            if (distancia < mejorDistancia) {
+                mejorDistancia = distancia;
+                mejor = almacen;
+            }
         }
         return mejor;
     }
 
-    // ---------- costeo marginal + factibilidad pierna-por-pierna para la
-    // fase constructiva -- separados a proposito: rankear muchos candidatos
-    // debe ser barato (delta de 2-3 tramos, cacheado); esFactibleCandidato
-    // si recorre toda la ruta, porque insertar en cualquier posicion puede
-    // retrasar TODO lo que viene despues. ----
+    // ---------- Linea temporal de una ruta: el mismo calculo que RouteScheduler.schedule(),
+    // parada por parada, mas las reglas duras por tramo que aplica el evaluador. ----------
 
-    private Optional<RoadPath> caminoCacheado(Location origen, Location destino, Instant horaSalida,
-            double velocidadKmH, List<RoadBlock> bloqueos) {
-        SearchControl.checkpoint();
-        ConsultaCamino clave = new ConsultaCamino(origen, destino, horaSalida, velocidadKmH);
-        return cacheCaminos.computeIfAbsent(clave, k -> {
-            Duration porTramo = Duration.ofMillis(Math.round(3_600_000.0 / velocidadKmH));
-            return roadNetwork.shortestPath(origen, destino, horaSalida, porTramo, bloqueos);
-        });
+    /** Estado del vehiculo al salir de una parada: donde esta, cuando sale, turno en que ya tomo refrigerio y km acumulados. */
+    private record Paso(Location posicion, Instant tiempo, Instant turnoConRefrigerio, double distancia) {
     }
 
-    private double distanciaKmCacheada(Location origen, Location destino, Instant horaSalida,
-            double velocidadKmH, List<RoadBlock> bloqueos) {
-        return caminoCacheado(origen, destino, horaSalida, velocidadKmH, bloqueos)
-                .map(camino -> (double) camino.distanceKm()).orElse(Double.POSITIVE_INFINITY);
+    /** pasos().get(0) es la salida de la ruta; pasos().get(k) es el estado tras la parada k-1. */
+    private record Linea(List<Paso> pasos, double distanciaConRegreso) {
     }
 
-    /** Costo marginal de insertar un pedido en la posicion `pos` de `ruta`
-     *  (antes de insertarlo) -- 1 a 3 consultas de camino cacheadas, no un
-     *  recorrido completo de la ruta. Usa ruta.departureAt() como instante
-     *  de referencia para las tres distancias: no es exacto pierna por
-     *  pierna, pero es intencionalmente barato porque es solo para RANKEAR
-     *  dentro del RCL -- esFactibleCandidato es quien valida de verdad. */
-    private double costoInsercionMarginal(DeliveryRoute ruta, int pos, Order pedido,
-            OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
-        VehicleParameters parametros = snapshot.fleetProfile().parametersFor(ruta.vehicle().type());
-        Instant horaReferencia = ruta.departureAt();
-        double velocidad = parametros.speedKmPerHour();
-        double costoKm = parametros.costPerKm();
-
-        Location anterior = pos == 0 ? ruta.startLocation() : ruta.stops().get(pos - 1).location();
-        double dAntNuevo = distanciaKmCacheada(anterior, pedido.destination(), horaReferencia, velocidad, bloqueos);
-        if (pos == ruta.stops().size()) return dAntNuevo * costoKm;
-
-        Location siguiente = ruta.stops().get(pos).location();
-        double dNuevoSig = distanciaKmCacheada(pedido.destination(), siguiente, horaReferencia, velocidad, bloqueos);
-        double dAntSig = distanciaKmCacheada(anterior, siguiente, horaReferencia, velocidad, bloqueos);
-        return (dAntNuevo + dNuevoSig - dAntSig) * costoKm;
-    }
-
-    /** Verificacion EXACTA, pierna por pierna: recorre toda la ruta
-     *  candidata comprobando que exista camino hacia cada parada, que
-     *  ningun tramo supere el limite de 80 km (hoja "Flota"), y que ningun
-     *  DeliveryStop llegue despues de su deadline -- incluyendo el
-     *  refrigerio (RouteScheduler.schedule() lo aplica antes de comparar
-     *  contra el deadline; si esta verificacion no lo hiciera tambien,
-     *  aceptaria candidatos durante la construccion que el evaluador
-     *  autoritativo rechaza despues por SLA_MISSED, justo la 1h que el
-     *  refrigerio agrega no estaba contemplada aqui -- encontrado probando
-     *  con data real, ver README). Usa la misma cache de caminos. No valida
-     *  capacidad -- eso ya lo garantiza el llamador (estado.cargaActual). */
-    private boolean esFactibleCandidato(DeliveryRoute candidataRuta, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
-        double velocidad = snapshot.fleetProfile().parametersFor(candidataRuta.vehicle().type()).speedKmPerHour();
-        Location posicion = candidataRuta.startLocation();
-        Instant tiempo = candidataRuta.departureAt();
-        Instant turnoConRefrigerioTomado = null;
-
-        for (RouteStop stop : candidataRuta.stops()) {
-            Optional<RoadPath> camino = caminoCacheado(posicion, stop.location(), tiempo, velocidad, bloqueos);
-            if (camino.isEmpty()) return false;
-            if (camino.get().distanceKm() > DISTANCIA_MAXIMA_POR_TRAMO_KM) return false;
-            tiempo = camino.get().arrivesAt();
-
-            ShiftSchedule.ShiftWindow turno = snapshot.shiftSchedule().shiftAt(tiempo);
-            ShiftSchedule.ShiftWindow ventanaRefrigerio = snapshot.shiftSchedule().mealWindow(tiempo);
-            if (!turno.startsAt().equals(turnoConRefrigerioTomado) && !tiempo.isBefore(ventanaRefrigerio.startsAt())) {
-                tiempo = tiempo.plus(Duration.ofHours(1));
-                turnoConRefrigerioTomado = turno.startsAt();
-            }
-
-            if (stop instanceof DeliveryStop entrega) {
-                if (tiempo.isAfter(entrega.order().deadline())) return false;
-                tiempo = tiempo.plus(DeliveryStop.SERVICE_TIME);
-            }
-            posicion = stop.location();
+    /** Avanza una parada. null si no hay camino, el tramo supera 80 km o la entrega llega tarde. */
+    private Paso avanzar(Paso actual, RouteStop parada, Vehicle vehiculo, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
+        Optional<RoadPath> camino = camino(actual.posicion(), parada.location(), actual.tiempo(), vehiculo, snapshot, bloqueos);
+        if (camino.isEmpty()) return null;
+        RoadPath recorrido = camino.get();
+        if (recorrido.distanceKm() > DISTANCIA_MAXIMA_POR_TRAMO_KM) return null;
+        Instant llegada = recorrido.arrivesAt();
+        Instant turnoTomado = actual.turnoConRefrigerio();
+        ShiftSchedule.ShiftWindow turno = snapshot.shiftSchedule().shiftAt(llegada);
+        ShiftSchedule.ShiftWindow ventanaRefrigerio = snapshot.shiftSchedule().mealWindow(llegada);
+        if (!turno.startsAt().equals(turnoTomado) && !llegada.isBefore(ventanaRefrigerio.startsAt())) {
+            llegada = llegada.plus(Duration.ofHours(1));
+            turnoTomado = turno.startsAt();
         }
-        return true;
+        Instant salida;
+        if (parada instanceof DeliveryStop entrega) {
+            if (llegada.isAfter(entrega.order().deadline())) return null;
+            salida = llegada.plus(DeliveryStop.SERVICE_TIME);
+        } else {
+            salida = llegada;
+        }
+        return new Paso(parada.location(), salida, turnoTomado, actual.distancia() + recorrido.distanceKm());
     }
 
-    private record ConsultaCamino(Location origen, Location destino, Instant horaSalida, double velocidadKmH) {
+    /**
+     * Recorre desde {@code inicio} las paradas nuevas, luego el resto de la ruta y el regreso al
+     * central. Devuelve los km totales de la ruta completa, o NaN si algo es infactible (incluido
+     * mantenimiento o averia del vehiculo en cualquier momento de la ruta).
+     */
+    private double recorrer(Paso inicio, List<RouteStop> nuevas, List<RouteStop> resto, DeliveryRoute ruta,
+                            OperationalSnapshot snapshot, Warehouse central, List<RoadBlock> bloqueos) {
+        Vehicle vehiculo = ruta.vehicle();
+        Paso paso = inicio;
+        for (RouteStop parada : nuevas) {
+            paso = avanzar(paso, parada, vehiculo, snapshot, bloqueos);
+            if (paso == null) return Double.NaN;
+        }
+        for (RouteStop parada : resto) {
+            paso = avanzar(paso, parada, vehiculo, snapshot, bloqueos);
+            if (paso == null) return Double.NaN;
+        }
+        Paso fin = avanzar(paso, new WarehouseVisit(central, 0), vehiculo, snapshot, bloqueos);
+        if (fin == null || interrumpida(vehiculo, ruta.departureAt(), fin.tiempo(), snapshot)) return Double.NaN;
+        return fin.distancia();
     }
 
-    /** Costo de una ruta candidata si es factible; vacio si no lo es. Usada
-     *  por la busqueda local: sus movimientos (2-opt sobre todo un tramo,
-     *  reubicaciones, intercambios) no se prestan a un delta marginal
-     *  simple en una red con bloqueos dependientes del tiempo, asi que
-     *  siguen recalculando la ruta completa via RouteScheduler. */
-    private Optional<Double> costoSiFactible(DeliveryRoute candidataRuta, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
+    private Linea calcularLinea(DeliveryRoute ruta, OperationalSnapshot snapshot, Warehouse central, List<RoadBlock> bloqueos) {
+        List<Paso> pasos = new ArrayList<>(ruta.stops().size() + 1);
+        Paso paso = new Paso(ruta.startLocation(), ruta.departureAt(), null, 0);
+        pasos.add(paso);
+        for (RouteStop parada : ruta.stops()) {
+            paso = avanzar(paso, parada, ruta.vehicle(), snapshot, bloqueos);
+            if (paso == null) return null;
+            pasos.add(paso);
+        }
+        Paso fin = avanzar(paso, new WarehouseVisit(central, 0), ruta.vehicle(), snapshot, bloqueos);
+        if (fin == null || interrumpida(ruta.vehicle(), ruta.departureAt(), fin.tiempo(), snapshot)) return null;
+        return new Linea(List.copyOf(pasos), fin.distancia());
+    }
+
+    /** Mismo criterio que MAINTENANCE_OR_BREAKDOWN del evaluador: [salida de la ruta, fin del regreso). */
+    private boolean interrumpida(Vehicle vehiculo, Instant salida, Instant fin, OperationalSnapshot snapshot) {
+        return fin.isAfter(salida) && snapshot.hasVehicleDisruptionDuring(vehiculo.id(), salida, fin);
+    }
+
+    private Optional<RoadPath> camino(Location origen, Location destino, Instant horaSalida, Vehicle vehiculo,
+                                      OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
+        double velocidad = snapshot.fleetProfile().parametersFor(vehiculo.type()).speedKmPerHour();
+        Duration porTramo = Duration.ofMillis(Math.round(3_600_000.0 / velocidad));
+        return roadNetwork.shortestPath(origen, destino, horaSalida, porTramo, bloqueos);
+    }
+
+    // ---------- Evaluacion exacta de rutas para la busqueda local (RouteScheduler), memorizada ----------
+
+    private record ClaveRuta(String vehiculoId, Location inicio, Instant salida, int cargaInicial, List<RouteStop> paradas) {
+    }
+
+    private record EvaluacionRuta(double costo, boolean factible) {
+    }
+
+    private EvaluacionRuta evaluar(DeliveryRoute ruta, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
+        ClaveRuta clave = new ClaveRuta(ruta.vehicle().id(), ruta.startLocation(), ruta.departureAt(), ruta.initialLoad(), ruta.stops());
+        EvaluacionRuta conocida = memoRutas.get(clave);
+        if (conocida != null) return conocida;
+        EvaluacionRuta evaluacion;
         try {
-            ScheduledDeliveryRoute programada = scheduler.schedule(candidataRuta, snapshot, bloqueos);
+            ScheduledDeliveryRoute programada = scheduler.schedule(ruta, snapshot, bloqueos);
+            boolean factible = true;
             for (ScheduledRouteStop parada : programada.scheduledStops()) {
-                if (parada.approach().distanceKm() > DISTANCIA_MAXIMA_POR_TRAMO_KM) return Optional.empty();
-                if (parada.stop() instanceof DeliveryStop entrega && parada.arrivedAt().isAfter(entrega.order().deadline())) {
-                    return Optional.empty();
+                if (parada.approach().distanceKm() > DISTANCIA_MAXIMA_POR_TRAMO_KM
+                        || (parada.stop() instanceof DeliveryStop entrega && parada.arrivedAt().isAfter(entrega.order().deadline()))) {
+                    factible = false;
+                    break;
                 }
             }
-            return Optional.of(programada.totalCost());
+            if (factible && interrumpida(ruta.vehicle(), ruta.departureAt(), programada.completedAt(), snapshot)) {
+                factible = false;
+            }
+            evaluacion = new EvaluacionRuta(programada.totalCost(), factible);
         } catch (IllegalStateException sinCaminoFactible) {
-            return Optional.empty();
+            evaluacion = new EvaluacionRuta(Double.POSITIVE_INFINITY, false);
         }
+        if (memoRutas.size() >= LIMITE_MEMO_RUTAS) memoRutas.clear();
+        memoRutas.put(clave, evaluacion);
+        return evaluacion;
     }
 
-    /** Defensivo a proposito: una ruta que ya era parte de un plan valido no
-     *  deberia fallar al reprogramarse, pero si ocurriera (p.ej. un bloqueo
-     *  deja sin camino a una parada en el instante exacto de transito), la
-     *  busqueda local debe tratarla como "no conviene", no tumbar la
-     *  corrida completa. */
+    /** Costo de la ruta si cumple las reglas por ruta (camino, 80 km, plazos, mantenimiento); vacio si no. */
+    private Optional<Double> costoSiFactible(DeliveryRoute ruta, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
+        EvaluacionRuta evaluacion = evaluar(ruta, snapshot, bloqueos);
+        return evaluacion.factible() ? Optional.of(evaluacion.costo()) : Optional.empty();
+    }
+
+    /** Defensivo: una ruta sin camino se trata como costo infinito, no tumba la corrida. */
     private double costoRuta(DeliveryRoute ruta, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
-        try {
-            return scheduler.schedule(ruta, snapshot, bloqueos).totalCost();
-        } catch (IllegalStateException sinCaminoFactible) {
-            return Double.POSITIVE_INFINITY;
-        }
+        return evaluar(ruta, snapshot, bloqueos).costo();
     }
 
     private int indiceUltimoAlmacen(List<RouteStop> stops) {
@@ -415,10 +432,9 @@ public class GraspPlanificador {
     }
 
     // =========================================================
-    // Busqueda local: 2-opt, reubicacion e intercambio.
-    // Estrategia de primera-mejora: cada paso busca UN movimiento que
-    // mejore el costo, lo aplica y reinicia el barrido; se repite hasta que
-    // ninguno de los tres produzca mejora.
+    // Busqueda local de primera mejora: insercion de pendientes, 2-opt,
+    // reubicacion e intercambio. Cada paso aplica el primer movimiento que
+    // mejora y reinicia; termina cuando ninguno mejora.
     // =========================================================
 
     private ResultadoPlanificacion busquedaLocal(ResultadoPlanificacion actual, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
@@ -444,42 +460,29 @@ public class GraspPlanificador {
         return new ResultadoPlanificacion(plan, evaluacion, List.copyOf(pendientes));
     }
 
-    /** Repara pedidos que la fase constructiva dejo en noAtendidos solo por
-     *  el orden en que el barrido greedy los proceso (branch (a) de
-     *  generarCandidatos: insertar en el tramo de entregas ya abierto de
-     *  alguna ruta), no porque fueran imposibles de atender. Se ejecuta
-     *  DESPUES de 2-opt/reubicacion/intercambio, sobre el plan ya
-     *  reordenado, con prioridad sobre el costo -- reducir noAtendidos pesa
-     *  mas que el costo (ver esMejorQue), asi que se acepta la insercion
-     *  factible mas barata encontrada sin comparar contra "no insertar".
-     *  A proposito NO abre WarehouseVisit nuevos (esa rama de
-     *  generarCandidatos consume inventario, que aqui ya no se rastrea tras
-     *  la fase constructiva) -- si el pedido solo cabe abriendo una recarga
-     *  o un vehiculo nuevo, sigue quedando en noAtendidos: eso ya es
-     *  colapso real, no un artefacto del greedy. */
+    /**
+     * Rescata pedidos que la construccion dejo sin atender solo por el orden del barrido greedy:
+     * los inserta enteros en un tramo existente de alguna ruta, aumentando lo que recoge la carga
+     * de ese tramo, con capacidad y stock. No abre recargas ni vehiculos nuevos; si no cabe asi,
+     * sigue sin atender.
+     */
     ResultadoInsercion pasoInsercionPendientes(OperationalPlan plan, List<Order> pendientes,
             OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
+        Map<String, Integer> stock = stockRestante(plan, snapshot);
         for (Order pedido : pendientes) {
+            SearchControl.checkpoint();
             DeliveryRoute mejorRuta = null;
             double mejorCosto = Double.POSITIVE_INFINITY;
+            DeliveryStop entrega = new DeliveryStop(pedido, pedido.packages());
             for (DeliveryRoute ruta : plan.routes()) {
-                int capacidad = snapshot.fleetProfile().parametersFor(ruta.vehicle().type()).capacity();
+                int capacidad = capacidad(snapshot, ruta.vehicle());
                 int posMax = ultimaPosicionValidaParaInsertar(ruta.stops());
-                // Recorre TODAS las posiciones (como pasoReubicacion), no solo
-                // el ultimo tramo: una ruta puede tener varios viajes/recargas.
                 for (int pos = 0; pos <= posMax; pos++) {
                     if (cargaDelSegmento(ruta.stops(), pos) + pedido.packages() > capacidad) continue;
-                    // El tramo inicial (antes de cualquier WarehouseVisit) esta
-                    // gobernado por initialLoad, inmutable -- igual que en
-                    // pasoReubicacion, se descarta ese caso.
-                    int indiceAlmacen = indiceAlmacenQueAbreSegmento(ruta.stops(), pos);
-                    if (indiceAlmacen == -1) continue;
-                    List<RouteStop> stopsCandidatos = new ArrayList<>(ruta.stops());
-                    WarehouseVisit visitaOriginal = (WarehouseVisit) stopsCandidatos.get(indiceAlmacen);
-                    stopsCandidatos.set(indiceAlmacen, new WarehouseVisit(visitaOriginal.warehouse(),
-                            visitaOriginal.pickupPackages() + pedido.packages()));
-                    stopsCandidatos.add(pos, new DeliveryStop(pedido, pedido.packages()));
-                    DeliveryRoute candidata = ruta.withReplacedStops(stopsCandidatos);
+                    Warehouse proveedor = almacenDelTramo(ruta, pos);
+                    if (proveedor == null || !hayStock(stock, proveedor, pedido.packages())) continue;
+                    DeliveryRoute candidata = insertar(ruta, pos, entrega);
+                    if (candidata == null) continue;
                     Optional<Double> costo = costoSiFactible(candidata, snapshot, bloqueos);
                     if (costo.isPresent() && costo.get() < mejorCosto) {
                         mejorCosto = costo.get();
@@ -497,12 +500,10 @@ public class GraspPlanificador {
     record ResultadoInsercion(OperationalPlan plan, Order pedidoInsertado) {
     }
 
-    /** Inversion (2-opt): invierte un tramo dentro de un mismo segmento de
-     *  entregas (entre dos WarehouseVisit consecutivos) para eliminar
-     *  cruces. Retorna el plan con el primer movimiento que mejora el
-     *  costo, o null si ninguno mejora. */
+    /** 2-opt: invierte un tramo dentro de un mismo segmento de entregas; primer movimiento que mejora. */
     private OperationalPlan pasoDosOpt(OperationalPlan plan, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
         for (DeliveryRoute ruta : plan.routes()) {
+            SearchControl.checkpoint();
             double costoActual = costoRuta(ruta, snapshot, bloqueos);
             for (int[] segmento : segmentosDeEntrega(ruta.stops())) {
                 for (int i = segmento[0]; i < segmento[1]; i++) {
@@ -521,50 +522,46 @@ public class GraspPlanificador {
         return null;
     }
 
-    /** Reubicacion (Or-opt): mueve un pedido de una ruta a otra (incluso
-     *  entre vehiculos distintos), respetando la capacidad del SEGMENTO de
-     *  destino (entre sus dos WarehouseVisit mas cercanos), ya que una
-     *  DeliveryRoute puede tener mas de un viaje. Si la ruta de origen se
-     *  queda sin ninguna entrega, se ELIMINA del plan en vez de dejarla
-     *  como un viaje vacio (bug corregido: antes inflaba el conteo de
-     *  viajes de ValidadorUtilizacionFlota sin aportar carga real). */
+    /**
+     * Reubicacion (Or-opt): mueve una entrega a otra ruta, en cualquier tramo con capacidad y
+     * stock (aumenta lo que recoge la carga de ese tramo). La ruta de origen deja de recoger esa
+     * cantidad (y elimina la recarga si quedo vacia); si se queda sin entregas, sale del plan.
+     */
     private OperationalPlan pasoReubicacion(OperationalPlan plan, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
         List<DeliveryRoute> rutas = List.copyOf(plan.routes());
+        Map<String, Integer> stock = stockRestante(plan, snapshot);
+        Map<String, Double> costoActualPorVehiculo = new HashMap<>();
+        for (DeliveryRoute ruta : rutas) {
+            costoActualPorVehiculo.put(ruta.vehicle().id(), costoRuta(ruta, snapshot, bloqueos));
+        }
         for (DeliveryRoute origen : rutas) {
+            double costoOrigenActual = costoActualPorVehiculo.get(origen.vehicle().id());
             for (int i : deliveryIndexes(origen.stops())) {
+                SearchControl.checkpoint();
                 DeliveryStop movido = (DeliveryStop) origen.stops().get(i);
-                double costoOrigenActual = costoRuta(origen, snapshot, bloqueos);
-                DeliveryRoute origenSinParada = origen.withReplacedStops(sinIndice(origen.stops(), i));
+                Retiro retiro = quitar(origen, i);
+                DeliveryRoute origenSinParada = retiro.ruta();
                 Optional<Double> costoOrigenNuevo = costoSiFactible(origenSinParada, snapshot, bloqueos);
                 if (costoOrigenNuevo.isEmpty()) continue;
                 double ahorro = costoOrigenActual - costoOrigenNuevo.get();
 
                 for (DeliveryRoute destino : rutas) {
                     if (destino.vehicle().id().equals(origen.vehicle().id())) continue;
-                    int capacidad = snapshot.fleetProfile().parametersFor(destino.vehicle().type()).capacity();
-                    // Nunca insertar despues del ultimo WarehouseVisit si ese
-                    // es el regreso final al almacen -- una ruta terminada
-                    // siempre debe terminar en un WarehouseVisit (exigido por
-                    // OperationalPlanEvaluator), no en un DeliveryStop.
+                    int capacidad = capacidad(snapshot, destino.vehicle());
+                    double costoDestinoActual = costoActualPorVehiculo.get(destino.vehicle().id());
+                    // Nunca despues del regreso final: toda ruta debe terminar en un almacen.
                     int posMax = ultimaPosicionValidaParaInsertar(destino.stops());
                     for (int pos = 0; pos <= posMax; pos++) {
                         if (cargaDelSegmento(destino.stops(), pos) + movido.deliveredPackages() > capacidad) continue;
-                        // El WarehouseVisit que abre este tramo debe recoger
-                        // tambien lo que ahora se entrega en el; el tramo
-                        // inicial (antes de cualquier WarehouseVisit) no se
-                        // puede ajustar porque initialLoad es inmutable una
-                        // vez creada la ruta -- ese caso simplemente se salta.
-                        int indiceAlmacen = indiceAlmacenQueAbreSegmento(destino.stops(), pos);
-                        if (indiceAlmacen == -1) continue;
-                        List<RouteStop> stopsDestino = new ArrayList<>(destino.stops());
-                        WarehouseVisit visitaOriginal = (WarehouseVisit) stopsDestino.get(indiceAlmacen);
-                        stopsDestino.set(indiceAlmacen, new WarehouseVisit(visitaOriginal.warehouse(),
-                                visitaOriginal.pickupPackages() + movido.deliveredPackages()));
-                        stopsDestino.add(pos, movido);
-                        DeliveryRoute destinoNuevo = destino.withReplacedStops(stopsDestino);
+                        Warehouse proveedor = almacenDelTramo(destino, pos);
+                        if (proveedor == null) continue;
+                        int liberado = proveedor.equals(retiro.almacenLiberado()) ? movido.deliveredPackages() : 0;
+                        if (!hayStock(stock, proveedor, movido.deliveredPackages() - liberado)) continue;
+                        DeliveryRoute destinoNuevo = insertar(destino, pos, movido);
+                        if (destinoNuevo == null) continue;
                         Optional<Double> costoDestinoNuevo = costoSiFactible(destinoNuevo, snapshot, bloqueos);
                         if (costoDestinoNuevo.isEmpty()) continue;
-                        double costoIncremental = costoDestinoNuevo.get() - costoRuta(destino, snapshot, bloqueos);
+                        double costoIncremental = costoDestinoNuevo.get() - costoDestinoActual;
                         if (costoIncremental < ahorro) {
                             OperationalPlan planConDestinoActualizado = plan.withRoute(destinoNuevo);
                             boolean origenQuedaVacio = deliveryIndexes(origenSinParada.stops()).isEmpty();
@@ -579,15 +576,19 @@ public class GraspPlanificador {
         return null;
     }
 
-    /** Intercambio (Swap): intercambia dos pedidos entre dos rutas distintas. */
+    /** Intercambio: dos entregas entre dos rutas distintas, ajustando las recargas que las gobiernan. */
     private OperationalPlan pasoIntercambio(OperationalPlan plan, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
         List<DeliveryRoute> rutas = List.copyOf(plan.routes());
+        Map<String, Integer> stock = stockRestante(plan, snapshot);
         for (int a = 0; a < rutas.size(); a++) {
             DeliveryRoute rutaA = rutas.get(a);
+            double costoA = costoRuta(rutaA, snapshot, bloqueos);
+            int capA = capacidad(snapshot, rutaA.vehicle());
             for (int b = a + 1; b < rutas.size(); b++) {
+                SearchControl.checkpoint();
                 DeliveryRoute rutaB = rutas.get(b);
-                int capA = snapshot.fleetProfile().parametersFor(rutaA.vehicle().type()).capacity();
-                int capB = snapshot.fleetProfile().parametersFor(rutaB.vehicle().type()).capacity();
+                double costoAntes = costoA + costoRuta(rutaB, snapshot, bloqueos);
+                int capB = capacidad(snapshot, rutaB.vehicle());
 
                 for (int i : deliveryIndexes(rutaA.stops())) {
                     DeliveryStop pA = (DeliveryStop) rutaA.stops().get(i);
@@ -597,36 +598,28 @@ public class GraspPlanificador {
                         int nuevaCargaSegB = cargaDelSegmento(rutaB.stops(), j) - pB.deliveredPackages() + pA.deliveredPackages();
                         if (nuevaCargaSegA > capA || nuevaCargaSegB > capB) continue;
 
-                        // Si las cantidades intercambiadas difieren, el
-                        // WarehouseVisit que abre cada tramo debe recoger la
-                        // diferencia; si el tramo es el inicial (gobernado
-                        // por initialLoad, inmutable), no hay forma de
-                        // ajustarlo y el intercambio se descarta.
+                        // Si las cantidades difieren, la carga de cada tramo absorbe la diferencia.
                         int delta = pB.deliveredPackages() - pA.deliveredPackages();
+                        if (delta != 0) {
+                            Warehouse proveedorA = almacenDelTramo(rutaA, i);
+                            Warehouse proveedorB = almacenDelTramo(rutaB, j);
+                            if (proveedorA == null || proveedorB == null) continue;
+                            if (!stockParaIntercambio(stock, proveedorA, delta, proveedorB)) continue;
+                        }
                         List<RouteStop> stopsA = new ArrayList<>(rutaA.stops());
                         List<RouteStop> stopsB = new ArrayList<>(rutaB.stops());
-                        if (delta != 0) {
-                            int almacenA = indiceAlmacenQueAbreSegmento(rutaA.stops(), i);
-                            int almacenB = indiceAlmacenQueAbreSegmento(rutaB.stops(), j);
-                            if (almacenA == -1 || almacenB == -1) continue;
-                            WarehouseVisit visitaA = (WarehouseVisit) stopsA.get(almacenA);
-                            WarehouseVisit visitaB = (WarehouseVisit) stopsB.get(almacenB);
-                            if (visitaA.pickupPackages() + delta < 0 || visitaB.pickupPackages() - delta < 0) continue;
-                            stopsA.set(almacenA, new WarehouseVisit(visitaA.warehouse(), visitaA.pickupPackages() + delta));
-                            stopsB.set(almacenB, new WarehouseVisit(visitaB.warehouse(), visitaB.pickupPackages() - delta));
-                        }
                         stopsA.set(i, new DeliveryStop(pB.order(), pB.deliveredPackages()));
                         stopsB.set(j, new DeliveryStop(pA.order(), pA.deliveredPackages()));
-                        DeliveryRoute rutaANueva = rutaA.withReplacedStops(stopsA);
-                        DeliveryRoute rutaBNueva = rutaB.withReplacedStops(stopsB);
+                        DeliveryRoute rutaANueva = conCargaAjustada(rutaA, stopsA, i, delta);
+                        DeliveryRoute rutaBNueva = conCargaAjustada(rutaB, stopsB, j, -delta);
+                        if (rutaANueva == null || rutaBNueva == null) continue;
 
                         Optional<Double> costoANuevo = costoSiFactible(rutaANueva, snapshot, bloqueos);
+                        if (costoANuevo.isEmpty()) continue;
                         Optional<Double> costoBNuevo = costoSiFactible(rutaBNueva, snapshot, bloqueos);
-                        if (costoANuevo.isEmpty() || costoBNuevo.isEmpty()) continue;
+                        if (costoBNuevo.isEmpty()) continue;
 
-                        double costoAntes = costoRuta(rutaA, snapshot, bloqueos) + costoRuta(rutaB, snapshot, bloqueos);
-                        double costoDespues = costoANuevo.get() + costoBNuevo.get();
-                        if (costoDespues < costoAntes) {
+                        if (costoANuevo.get() + costoBNuevo.get() < costoAntes) {
                             return plan.withRoute(rutaANueva).withRoute(rutaBNueva);
                         }
                     }
@@ -634,6 +627,115 @@ public class GraspPlanificador {
             }
         }
         return null;
+    }
+
+    // ---------- Auxiliares de tramos, carga e inventario ----------
+
+    /*
+     * Cada tramo de entregas lo abastece una carga: la carga inicial de la ruta (primer tramo) o
+     * el pickup de la recarga que lo abre. Insertar, quitar o cambiar una entrega ajusta esa
+     * carga para que siga igual a lo que el tramo entrega (sin carga negativa ni stock retirado de
+     * mas). La carga inicial se ajusta reconstruyendo la ruta desde el central con otro valor; una
+     * ruta replanificada desde la posicion del vehiculo (sin almacen inicial) no la puede cambiar.
+     */
+
+    /** Almacen que abastece el tramo de la posicion: la recarga previa o el almacen de salida (si hay). */
+    private Warehouse almacenDelTramo(DeliveryRoute ruta, int posicion) {
+        int indiceAlmacen = indiceAlmacenQueAbreSegmento(ruta.stops(), posicion);
+        if (indiceAlmacen >= 0) return ((WarehouseVisit) ruta.stops().get(indiceAlmacen)).warehouse();
+        return ruta.initialWarehouse().orElse(null);
+    }
+
+    /** La ruta con {@code paradas} y la carga del tramo de {@code posicion} cambiada en delta; null si no es posible. */
+    private DeliveryRoute conCargaAjustada(DeliveryRoute ruta, List<RouteStop> paradas, int posicion, int delta) {
+        if (delta == 0) return ruta.withReplacedStops(paradas);
+        int indiceAlmacen = indiceAlmacenQueAbreSegmento(paradas, posicion);
+        if (indiceAlmacen >= 0) {
+            WarehouseVisit visita = (WarehouseVisit) paradas.get(indiceAlmacen);
+            int nuevoPickup = visita.pickupPackages() + delta;
+            if (nuevoPickup < 0) return null;
+            List<RouteStop> copia = new ArrayList<>(paradas);
+            copia.set(indiceAlmacen, new WarehouseVisit(visita.warehouse(), nuevoPickup));
+            return ruta.withReplacedStops(copia);
+        }
+        Optional<Warehouse> inicial = ruta.initialWarehouse();
+        int nuevaCarga = ruta.initialLoad() + delta;
+        if (inicial.isEmpty() || nuevaCarga < 0 || nuevaCarga > ruta.vehicle().type().capacity()) return null;
+        return DeliveryRoute.startScenarioAtCentral(ruta.id(), ruta.vehicle(), inicial.get(), nuevaCarga, ruta.departureAt())
+                .withReplacedStops(paradas);
+    }
+
+    /** Inserta la entrega en pos y aumenta la carga de su tramo; null si esa carga no es ajustable. */
+    private DeliveryRoute insertar(DeliveryRoute ruta, int pos, DeliveryStop entrega) {
+        List<RouteStop> paradas = new ArrayList<>(ruta.stops());
+        paradas.add(pos, entrega);
+        return conCargaAjustada(ruta, paradas, pos, entrega.deliveredPackages());
+    }
+
+    /** Resultado de quitar una entrega: la ruta nueva y el almacen que deja de entregar esa carga. */
+    private record Retiro(DeliveryRoute ruta, Warehouse almacenLiberado) {
+    }
+
+    /**
+     * Quita la entrega i y reduce la carga de su tramo en esa cantidad; si una recarga queda sin
+     * carga ni entregas y no es el regreso final, se elimina.
+     */
+    private Retiro quitar(DeliveryRoute ruta, int i) {
+        List<RouteStop> paradas = new ArrayList<>(ruta.stops());
+        DeliveryStop quitada = (DeliveryStop) paradas.remove(i);
+        Warehouse proveedor = almacenDelTramo(ruta, i);
+        DeliveryRoute ajustada = conCargaAjustada(ruta, paradas, i, -quitada.deliveredPackages());
+        if (ajustada == null) {
+            return new Retiro(ruta.withReplacedStops(paradas), null);
+        }
+        int indiceAlmacen = indiceAlmacenQueAbreSegmento(paradas, i);
+        if (indiceAlmacen >= 0) {
+            WarehouseVisit visita = (WarehouseVisit) ajustada.stops().get(indiceAlmacen);
+            boolean esRegresoFinal = indiceAlmacen == ajustada.stops().size() - 1;
+            if (visita.pickupPackages() == 0 && !esRegresoFinal && !tramoTieneEntregas(ajustada.stops(), indiceAlmacen)) {
+                List<RouteStop> sinRecargaVacia = new ArrayList<>(ajustada.stops());
+                sinRecargaVacia.remove(indiceAlmacen);
+                ajustada = ajustada.withReplacedStops(sinRecargaVacia);
+            }
+        }
+        return new Retiro(ajustada, proveedor);
+    }
+
+    private boolean tramoTieneEntregas(List<RouteStop> stops, int indiceAlmacen) {
+        for (int k = indiceAlmacen + 1; k < stops.size(); k++) {
+            if (stops.get(k) instanceof WarehouseVisit) return false;
+            if (stops.get(k) instanceof DeliveryStop) return true;
+        }
+        return false;
+    }
+
+    /** Stock de cada almacen intermedio que el plan todavia no retira (el central no tiene limite). */
+    private Map<String, Integer> stockRestante(OperationalPlan plan, OperationalSnapshot snapshot) {
+        Map<String, Integer> restante = new HashMap<>();
+        for (Warehouse almacen : snapshot.inventory().warehouses()) {
+            if (!almacen.isCentral()) restante.put(almacen.id(), snapshot.inventory().availableStock(almacen.id()));
+        }
+        for (DeliveryRoute ruta : plan.routes()) {
+            ruta.initialWarehouse().ifPresent(almacen -> {
+                if (!almacen.isCentral()) restante.merge(almacen.id(), -ruta.initialLoad(), Integer::sum);
+            });
+            for (RouteStop parada : ruta.stops()) {
+                if (parada instanceof WarehouseVisit visita && !visita.warehouse().isCentral()) {
+                    restante.merge(visita.warehouse().id(), -visita.pickupPackages(), Integer::sum);
+                }
+            }
+        }
+        return restante;
+    }
+
+    private boolean hayStock(Map<String, Integer> restante, Warehouse almacen, int adicional) {
+        return adicional <= 0 || almacen.isCentral() || restante.getOrDefault(almacen.id(), 0) >= adicional;
+    }
+
+    /** A recoge delta mas y B delta menos (delta puede ser negativo). */
+    private boolean stockParaIntercambio(Map<String, Integer> restante, Warehouse almacenA, int delta, Warehouse almacenB) {
+        if (almacenA.equals(almacenB)) return true;
+        return delta > 0 ? hayStock(restante, almacenA, delta) : hayStock(restante, almacenB, -delta);
     }
 
     private int indiceAlmacenQueAbreSegmento(List<RouteStop> stops, int posicion) {
@@ -652,12 +754,6 @@ public class GraspPlanificador {
         List<Integer> indices = new ArrayList<>();
         for (int i = 0; i < stops.size(); i++) if (stops.get(i) instanceof DeliveryStop) indices.add(i);
         return indices;
-    }
-
-    private List<RouteStop> sinIndice(List<RouteStop> stops, int indice) {
-        List<RouteStop> copia = new ArrayList<>(stops);
-        copia.remove(indice);
-        return copia;
     }
 
     private int cargaDelSegmento(List<RouteStop> stops, int posicion) {
@@ -691,32 +787,55 @@ public class GraspPlanificador {
         return segmentos;
     }
 
+    private static Warehouse central(OperationalSnapshot snapshot) {
+        return snapshot.inventory().warehouses().stream()
+                .filter(Warehouse::isCentral).findFirst()
+                .orElseThrow(() -> new IllegalStateException("El snapshot no tiene almacen central"));
+    }
+
+    private static int capacidad(OperationalSnapshot snapshot, Vehicle vehiculo) {
+        return snapshot.fleetProfile().parametersFor(vehiculo.type()).capacity();
+    }
+
     // =========================================================
     // Estado auxiliar de construccion
     // =========================================================
 
+    private record Respaldo(DeliveryRoute ruta, int cargaActual, Linea linea) {
+    }
+
     private static final class EstadoConstruccion {
         final VehicleOperationalState estadoInicial;
+        final Instant horaDisponible;
         DeliveryRoute ruta;
+        /** Paquetes comprometidos en el tramo abierto (desde la ultima carga). */
         int cargaActual;
+        Linea linea;
 
-        EstadoConstruccion(VehicleOperationalState estadoInicial) {
+        EstadoConstruccion(VehicleOperationalState estadoInicial, Instant horaDisponible) {
             this.estadoInicial = estadoInicial;
-            this.ruta = null;
-            this.cargaActual = 0;
+            this.horaDisponible = horaDisponible;
         }
 
-        Location ubicacionActual() {
-            return ruta == null ? estadoInicial.location() : ruta.stops().getLast().location();
+        Respaldo respaldo() {
+            return new Respaldo(ruta, cargaActual, linea);
         }
 
-        void aplicar(Candidato c) {
-            this.cargaActual = c.esRutaNueva() ? c.pedido().packages() : this.cargaActual + c.pedido().packages();
-            this.ruta = c.rutaResultante();
+        void restaurar(Respaldo respaldo) {
+            ruta = respaldo.ruta();
+            cargaActual = respaldo.cargaActual();
+            linea = respaldo.linea();
+        }
+
+        void aplicar(Candidato c, Linea nuevaLinea) {
+            cargaActual = c.abreTramo() ? c.cantidad() : cargaActual + c.cantidad();
+            ruta = c.rutaResultante();
+            linea = nuevaLinea;
         }
     }
 
-    private record Candidato(String vehiculoId, DeliveryRoute rutaResultante, boolean esRutaNueva,
-                              Order pedido, Warehouse almacenReabastecimiento, int cargaReabastecida, double costo) {
+    /** abreTramo: la entrega inicia un tramo nuevo (ruta nueva o recarga). */
+    private record Candidato(String vehiculoId, DeliveryRoute rutaResultante, boolean abreTramo,
+                             Order pedido, int cantidad, Warehouse almacenRetiro, double costo) {
     }
 }

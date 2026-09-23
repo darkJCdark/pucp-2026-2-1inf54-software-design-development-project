@@ -7,6 +7,8 @@ import pe.pucp.paqrap.modelo.InicializadorFlota;
 import pe.pucp.paqrap.modelo.ResultadoPlanificacion;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
 
@@ -40,6 +42,16 @@ class GraspPlanificadorTest {
                 new MaintenanceCalendar(zona, List.of()), new ShiftSchedule(zona), List.of());
     }
 
+    private OperationalSnapshot snapshotCon(Instant planificacion, List<Vehicle> flota, List<Warehouse> almacenes,
+                                            List<MaintenanceDay> mantenimiento) {
+        Map<String, VehicleOperationalState> estados = new LinkedHashMap<>();
+        for (Vehicle v : flota) {
+            estados.put(v.id(), new VehicleOperationalState(v, VehicleStatus.AVAILABLE, central.location(), planificacion));
+        }
+        return new OperationalSnapshot(planificacion, perfilDePrueba(), InventorySnapshot.from(almacenes), estados,
+                new MaintenanceCalendar(zona, mantenimiento), new ShiftSchedule(zona), List.of());
+    }
+
     private GraspPlanificador planificadorDePrueba(long semilla) {
         RoadNetwork roadNetwork = new RoadNetwork();
         RouteScheduler scheduler = new RouteScheduler(roadNetwork);
@@ -67,16 +79,117 @@ class GraspPlanificadorTest {
     }
 
     @Test
-    void unPedidoQueExcedeTodaLaFlotaQuedaSinAtenderYNoRompeCapacidad() {
+    void unPedidoMayorQueCualquierVehiculoSeDivideEnEntregasParciales() {
+        // P&R 13: hay entregas parciales. 30 paquetes no caben en ningun vehiculo (maximo 24), pero
+        // si en la flota: GRASP-v2 lo reparte. Antes quedaba siempre sin atender.
         List<Warehouse> almacenes = List.of(central);
-        List<Order> pedidos = List.of(new Order("C-005", new Location(5, 5), 30, horaInicio, horaInicio.plusSeconds(36 * 3600)));
+        Order grande = new Order("C-005", new Location(5, 5), 30, horaInicio, horaInicio.plusSeconds(36 * 3600));
 
         ResultadoPlanificacion resultado = planificadorDePrueba(7L)
-                .planificar(snapshotDePrueba(almacenes), pedidos, List.of(), 0.3, 30);
+                .planificar(snapshotDePrueba(almacenes), List.of(grande), List.of(), 0.3, 30);
 
-        assertEquals(1, resultado.noAtendidos().size());
-        assertEquals("C-005", resultado.noAtendidos().get(0).id());
+        assertTrue(resultado.esFactible(), () -> "plan infactible: " + resultado.evaluacion().violations());
+        assertTrue(resultado.noAtendidos().isEmpty());
+        int entregados = 0;
+        int entregasParciales = 0;
+        for (DeliveryRoute ruta : resultado.plan().routes()) {
+            int capacidad = perfilDePrueba().parametersFor(ruta.vehicle().type()).capacity();
+            for (RouteStop parada : ruta.stops()) {
+                if (parada instanceof DeliveryStop entrega) {
+                    assertTrue(entrega.deliveredPackages() <= capacidad);
+                    entregados += entrega.deliveredPackages();
+                    entregasParciales++;
+                }
+            }
+        }
+        assertEquals(30, entregados);
+        assertTrue(entregasParciales >= 2);
+    }
+
+    @Test
+    void unPedidoConPlazoImposibleQuedaSinAtenderYNoDejaPartesSueltas() {
+        // (65,48) esta a 72 km del central: ni el auto (40 km/h) llega en 30 minutos.
+        List<Warehouse> almacenes = List.of(central);
+        Order imposible = new Order("C-LEJOS", new Location(65, 48), 30, horaInicio, horaInicio.plusSeconds(30 * 60));
+        Order posible = new Order("C-CERCA", new Location(28, 15), 3, horaInicio, horaInicio.plusSeconds(8 * 3600));
+
+        ResultadoPlanificacion resultado = planificadorDePrueba(3L)
+                .planificar(snapshotDePrueba(almacenes), List.of(imposible, posible), List.of(), 0.3, 10);
+
+        assertTrue(resultado.esFactible(), () -> "plan infactible: " + resultado.evaluacion().violations());
+        assertEquals(List.of(imposible), resultado.noAtendidos());
+        boolean quedoAlgunaParte = resultado.plan().routes().stream().flatMap(r -> r.stops().stream())
+                .anyMatch(p -> p instanceof DeliveryStop d && d.order().equals(imposible));
+        assertFalse(quedoAlgunaParte, "un pedido no atendido no debe dejar entregas parciales en el plan");
+    }
+
+    @Test
+    void noAsignaUnaRutaQueTerminaDentroDelMantenimientoDelVehiculo() {
+        // Planificacion a las 22:00 (Lima): la unica unidad entra a mantenimiento a las 00:00 del
+        // dia siguiente. Una entrega lejana obligaria a seguir en ruta pasada la medianoche.
+        Instant noche = LocalDateTime.of(2026, 9, 9, 22, 0).atZone(zona).toInstant();
+        Vehicle auto = new Vehicle("TA01", VehicleType.CAR, true);
+        OperationalSnapshot snapshot = snapshotCon(noche, List.of(auto), List.of(central),
+                List.of(new MaintenanceDay("TA01", LocalDate.of(2026, 9, 10))));
+        Order lejos = new Order("C-LEJOS", new Location(65, 48), 4, noche, noche.plusSeconds(36 * 3600));
+
+        ResultadoPlanificacion resultado = planificadorDePrueba(11L)
+                .planificar(snapshot, List.of(lejos), List.of(), 0.3, 5);
+
+        assertTrue(resultado.esFactible(), () -> "plan infactible: " + resultado.evaluacion().violations());
+        assertEquals(List.of(lejos), resultado.noAtendidos());
         assertTrue(resultado.plan().routes().isEmpty());
+    }
+
+    @Test
+    void consolidaVariosPedidosEnElPrimerViajeSinVolverAUnAlmacen() {
+        // Un solo auto (24) y tres pedidos pequenos cercanos: deben ir en el mismo primer viaje,
+        // con una sola visita a almacen (el regreso final). Antes el primer tramo solo admitia un pedido.
+        Vehicle auto = new Vehicle("TA01", VehicleType.CAR, true);
+        OperationalSnapshot snapshot = snapshotCon(horaInicio, List.of(auto), List.of(central), List.of());
+        List<Order> pedidos = List.of(
+                new Order("C-1", new Location(30, 14), 3, horaInicio, horaInicio.plusSeconds(8 * 3600)),
+                new Order("C-2", new Location(31, 15), 4, horaInicio, horaInicio.plusSeconds(8 * 3600)),
+                new Order("C-3", new Location(32, 16), 5, horaInicio, horaInicio.plusSeconds(8 * 3600)));
+
+        ResultadoPlanificacion resultado = planificadorDePrueba(5L).planificar(snapshot, pedidos, List.of(), 0.0, 3);
+
+        assertTrue(resultado.esFactible(), () -> "plan infactible: " + resultado.evaluacion().violations());
+        assertTrue(resultado.noAtendidos().isEmpty());
+        DeliveryRoute ruta = resultado.plan().routes().iterator().next();
+        assertEquals(12, ruta.initialLoad());
+        assertEquals(1, ruta.stops().stream().filter(p -> p instanceof WarehouseVisit).count());
+        assertEquals(3, ruta.stops().stream().filter(p -> p instanceof DeliveryStop).count());
+    }
+
+    @Test
+    void conBloqueosMantenimientoYCruceDeMedianocheLosPlanesSonFactibles() {
+        // La factibilidad que usa la construccion debe coincidir con la del evaluador: planificando
+        // a las 19:00 las rutas cruzan de turno y de dia, con bloqueos activos y unidades que entran
+        // a mantenimiento al dia siguiente.
+        Instant tarde = LocalDateTime.of(2026, 9, 9, 19, 0).atZone(zona).toInstant();
+        List<Vehicle> flota = InicializadorFlota.crearFlotaInicial();
+        List<MaintenanceDay> mantenimiento = List.of(new MaintenanceDay("TA01", LocalDate.of(2026, 9, 10)),
+                new MaintenanceDay("TM01", LocalDate.of(2026, 9, 10)), new MaintenanceDay("TB01", LocalDate.of(2026, 9, 10)));
+        OperationalSnapshot snapshot = snapshotCon(tarde, flota, List.of(central, intNorOeste, intEste), mantenimiento);
+        List<RoadBlock> bloqueos = List.of(
+                new RoadBlock(tarde, tarde.plusSeconds(3 * 3600), List.of(new Location(27, 16), new Location(40, 16))),
+                new RoadBlock(tarde.plusSeconds(1800), tarde.plusSeconds(5 * 3600), List.of(new Location(20, 10), new Location(20, 30))),
+                new RoadBlock(tarde.plusSeconds(3600), tarde.plusSeconds(8 * 3600), List.of(new Location(45, 20), new Location(45, 35), new Location(55, 35))));
+        Random generador = new Random(99L);
+        int[] plazos = {4, 8, 12, 18, 36};
+        List<Order> pedidos = new ArrayList<>();
+        for (int i = 0; i < 18; i++) {
+            int paquetes = i % 6 == 0 ? 25 + generador.nextInt(8) : 1 + generador.nextInt(8);
+            pedidos.add(new Order(String.format("R-%02d", i), new Location(5 + generador.nextInt(61), 5 + generador.nextInt(41)),
+                    paquetes, tarde, tarde.plusSeconds(plazos[generador.nextInt(plazos.length)] * 3600L)));
+        }
+
+        for (long semilla : new long[]{1L, 2L, 3L, 4L, 5L}) {
+            ResultadoPlanificacion resultado = planificadorDePrueba(semilla).planificar(snapshot, pedidos, bloqueos, 0.3, 4);
+            assertTrue(resultado.esFactible(),
+                    () -> "semilla " + semilla + " produjo un plan infactible: " + resultado.evaluacion().violations());
+        }
     }
 
     @Test

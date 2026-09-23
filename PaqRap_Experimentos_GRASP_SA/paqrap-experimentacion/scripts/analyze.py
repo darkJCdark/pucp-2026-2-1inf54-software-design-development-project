@@ -31,6 +31,14 @@ def ok(row: dict[str, str]) -> bool:
     return row.get("full_feasible") == "true"
 
 
+def ok_servable(row: dict[str, str]) -> bool:
+    """Rutas validas que cubren todo pedido atendible (secundaria; igual a ok() si no hay no atendibles).
+
+    Corridas de versiones anteriores sin esa columna usan ok()."""
+    value = row.get("full_servable_feasible", "")
+    return value == "true" if value else ok(row)
+
+
 def average(values: list[float]) -> float | None:
     return st.mean(values) if values else None
 
@@ -100,7 +108,13 @@ def analyze(folder: Path, infer: bool, wilcoxon: bool, plots: bool) -> dict[str,
         if both and (cg is None or cs is None):
             raise ValueError("Corrida factible sin costo")
         log_ratio = math.log(cg / cs) if both and cg is not None and cs is not None and cg > 0 and cs > 0 else None
+        both_servable = ok_servable(g) and ok_servable(s)
+        rg, rs = num(g, "cost_raw_do_not_rank_incomplete"), num(s, "cost_raw_do_not_rank_incomplete")
         record = {"instance_id": key[0], "family": g["family"], "search_seed": key[1], "budget_ms": key[2], "mode": key[3],
+                  "orders_provably_unservable": g.get("orders_provably_unservable", ""),
+                  "grasp_servable_ok": int(ok_servable(g)), "sa_servable_ok": int(ok_servable(s)),
+                  # Si ambos cubren todo lo atendible entregan el mismo conjunto de pedidos: costos comparables.
+                  "log_cost_ratio_on_joint_servable_success": math.log(rg / rs) if both_servable and rg and rs and rg > 0 and rs > 0 else None,
                   "grasp_ok": int(ok(g)), "sa_ok": int(ok(s)), "joint_success": int(both),
                   "grasp_cost": cg, "sa_cost": cs,
                   "cost_difference_grasp_minus_sa": cg-cs if both and cg is not None and cs is not None else None,
@@ -122,7 +136,12 @@ def analyze(folder: Path, infer: bool, wilcoxon: bool, plots: bool) -> dict[str,
                              "mean_log_cost_ratio_on_joint_success": average(logs),
                              "all_repetitions_jointly_feasible": int(len(joint) == len(rr)),
                              "grasp_mean_cost_on_joint_success": average([r["grasp_cost"] for r in joint]),
-                             "sa_mean_cost_on_joint_success": average([r["sa_cost"] for r in joint])})
+                             "sa_mean_cost_on_joint_success": average([r["sa_cost"] for r in joint]),
+                             "orders_provably_unservable": rr[0]["orders_provably_unservable"],
+                             "grasp_servable_success_rate": st.mean(r["grasp_servable_ok"] for r in rr),
+                             "sa_servable_success_rate": st.mean(r["sa_servable_ok"] for r in rr),
+                             "mean_log_cost_ratio_on_joint_servable_success": average(
+                                 [r["log_cost_ratio_on_joint_servable_success"] for r in rr if r["log_cost_ratio_on_joint_servable_success"] is not None])})
     grouped: dict[tuple[str, str, str, str], list[dict[str, str]]] = defaultdict(list)
     for r in rows:
         grouped[(r["family"], r["algorithm"], r["budget_ms"], r["mode"])].append(r)
@@ -137,7 +156,10 @@ def analyze(folder: Path, infer: bool, wilcoxon: bool, plots: bool) -> dict[str,
                           "mean_cost_on_success_not_directly_comparable": average(costs),
                           "median_cost_on_success": st.median(costs) if costs else None,
                           "sd_cost_on_success": st.stdev(costs) if len(costs)>1 else None,
-                          "mean_elapsed_ms": average(elapsed), "mean_first_complete_ms_on_success": average(first)})
+                          "mean_elapsed_ms": average(elapsed), "mean_first_complete_ms_on_success": average(first),
+                          "servable_success_pct": 100 * sum(ok_servable(r) for r in rr) / len(rr),
+                          "mean_coverage_servable_pct": average([v for r in rr if (v := num(r, "coverage_servable_pct")) is not None]),
+                          "mean_coverage_orders_pct": average([v for r in rr if (v := num(r, "coverage_orders_pct")) is not None])})
     out = folder / "analysis"
     out.mkdir(exist_ok=True)
     write_csv(out / "summary.csv", summaries)
@@ -151,6 +173,8 @@ def analyze(folder: Path, infer: bool, wilcoxon: bool, plots: bool) -> dict[str,
             "No se demuestra imposibilidad ni optimalidad. No extrapolar esta muestra a los tres escenarios operativos completos.",
             "Las medias de costo por algoritmo sobre sus propios éxitos pueden usar muestras distintas: NO elegir ganador con ellas.",
             "La independencia entre días reales no está garantizada. La inferencia es exploratoria para el conjunto de instancias definido.",
+            "Métricas *_servable_*: descriptivas y secundarias. Excluyen solo pedidos que ninguna ruta directa desde el central alcanza a tiempo (ver docs/PROTOCOLO.md). Las pruebas inferenciales usan la métrica primaria sin cambios.",
+            "Revisar mean_elapsed_ms: SA puede terminar por su esquema de enfriamiento antes del presupuesto; comparar costo a igual tiempo máximo no es comparar a igual tiempo usado.",
         ], "statistics_requested": infer, "tests": []}
     if infer:
         for mode, budget in sorted({(r["mode"],r["budget_ms"]) for r in per_instance}):

@@ -1,0 +1,4 @@
+PASS config smoke: 4 instances, 16 orders loaded (no solvers executed)
+PASS config pilot: 12 instances, 99 orders loaded (no solvers executed)
+PASS config formal: 40 instances, 539 orders loaded (no solvers executed)
+PASS config deterministic: 2 instances, 7 orders loaded (no solvers executed)

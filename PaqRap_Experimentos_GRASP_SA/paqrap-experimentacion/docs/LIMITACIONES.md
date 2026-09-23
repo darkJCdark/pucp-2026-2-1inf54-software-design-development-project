@@ -4,11 +4,19 @@
 
 Este laboratorio compara dos implementaciones concretas con un mismo evaluador, no implementa todos los requisitos pendientes de PaqRap. Compartir dominio elimina diferencias de reglas entre copias; no demuestra por sí mismo que el dominio cumpla perfectamente el caso.
 
-## GRASP y pedidos divididos
+## GRASP y pedidos divididos (resuelto en la versión 2)
 
-El `GraspPlanificador` entregado busca candidatos que admitan la cantidad del pedido en una unidad y no construye sistemáticamente entregas parciales para demandas superiores a la mayor capacidad (24). Sus pruebas originales incluyen un pedido de 30 que queda sin atender. El dominio sí permite `DeliveryStop` parciales, pero que el modelo pueda representarlos no implica que GRASP los genere.
+En la versión 1, `GraspPlanificador` no generaba entregas parciales: un pedido mayor que la mayor capacidad (24) quedaba siempre sin atender, y la familia SPLIT lo exponía. La P&R 13 del curso admite entregas parciales, así que la versión 2 (`GRASP-v2 2026-09-23`) lo corrige de forma explícita y versionada (ver `CAMBIOS_Y_PROCEDENCIA.md`): reparte ese pedido en partes que caben en un vehículo, todas o ninguna. Solo se divide cuando el pedido no cabe entero en ningún vehículo; GRASP no explora divisiones "por conveniencia" de pedidos que sí caben. No comparar resultados SPLIT de la versión 1 con los de la versión 2.
 
-La familia SPLIT conserva esta situación a propósito: es una prueba de efectividad de la implementación, no una comparación de costo sobre soluciones equivalentes. Si GRASP deja demanda sin cubrir, no se usa su menor costo como ventaja. Agregar un operador de división sería una modificación algorítmica separada que debe versionarse y volver a evaluarse; no se hizo silenciosamente.
+## Ambos algoritmos terminan de forma distinta dentro del presupuesto
+
+Con la red de caminos optimizada, el esquema de enfriamiento de SA (temperatura 1000 → 1, factor 0,95, 50 vecinos por nivel: 6.750 iteraciones) termina en 1–2 s, por debajo de presupuestos de 5 s o más; GRASP es un multiarranque que usa todo el presupuesto. El protocolo compara a igual tiempo **máximo**, no a igual tiempo **usado**: revisar `elapsed_ms` y `termination`. Si se quiere comparar a igual tiempo usado, calibrar en el piloto el esquema de SA (y con esfuerzo comparable los parámetros de GRASP) antes de la campaña formal; no se hizo aquí para no modificar SA.
+
+## Pedidos no atendibles, refrigerio y ventanas largas
+
+Con ventanas reales largas aparecen pedidos que ningún plan puede cubrir: (a) ya vencidos al planificar, que ahora se excluyen y registran en el manifiesto; (b) otros que ni una ruta directa desde el central llega a tiempo, que la auditoría señala en `orders_provably_unservable`. Un caso frecuente de (b) proviene de la regla heredada del refrigerio: un vehículo que sale después de las 08:00 toma la hora de refrigerio en su **primera** llegada, aunque acabe de salir, y eso lo hace llegar tarde a pedidos con plazo corto (verificado con 3 pedidos del 13-sep, ventana 07:00–11:00). Es una regla del dominio común, igual para ambos algoritmos; su conformidad con el enunciado debe validarla el equipo (ver abajo).
+
+SA exige que su plan inicial cubra **todos** los pedidos; si hay uno no atendible, falla (`NO_INITIAL_PLAN`) aunque el resto sea atendible. GRASP devuelve el mejor plan parcial. Es una diferencia real de las implementaciones que el experimento debe reportar, no un error de medición.
 
 ## SA: solución inicial y vecindarios
 
@@ -44,4 +52,4 @@ Los parámetros iniciales no fueron optimizados. El piloto y la campaña formal 
 
 ## Compilación y compatibilidad
 
-Se verificaron compilación con JDK 21, lanzamiento del JAR y pruebas en Linux. El POM Maven se proporciona, pero no se ejecutó `mvn` en ese entorno. Los scripts Windows fueron redactados y revisados, no ejecutados en Windows. No se incluyeron binarios de terceros de las carpetas `.m2` ni archivos compilados antiguos de los ZIP.
+Versión 1: se verificaron compilación con JDK 21, lanzamiento del JAR y pruebas en Linux, sin `mvn`. Versión 2: en Windows 11 con JDK 21 se ejecutaron `mvn clean verify` (22 pruebas JUnit), `scripts/build.sh` (Git Bash) y el JAR resultante; `scripts/build.ps1` no se ejecutó. Con Maven, usar siempre `mvn clean ...`: sin `clean`, el `maven-shade-plugin` puede volver a empaquetar un JAR anterior y mezclar clases viejas y nuevas (ocurrió durante la verificación). No se incluyeron binarios de terceros de las carpetas `.m2` ni archivos compilados antiguos de los ZIP.

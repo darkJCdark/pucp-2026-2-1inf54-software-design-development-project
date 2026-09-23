@@ -10,6 +10,7 @@ import java.util.Random;
 /** Includes SA's ORIGINAL deterministic initializer in the measured run; never seeds it with GRASP. */
 public final class SaAdapter implements UnifiedPlanner {
     @Override public String name(){return "SA";}
+    @Override public String version(){return "SA-Operational (algoritmo sin cambios; dominio compartido 2026-09-23)";}
     @Override public AlgorithmOutput solve(ProblemInstance p,ExperimentConfig c,long seed){
         RouteScheduler scheduler=new RouteScheduler(new RoadNetwork());
         OperationalPlanEvaluator evaluator=new OperationalPlanEvaluator(scheduler);

@@ -1,0 +1,2829 @@
+diff --git a/README.md b/README.md
+index f905221..9586339 100644
+--- a/README.md
++++ b/README.md
+@@ -4,6 +4,8 @@ Proyecto independiente para comparar **las implementaciones Java entregadas por
+ 
+ **Alcance:** planificación por lotes a partir de un estado operativo conocido. No es todavía el simulador online de cinco días ni el escenario completo de colapso. Los resultados son planes calculados, no entregas observadas en una simulación.
+ 
++> **Versión 2 (23-sep-2026).** GRASP corregido y optimizado (`GRASP-v2 2026-09-23`: entregas divididas, consolidación en el primer viaje, costo exacto por tramo, factibilidad alineada con el evaluador) y cálculo de caminos compartido ~30× más rápido con resultado idéntico. SA no se modificó. Nuevo perfil `escalabilidad`. Detalle y verificación en `docs/CAMBIOS_Y_PROCEDENCIA.md` y `docs/VERIFICACION.md`. No mezclar resultados de la versión 1 con los de la versión 2 (la columna `algorithm_version` los distingue).
++
+ ## 1. Empezar en Windows / VS Code
+ 
+ Descomprime el ZIP. Abre la carpeta `paqrap-experimentacion` —la que contiene `pom.xml`, `config`, `data` y `dist`— y abre una terminal PowerShell allí.
+@@ -59,6 +61,13 @@ No se reemplazaron GRASP y SA por algoritmos nuevos. Se conservó su lógica de
+ | `smoke` | 4 | 2 | 2 | 16 | 1.5 s |
+ | `pilot` | 12 | 3 | 2 | 72 | 3 s |
+ | `formal` | 40 | 5 | 2 | 400 | 5 s |
++| `escalabilidad` | 8 | 3 | 2 | 96 | 5 s y 20 s |
++
++`escalabilidad` (versión 2) estudia volumen: 24, 48, 96 y 144 pedidos sintéticos y ventanas reales de 1, 2, 4 y 8 h (21–24 de septiembre). En ventanas reales largas se excluyen pedidos ya vencidos al planificar y la auditoría señala los que ningún plan puede cubrir (`orders_provably_unservable`); ver `docs/PROTOCOLO.md`.
++
++```powershell
++java -jar dist/paqrap-experimentos.jar --config config/escalabilidad.properties
++```
+ 
+ Los valores son un **diseño experimental inicial propuesto**, no requisitos del docente ni parámetros óptimos demostrados. Antes de la campaña formal, usa el piloto para comprobar tiempos y congelar parámetros. Los datos reales del piloto corresponden al 9–12 de septiembre; los formales al 13–20, evitando usar los mismos lotes reales para ajustar y evaluar.
+ 
+@@ -184,14 +193,15 @@ mvn clean verify
+ java -jar experimentos/target/paqrap-experimentos.jar --config config/smoke.properties
+ ```
+ 
+-El POM está preparado para JDK 21 y JUnit 5.11.4. La primera construcción Maven necesita descargar plugins/dependencias. **En el entorno de elaboración se verificó con `javac`, `jar` y el lanzador JUnit, no con el comando Maven.** Los scripts PowerShell se entregan para Windows, pero su ejecución no se probó en Windows aquí.
++El POM está preparado para JDK 21 y JUnit 5.11.4. La primera construcción Maven necesita descargar plugins/dependencias. **Usa siempre `clean`**: sin él, el empaquetado con `maven-shade-plugin` puede reutilizar un JAR anterior y mezclar clases viejas con nuevas. La versión 2 se verificó en Windows 11 con `mvn clean verify` (22 pruebas JUnit) y `scripts/build.sh` desde Git Bash; `scripts/build.ps1` no se ejecutó.
+ 
+ Puedes importar el `pom.xml` raíz en IntelliJ o abrir la carpeta raíz en VS Code. No necesitas copiar el proyecto dentro de tu frontend ni inicializar una aplicación Spring.
+ 
+ ## 9. Limitaciones que importan antes de concluir
+ 
+-- El GRASP original no construye entregas divididas para un pedido mayor que la capacidad máxima individual. Se mide y se expone; no se corrigió escondidamente.
+-- SA depende de un constructor inicial que puede fallar aunque exista otra solución. Ese caso se registra como `NO_INITIAL_PLAN`.
++- Desde la versión 2, GRASP sí divide un pedido mayor que la capacidad de cualquier vehículo (P&R 13); la versión 1 no lo hacía. Es un cambio algorítmico explícito y versionado.
++- SA depende de un constructor inicial que puede fallar aunque exista otra solución. Ese caso se registra como `NO_INITIAL_PLAN`. Si un solo pedido es no atendible, SA falla completo; GRASP devuelve el mejor plan parcial.
++- Con la red optimizada, el esquema de enfriamiento de SA termina en 1–2 s, antes de presupuestos de 5 s o más; GRASP usa todo el presupuesto. Se compara a igual tiempo **máximo**; revisar `elapsed_ms` y calibrar en el piloto si se quiere igual tiempo **usado**.
+ - Los operadores de SA pueden generar vecinos inválidos por carga/abastecimiento; el evaluador común los rechaza. No se cambió esa estrategia de vecindad.
+ - El dominio heredado tiene decisiones que requieren validación del equipo (refrigerio y regla de 80 km entre paradas). Comparabilidad entre algoritmos no significa conformidad completa con todos los requisitos de PaqRap.
+ - No encontrar una solución en un presupuesto de tiempo **no demuestra imposibilidad ni colapso real**.
+@@ -202,4 +212,4 @@ Lee `docs/LIMITACIONES.md` antes de redactar conclusiones. El documento de refer
+ 
+ `dominio`, `grasp` y `sa` son módulos independientes del experimento. El futuro servicio de aplicación de Spring Boot puede invocarlos sin depender del ejecutor de CSV. Los adaptadores experimentales ilustran cómo normalizar sus entradas y salidas sin duplicar el dominio.
+ 
+-**Estado verificado al entregar:** compilación Java; 16 pruebas JUnit sin fallos (incluyen 19 comprobaciones experimentales); 16 corridas smoke; 8 corridas de repetibilidad en dos ejecuciones; reanudación sin duplicados. Piloto y campaña formal están configurados y sus instancias cargan, pero no fueron ejecutados como campañas de algoritmos.
++**Estado verificado (versión 2, 23-sep-2026, Windows 11):** `mvn clean verify` con 22 pruebas JUnit sin fallos (incluye la prueba diferencial de exactitud de la red de caminos); `--self-test` con 22 comprobaciones; smoke 16/16 `OK`; repetibilidad FIXED en dos ejecuciones; SA con planes idénticos bit a bit a la versión 1; perfil `escalabilidad` completo (96 corridas). Piloto y campaña formal están configurados y sus instancias cargan, pero **no** se ejecutaron: son la experimentación que debe correr el equipo. Resultados y cifras en `docs/VERIFICACION.md`; evidencia en `evidencia/v2/`.
+diff --git a/config/escalabilidad.csv b/config/escalabilidad.csv
+new file mode 100644
+index 0000000..3fd7416
+--- /dev/null
++++ b/config/escalabilidad.csv
+@@ -0,0 +1,9 @@
++id,family,source,n_orders,instance_seed,date,from_hour,to_hour
++S01,NORMAL,SYNTHETIC,24,5100,2026-09-09,7,8
++S02,NORMAL,SYNTHETIC,48,5101,2026-09-09,7,8
++S03,NORMAL,SYNTHETIC,96,5102,2026-09-09,7,8
++S04,NORMAL,SYNTHETIC,144,5103,2026-09-09,7,8
++S05,REAL,REAL,0,0,2026-09-21,7,8
++S06,REAL,REAL,0,0,2026-09-22,7,9
++S07,REAL,REAL,0,0,2026-09-23,7,11
++S08,REAL,REAL,0,0,2026-09-24,7,15
+diff --git a/config/escalabilidad.properties b/config/escalabilidad.properties
+new file mode 100644
+index 0000000..10a323e
+--- /dev/null
++++ b/config/escalabilidad.properties
+@@ -0,0 +1,35 @@
++name=escalabilidad
++instances.file=config/escalabilidad.csv
++seeds=42,73,101
++# Dos presupuestos para ver el efecto del tiempo con mas pedidos; se analizan por separado.
++budgets.ms=5000,20000
++# Estudio de VOLUMEN: 24 a 144 pedidos sinteticos y ventanas reales de 1, 2, 4 y 8 horas
++# (21-24 de setiembre: no se usan en piloto 9-12 ni en la campana formal 13-20).
++# En ventanas reales largas se excluyen pedidos ya vencidos al planificar y la auditoria
++# senala los demostrablemente no atendibles (ver docs/PROTOCOLO.md).
++# Resto de parametros: los mismos del perfil formal, sin calibrar.
++fleet.cars=10
++fleet.motorcycles=15
++fleet.bicycles=12
++speed.car=40
++speed.motorcycle=25
++speed.bicycle=12
++central.x=27
++central.y=14
++east.x=57
++east.y=27
++stock.northwest=1000
++stock.east=1000
++mode=TIME
++grasp.alpha=0.3
++grasp.iterations=1000000
++sa.temperature=1000
++sa.minimumTemperature=1
++sa.cooling=0.95
++sa.iterationsPerTemperature=50
++sa.maximumIterations=1000000
++sa.maximumWithoutImprovement=1000000
++worker.heap.mb=512
++worker.processors=2
++worker.timeout.seconds=90
++warmup.rounds=1
+diff --git a/docs/CAMBIOS_Y_PROCEDENCIA.md b/docs/CAMBIOS_Y_PROCEDENCIA.md
+index 8cd556a..8bc42b5 100644
+--- a/docs/CAMBIOS_Y_PROCEDENCIA.md
++++ b/docs/CAMBIOS_Y_PROCEDENCIA.md
+@@ -1,6 +1,47 @@
+ # Cambios y procedencia
+ 
+-## Base utilizada
++## Versión 2 (23 de septiembre de 2026): GRASP optimizado y corregido
++
++Esta versión cambia **deliberadamente y de forma visible** GRASP y la infraestructura compartida. Todas las corridas exportan `algorithm_version` (`GRASP-v2 2026-09-23`); no mezclar resultados de la versión 1 con los de esta versión. La diferencia exacta respecto del ZIP recibido está en `provenance/v2/`.
++
++### 1. `RoadNetwork` (dominio compartido): mismo resultado, mucho más rápido
++
++El cálculo de caminos dominaba el tiempo de ambos algoritmos (medido: ~0,4 s por consulta con los bloqueos reales de un día). Se reescribió su implementación **sin cambiar su semántica**:
++
++- Índice de bloqueos por nodo: un bloqueo solo afecta un tramo si alguno de sus extremos es un nodo bloqueado (los extremos de todo segmento bloqueado también son nodos bloqueados). Antes se revisaban todos los bloqueos en cada tramo.
++- Dijkstra sobre arreglos, con el mismo orden de extracción `(llegada, x, y)` y el mismo orden de vecinos, sin crear objetos por nodo.
++- Plantillas sin bloqueos: si ningún bloqueo se cruza en tiempo y espacio con la exploración que haría Dijkstra, la ejecución real sería idéntica a la exploración sin bloqueos desplazada en el tiempo; se devuelve esa plantilla. Si algún bloqueo pudiera influir, se ejecuta el Dijkstra completo (y se memoriza).
++
++**Verificación de exactitud:** `RoadNetworkDifferentialTest` compara tramo por tramo contra una copia congelada de la versión anterior (`ReferenceRoadNetwork`, solo en pruebas): 1.800 consultas aleatorias con 0–24 bloqueos, sus repeticiones desde caché y 1.800 `traverse`. Además, con el perfil determinista, **SA produce planes idénticos bit a bit** (mismo `plan_sha256`, que incluye cada tramo, y las mismas consultas de camino) que la evidencia de la versión 1. Como ambos algoritmos usan este mismo código, la mejora beneficia a los dos por igual.
++
++### 2. GRASP v2 (`GraspPlanificador`): correcciones y optimización
++
++El esqueleto GRASP no cambia (multiarranque, RCL con `alpha`, búsqueda local de primera mejora con inserción de pendientes, 2-opt, reubicación e intercambio). Cambios:
++
++| # | Cambio | Motivo |
++|---|---|---|
++| 1 | **Entregas divididas**: un pedido mayor que la mayor capacidad disponible se reparte en partes; todas o ninguna | P&R 13 del curso admite entregas parciales. Antes esos pedidos (familia SPLIT) nunca se atendían |
++| 2 | **Costo exacto del candidato**: diferencia real de km de la ruta completa (incluido el regreso) a las horas reales | La aproximación anterior podía dar costo infinito → umbral `NaN` → RCL vacía → `IllegalArgumentException` que terminaba la corrida como `ERROR` (reproducido con 38 pedidos reales) |
++| 3 | **Consolidación en el primer viaje**: apilar en el primer tramo reconstruye la ruta con mayor carga inicial | Antes cada pedido adicional obligaba a volver a un almacén (la carga inicial se trataba como inmutable) |
++| 4 | **Factibilidad de construcción = evaluador**: regreso final al central, mantenimiento/avería durante toda la ruta, descuento de inventario al apilar en una recarga | Evita construir planes que el evaluador rechaza |
++| 5 | **Evaluación incremental**: cada vehículo guarda su línea temporal; un candidato recorre solo lo que cambia | Rendimiento |
++| 6 | **Búsqueda local**: memoria de rutas ya evaluadas, sin recálculos repetidos en bucles, stock de almacenes intermedios, la ruta de origen deja de recoger lo que ya no entrega | Rendimiento y consistencia de carga/inventario |
++| 7 | La caché privada de caminos de GRASP se eliminó: ahora la resuelve `RoadNetwork` para ambos | `path_queries` cuenta ahora todas las consultas de GRASP (antes su caché privada ocultaba las repetidas); no comparar ese contador con la versión 1 |
++
++Pruebas nuevas en `GraspPlanificadorTest`: división de un pedido de 30 paquetes, plazo imposible (sin partes sueltas), ruta que terminaría dentro del mantenimiento del vehículo, consolidación en el primer viaje, y factibilidad en 5 semillas con bloqueos, mantenimiento, cruce de medianoche y pedidos divididos. La prueba antigua que esperaba que un pedido de 30 quedara sin atender se reemplazó, porque su premisa contradecía el enunciado.
++
++### 3. Laboratorio experimental
++
++- `algorithm_version` en cada fila y `algorithm_versions` en `metadata.json`.
++- Auditoría común: `orders_provably_unservable`, `servable_orders_fully_served`, `coverage_servable_pct`, `full_servable_feasible` (métricas **secundarias**; ver `PROTOCOLO.md` §7).
++- Lotes reales: se excluyen, y se registran en el manifiesto, pedidos cuyo plazo ya venció al planificar. Solo ocurre con ventanas largas; las instancias de 1 h conservan su huella de entrada.
++- Perfil nuevo `config/escalabilidad.*` (24–144 pedidos sintéticos y ventanas reales de 1, 2, 4 y 8 h).
++- `analyze.py` resume las métricas secundarias sin cambiar las pruebas inferenciales principales.
++- `--self-test`: 22 comprobaciones (3 nuevas).
++
++SA no se modificó: ni su constructor inicial ni su vecindario ni sus parámetros.
++
++## Base utilizada (versión 1)
+ 
+ Se partió de los dos ZIP proporcionados por el usuario, identificados en `provenance/archives.sha256`. No se utiliza como evidencia la afirmación anterior del chat de que habían sido probados: la carpeta `evidencia/` corresponde a verificaciones efectivamente realizadas sobre este entregable.
+ 
+diff --git a/docs/GUIA_RESULTADOS.md b/docs/GUIA_RESULTADOS.md
+index 12e15b5..f4832c4 100644
+--- a/docs/GUIA_RESULTADOS.md
++++ b/docs/GUIA_RESULTADOS.md
+@@ -36,8 +36,13 @@
+ - `plan_evaluations`, `route_schedules`, `path_queries`: diagnósticos sobre el núcleo compartido.
+ - `heap_sampled_peak_mib`: máximo observado de heap, aproximado (no RSS ni pico exacto).
+ - `plan_sha256`: huella del detalle de rutas/horarios, usada para regresión con modo FIXED.
++- `orders_provably_unservable` (v2): pedidos que ni una ruta directa desde el central alcanza a tiempo con ningún vehículo disponible; ningún algoritmo puede cubrirlos.
++- `servable_orders_fully_served`, `coverage_servable_pct`, `full_servable_feasible` (v2): cobertura y éxito sobre los pedidos atendibles. Métricas secundarias; con cero no atendibles coinciden con las principales.
++- `algorithm_version` (v2): versión de la implementación medida. No mezclar versiones en un mismo análisis.
+ - `detail`: motivo de fallo o información del adaptador.
+ 
++En el manifiesto de una instancia real, `orders_expired_before_planning_excluded` (v2) lista los pedidos cuyo plazo ya había vencido al planificar y que por eso no se entregaron a los algoritmos.
++
+ ## Trazas
+ 
+ `jobs/*.trace.csv` guarda mejoras por tiempo. `unserved_orders>0` indica una solución parcial. No presentar su `planned_cost` como convergencia de una solución factible completa. Los planes completos se identifican por cero pendientes y luego se verifican con la auditoría común.
+@@ -48,6 +53,6 @@
+ 
+ `per_instance.csv`: agrega semillas de la misma instancia, con porcentaje de éxito por algoritmo y razón/diferencia de costo en éxitos conjuntos. `all_repetitions_jointly_feasible=1` identifica el subconjunto de inferencia condicional de costo.
+ 
+-`summary.csv`: descripción por familia, algoritmo, presupuesto y modo. Una media de costos de los éxitos propios de GRASP y otra de los éxitos propios de SA pueden incluir distintas instancias. Por eso se etiqueta `mean_cost_on_success_not_directly_comparable`; no usarla sola para elegir ganador.
++`summary.csv`: descripción por familia, algoritmo, presupuesto y modo; desde la v2 incluye `servable_success_pct`, `mean_coverage_servable_pct` y `mean_coverage_orders_pct`. Una media de costos de los éxitos propios de GRASP y otra de los éxitos propios de SA pueden incluir distintas instancias. Por eso se etiqueta `mean_cost_on_success_not_directly_comparable`; no usarla sola para elegir ganador.
+ 
+ `analysis.json`: advertencias, tamaños de muestra y contrastes solicitados. Se deja vacío lo no estimable, en vez de inventar ceros. Los contrastes son exploratorios, no una conclusión automática de superioridad.
+diff --git a/docs/LIMITACIONES.md b/docs/LIMITACIONES.md
+index acb13b0..41c94fa 100644
+--- a/docs/LIMITACIONES.md
++++ b/docs/LIMITACIONES.md
+@@ -4,11 +4,19 @@
+ 
+ Este laboratorio compara dos implementaciones concretas con un mismo evaluador, no implementa todos los requisitos pendientes de PaqRap. Compartir dominio elimina diferencias de reglas entre copias; no demuestra por sí mismo que el dominio cumpla perfectamente el caso.
+ 
+-## GRASP y pedidos divididos
++## GRASP y pedidos divididos (resuelto en la versión 2)
+ 
+-El `GraspPlanificador` entregado busca candidatos que admitan la cantidad del pedido en una unidad y no construye sistemáticamente entregas parciales para demandas superiores a la mayor capacidad (24). Sus pruebas originales incluyen un pedido de 30 que queda sin atender. El dominio sí permite `DeliveryStop` parciales, pero que el modelo pueda representarlos no implica que GRASP los genere.
++En la versión 1, `GraspPlanificador` no generaba entregas parciales: un pedido mayor que la mayor capacidad (24) quedaba siempre sin atender, y la familia SPLIT lo exponía. La P&R 13 del curso admite entregas parciales, así que la versión 2 (`GRASP-v2 2026-09-23`) lo corrige de forma explícita y versionada (ver `CAMBIOS_Y_PROCEDENCIA.md`): reparte ese pedido en partes que caben en un vehículo, todas o ninguna. Solo se divide cuando el pedido no cabe entero en ningún vehículo; GRASP no explora divisiones "por conveniencia" de pedidos que sí caben. No comparar resultados SPLIT de la versión 1 con los de la versión 2.
+ 
+-La familia SPLIT conserva esta situación a propósito: es una prueba de efectividad de la implementación, no una comparación de costo sobre soluciones equivalentes. Si GRASP deja demanda sin cubrir, no se usa su menor costo como ventaja. Agregar un operador de división sería una modificación algorítmica separada que debe versionarse y volver a evaluarse; no se hizo silenciosamente.
++## Ambos algoritmos terminan de forma distinta dentro del presupuesto
++
++Con la red de caminos optimizada, el esquema de enfriamiento de SA (temperatura 1000 → 1, factor 0,95, 50 vecinos por nivel: 6.750 iteraciones) termina en 1–2 s, por debajo de presupuestos de 5 s o más; GRASP es un multiarranque que usa todo el presupuesto. El protocolo compara a igual tiempo **máximo**, no a igual tiempo **usado**: revisar `elapsed_ms` y `termination`. Si se quiere comparar a igual tiempo usado, calibrar en el piloto el esquema de SA (y con esfuerzo comparable los parámetros de GRASP) antes de la campaña formal; no se hizo aquí para no modificar SA.
++
++## Pedidos no atendibles, refrigerio y ventanas largas
++
++Con ventanas reales largas aparecen pedidos que ningún plan puede cubrir: (a) ya vencidos al planificar, que ahora se excluyen y registran en el manifiesto; (b) otros que ni una ruta directa desde el central llega a tiempo, que la auditoría señala en `orders_provably_unservable`. Un caso frecuente de (b) proviene de la regla heredada del refrigerio: un vehículo que sale después de las 08:00 toma la hora de refrigerio en su **primera** llegada, aunque acabe de salir, y eso lo hace llegar tarde a pedidos con plazo corto (verificado con 3 pedidos del 13-sep, ventana 07:00–11:00). Es una regla del dominio común, igual para ambos algoritmos; su conformidad con el enunciado debe validarla el equipo (ver abajo).
++
++SA exige que su plan inicial cubra **todos** los pedidos; si hay uno no atendible, falla (`NO_INITIAL_PLAN`) aunque el resto sea atendible. GRASP devuelve el mejor plan parcial. Es una diferencia real de las implementaciones que el experimento debe reportar, no un error de medición.
+ 
+ ## SA: solución inicial y vecindarios
+ 
+@@ -44,4 +52,4 @@ Los parámetros iniciales no fueron optimizados. El piloto y la campaña formal
+ 
+ ## Compilación y compatibilidad
+ 
+-Se verificaron compilación con JDK 21, lanzamiento del JAR y pruebas en Linux. El POM Maven se proporciona, pero no se ejecutó `mvn` en ese entorno. Los scripts Windows fueron redactados y revisados, no ejecutados en Windows. No se incluyeron binarios de terceros de las carpetas `.m2` ni archivos compilados antiguos de los ZIP.
++Versión 1: se verificaron compilación con JDK 21, lanzamiento del JAR y pruebas en Linux, sin `mvn`. Versión 2: en Windows 11 con JDK 21 se ejecutaron `mvn clean verify` (22 pruebas JUnit), `scripts/build.sh` (Git Bash) y el JAR resultante; `scripts/build.ps1` no se ejecutó. Con Maven, usar siempre `mvn clean ...`: sin `clean`, el `maven-shade-plugin` puede volver a empaquetar un JAR anterior y mezclar clases viejas y nuevas (ocurrió durante la verificación). No se incluyeron binarios de terceros de las carpetas `.m2` ni archivos compilados antiguos de los ZIP.
+diff --git a/docs/PROTOCOLO.md b/docs/PROTOCOLO.md
+index 5281a0a..2229147 100644
+--- a/docs/PROTOCOLO.md
++++ b/docs/PROTOCOLO.md
+@@ -65,6 +65,8 @@ Para los sintéticos todas las demandas se conocen desde el instante de planific
+ 
+ La campaña formal propone 8 instancias por familia: 32 sintéticas (6/12/18/24 pedidos y semillas publicadas), más 8 lotes reales de días distintos. Las fechas y parámetros están en el CSV y en los manifiestos, no ocultos en la interfaz.
+ 
++**Ventanas reales largas.** Con ventanas de varias horas, el lote se planifica al final de la ventana y algunos pedidos registrados al inicio ya vencieron: ningún plan de ese lote puede cubrirlos. Desde la versión 2 se excluyen al crear la instancia y se listan en `orders_expired_before_planning_excluded` del manifiesto. Con ventanas de 1 h no ocurre (el plazo mínimo es 4 h) y esas instancias conservan su huella. Estas ventanas modelan una acumulación de pedidos pendientes planificada de una vez: sirven para estudiar **volumen**, no reproducen la operación online.
++
+ ## 6. Etapas y parámetros
+ 
+ `smoke`: 4 instancias × 2 semillas × 2 algoritmos = 16 corridas. Verifica conectividad, métricas, fallos y formato de resultados, no superioridad.
+@@ -73,7 +75,9 @@ La campaña formal propone 8 instancias por familia: 32 sintéticas (6/12/18/24
+ 
+ `formal`: 40 × 5 × 2 = 400. Es una propuesta práctica, no un cálculo de potencia ni un tamaño exigido por el curso. Los reales son 13–20 de septiembre. No se ajustarán parámetros mirando sus resultados y luego se presentarán como evaluación independiente.
+ 
+-Los valores de `alpha=0.3`, temperatura 1000, enfriamiento 0.95 y 50 vecinos por nivel son puntos de partida conservados del desarrollo, **no configuraciones óptimas demostradas**. Si se calibra, dedicar esfuerzo comparable a los dos algoritmos y registrar el procedimiento, sin seleccionar únicamente su mejor corrida aislada.
++`escalabilidad` (versión 2): 8 × 3 × 2 algoritmos × 2 presupuestos (5 y 20 s) = 96. Estudia el comportamiento con más pedidos: 24, 48, 96 y 144 sintéticos, y ventanas reales de 1, 2, 4 y 8 h de los días 21–24 de septiembre, que no se usan en piloto ni en la campaña formal. Los dos presupuestos se analizan por separado.
++
++Los valores de `alpha=0.3`, temperatura 1000, enfriamiento 0.95 y 50 vecinos por nivel son puntos de partida conservados del desarrollo, **no configuraciones óptimas demostradas**. Si se calibra, dedicar esfuerzo comparable a los dos algoritmos y registrar el procedimiento, sin seleccionar únicamente su mejor corrida aislada. Con la red de caminos de la versión 2, ese esquema de SA termina en 1–2 s: en el piloto conviene decidir si se compara a igual tiempo máximo (diseño actual) o a igual tiempo usado (requiere calibrar el esquema de SA), y dejarlo escrito antes de la campaña formal.
+ 
+ ## 7. Métricas e interpretación
+ 
+@@ -83,7 +87,9 @@ Los valores de `alpha=0.3`, temperatura 1000, enfriamiento 0.95 y 50 vecinos por
+ 
+ **Costo:** suma calculada por el evaluador. Se utiliza para comparación directa únicamente cuando ambos algoritmos de una pareja cubren toda la demanda con un plan factible. `cost_raw_do_not_rank_incomplete` es diagnóstico, no indicador para seleccionar ganador entre plan parcial y completo.
+ 
+-**Eficiencia:** tiempo hasta la primera solución completa, calidad obtenida al consumir el presupuesto, evaluaciones y consultas de caminos. El tiempo total es poco informativo para seleccionar velocidad cuando ambos alcanzan el mismo tope. Los casos sin primer éxito son fallos/censurados, no tiempos cero.
++**Eficiencia:** tiempo hasta la primera solución completa, calidad obtenida al consumir el presupuesto, evaluaciones y consultas de caminos. El tiempo total es poco informativo para seleccionar velocidad cuando ambos alcanzan el mismo tope. Los casos sin primer éxito son fallos/censurados, no tiempos cero. `path_queries` cuenta solicitudes a la red (desde la versión 2, igual para ambos: GRASP ya no tiene caché privada); una solicitud repetida puede resolverse desde la caché exacta de la red.
++
++**Secundarias: pedidos atendibles (versión 2).** Un pedido es *demostrablemente no atendible* si, para cada vehículo disponible al planificar, la ruta directa central → pedido → central que sale en ese instante incumple el plazo u otra regla dura por ruta (camino, 80 km, refrigerio, mantenimiento), evaluada con el mismo scheduler común. Esa ruta da la llegada más temprana posible: cualquier parada previa o salida posterior solo la retrasa. `full_servable_feasible` exige rutas válidas que entreguen a tiempo todos los demás pedidos; `coverage_servable_pct` mide la cobertura sobre ellos. Si ambos algoritmos de una pareja cumplen `full_servable_feasible`, entregan el mismo conjunto y su costo es comparable. Estas métricas son **descriptivas**: la métrica primaria y las pruebas inferenciales no cambian. Se calculan en la auditoría, fuera del tiempo medido.
+ 
+ **Memoria:** `heap_sampled_peak_mib` es el máximo de muestras de heap utilizado durante la búsqueda. No es pico exacto, memoria incremental atribuible al algoritmo, RSS del proceso ni memoria reservada. Se incluyen objetos preexistentes del proceso. No usarlo como una medición exhaustiva del consumo.
+ 
+diff --git a/docs/VERIFICACION.md b/docs/VERIFICACION.md
+index c74eee3..2a0ce53 100644
+--- a/docs/VERIFICACION.md
++++ b/docs/VERIFICACION.md
+@@ -1,5 +1,66 @@
+ # Verificación del entregable
+ 
++## Versión 2 (23 de septiembre de 2026)
++
++Entorno: Windows 11 Home (10.0.26200), JDK 21, Maven 3, Git Bash; Python 3.14 para el análisis. Mismo JAR de `dist/` para todas las corridas de esta sección.
++
++| Comprobación | Resultado observado |
++|---|---|
++| `mvn clean verify` | 22 pruebas JUnit, 0 fallos (12 dominio, 8 GRASP, 1 SA, 1 experimento) |
++| Exactitud de `RoadNetwork` (`RoadNetworkDifferentialTest`) | 1.800 consultas aleatorias con 0–24 bloqueos + repeticiones desde caché + 1.800 `traverse`: idénticas tramo por tramo a la versión anterior |
++| Exactitud de punta a punta | Perfil FIXED: SA (sin cambios) produce el mismo `plan_sha256` y las mismas `path_queries` que la evidencia v1 en las 2 instancias; huellas de entrada idénticas |
++| `scripts/build.sh` + `--self-test` | 22 comprobaciones correctas (19 anteriores + 3 nuevas) |
++| Repetibilidad FIXED v2 | Dos ejecuciones de 4 corridas: mismas huellas de plan y costos |
++| Smoke v2 | 16/16 corridas `OK` (v1: GRASP 5 OK, 2 PARTIAL en SPLIT, 1 sin plan en REAL) |
++| Escalabilidad v2 | 96 corridas; ver tabla abajo |
++
++### GRASP antes y después, a igual presupuesto (semilla 42)
++
++`evidencia/v2/benchmark-versiones.txt` contiene las filas completas. Resumen:
++
++| Caso | Presupuesto | v1: iteraciones · 1.ª solución completa · costo | v2: iteraciones · 1.ª solución completa · costo |
++|---|---:|---|---|
++| Real 07–08 (8 pedidos) | 5 s | 12 · 953 ms · S/ 3.274 | 8.007 · 72 ms · S/ 2.242 |
++| Real 07–11 (38 pedidos) | 20 s | 1 · — · 35/38 cubiertos | 49 · — · 35/38 (máximo posible: 3 no atendibles) |
++| Real 07–15 (75 pedidos) | 30 s | 1 · — · 67/75, S/ 17.744 | 14 · — · 67/75 (máximo posible), S/ 11.070 |
++| Sintético 24 | 5 s | 2 · 623 ms · S/ 5.834 | 283 · 61 ms · S/ 4.248 |
++| Sintético 60 | 20 s | 1 · 1.947 ms · S/ 13.778 | 231 · 156 ms · S/ 8.640 |
++| Sintético 120 | 30 s | 1 · 7.833 ms · S/ 24.810 | 61 · 363 ms · S/ 15.634 |
++| SPLIT 24 | 5 s | 10 · — · 16/24 cubiertos | 370 · 92 ms · 24/24, S/ 5.474 |
++
++Con solo la red optimizada (GRASP v1 intacto), la ventana real 07–11 terminó con `IllegalArgumentException: bound must be positive` desde `GraspPlanificador.construirGreedyAleatorizada`: el costo marginal infinito dejaba la RCL vacía. Con más iteraciones el defecto se vuelve alcanzable; en una campaña habría producido `ERROR` y descartado el mejor plan ya encontrado. Se corrigió en v2 (costo exacto por tramo y RCL robusta).
++
++Los 3 pedidos no cubiertos de la ventana 07–11 del 13-sep se comprobaron uno por uno: ni una ruta directa en auto desde el central los entrega a tiempo con el evaluador común, por la regla heredada del refrigerio (ver `LIMITACIONES.md`).
++
++### Perfil `escalabilidad` (96 corridas, `evidencia/v2/escalabilidad/`)
++
++Promedios de 3 semillas por celda. "Atendibles cubiertos" = pedidos que no son demostrablemente no atendibles y el plan entrega completos a tiempo. Todas las corridas de GRASP terminaron por tiempo (`TIME_LIMIT`), como corresponde a un multiarranque.
++
++| Instancia | Pedidos (vencidos excluidos / no atendibles) | GRASP 5 s: atendibles cubiertos · costo · iteraciones | GRASP 20 s: costo · iteraciones | SA (ambos presupuestos) |
++|---|---|---|---|---|
++| S01 sintético | 24 (0 / 0) | 24/24 · S/ 3.654 · 337 | S/ 3.552 · 1.776 | OK, S/ 9.375, termina en ~1,7–2,0 s |
++| S02 sintético | 48 (0 / 0) | 48/48 · S/ 7.926 · 100 | S/ 7.886 · 452 | OK, S/ 18.305, ~2,3–2,6 s |
++| S03 sintético | 96 (0 / 0) | 96/96 · S/ 12.991 · 17 | S/ 12.685 · 105 | `NO_INITIAL_PLAN` |
++| S04 sintético | 144 (0 / 0) | 144/144 · S/ 19.919 · 5 | S/ 19.350 · 32 | `NO_INITIAL_PLAN` |
++| S05 real 21-sep 07–08 | 7 (0 / 0) | 7/7 · S/ 2.576 · 8.578 | S/ 2.576 · 45.091 | OK, S/ 3.963, ~1,4 s |
++| S06 real 22-sep 07–09 | 13 (0 / 0) | 13/13 · S/ 2.607 · 2.299 | S/ 2.593 · 16.521 | OK, S/ 6.606, ~2,2 s |
++| S07 real 23-sep 07–11 | 41 (0 / 3) | 38/38 · S/ 6.895 · 8 | S/ 6.819 · 31 | `NO_INITIAL_PLAN` |
++| S08 real 24-sep 07–15 | 53 (3 / 4) | 49/49 · S/ 9.916 · 5 | S/ 9.627 · 20 | `NO_INITIAL_PLAN` |
++
++Lectura: GRASP v2 cubre todo lo atendible en las 48 corridas y su primera solución completa aparece en menos de 0,4 s aun con 144 pedidos; el presupuesto adicional (5 → 20 s) reduce el costo entre 0 % y 3 %. SA termina su esquema de enfriamiento en 1–3 s y no aprovecha el presupuesto (ver `LIMITACIONES.md`); su constructor inicial falla con 96 y 144 pedidos y en cuanto existe un pedido no atendible. **Es una prueba de escalabilidad de estas implementaciones, no la campaña formal**: 8 instancias y 3 semillas no permiten conclusiones inferenciales generales, y los costos solo son comparables donde ambos completan (S01, S02, S05, S06).
++
++### Evidencia v2 incluida
++
++`evidencia/v2/`: `smoke/`, `determinismo-a/`, `determinismo-b/`, `escalabilidad/` (con `consola.txt` y `analysis/` generado por `scripts/analyze.py`), `self-test.log`, `junit.log`, `exactitud-red.txt`, `benchmark-versiones.txt`. Las rutas absolutas de los `.job.properties` corresponden a `D:\DP1\paqrap-experimentacion`.
++
++SHA-256 del JAR entregado en la versión 2:
++
++```text
++c4c2c8574cac36b1c3fe3fd6dd8e4d7a83d7bb5a09d809b6898f1424da797fdf
++```
++
++## Versión 1 (histórica)
++
+ Fecha: 20 de septiembre de 2026 (UTC). Entorno de ejecución: Linux, OpenJDK 21.0.11, `javac` 21.0.11. Python 3.13.5 para análisis opcional.
+ 
+ ## Comprobaciones ejecutadas
+diff --git a/dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/RoadNetwork.java b/dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/RoadNetwork.java
+index 748c5bb..0887376 100644
+--- a/dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/RoadNetwork.java
++++ b/dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/RoadNetwork.java
+@@ -5,16 +5,57 @@ import pe.edu.pucp.paqrap.planner.search.SearchControl;
+ import java.time.Duration;
+ import java.time.Instant;
+ import java.util.ArrayList;
+-import java.util.Comparator;
+-import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Objects;
+ import java.util.Optional;
+-import java.util.PriorityQueue;
++import java.util.concurrent.ConcurrentHashMap;
+ 
+-/** Time-aware routing over PaqRap's bidirectional, non-diagonal road grid. */
++/**
++ * Time-aware routing over PaqRap's bidirectional, non-diagonal road grid.
++ *
++ * <p>Devuelve exactamente el mismo camino que el Dijkstra original por tiempo de llegada
++ * (misma llegada, mismos tramos, mismos desempates por (llegada, x, y)); lo verifica
++ * {@code RoadNetworkDifferentialTest} contra una copia congelada de la version anterior.
++ * Las aceleraciones son de implementacion, no cambian la semantica:
++ * <ol>
++ *   <li><b>Indice de bloqueos por nodo.</b> Un bloqueo solo afecta un tramo si alguno de sus
++ *   extremos es un nodo bloqueado (los extremos de todo segmento bloqueado tambien son nodos
++ *   bloqueados), asi que por tramo se revisan solo los bloqueos de esos dos nodos y no todos.</li>
++ *   <li><b>Dijkstra sobre arreglos</b> indexados por nodo, sin crear objetos por nodo visitado.</li>
++ *   <li><b>Plantillas sin bloqueos.</b> Sin bloqueos, la exploracion de Dijkstra no depende de la
++ *   hora de salida ni de la velocidad (solo se escala). Si ningun bloqueo se cruza en tiempo con
++ *   la ventana de la consulta y en espacio con los nodos que esa exploracion evaluaria, la
++ *   ejecucion real seria identica paso a paso: se devuelve la plantilla desplazada en el tiempo.
++ *   Si algun bloqueo pudiera influir, se ejecuta el Dijkstra completo.</li>
++ * </ol>
++ * Las consultas que si requieren el Dijkstra completo se memorizan por (origen, destino, salida,
++ * tiempo por calle) para la misma lista de bloqueos. Las caches son acotadas, seguras entre hilos
++ * y solo afectan el tiempo de calculo, nunca el resultado.
++ */
+ public final class RoadNetwork {
++    private static final int WIDTH = Location.MAX_X + 1;
++    private static final int HEIGHT = Location.MAX_Y + 1;
++    private static final int NODES = WIDTH * HEIGHT;
++    private static final Location[] LOCATIONS = new Location[NODES];
++    private static final int CHECKPOINT_EVERY = 256;
++    private static final int TEMPLATE_LIMIT = 40_000;
++    private static final int MEMO_LIMIT = 20_000;
++    private static final int INDEX_LIMIT = 16;
++    private static final ThreadLocal<Scratch> SCRATCH = ThreadLocal.withInitial(Scratch::new);
++
++    static {
++        for (int x = 0; x < WIDTH; x++) {
++            for (int y = 0; y < HEIGHT; y++) {
++                LOCATIONS[x * HEIGHT + y] = new Location(x, y);
++            }
++        }
++    }
++
++    private final Map<Long, Template> templates = new ConcurrentHashMap<>();
++    private final Map<List<RoadBlock>, BlockIndex> indexes = new ConcurrentHashMap<>();
++    private volatile LastIndex lastIndex;
++
+     public Optional<RoadPath> shortestPath(Location origin, Location destination, Instant departureAt,
+                                            Duration travelTimePerStreet, List<RoadBlock> blocks) {
+         SearchControl.pathQuery();
+@@ -22,51 +63,34 @@ public final class RoadNetwork {
+         Objects.requireNonNull(destination, "destination is required");
+         Objects.requireNonNull(departureAt, "departureAt is required");
+         validateTravelTime(travelTimePerStreet);
+-        List<RoadBlock> activeBlocks = List.copyOf(Objects.requireNonNull(blocks, "blocks are required"));
+-        // blockedNodes()/blockedSegments() expanden la poligonal del bloqueo a un
+-        // Set desde cero en cada llamada (ver RoadBlock). Dijkstra los consulta
+-        // por cada arista de cada nodo que visita -- sin precalcularlos UNA vez
+-        // aqui, se reconstruyen decenas de miles de veces por consulta (medido:
+-        // ~413ms/consulta con 19 bloqueos reales sobre la grilla de 70x50; ver
+-        // README, seccion de rendimiento). Con la data real del curso esto
+-        // dominaba por completo el tiempo de planificacion.
+-        BloqueosResueltos bloqueosResueltos = BloqueosResueltos.de(activeBlocks);
+-        if (isNodeBlockedDuring(origin, departureAt, departureAt.plusNanos(1), bloqueosResueltos)) {
++        BlockIndex index = indexFor(Objects.requireNonNull(blocks, "blocks are required"));
++        long departure = toNanos(departureAt);
++        long travel = travelTimePerStreet.toNanos();
++        int from = nodeOf(origin);
++        int to = nodeOf(destination);
++        if (index.nodeBlockedDuring(from, departure, departure + 1)) {
+             return Optional.empty();
+         }
+-        if (origin.equals(destination)) {
++        if (from == to) {
+             return Optional.of(new RoadPath(origin, destination, departureAt, List.of()));
+         }
+-
+-        Map<Location, Instant> earliestArrival = new HashMap<>();
+-        Map<Location, RoadLeg> incomingLeg = new HashMap<>();
+-        PriorityQueue<NodeState> frontier = new PriorityQueue<>(Comparator.comparing(NodeState::arrivalAt)
+-                .thenComparingInt(n -> n.node().x()).thenComparingInt(n -> n.node().y()));
+-        earliestArrival.put(origin, departureAt);
+-        frontier.add(new NodeState(origin, departureAt));
+-
+-        while (!frontier.isEmpty()) {
+-            SearchControl.checkpoint();
+-            NodeState state = frontier.remove();
+-            if (!state.arrivalAt().equals(earliestArrival.get(state.node()))) {
+-                continue;
+-            }
+-            if (state.node().equals(destination)) {
+-                return Optional.of(reconstructPath(origin, destination, departureAt, incomingLeg));
+-            }
+-            for (Location next : neighboursOf(state.node())) {
+-                Instant legDeparture = firstLegalDeparture(state.node(), next, state.arrivalAt(),
+-                        travelTimePerStreet, bloqueosResueltos);
+-                Instant nextArrival = legDeparture.plus(travelTimePerStreet);
+-                Instant knownArrival = earliestArrival.get(next);
+-                if (knownArrival == null || nextArrival.isBefore(knownArrival)) {
+-                    earliestArrival.put(next, nextArrival);
+-                    incomingLeg.put(next, new RoadLeg(state.node(), next, legDeparture, nextArrival));
+-                    frontier.add(new NodeState(next, nextArrival));
+-                }
+-            }
++        Template template = templateFor(from, to);
++        if (!index.mayAffect(template, departure, travel)) {
++            return Optional.of(template.materialize(origin, destination, departureAt, departure, travel));
+         }
+-        return Optional.empty();
++        QueryKey key = new QueryKey(from, to, departure, travel);
++        Optional<RoadPath> known = index.memo.get(key);
++        if (known != null) {
++            return known;
++        }
++        Optional<RoadPath> computed = search(from, to, departure, travel, index, null)
++                ? Optional.of(SCRATCH.get().path(origin, destination, departureAt, from, to))
++                : Optional.empty();
++        if (index.memo.size() >= MEMO_LIMIT) {
++            index.memo.clear();
++        }
++        index.memo.put(key, computed);
++        return computed;
+     }
+ 
+     /** Resolves an already-started movement. A new block causes the mandated U-turn. */
+@@ -77,11 +101,11 @@ public final class RoadNetwork {
+         Objects.requireNonNull(departsAt, "departsAt is required");
+         validateTravelTime(travelTimePerStreet);
+         new StreetSegment(from, to);
+-        List<RoadBlock> activeBlocks = List.copyOf(Objects.requireNonNull(blocks, "blocks are required"));
+-        BloqueosResueltos bloqueosResueltos = BloqueosResueltos.de(activeBlocks);
++        BlockIndex index = indexFor(Objects.requireNonNull(blocks, "blocks are required"));
+         Instant firstArrival = departsAt.plus(travelTimePerStreet);
+         RoadLeg outbound = new RoadLeg(from, to, departsAt, firstArrival);
+-        if (!isTraversalBlockedDuring(from, to, departsAt, firstArrival, bloqueosResueltos)) {
++        long departure = toNanos(departsAt);
++        if (!index.traversalBlocked(nodeOf(from), nodeOf(to), departure, departure + travelTimePerStreet.toNanos())) {
+             return new TraversalOutcome(List.of(outbound), to, firstArrival, false);
+         }
+         Instant returnArrival = firstArrival.plus(travelTimePerStreet);
+@@ -89,109 +113,362 @@ public final class RoadNetwork {
+         return new TraversalOutcome(List.of(outbound, returnLeg), from, returnArrival, true);
+     }
+ 
+-    private Instant firstLegalDeparture(Location from, Location to, Instant candidateDeparture,
+-                                        Duration travelTime, BloqueosResueltos bloqueos) {
+-        Instant departure = candidateDeparture;
+-        while (true) {
+-            SearchControl.checkpoint();
+-            Instant arrival = departure.plus(travelTime);
+-            Instant latestConflictEnd = null;
+-            for (RoadBlock block : bloqueos.blocks()) {
+-                if (blocksTraversal(block, bloqueos, from, to, departure, arrival)) {
+-                    if (latestConflictEnd == null || block.endsAt().isAfter(latestConflictEnd)) {
+-                        latestConflictEnd = block.endsAt();
+-                    }
+-                }
++    // ------------------------------------------------------------------ Dijkstra
++
++    /**
++     * Dijkstra por hora de llegada con el mismo orden de extraccion que la version original:
++     * (llegada, x, y). El indice x*HEIGHT+y preserva ese orden lexicografico. Si {@code touched}
++     * no es nulo, registra el rectangulo de todos los nodos cuyos tramos se evaluaron.
++     */
++    private static boolean search(int origin, int destination, long departure, long travel,
++                                  BlockIndex index, int[] touched) {
++        Scratch s = SCRATCH.get();
++        s.reset();
++        s.relax(origin, departure, -1, 0L);
++        s.push(departure, origin);
++        int pops = 0;
++        while (s.size > 0) {
++            if (++pops % CHECKPOINT_EVERY == 0) {
++                SearchControl.checkpoint();
+             }
+-            if (latestConflictEnd == null) {
+-                return departure;
++            long arrival = s.heapKey[0];
++            int node = s.heapNode[0];
++            s.pop();
++            if (arrival != s.arrival[node]) {
++                continue;
+             }
+-            departure = latestConflictEnd;
++            if (node == destination) {
++                include(touched, node);
++                return true;
++            }
++            int x = node / HEIGHT;
++            int y = node % HEIGHT;
++            // Mismo orden de vecinos que la version original: +x, -x, +y, -y.
++            if (x + 1 < WIDTH) s.edge(node, node + HEIGHT, arrival, travel, index, touched);
++            if (x - 1 >= 0) s.edge(node, node - HEIGHT, arrival, travel, index, touched);
++            if (y + 1 < HEIGHT) s.edge(node, node + 1, arrival, travel, index, touched);
++            if (y - 1 >= 0) s.edge(node, node - 1, arrival, travel, index, touched);
+         }
++        return false;
+     }
+ 
+-    private boolean isTraversalBlockedDuring(Location from, Location to, Instant departure, Instant arrival,
+-                                             BloqueosResueltos bloqueos) {
+-        return bloqueos.blocks().stream().anyMatch(block -> blocksTraversal(block, bloqueos, from, to, departure, arrival));
++    private static void include(int[] box, int node) {
++        if (box == null) return;
++        int x = node / HEIGHT;
++        int y = node % HEIGHT;
++        if (x < box[0]) box[0] = x;
++        if (x > box[1]) box[1] = x;
++        if (y < box[2]) box[2] = y;
++        if (y > box[3]) box[3] = y;
+     }
+ 
+-    private boolean blocksTraversal(RoadBlock block, BloqueosResueltos bloqueos, Location from, Location to,
+-                                    Instant departure, Instant arrival) {
+-        if (!block.overlaps(departure, arrival)) {
+-            return false;
++    private Template templateFor(int from, int to) {
++        long key = (long) from * NODES + to;
++        Template cached = templates.get(key);
++        if (cached != null) {
++            return cached;
++        }
++        int[] box = {Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MAX_VALUE, Integer.MIN_VALUE};
++        include(box, from);
++        if (!search(from, to, 0L, 1L, BlockIndex.EMPTY, box)) {
++            throw new IllegalStateException("The unblocked grid must connect every pair of nodes");
+         }
+-        StreetSegment segment = new StreetSegment(from, to);
+-        return bloqueos.segmentosDe(block).contains(segment) || bloqueos.nodosDe(block).contains(to)
+-                || bloqueos.nodosDe(block).contains(from);
++        Template template = new Template(SCRATCH.get().nodePath(from, to), box[0], box[1], box[2], box[3]);
++        if (templates.size() >= TEMPLATE_LIMIT) {
++            templates.clear();
++        }
++        templates.put(key, template);
++        return template;
+     }
+ 
+-    private boolean isNodeBlockedDuring(Location node, Instant from, Instant to, BloqueosResueltos bloqueos) {
+-        return bloqueos.blocks().stream().anyMatch(block -> block.overlaps(from, to) && bloqueos.nodosDe(block).contains(node));
++    // ------------------------------------------------------------------ Indice de bloqueos
++
++    private BlockIndex indexFor(List<RoadBlock> blocks) {
++        LastIndex last = lastIndex;
++        if (last != null && last.blocks == blocks) {
++            return last.index;
++        }
++        // List.copyOf devuelve la misma instancia solo si ya es inmodificable: solo entonces es
++        // seguro reconocerla por identidad en la siguiente consulta. Una lista mutable se copia y
++        // se busca por contenido en cada llamada, igual que hacia la version original.
++        List<RoadBlock> key = List.copyOf(blocks);
++        BlockIndex index;
++        if (key.isEmpty()) {
++            index = BlockIndex.EMPTY;
++        } else {
++            index = indexes.get(key);
++            if (index == null) {
++                if (indexes.size() >= INDEX_LIMIT) {
++                    indexes.clear();
++                }
++                index = new BlockIndex(key);
++                indexes.put(key, index);
++            }
++        }
++        if (key == blocks) {
++            lastIndex = new LastIndex(blocks, index);
++        }
++        return index;
+     }
+ 
+-    /** Precalcula, UNA sola vez por llamada a shortestPath()/traverse(), los
+-     *  nodos y segmentos bloqueados de cada RoadBlock activo -- evita que
+-     *  Dijkstra los reconstruya en cada arista que examina (RoadBlock.blockedNodes()/
+-     *  blockedSegments() expanden la poligonal desde cero cada vez que se llaman). */
+-    private static final class BloqueosResueltos {
+-        private final List<RoadBlock> blocks;
+-        private final Map<RoadBlock, java.util.Set<Location>> nodos;
+-        private final Map<RoadBlock, java.util.Set<StreetSegment>> segmentos;
++    private record LastIndex(List<RoadBlock> blocks, BlockIndex index) {
++    }
++
++    private static final class BlockIndex {
++        private static final int[] NONE = new int[0];
++        static final BlockIndex EMPTY = new BlockIndex(List.of());
++
++        final long[] starts;
++        final long[] ends;
++        final int[][] nodesOfBlock;
++        final int[][] box;
++        final int[][] blocksAtNode;
++        final Map<QueryKey, Optional<RoadPath>> memo = new ConcurrentHashMap<>();
++
++        BlockIndex(List<RoadBlock> blocks) {
++            int n = blocks.size();
++            starts = new long[n];
++            ends = new long[n];
++            nodesOfBlock = new int[n][];
++            box = new int[n][];
++            List<List<Integer>> byNode = new ArrayList<>(NODES);
++            for (int i = 0; i < NODES; i++) byNode.add(null);
++            for (int b = 0; b < n; b++) {
++                RoadBlock block = blocks.get(b);
++                starts[b] = saturatedNanos(block.startsAt());
++                ends[b] = saturatedNanos(block.endsAt());
++                int[] nodes = block.blockedNodes().stream().mapToInt(RoadNetwork::nodeOf).sorted().toArray();
++                nodesOfBlock[b] = nodes;
++                int[] bbox = {Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MAX_VALUE, Integer.MIN_VALUE};
++                for (int node : nodes) {
++                    include(bbox, node);
++                    List<Integer> list = byNode.get(node);
++                    if (list == null) {
++                        list = new ArrayList<>(2);
++                        byNode.set(node, list);
++                    }
++                    list.add(b);
++                }
++                box[b] = bbox;
++            }
++            blocksAtNode = new int[NODES][];
++            for (int i = 0; i < NODES; i++) {
++                List<Integer> list = byNode.get(i);
++                blocksAtNode[i] = list == null ? NONE : list.stream().mapToInt(Integer::intValue).toArray();
++            }
++        }
+ 
+-        private BloqueosResueltos(List<RoadBlock> blocks, Map<RoadBlock, java.util.Set<Location>> nodos,
+-                                   Map<RoadBlock, java.util.Set<StreetSegment>> segmentos) {
+-            this.blocks = blocks;
+-            this.nodos = nodos;
+-            this.segmentos = segmentos;
++        /** Mismo criterio que RoadBlock.overlaps: desde &lt; fin y hasta &gt; inicio. */
++        private boolean overlaps(int b, long fromInclusive, long toExclusive) {
++            return fromInclusive < ends[b] && toExclusive > starts[b];
+         }
+ 
+-        static BloqueosResueltos de(List<RoadBlock> blocks) {
+-            Map<RoadBlock, java.util.Set<Location>> nodos = new HashMap<>();
+-            Map<RoadBlock, java.util.Set<StreetSegment>> segmentos = new HashMap<>();
+-            for (RoadBlock block : blocks) {
+-                nodos.put(block, block.blockedNodes());
+-                segmentos.put(block, block.blockedSegments());
++        boolean nodeBlockedDuring(int node, long from, long to) {
++            for (int b : blocksAtNode[node]) {
++                if (overlaps(b, from, to)) return true;
+             }
+-            return new BloqueosResueltos(blocks, nodos, segmentos);
++            return false;
+         }
+ 
+-        List<RoadBlock> blocks() { return blocks; }
+-        java.util.Set<Location> nodosDe(RoadBlock block) { return nodos.get(block); }
+-        java.util.Set<StreetSegment> segmentosDe(RoadBlock block) { return segmentos.get(block); }
+-    }
++        boolean traversalBlocked(int from, int to, long departure, long arrival) {
++            return nodeBlockedDuring(from, departure, arrival) || nodeBlockedDuring(to, departure, arrival);
++        }
++
++        /** Hora de salida legal mas temprana de un tramo: espera al fin del bloqueo mas tardio en conflicto. */
++        long firstLegalDeparture(int from, int to, long candidate, long travel) {
++            int[] atFrom = blocksAtNode[from];
++            int[] atTo = blocksAtNode[to];
++            if (atFrom.length == 0 && atTo.length == 0) {
++                return candidate;
++            }
++            long departure = candidate;
++            while (true) {
++                long arrival = departure + travel;
++                long latestConflictEnd = Long.MIN_VALUE;
++                boolean conflict = false;
++                for (int b : atFrom) {
++                    if (overlaps(b, departure, arrival)) { conflict = true; latestConflictEnd = Math.max(latestConflictEnd, ends[b]); }
++                }
++                for (int b : atTo) {
++                    if (overlaps(b, departure, arrival)) { conflict = true; latestConflictEnd = Math.max(latestConflictEnd, ends[b]); }
++                }
++                if (!conflict) {
++                    return departure;
++                }
++                SearchControl.checkpoint();
++                departure = latestConflictEnd;
++                Math.addExact(departure, travel);
++            }
++        }
+ 
+-    private List<Location> neighboursOf(Location node) {
+-        List<Location> neighbours = new ArrayList<>(4);
+-        addIfInside(neighbours, node.x() + 1, node.y());
+-        addIfInside(neighbours, node.x() - 1, node.y());
+-        addIfInside(neighbours, node.x(), node.y() + 1);
+-        addIfInside(neighbours, node.x(), node.y() - 1);
+-        return neighbours;
++        /**
++         * Conservador: verdadero si algun bloqueo podria alterar la exploracion de la plantilla.
++         * Todo tramo que esa exploracion evalua empieza entre la salida y la llegada al destino, y
++         * une nodos dentro del rectangulo registrado; un bloqueo que no se cruce en tiempo con
++         * [salida, llegada + un tramo] ni tenga nodos dentro del rectangulo no puede influir.
++         */
++        boolean mayAffect(Template template, long departure, long travel) {
++            if (starts.length == 0) return false;
++            long windowEnd = departure + (long) (template.nodes.length) * travel;
++            for (int b = 0; b < starts.length; b++) {
++                if (!overlaps(b, departure, windowEnd)) continue;
++                int[] bb = box[b];
++                if (bb[1] < template.minX || bb[0] > template.maxX || bb[3] < template.minY || bb[2] > template.maxY) continue;
++                for (int node : nodesOfBlock[b]) {
++                    int x = node / HEIGHT;
++                    int y = node % HEIGHT;
++                    if (x >= template.minX && x <= template.maxX && y >= template.minY && y <= template.maxY) {
++                        return true;
++                    }
++                }
++            }
++            return false;
++        }
+     }
+ 
+-    private void addIfInside(List<Location> nodes, int x, int y) {
+-        if (x >= 0 && x <= Location.MAX_X && y >= 0 && y <= Location.MAX_Y) {
+-            nodes.add(new Location(x, y));
++    /** Camino sin bloqueos, independiente de la hora y de la velocidad; el tramo i sale en i*tramo. */
++    private record Template(int[] nodes, int minX, int maxX, int minY, int maxY) {
++        RoadPath materialize(Location origin, Location destination, Instant departureAt, long departure, long travel) {
++            List<RoadLeg> legs = new ArrayList<>(nodes.length - 1);
++            for (int i = 0; i + 1 < nodes.length; i++) {
++                legs.add(new RoadLeg(LOCATIONS[nodes[i]], LOCATIONS[nodes[i + 1]],
++                        fromNanos(departure + i * travel), fromNanos(departure + (i + 1) * travel)));
++            }
++            return new RoadPath(origin, destination, departureAt, legs);
+         }
+     }
+ 
+-    private RoadPath reconstructPath(Location origin, Location destination, Instant departureAt,
+-                                     Map<Location, RoadLeg> incomingLeg) {
+-        List<RoadLeg> reverse = new ArrayList<>();
+-        Location cursor = destination;
+-        while (!cursor.equals(origin)) {
+-            RoadLeg leg = incomingLeg.get(cursor);
+-            if (leg == null) {
+-                throw new IllegalStateException("Path reconstruction failed");
++    private record QueryKey(int from, int to, long departure, long travel) {
++    }
++
++    /** Memoria de trabajo por hilo: evita reservar arreglos por consulta. */
++    private static final class Scratch {
++        final long[] arrival = new long[NODES];
++        final int[] generationOf = new int[NODES];
++        final int[] predecessor = new int[NODES];
++        final long[] legDeparture = new long[NODES];
++        long[] heapKey = new long[NODES * 4 + 16];
++        int[] heapNode = new int[NODES * 4 + 16];
++        int size;
++        int generation;
++
++        void reset() {
++            size = 0;
++            if (++generation == Integer.MAX_VALUE) {
++                java.util.Arrays.fill(generationOf, 0);
++                generation = 1;
+             }
+-            reverse.add(leg);
+-            cursor = leg.from();
+         }
+-        List<RoadLeg> ordered = new ArrayList<>(reverse.size());
+-        for (int index = reverse.size() - 1; index >= 0; index--) {
+-            ordered.add(reverse.get(index));
++
++        boolean known(int node) {
++            return generationOf[node] == generation;
+         }
+-        return new RoadPath(origin, destination, departureAt, ordered);
++
++        void relax(int node, long at, int from, long departedAt) {
++            generationOf[node] = generation;
++            arrival[node] = at;
++            predecessor[node] = from;
++            legDeparture[node] = departedAt;
++        }
++
++        void edge(int node, int next, long arrivalAtNode, long travel, BlockIndex index, int[] touched) {
++            include(touched, node);
++            include(touched, next);
++            long departure = index.firstLegalDeparture(node, next, arrivalAtNode, travel);
++            long nextArrival = departure + travel;
++            if (!known(next) || nextArrival < arrival[next]) {
++                relax(next, nextArrival, node, departure);
++                push(nextArrival, next);
++            }
++        }
++
++        void push(long key, int node) {
++            if (size == heapKey.length) {
++                heapKey = java.util.Arrays.copyOf(heapKey, size * 2);
++                heapNode = java.util.Arrays.copyOf(heapNode, size * 2);
++            }
++            int i = size++;
++            while (i > 0) {
++                int parent = (i - 1) >>> 1;
++                if (!less(key, node, heapKey[parent], heapNode[parent])) break;
++                heapKey[i] = heapKey[parent];
++                heapNode[i] = heapNode[parent];
++                i = parent;
++            }
++            heapKey[i] = key;
++            heapNode[i] = node;
++        }
++
++        void pop() {
++            int last = --size;
++            if (last == 0) return;
++            long key = heapKey[last];
++            int node = heapNode[last];
++            int i = 0;
++            while (true) {
++                int child = 2 * i + 1;
++                if (child >= last) break;
++                if (child + 1 < last && less(heapKey[child + 1], heapNode[child + 1], heapKey[child], heapNode[child])) {
++                    child++;
++                }
++                if (!less(heapKey[child], heapNode[child], key, node)) break;
++                heapKey[i] = heapKey[child];
++                heapNode[i] = heapNode[child];
++                i = child;
++            }
++            heapKey[i] = key;
++            heapNode[i] = node;
++        }
++
++        private static boolean less(long keyA, int nodeA, long keyB, int nodeB) {
++            return keyA < keyB || (keyA == keyB && nodeA < nodeB);
++        }
++
++        int[] nodePath(int origin, int destination) {
++            int length = 1;
++            for (int cursor = destination; cursor != origin; cursor = predecessor[cursor]) length++;
++            int[] nodes = new int[length];
++            int i = length - 1;
++            for (int cursor = destination; ; cursor = predecessor[cursor]) {
++                nodes[i--] = cursor;
++                if (cursor == origin) break;
++            }
++            return nodes;
++        }
++
++        RoadPath path(Location originLocation, Location destinationLocation, Instant departureAt, int origin, int destination) {
++            int[] nodes = nodePath(origin, destination);
++            List<RoadLeg> legs = new ArrayList<>(nodes.length - 1);
++            for (int i = 1; i < nodes.length; i++) {
++                int node = nodes[i];
++                legs.add(new RoadLeg(LOCATIONS[nodes[i - 1]], LOCATIONS[node],
++                        fromNanos(legDeparture[node]), fromNanos(arrival[node])));
++            }
++            return new RoadPath(originLocation, destinationLocation, departureAt, legs);
++        }
++    }
++
++    // ------------------------------------------------------------------ utilidades
++
++    private static int nodeOf(Location location) {
++        return location.x() * HEIGHT + location.y();
++    }
++
++    private static long toNanos(Instant instant) {
++        return Math.addExact(Math.multiplyExact(instant.getEpochSecond(), 1_000_000_000L), instant.getNano());
++    }
++
++    /** Los extremos de un bloqueo fuera del rango representable se saturan: conserva todas las comparaciones. */
++    private static long saturatedNanos(Instant instant) {
++        try {
++            return toNanos(instant);
++        } catch (ArithmeticException outOfRange) {
++            return instant.getEpochSecond() < 0 ? Long.MIN_VALUE : Long.MAX_VALUE;
++        }
++    }
++
++    private static Instant fromNanos(long nanos) {
++        return Instant.ofEpochSecond(Math.floorDiv(nanos, 1_000_000_000L), Math.floorMod(nanos, 1_000_000_000L));
+     }
+ 
+     private void validateTravelTime(Duration travelTime) {
+@@ -200,7 +477,4 @@ public final class RoadNetwork {
+             throw new IllegalArgumentException("Travel time per street must be positive");
+         }
+     }
+-
+-    private record NodeState(Location node, Instant arrivalAt) {
+-    }
+ }
+diff --git a/dominio/src/test/java/pe/edu/pucp/paqrap/planner/domain/ReferenceRoadNetwork.java b/dominio/src/test/java/pe/edu/pucp/paqrap/planner/domain/ReferenceRoadNetwork.java
+new file mode 100644
+index 0000000..0f389e4
+--- /dev/null
++++ b/dominio/src/test/java/pe/edu/pucp/paqrap/planner/domain/ReferenceRoadNetwork.java
+@@ -0,0 +1,205 @@
++package pe.edu.pucp.paqrap.planner.domain;
++
++
++import java.time.Duration;
++import java.time.Instant;
++import java.util.ArrayList;
++import java.util.Comparator;
++import java.util.HashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Objects;
++import java.util.Optional;
++import java.util.PriorityQueue;
++
++/** Copia congelada de RoadNetwork ANTES de la optimizacion, usada solo como oraculo en pruebas diferenciales. */
++final class ReferenceRoadNetwork {
++    public Optional<RoadPath> shortestPath(Location origin, Location destination, Instant departureAt,
++                                           Duration travelTimePerStreet, List<RoadBlock> blocks) {
++        
++        Objects.requireNonNull(origin, "origin is required");
++        Objects.requireNonNull(destination, "destination is required");
++        Objects.requireNonNull(departureAt, "departureAt is required");
++        validateTravelTime(travelTimePerStreet);
++        List<RoadBlock> activeBlocks = List.copyOf(Objects.requireNonNull(blocks, "blocks are required"));
++        // blockedNodes()/blockedSegments() expanden la poligonal del bloqueo a un
++        // Set desde cero en cada llamada (ver RoadBlock). Dijkstra los consulta
++        // por cada arista de cada nodo que visita -- sin precalcularlos UNA vez
++        // aqui, se reconstruyen decenas de miles de veces por consulta (medido:
++        // ~413ms/consulta con 19 bloqueos reales sobre la grilla de 70x50; ver
++        // README, seccion de rendimiento). Con la data real del curso esto
++        // dominaba por completo el tiempo de planificacion.
++        BloqueosResueltos bloqueosResueltos = BloqueosResueltos.de(activeBlocks);
++        if (isNodeBlockedDuring(origin, departureAt, departureAt.plusNanos(1), bloqueosResueltos)) {
++            return Optional.empty();
++        }
++        if (origin.equals(destination)) {
++            return Optional.of(new RoadPath(origin, destination, departureAt, List.of()));
++        }
++
++        Map<Location, Instant> earliestArrival = new HashMap<>();
++        Map<Location, RoadLeg> incomingLeg = new HashMap<>();
++        PriorityQueue<NodeState> frontier = new PriorityQueue<>(Comparator.comparing(NodeState::arrivalAt)
++                .thenComparingInt(n -> n.node().x()).thenComparingInt(n -> n.node().y()));
++        earliestArrival.put(origin, departureAt);
++        frontier.add(new NodeState(origin, departureAt));
++
++        while (!frontier.isEmpty()) {
++            
++            NodeState state = frontier.remove();
++            if (!state.arrivalAt().equals(earliestArrival.get(state.node()))) {
++                continue;
++            }
++            if (state.node().equals(destination)) {
++                return Optional.of(reconstructPath(origin, destination, departureAt, incomingLeg));
++            }
++            for (Location next : neighboursOf(state.node())) {
++                Instant legDeparture = firstLegalDeparture(state.node(), next, state.arrivalAt(),
++                        travelTimePerStreet, bloqueosResueltos);
++                Instant nextArrival = legDeparture.plus(travelTimePerStreet);
++                Instant knownArrival = earliestArrival.get(next);
++                if (knownArrival == null || nextArrival.isBefore(knownArrival)) {
++                    earliestArrival.put(next, nextArrival);
++                    incomingLeg.put(next, new RoadLeg(state.node(), next, legDeparture, nextArrival));
++                    frontier.add(new NodeState(next, nextArrival));
++                }
++            }
++        }
++        return Optional.empty();
++    }
++
++    /** Resolves an already-started movement. A new block causes the mandated U-turn. */
++    public TraversalOutcome traverse(Location from, Location to, Instant departsAt,
++                                     Duration travelTimePerStreet, List<RoadBlock> blocks) {
++        Objects.requireNonNull(from, "from is required");
++        Objects.requireNonNull(to, "to is required");
++        Objects.requireNonNull(departsAt, "departsAt is required");
++        validateTravelTime(travelTimePerStreet);
++        new StreetSegment(from, to);
++        List<RoadBlock> activeBlocks = List.copyOf(Objects.requireNonNull(blocks, "blocks are required"));
++        BloqueosResueltos bloqueosResueltos = BloqueosResueltos.de(activeBlocks);
++        Instant firstArrival = departsAt.plus(travelTimePerStreet);
++        RoadLeg outbound = new RoadLeg(from, to, departsAt, firstArrival);
++        if (!isTraversalBlockedDuring(from, to, departsAt, firstArrival, bloqueosResueltos)) {
++            return new TraversalOutcome(List.of(outbound), to, firstArrival, false);
++        }
++        Instant returnArrival = firstArrival.plus(travelTimePerStreet);
++        RoadLeg returnLeg = new RoadLeg(to, from, firstArrival, returnArrival);
++        return new TraversalOutcome(List.of(outbound, returnLeg), from, returnArrival, true);
++    }
++
++    private Instant firstLegalDeparture(Location from, Location to, Instant candidateDeparture,
++                                        Duration travelTime, BloqueosResueltos bloqueos) {
++        Instant departure = candidateDeparture;
++        while (true) {
++            
++            Instant arrival = departure.plus(travelTime);
++            Instant latestConflictEnd = null;
++            for (RoadBlock block : bloqueos.blocks()) {
++                if (blocksTraversal(block, bloqueos, from, to, departure, arrival)) {
++                    if (latestConflictEnd == null || block.endsAt().isAfter(latestConflictEnd)) {
++                        latestConflictEnd = block.endsAt();
++                    }
++                }
++            }
++            if (latestConflictEnd == null) {
++                return departure;
++            }
++            departure = latestConflictEnd;
++        }
++    }
++
++    private boolean isTraversalBlockedDuring(Location from, Location to, Instant departure, Instant arrival,
++                                             BloqueosResueltos bloqueos) {
++        return bloqueos.blocks().stream().anyMatch(block -> blocksTraversal(block, bloqueos, from, to, departure, arrival));
++    }
++
++    private boolean blocksTraversal(RoadBlock block, BloqueosResueltos bloqueos, Location from, Location to,
++                                    Instant departure, Instant arrival) {
++        if (!block.overlaps(departure, arrival)) {
++            return false;
++        }
++        StreetSegment segment = new StreetSegment(from, to);
++        return bloqueos.segmentosDe(block).contains(segment) || bloqueos.nodosDe(block).contains(to)
++                || bloqueos.nodosDe(block).contains(from);
++    }
++
++    private boolean isNodeBlockedDuring(Location node, Instant from, Instant to, BloqueosResueltos bloqueos) {
++        return bloqueos.blocks().stream().anyMatch(block -> block.overlaps(from, to) && bloqueos.nodosDe(block).contains(node));
++    }
++
++    /** Precalcula, UNA sola vez por llamada a shortestPath()/traverse(), los
++     *  nodos y segmentos bloqueados de cada RoadBlock activo -- evita que
++     *  Dijkstra los reconstruya en cada arista que examina (RoadBlock.blockedNodes()/
++     *  blockedSegments() expanden la poligonal desde cero cada vez que se llaman). */
++    private static final class BloqueosResueltos {
++        private final List<RoadBlock> blocks;
++        private final Map<RoadBlock, java.util.Set<Location>> nodos;
++        private final Map<RoadBlock, java.util.Set<StreetSegment>> segmentos;
++
++        private BloqueosResueltos(List<RoadBlock> blocks, Map<RoadBlock, java.util.Set<Location>> nodos,
++                                   Map<RoadBlock, java.util.Set<StreetSegment>> segmentos) {
++            this.blocks = blocks;
++            this.nodos = nodos;
++            this.segmentos = segmentos;
++        }
++
++        static BloqueosResueltos de(List<RoadBlock> blocks) {
++            Map<RoadBlock, java.util.Set<Location>> nodos = new HashMap<>();
++            Map<RoadBlock, java.util.Set<StreetSegment>> segmentos = new HashMap<>();
++            for (RoadBlock block : blocks) {
++                nodos.put(block, block.blockedNodes());
++                segmentos.put(block, block.blockedSegments());
++            }
++            return new BloqueosResueltos(blocks, nodos, segmentos);
++        }
++
++        List<RoadBlock> blocks() { return blocks; }
++        java.util.Set<Location> nodosDe(RoadBlock block) { return nodos.get(block); }
++        java.util.Set<StreetSegment> segmentosDe(RoadBlock block) { return segmentos.get(block); }
++    }
++
++    private List<Location> neighboursOf(Location node) {
++        List<Location> neighbours = new ArrayList<>(4);
++        addIfInside(neighbours, node.x() + 1, node.y());
++        addIfInside(neighbours, node.x() - 1, node.y());
++        addIfInside(neighbours, node.x(), node.y() + 1);
++        addIfInside(neighbours, node.x(), node.y() - 1);
++        return neighbours;
++    }
++
++    private void addIfInside(List<Location> nodes, int x, int y) {
++        if (x >= 0 && x <= Location.MAX_X && y >= 0 && y <= Location.MAX_Y) {
++            nodes.add(new Location(x, y));
++        }
++    }
++
++    private RoadPath reconstructPath(Location origin, Location destination, Instant departureAt,
++                                     Map<Location, RoadLeg> incomingLeg) {
++        List<RoadLeg> reverse = new ArrayList<>();
++        Location cursor = destination;
++        while (!cursor.equals(origin)) {
++            RoadLeg leg = incomingLeg.get(cursor);
++            if (leg == null) {
++                throw new IllegalStateException("Path reconstruction failed");
++            }
++            reverse.add(leg);
++            cursor = leg.from();
++        }
++        List<RoadLeg> ordered = new ArrayList<>(reverse.size());
++        for (int index = reverse.size() - 1; index >= 0; index--) {
++            ordered.add(reverse.get(index));
++        }
++        return new RoadPath(origin, destination, departureAt, ordered);
++    }
++
++    private void validateTravelTime(Duration travelTime) {
++        Objects.requireNonNull(travelTime, "travelTimePerStreet is required");
++        if (travelTime.isZero() || travelTime.isNegative()) {
++            throw new IllegalArgumentException("Travel time per street must be positive");
++        }
++    }
++
++    private record NodeState(Location node, Instant arrivalAt) {
++    }
++}
+diff --git a/dominio/src/test/java/pe/edu/pucp/paqrap/planner/domain/RoadNetworkDifferentialTest.java b/dominio/src/test/java/pe/edu/pucp/paqrap/planner/domain/RoadNetworkDifferentialTest.java
+new file mode 100644
+index 0000000..6f213c0
+--- /dev/null
++++ b/dominio/src/test/java/pe/edu/pucp/paqrap/planner/domain/RoadNetworkDifferentialTest.java
+@@ -0,0 +1,133 @@
++package pe.edu.pucp.paqrap.planner.domain;
++
++import org.junit.jupiter.api.Test;
++
++import java.time.Duration;
++import java.time.Instant;
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Optional;
++import java.util.Random;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++
++/**
++ * La RoadNetwork optimizada debe devolver EXACTAMENTE lo mismo que la version anterior
++ * (ReferenceRoadNetwork): mismo resultado vacio/no vacio, mismos tramos con las mismas horas.
++ * Se reutiliza una sola instancia para ejercitar tambien sus caches entre consultas.
++ */
++class RoadNetworkDifferentialTest {
++    private static final Instant BASE = Instant.parse("2026-09-09T12:00:00Z");
++    private static final Duration[] SPEEDS = {
++            Duration.ofMillis(Math.round(3_600_000.0 / 40)),
++            Duration.ofMillis(Math.round(3_600_000.0 / 25)),
++            Duration.ofMillis(Math.round(3_600_000.0 / 12)),
++            Duration.ofMinutes(1)};
++
++    @Test
++    void optimizedNetworkMatchesReferenceLegByLeg() {
++        Random random = new Random(20260923L);
++        RoadNetwork optimized = new RoadNetwork();
++        ReferenceRoadNetwork reference = new ReferenceRoadNetwork();
++        int compared = 0;
++        int nonEmptyBlockSets = 0;
++        for (int set = 0; set < 60; set++) {
++            List<RoadBlock> blocks = randomBlocks(random, set % 6 == 0 ? 0 : 1 + random.nextInt(24));
++            if (!blocks.isEmpty()) nonEmptyBlockSets++;
++            // Mitad inmodificables (camino rapido por identidad), mitad mutables (busqueda por contenido).
++            List<RoadBlock> passed = set % 2 == 0 ? List.copyOf(blocks) : new ArrayList<>(blocks);
++            for (int q = 0; q < 30; q++) {
++                Location origin = randomLocation(random);
++                Location destination = q % 7 == 0 ? origin : randomLocation(random);
++                Instant departure = BASE.plusSeconds(random.nextInt(12 * 3600)).plusNanos(random.nextInt(1_000_000_000));
++                Duration travel = SPEEDS[random.nextInt(SPEEDS.length)];
++                assertSame(reference.shortestPath(origin, destination, departure, travel, blocks),
++                        optimized.shortestPath(origin, destination, departure, travel, passed),
++                        "set " + set + " query " + q);
++                // Repetida: debe salir de cache con el mismo resultado.
++                assertSame(reference.shortestPath(origin, destination, departure, travel, blocks),
++                        optimized.shortestPath(origin, destination, departure, travel, passed),
++                        "cached set " + set + " query " + q);
++                Location neighbour = neighbourOf(origin, random);
++                assertEquals(reference.traverse(origin, neighbour, departure, travel, blocks),
++                        optimized.traverse(origin, neighbour, departure, travel, passed), "traverse " + set + "/" + q);
++                compared++;
++            }
++        }
++        assertEquals(1800, compared);
++        assertEquals(true, nonEmptyBlockSets > 40);
++    }
++
++    @Test
++    void blockedSegmentBetweenBlockedNodesIsEquivalentToNodeCheck() {
++        // Fundamento del indice por nodo: todo segmento bloqueado une dos nodos bloqueados.
++        Random random = new Random(7L);
++        for (int i = 0; i < 500; i++) {
++            RoadBlock block = randomBlocks(random, 1).getFirst();
++            for (StreetSegment segment : block.blockedSegments()) {
++                assertEquals(true, block.blockedNodes().contains(segment.first())
++                        && block.blockedNodes().contains(segment.second()));
++            }
++        }
++    }
++
++    private static void assertSame(Optional<RoadPath> expected, Optional<RoadPath> actual, String where) {
++        assertEquals(expected.isPresent(), actual.isPresent(), where);
++        if (expected.isPresent()) {
++            assertEquals(expected.get().legs(), actual.get().legs(), where);
++            assertEquals(expected.get().arrivesAt(), actual.get().arrivesAt(), where);
++            assertEquals(expected.get().origin(), actual.get().origin(), where);
++            assertEquals(expected.get().destination(), actual.get().destination(), where);
++        }
++    }
++
++    private static List<RoadBlock> randomBlocks(Random random, int count) {
++        List<RoadBlock> blocks = new ArrayList<>();
++        for (int i = 0; i < count; i++) {
++            List<Location> nodes = new ArrayList<>();
++            Location cursor = randomLocation(random);
++            nodes.add(cursor);
++            boolean horizontal = random.nextBoolean();
++            int pieces = 1 + random.nextInt(4);
++            for (int p = 0; p < pieces; p++) {
++                Location next = cursor;
++                for (int attempt = 0; attempt < 20 && next.equals(cursor); attempt++) {
++                    int length = 1 + random.nextInt(15);
++                    int sign = random.nextBoolean() ? 1 : -1;
++                    int x = horizontal ? clamp(cursor.x() + sign * length, Location.MAX_X) : cursor.x();
++                    int y = horizontal ? cursor.y() : clamp(cursor.y() + sign * length, Location.MAX_Y);
++                    next = new Location(x, y);
++                }
++                if (next.equals(cursor)) break;
++                nodes.add(next);
++                cursor = next;
++                horizontal = !horizontal;
++            }
++            if (nodes.size() < 2) {
++                Location first = nodes.getFirst();
++                nodes.add(first.x() < Location.MAX_X ? new Location(first.x() + 1, first.y()) : new Location(first.x() - 1, first.y()));
++            }
++            Instant start = BASE.minusSeconds(2 * 3600).plusSeconds(random.nextInt(12 * 3600));
++            Instant end = start.plusSeconds(600 + random.nextInt(4 * 3600));
++            blocks.add(new RoadBlock(start, end, nodes));
++        }
++        return blocks;
++    }
++
++    private static int clamp(int value, int max) {
++        return Math.max(0, Math.min(max, value));
++    }
++
++    private static Location randomLocation(Random random) {
++        return new Location(random.nextInt(Location.MAX_X + 1), random.nextInt(Location.MAX_Y + 1));
++    }
++
++    private static Location neighbourOf(Location origin, Random random) {
++        List<Location> options = new ArrayList<>();
++        if (origin.x() < Location.MAX_X) options.add(new Location(origin.x() + 1, origin.y()));
++        if (origin.x() > 0) options.add(new Location(origin.x() - 1, origin.y()));
++        if (origin.y() < Location.MAX_Y) options.add(new Location(origin.x(), origin.y() + 1));
++        if (origin.y() > 0) options.add(new Location(origin.x(), origin.y() - 1));
++        return options.get(random.nextInt(options.size()));
++    }
++}
+diff --git a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/CommonAudit.java b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/CommonAudit.java
+index a7b1c5b..d069295 100644
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/CommonAudit.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/CommonAudit.java
+@@ -34,6 +34,10 @@ public final class CommonAudit {
+         }
+         boolean structural=evaluation.violations().stream().noneMatch(v->v.type()!=PlanViolationType.PARTIAL_DELIVERY_MISMATCH) && !oversupplied;
+         boolean full=evaluation.isFeasible() && complete==p.orders().size();
++        Set<String> unservable=provablyUnservable(p);
++        int servable=p.orders().size()-unservable.size(),servableComplete=0;
++        for(Order o:p.orders())if(!unservable.contains(o.id())&&onTime.getOrDefault(o.id(),0)==o.packages())servableComplete++;
++        boolean fullServable=structural && servableComplete==servable;
+         List<Object> routeDetails=new ArrayList<>();
+         for(DeliveryRoute r:plan.routes()){
+             List<Object> stops=new ArrayList<>();
+@@ -47,11 +51,48 @@ public final class CommonAudit {
+         }
+         Map<String,Object> details=obj("full_feasible",full,"route_constraints_valid",structural,"orders_total",p.orders().size(),
+                 "orders_fully_served",complete,"packages_total",total,"packages_covered_on_time",covered,"unserved_order_ids",missing,
++                "provably_unservable_order_ids",List.copyOf(unservable),"servable_orders_fully_served",servableComplete,"full_servable_feasible",fullServable,
++                "provably_unservable_rule","Ninguna ruta directa desde el central, saliendo en el instante de planificacion, con cualquier vehiculo disponible, entrega a tiempo (mismo scheduler: camino, 80 km, refrigerio, plazo, mantenimiento). Es cota inferior de llegada para cualquier plan con las reglas del dominio comun.",
+                 "planned_cost_raw",evaluation.totalCost(),"planned_cost_if_complete_feasible",full?evaluation.totalCost():null,
+                 "distance_km",distance,"violations",evaluation.violations().stream().map(v->obj("type",v.type(),"route_id",v.routeId(),"detail",v.detail())).toList(),
+                 "routes",routeDetails,"interpretation","Planning output, not observed delivery execution. Missing orders are NOT a mathematical infeasibility certificate.");
+-        return new AuditResult(full,structural,complete,covered,total,missing.size(),evaluation.totalCost(),distance,plan.routes().size(),details);
++        return new AuditResult(full,structural,complete,covered,total,missing.size(),evaluation.totalCost(),distance,plan.routes().size(),
++                unservable.size(),servableComplete,fullServable,details);
+     }
++
++    /**
++     * Pedidos que ningun plan puede entregar a tiempo con las reglas del dominio comun: para cada
++     * vehiculo disponible, una ruta directa central -&gt; pedido -&gt; central que sale al planificar
++     * (llegada mas temprana posible: cualquier parada previa o salida posterior solo la retrasa) no
++     * llega en plazo o viola una regla dura por ruta. Independiente de los algoritmos y fuera del
++     * tiempo medido. No depende del plan evaluado.
++     */
++    static Set<String> provablyUnservable(ProblemInstance p){
++        RouteScheduler scheduler=new RouteScheduler(new RoadNetwork());
++        OperationalSnapshot s=p.snapshot();Warehouse central=p.central();
++        List<Vehicle> available=s.vehiclesById().values().stream().map(VehicleOperationalState::vehicle)
++                .filter(v->s.isVehiclePlannableAt(v.id(),s.planningTime())).toList();
++        Set<String> unservable=new TreeSet<>();
++        for(Order o:p.orders()){
++            boolean servable=false;
++            for(Vehicle v:available){
++                int quantity=Math.min(o.packages(),Math.min(s.fleetProfile().parametersFor(v.type()).capacity(),v.type().capacity()));
++                DeliveryRoute direct=DeliveryRoute.startScenarioAtCentral("CERT-"+v.id(),v,central,quantity,s.planningTime())
++                        .withAppendedStop(new DeliveryStop(o,quantity)).returningTo(central);
++                try{
++                    ScheduledDeliveryRoute r=scheduler.schedule(direct,s,p.blocks());
++                    boolean ok=r.scheduledStops().stream().allMatch(st->st.approach().distanceKm()<=80
++                            && !(st.stop() instanceof DeliveryStop && st.arrivedAt().isAfter(o.deadline())))
++                            && !s.hasVehicleDisruptionDuring(v.id(),direct.departureAt(),r.completedAt());
++                    if(ok){servable=true;break;}
++                }catch(IllegalStateException noPath){/* sin camino con este vehiculo */}
++            }
++            if(!servable)unservable.add(o.id());
++        }
++        return unservable;
++    }
++
+     public record AuditResult(boolean fullFeasible,boolean routeValid,int completeOrders,int coveredPackages,int totalPackages,
+-                              int missingOrders,double rawCost,double distanceKm,int routes,Map<String,Object> details){}
++                              int missingOrders,double rawCost,double distanceKm,int routes,
++                              int provablyUnservable,int servableComplete,boolean fullServableFeasible,Map<String,Object> details){}
+ }
+diff --git a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/Csv.java b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/Csv.java
+index 3cded6f..a72569e 100644
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/Csv.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/Csv.java
+@@ -2,7 +2,7 @@ package pe.edu.pucp.paqrap.experiment;
+ import java.util.*;
+ public final class Csv {
+     private Csv(){}
+-    public static final List<String> COLUMNS=List.of("run_id","instance_id","family","source","instance_seed","search_seed","repetition","algorithm","mode","budget_ms","status","termination","initialization","full_feasible","route_constraints_valid","orders_total","orders_fully_served","orders_missing","packages_total","packages_covered_on_time","coverage_orders_pct","cost_complete_feasible","cost_raw_do_not_rank_incomplete","distance_km","routes","elapsed_ms","time_first_complete_ms","initialization_ms","final_audit_ms","iterations","neighbor_attempts","invalid_neighbors","accepted_neighbors","plan_evaluations","route_schedules","path_queries","heap_sampled_peak_mib","input_sha256","plan_sha256","config_sha256","detail");
++    public static final List<String> COLUMNS=List.of("run_id","instance_id","family","source","instance_seed","search_seed","repetition","algorithm","mode","budget_ms","status","termination","initialization","full_feasible","route_constraints_valid","orders_total","orders_fully_served","orders_missing","packages_total","packages_covered_on_time","coverage_orders_pct","orders_provably_unservable","servable_orders_fully_served","coverage_servable_pct","full_servable_feasible","cost_complete_feasible","cost_raw_do_not_rank_incomplete","distance_km","routes","elapsed_ms","time_first_complete_ms","initialization_ms","final_audit_ms","iterations","neighbor_attempts","invalid_neighbors","accepted_neighbors","plan_evaluations","route_schedules","path_queries","heap_sampled_peak_mib","input_sha256","plan_sha256","config_sha256","algorithm_version","detail");
+     public static String row(Map<String,String> m){return String.join(",",COLUMNS.stream().map(k->escape(m.getOrDefault(k,""))).toList());}
+     public static String escape(String s){return "\""+s.replace("\"","\"\"")+"\"";}
+     public static String number(double d){return Double.isFinite(d)?String.format(Locale.ROOT,"%.6f",d):"";}
+diff --git a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/ExperimentMain.java b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/ExperimentMain.java
+index 091227d..e1431ab 100644
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/ExperimentMain.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/ExperimentMain.java
+@@ -40,6 +40,7 @@ public final class ExperimentMain {
+                 "available_processors_parent",Runtime.getRuntime().availableProcessors(),"worker_heap_mb",config.integer("worker.heap.mb",512),
+                 "worker_active_processor_count",config.integer("worker.processors",2),"warmup_rounds_both_algorithms",config.integer("warmup.rounds",1),
+                 "settings",config.asMap(),"config_sha256",Json.sha256(Json.encode(config.asMap())),"classpath_sha256",classpathHashes(classpath),
++                "algorithm_versions",obj("GRASP",new GraspAdapter().version(),"SA",new SaAdapter().version()),
+                 "protocol","Each trial in a fresh child JVM; paired inputs and search seeds; alternating order. IO/startup/warmup/final audit excluded from search time; SA initialization included.");
+         if(!resume)Files.writeString(out.resolve("metadata.json"),Json.encode(metadata),StandardCharsets.UTF_8);
+         Path csv=out.resolve("runs.csv");Files.writeString(csv,String.join(",",Csv.COLUMNS)+"\n",StandardCharsets.UTF_8);
+@@ -79,7 +80,8 @@ public final class ExperimentMain {
+                     if(finished&&process.exitValue()==0&&Files.exists(resultFile)){
+                         Properties r=new Properties();try(var reader=Files.newBufferedReader(resultFile,StandardCharsets.UTF_8)){r.load(reader);}r.forEach((k,v)->row.put(k.toString(),v.toString()));
+                     }else{
+-                        TrialMain.put(row,"run_id",id,"instance_id",spec.id(),"family",spec.family(),"source",spec.source(),"search_seed",seed,"instance_seed",spec.instanceSeed(),"repetition",rep+1,"algorithm",algorithm,"mode",config.text("mode","TIME"),"budget_ms",config.effectiveBudget(budget),"status",finished?"WORKER_ERROR":"HARD_TIMEOUT","full_feasible",false,"orders_total",instance.orders().size(),"input_sha256",instance.sha256(),"config_sha256",Json.sha256(Json.encode(config.asMap())),"detail","Worker did not produce a result. Inspect jobs/"+id+".log");
++                        TrialMain.put(row,"run_id",id,"instance_id",spec.id(),"family",spec.family(),"source",spec.source(),"search_seed",seed,"instance_seed",spec.instanceSeed(),"repetition",rep+1,"algorithm",algorithm,"mode",config.text("mode","TIME"),"budget_ms",config.effectiveBudget(budget),"status",finished?"WORKER_ERROR":"HARD_TIMEOUT","full_feasible",false,"orders_total",instance.orders().size(),"input_sha256",instance.sha256(),"config_sha256",Json.sha256(Json.encode(config.asMap())),
++                                "algorithm_version",(algorithm.equals("GRASP")?new GraspAdapter():new SaAdapter()).version(),"detail","Worker did not produce a result. Inspect jobs/"+id+".log");
+                     }
+                     if(!Files.exists(resultFile)){
+                         Properties failureResult=new Properties();failureResult.putAll(row);
+diff --git a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/GraspAdapter.java b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/GraspAdapter.java
+index fa12f2d..45bbdd6 100644
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/GraspAdapter.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/GraspAdapter.java
+@@ -6,6 +6,7 @@ import pe.pucp.paqrap.planificador.GraspPlanificador;
+ 
+ public final class GraspAdapter implements UnifiedPlanner {
+     @Override public String name(){return "GRASP";}
++    @Override public String version(){return GraspPlanificador.VERSION;}
+     @Override public AlgorithmOutput solve(ProblemInstance p,ExperimentConfig c,long seed){
+         RoadNetwork network=new RoadNetwork();
+         RouteScheduler scheduler=new RouteScheduler(network);
+diff --git a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/HtmlReport.java b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/HtmlReport.java
+index 991ce35..5381032 100644
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/HtmlReport.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/HtmlReport.java
+@@ -10,15 +10,18 @@ public final class HtmlReport {
+     private HtmlReport(){}
+     public static void write(Path out,List<Map<String,String>> rows)throws IOException{
+         StringBuilder h=new StringBuilder("<!doctype html><html lang='es'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>PaqRap · GRASP vs SA</title><style>body{margin:0;background:#f5f6f8;color:#17212d;font:15px system-ui,sans-serif}main{max-width:1350px;margin:auto;padding:36px}h1{font-size:32px;margin:0}h2{margin-top:32px}.tag{color:#bc481e;font-weight:700;font-size:13px;letter-spacing:1px}.note{background:#fff3dd;border-left:4px solid #d08b00;padding:16px;line-height:1.6}.cards{display:flex;flex-wrap:wrap;gap:16px;margin:24px 0}.card{background:white;padding:20px;border:1px solid #dce1e7;border-radius:10px;min-width:220px}.card strong{display:block;font-size:27px}table{width:100%;border-collapse:collapse;background:white;font-size:13px}th,td{text-align:left;padding:11px;border-bottom:1px solid #e0e4e8}th{background:#17212d;color:white;white-space:nowrap}.scroll{overflow-x:auto}a{color:#1b5b96}p{line-height:1.6}.ok{color:#16734e;font-weight:700}.bad{color:#9a4124;font-weight:700}footer{margin:32px 0;color:#5e6a78}</style><main><p class='tag'>PAQRAP / EXPERIMENTACIÓN NUMÉRICA</p><h1>GRASP frente a Simulated Annealing</h1><p>Resultados de las implementaciones unificadas. Cada pareja recibe la misma instancia y dispone del mismo presupuesto máximo de tiempo.</p>");
+-        h.append("<div class='note'><b>Interpretación:</b> “OK” significa que el evaluador común valida un plan que cubre TODA la demanda. Un plan parcial barato no es un éxito. “No se encontró” no demuestra que el problema sea imposible. Se comparan decisiones de planificación estática, no una simulación online de cinco días.</div><div class='cards'>");
++        h.append("<div class='note'><b>Interpretación:</b> “OK” significa que el evaluador común valida un plan que cubre TODA la demanda. Un plan parcial barato no es un éxito. “No se encontró” no demuestra que el problema sea imposible. “No atendibles” son pedidos que ninguna ruta directa desde el central alcanza a tiempo con ningún vehículo disponible: ningún algoritmo puede cubrirlos; “cubren todo lo atendible” exige rutas válidas que entreguen todos los demás. Se comparan decisiones de planificación estática, no una simulación online de cinco días.</div><div class='cards'>");
+         for(String alg:List.of("GRASP","SA")){
+             var rr=rows.stream().filter(r->alg.equals(r.get("algorithm"))).toList();long n=rr.size(),ok=rr.stream().filter(HtmlReport::feasible).count();
+-            h.append("<div class='card'>").append(alg).append("<strong>").append(ok).append(" / ").append(n).append("</strong>soluciones completas factibles</div>");
++            long okServable=rr.stream().filter(r->"true".equals(r.get("full_servable_feasible"))).count();
++            h.append("<div class='card'>").append(alg).append("<strong>").append(ok).append(" / ").append(n).append("</strong>soluciones completas factibles<br>")
++             .append(okServable).append(" / ").append(n).append(" cubren todo lo atendible</div>");
+         }
+-        h.append("<div class='card'>Corridas registradas<strong>").append(rows.size()).append("</strong>incluye fallos y límites de tiempo</div></div><p><a href='runs.csv'>Resultados completos CSV</a> · <a href='metadata.json'>Entorno y protocolo</a> · <a href='experiment.properties'>Configuración</a> · <a href='instances.csv'>Instancias</a></p><h2>Resultados por corrida</h2><div class='scroll'><table><tr><th>Instancia</th><th>Semilla</th><th>Algoritmo</th><th>Estado</th><th>Atendidos / total</th><th>Costo factible S/</th><th>Tiempo ms</th><th>Terminación</th><th>Detalle</th></tr>");
++        h.append("<div class='card'>Corridas registradas<strong>").append(rows.size()).append("</strong>incluye fallos y límites de tiempo</div></div><p><a href='runs.csv'>Resultados completos CSV</a> · <a href='metadata.json'>Entorno y protocolo</a> · <a href='experiment.properties'>Configuración</a> · <a href='instances.csv'>Instancias</a></p><h2>Resultados por corrida</h2><div class='scroll'><table><tr><th>Instancia</th><th>Semilla</th><th>Algoritmo</th><th>Estado</th><th>Atendidos / total</th><th>No atendibles</th><th>Costo factible S/</th><th>Tiempo ms</th><th>Terminación</th><th>Detalle</th></tr>");
+         for(var r:rows){
+             h.append("<tr>");for(String k:List.of("instance_id","search_seed","algorithm","status"))h.append("<td>").append(esc(r.get(k))).append("</td>");
+             h.append("<td>").append(esc(r.get("orders_fully_served"))).append(" / ").append(esc(r.get("orders_total"))).append("</td>");
++            h.append("<td>").append(esc(r.get("orders_provably_unservable"))).append("</td>");
+             for(String k:List.of("cost_complete_feasible","elapsed_ms","termination"))h.append("<td>").append(esc(r.get(k))).append("</td>");
+             String id=esc(r.get("run_id"));h.append("<td><a href='jobs/").append(id).append(".plan.json'>Plan</a> · <a href='jobs/").append(id).append(".log'>Log</a></td></tr>");
+         }
+diff --git a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/InstanceFactory.java b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/InstanceFactory.java
+index d1cebff..37bf324 100644
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/InstanceFactory.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/InstanceFactory.java
+@@ -26,6 +26,7 @@ public final class InstanceFactory {
+         List<Order> orders=new ArrayList<>();List<RoadBlock> blocks=new ArrayList<>();
+         List<MaintenanceDay> maintenance=new ArrayList<>();List<BreakdownEvent> breakdowns=new ArrayList<>();
+         Map<String,Object> inputFiles=new TreeMap<>();
++        List<String> expired=new ArrayList<>();
+         Random generator=new Random(spec.instanceSeed());
+         if(spec.source().equals("REAL")) {
+             YearMonth month=YearMonth.from(spec.date());
+@@ -33,6 +34,11 @@ public final class InstanceFactory {
+             Path sales=config.root().resolve("data/ventas/ventas."+ym+".txt");
+             orders.addAll(CargadorPedidos.desdeArchivo(sales,month,zone,from,to));
+             if(spec.orders()>0 && orders.size()>spec.orders()) orders=new ArrayList<>(orders.subList(0,spec.orders()));
++            // Un pedido cuyo plazo ya vencio al planificar (fin de la ventana de recogida) no puede
++            // cubrirlo ningun plan de este lote. Con ventanas de 1 h nunca ocurre (plazo minimo 4 h);
++            // con ventanas largas si. Se excluye y se registra en el manifiesto; no se oculta.
++            for(Order o:orders)if(!o.deadline().isAfter(planning))expired.add(o.id());
++            orders.removeIf(o->!o.deadline().isAfter(planning));
+             hashFile(inputFiles,sales,config.root());
+             // Load all provided months overlapping the planning horizon, not only the order-arrival hour.
+             Instant horizon=orders.stream().map(Order::deadline).max(Instant::compareTo).orElse(planning).plus(Duration.ofDays(2));
+@@ -90,6 +96,11 @@ public final class InstanceFactory {
+                 "blocks",blocks.stream().map(b->obj("from",b.startsAt(),"to",b.endsAt(),"nodes",b.nodes().stream().map(n->List.of(n.x(),n.y())).toList())).toList(),
+                 "maintenance",maintenance.stream().map(m->obj("vehicle",m.vehicleId(),"date",m.date())).toList(),
+                 "breakdowns",List.of(),"source_file_sha256",inputFiles);
++        // Solo si hubo exclusiones: las instancias previas (ventanas de 1 h) conservan su huella.
++        if(!expired.isEmpty()){
++            manifest=new LinkedHashMap<>(manifest);
++            manifest.put("orders_expired_before_planning_excluded",expired);
++        }
+         return new ProblemInstance(spec,snapshot,orders,blocks,manifest,Json.sha256(Json.encode(manifest)));
+     }
+     private static void hashFile(Map<String,Object> m,Path f,Path root){try{m.put(root.relativize(f).toString().replace('\\','/'),Json.sha256(Files.readAllBytes(f)));}catch(Exception e){throw new IllegalArgumentException("Cannot hash "+f,e);}}
+diff --git a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/SaAdapter.java b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/SaAdapter.java
+index 011fe91..3990b4e 100644
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/SaAdapter.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/SaAdapter.java
+@@ -10,6 +10,7 @@ import java.util.Random;
+ /** Includes SA's ORIGINAL deterministic initializer in the measured run; never seeds it with GRASP. */
+ public final class SaAdapter implements UnifiedPlanner {
+     @Override public String name(){return "SA";}
++    @Override public String version(){return "SA-Operational (algoritmo sin cambios; dominio compartido 2026-09-23)";}
+     @Override public AlgorithmOutput solve(ProblemInstance p,ExperimentConfig c,long seed){
+         RouteScheduler scheduler=new RouteScheduler(new RoadNetwork());
+         OperationalPlanEvaluator evaluator=new OperationalPlanEvaluator(scheduler);
+diff --git a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/TrialMain.java b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/TrialMain.java
+index e959ac3..eac4c9a 100644
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/TrialMain.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/TrialMain.java
+@@ -44,6 +44,9 @@ public final class TrialMain {
+                     "full_feasible",audit.fullFeasible(),"route_constraints_valid",audit.routeValid(),"orders_fully_served",audit.completeOrders(),
+                     "orders_missing",audit.missingOrders(),"packages_total",audit.totalPackages(),"packages_covered_on_time",audit.coveredPackages(),
+                     "coverage_orders_pct",Csv.number(p.orders().isEmpty()?100:100.0*audit.completeOrders()/p.orders().size()),
++                    "orders_provably_unservable",audit.provablyUnservable(),"servable_orders_fully_served",audit.servableComplete(),
++                    "coverage_servable_pct",Csv.number(p.orders().size()==audit.provablyUnservable()?100:100.0*audit.servableComplete()/(p.orders().size()-audit.provablyUnservable())),
++                    "full_servable_feasible",audit.fullServableFeasible(),"algorithm_version",solver.version(),
+                     "cost_complete_feasible",audit.fullFeasible()?Csv.number(audit.rawCost()):"", "cost_raw_do_not_rank_incomplete",Csv.number(audit.rawCost()),
+                     "distance_km",Csv.number(audit.distanceKm()),"routes",audit.routes(),"elapsed_ms",Csv.number(control.elapsedMs()),
+                     "time_first_complete_ms",Csv.number(control.firstCompleteMs()),"initialization_ms",Csv.number(output.initializationMs()),"final_audit_ms",Csv.number(auditMs),
+diff --git a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/UnifiedPlanner.java b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/UnifiedPlanner.java
+index d061056..2a4a695 100644
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/UnifiedPlanner.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/UnifiedPlanner.java
+@@ -3,5 +3,7 @@ package pe.edu.pucp.paqrap.experiment;
+ /** Common entry point. The algorithms retain their own construction and search strategies. */
+ public interface UnifiedPlanner {
+     String name();
++    /** Version de la implementacion medida; se exporta en cada corrida para no mezclar versiones. */
++    default String version() { return name(); }
+     AlgorithmOutput solve(ProblemInstance instance, ExperimentConfig config, long seed);
+ }
+diff --git a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/VerificationMain.java b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/VerificationMain.java
+index 3d9f765..f4c92f0 100644
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/VerificationMain.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/VerificationMain.java
+@@ -46,6 +46,22 @@ public final class VerificationMain {
+         ProblemInstance r=InstanceFactory.create(real,c);
+         check(!r.orders().isEmpty()&&r.orders().stream().noneMatch(o->o.registeredAt().isAfter(r.snapshot().planningTime())),"Real batch includes only already registered orders");
+         check(r.blocks().stream().anyMatch(bk->bk.startsAt().isAfter(r.snapshot().planningTime())),"Future relevant road blocks are not truncated to the arrival window");
++        Properties splitProps=new Properties();splitProps.putAll(props);splitProps.setProperty("grasp.iterations","3");
++        ExperimentConfig splitConfig=new ExperimentConfig(splitProps,Path.of(""));
++        ProblemInstance split=InstanceFactory.create(new ScenarioSpec("SPLIT_TEST","SPLIT","SYNTHETIC",3,903,LocalDate.of(2026,9,9),7,8),splitConfig);
++        int largest=split.orders().stream().mapToInt(Order::packages).max().orElse(0);
++        check(largest>VehicleType.CAR.capacity() && CommonAudit.evaluate(split,new GraspAdapter().solve(split,splitConfig,42).plan()).fullFeasible(),
++                "GRASP divides an order larger than any vehicle into partial deliveries (P&R 13)");
++        ProblemInstance longWindow=InstanceFactory.create(new ScenarioSpec("REAL_LONG","REAL","REAL",0,0,LocalDate.of(2026,9,13),7,15),c);
++        check(longWindow.orders().stream().allMatch(o->o.deadline().isAfter(longWindow.snapshot().planningTime()))
++                && longWindow.manifest().containsKey("orders_expired_before_planning_excluded"),
++                "Long real windows exclude and record orders already expired at planning time");
++        Instant at=p.snapshot().planningTime();
++        Order impossible=new Order("IMPOSSIBLE",new Location(65,48),3,at,at.plusSeconds(600));
++        Order easy=new Order("EASY",new Location(28,15),3,at,at.plusSeconds(8*3600));
++        ProblemInstance certificate=new ProblemInstance(p.spec(),p.snapshot(),List.of(impossible,easy),p.blocks(),p.manifest(),p.sha256());
++        check(CommonAudit.provablyUnservable(certificate).equals(Set.of("IMPOSSIBLE")),
++                "Provably unservable orders are flagged; servable ones are not");
+         var resources=Collections.list(VerificationMain.class.getClassLoader().getResources("pe/edu/pucp/paqrap/planner/route/OperationalPlanEvaluator.class"));
+         check(resources.size()==1,"Exactly one shared evaluator on the runtime classpath");
+         System.out.println("PASS: "+checks+" experimental regression checks.");
+diff --git a/grasp/src/main/java/pe/pucp/paqrap/planificador/GraspPlanificador.java b/grasp/src/main/java/pe/pucp/paqrap/planificador/GraspPlanificador.java
+index 865a5f2..df98863 100644
+--- a/grasp/src/main/java/pe/pucp/paqrap/planificador/GraspPlanificador.java
++++ b/grasp/src/main/java/pe/pucp/paqrap/planificador/GraspPlanificador.java
+@@ -2,90 +2,62 @@ package pe.pucp.paqrap.planificador;
+ 
+ import pe.edu.pucp.paqrap.planner.domain.*;
+ import pe.edu.pucp.paqrap.planner.route.*;
++import pe.edu.pucp.paqrap.planner.search.SearchControl;
++import pe.edu.pucp.paqrap.planner.search.SearchStopped;
+ import pe.pucp.paqrap.modelo.ResultadoPlanificacion;
+ 
+ import java.time.Duration;
+ import java.time.Instant;
+ import java.util.*;
+-import pe.edu.pucp.paqrap.planner.search.SearchControl;
+-import pe.edu.pucp.paqrap.planner.search.SearchStopped;
+ 
+ /**
+- * GRASP para PaqRap, operando sobre el modelo de dominio unico compartido
+- * (paqrap-dominio, paquete pe.edu.pucp.paqrap.planner) -- ver README.md
+- * raiz para el historial de la unificacion. Este modulo no tiene ni copia
+- * ni duplica domain/route: depende de paqrap-dominio via Maven.
++ * GRASP para PaqRap sobre el dominio unico compartido (paqrap-dominio).
+  *
+- * Decisiones de diseño (pendientes de confirmar con Cristhian/Jorge):
++ * <p>Esqueleto GRASP sin cambios: multi-arranque; en cada iteracion, construccion greedy
++ * aleatorizada con RCL (umbral cMin + alpha*(cMax-cMin)) seguida de busqueda local de primera
++ * mejora (insercion de pendientes, 2-opt, reubicacion, intercambio); se conserva la mejor
++ * solucion por (factible, menos no atendidos, menor costo).
+  *
+- * 1. "noAtendidos": se excluyen del conjunto requiredOrders pasado a
+- *    OperationalPlanEvaluator, por lo que nunca hacen infactible el plan
+- *    completo -- decision confirmada por el docente (ver README): un
+- *    pedido sin vehiculo factible en esta corrida queda pendiente para la
+- *    siguiente, sin invalidar el resto del plan ya construido. Comparación
+- *    lexicográfica: primero factibilidad, luego menos noAtendidos, luego
+- *    menor costo -- por eso "todos los pedidos llegan" siempre le gana a
+- *    "cuesta menos" entre iteraciones. Ademas, busquedaLocal reintenta
+- *    insertar cada noAtendido en el plan ya reordenado (pasoInsercionPendientes)
+- *    antes de rendirse, porque el barrido greedy de la construccion puede
+- *    dejar un pedido varado solo por el orden en que lo proceso, no porque
+- *    fuera imposible de atender -- si sigue sin caber despues de ese intento,
+- *    si es un caso real de colapso (demanda que excede la flota disponible).
+- * 2. Costeo en la fase CONSTRUCTIVA: costo marginal barato para rankear el
+- *    RCL + verificación exacta pierna por pierna solo para filtrar
+- *    candidatos, ambas cacheadas por origen-destino-hora-velocidad (ver
+- *    costoInsercionMarginal / esFactibleCandidato) en vez de recalcular la
+- *    ruta completa vía RouteScheduler por cada candidato. GRASP evalúa
+- *    muchos candidatos por pedido (vehículo × posición) para construir el
+- *    RCL -- a diferencia de SA, que solo evalúa un vecino por iteración --
+- *    así que el "recálculo completo por evaluación" que usa SA penaliza
+- *    desproporcionadamente a GRASP (medido: ~22s para 50 iteraciones con
+- *    solo 3 pedidos usando recalculo completo). La búsqueda LOCAL sigue
+- *    recalculando la ruta completa vía RouteScheduler -- sus movimientos
+- *    no se prestan a un delta simple en una red con bloqueos dependientes
+- *    del tiempo. OperationalPlanEvaluator sobre el plan completo solo se
+- *    llama una vez por iteración, no por candidato.
+- * 3. Recarga (agregar un WarehouseVisit) es SIEMPRE una alternativa ofrecida
+- *    a "seguir apilando en el tramo abierto" para cualquier vehiculo que ya
+- *    tenga ruta (ver generarCandidatos, rama (b)). Version anterior lo
+- *    ofrecia solo cuando estado.cargaActual==0 -- una condicion que, tal
+- *    como se calcula cargaActual (solo acumula durante la construccion, no
+- *    se resetea sola), nunca se cumplia, dejando la recarga inalcanzable:
+- *    cualquier vehiculo con 2+ pedidos los apilaba TODOS en el mismo tramo
+- *    inicial, cuyo initialLoad es inmutable y solo cubre el primer pedido
+- *    -- eso producia NEGATIVE_LOAD en cuanto se probo con data real (con
+- *    pocos pedidos sinteticos y 37 vehiculos casi nunca hacia falta apilar
+- *    2 pedidos en un mismo vehiculo, por eso las pruebas nunca lo agarraron).
+- *    El fix real tiene dos partes: (a) apilar en un tramo abierto por una
+- *    recarga SI es seguro, porque su WarehouseVisit es mutable -- se le
+- *    suma el pedido nuevo al pickup, igual que pasoReubicacion; (b) apilar
+- *    en el tramo INICIAL nunca es seguro (initialLoad no se puede tocar),
+- *    asi que esas posiciones se descartan y la recarga queda como la unica
+- *    salida para el 2do+ pedido de un vehiculo -- ver indiceAlmacenQueAbreSegmento.
+- * 4. Limite de 80 km por tramo (hoja "Flota"): se verifica tanto aqui
+- *    (esFactibleCandidato, para no generar candidatos que de todas formas
+- *    seran rechazados) como en OperationalPlanEvaluator (autoritativo) --
+- *    ver LEG_DISTANCE_EXCEEDED en el dominio compartido.
++ * <p>Version {@value #VERSION}. Cambios respecto de la version anterior, todos visibles aqui:
++ * <ol>
++ *   <li><b>Entregas divididas.</b> El enunciado admite entregas parciales (P&amp;R 13). Un pedido
++ *   mayor que la mayor capacidad disponible se reparte en partes que caben en un vehiculo; si
++ *   alguna parte no encuentra candidato, se deshacen todas las partes de ese pedido (nunca queda
++ *   un pedido atendido a medias). Antes, esos pedidos quedaban siempre sin atender.</li>
++ *   <li><b>Costo del candidato exacto.</b> El costo que ordena la RCL es la diferencia real de
++ *   kilometros de la ruta completa (incluido el regreso al central) a las horas reales de paso,
++ *   no una aproximacion con la hora de salida de la ruta. Evita costos infinitos que dejaban la
++ *   RCL vacia (y hacian fallar la corrida) y alinea el criterio con el costo que mide el evaluador.</li>
++ *   <li><b>Factibilidad en construccion alineada con el evaluador:</b> ademas de camino, 80 km por
++ *   tramo, plazo y refrigerio, ahora considera el regreso final al central, el mantenimiento o
++ *   averia del vehiculo durante toda la ruta, y descuenta inventario al apilar en un tramo de recarga.</li>
++ *   <li><b>Consolidacion en el primer viaje.</b> Antes, el primer tramo de una ruta solo podia
++ *   llevar el primer pedido asignado (se trataba la carga inicial como inmutable), asi que todo
++ *   pedido adicional obligaba a volver a un almacen. GRASP construye la ruta: al apilar en ese
++ *   tramo la reconstruye desde el central con una carga inicial mayor. Igual en la busqueda local.</li>
++ *   <li><b>Evaluacion incremental:</b> cada vehiculo guarda el estado temporal de su ruta tras
++ *   cada parada; un candidato solo recorre la parte que cambia (lo nuevo, lo que sigue y el regreso).</li>
++ *   <li><b>Busqueda local:</b> memoriza la evaluacion de cada ruta ya programada (la exploracion
++ *   de primera mejora vuelve a visitar muchas rutas identicas), evita recalculos repetidos dentro
++ *   de los bucles, respeta el stock de almacenes intermedios, y al quitar una entrega de un tramo
++ *   de recarga devuelve su carga (y elimina la recarga si quedo vacia).</li>
++ * </ol>
++ * Las consultas de camino repetidas se resuelven en la RoadNetwork compartida (ver su Javadoc),
++ * con resultado identico al calculo original.
+  */
+ public class GraspPlanificador {
+ 
+-    /** Debe coincidir con OperationalPlanEvaluator.MAX_LEG_DISTANCE_KM del
+-     *  modulo dominio -- duplicado aqui solo para poder rechazar candidatos
+-     *  temprano sin depender de un getter publico en el evaluador. */
++    public static final String VERSION = "GRASP-v2 2026-09-23";
++
++    /** Debe coincidir con OperationalPlanEvaluator.MAX_LEG_DISTANCE_KM (hoja "Flota"). */
+     private static final double DISTANCIA_MAXIMA_POR_TRAMO_KM = 80.0;
++    private static final int LIMITE_MEMO_RUTAS = 100_000;
+ 
+     private final RoadNetwork roadNetwork;
+     private final RouteScheduler scheduler;
+     private final OperationalPlanEvaluator evaluator;
+     private final Random random;
+-
+-    /** Cachea Location+Location+horaSalida+velocidad -> RoadPath durante UN
+-     *  planificar(). GRASP evalua muchos candidatos por pedido (vehiculo x
+-     *  posicion) que a menudo repiten la misma consulta de camino (misma
+-     *  ruta.horaSalida, mismo par origen-destino) -- a diferencia de SA, que
+-     *  solo evalua un vecino por iteracion y nunca necesito esto. Se limpia
+-     *  al inicio de cada planificar() por si cambian los bloqueos. */
+-    private final Map<ConsultaCamino, Optional<RoadPath>> cacheCaminos = new HashMap<>();
++    private final Map<ClaveRuta, EvaluacionRuta> memoRutas = new HashMap<>();
+ 
+     public GraspPlanificador(RoadNetwork roadNetwork, RouteScheduler scheduler,
+                               OperationalPlanEvaluator evaluator, long semilla) {
+@@ -100,13 +72,13 @@ public class GraspPlanificador {
+         if (!Double.isFinite(alpha) || alpha < 0 || alpha > 1 || maxIteraciones <= 0) {
+             throw new IllegalArgumentException("alpha must be in [0,1] and maxIteraciones > 0");
+         }
+-        cacheCaminos.clear();
++        memoRutas.clear();
+         ResultadoPlanificacion mejor = null;
+         try {
+             for (int iter = 0; iter < maxIteraciones; iter++) {
+                 SearchControl.iteration();
+                 ResultadoPlanificacion candidata = construirGreedyAleatorizada(snapshot, pedidos, bloqueos, alpha);
+-                // An evaluated construction is already an incumbent. Preserve it if local search times out.
++                // Una construccion ya evaluada es incumbente: se conserva si la busqueda local agota el plazo.
+                 if (esMejorQue(candidata, mejor)) mejor = candidata;
+                 SearchControl.observe(candidata.esFactible(), candidata.noAtendidos().size(), candidata.costoTotal());
+                 candidata = busquedaLocal(candidata, snapshot, bloqueos);
+@@ -114,7 +86,9 @@ public class GraspPlanificador {
+                 SearchControl.observe(candidata.esFactible(), candidata.noAtendidos().size(), candidata.costoTotal());
+             }
+         } catch (SearchStopped exhausted) {
+-            // No complete iteration/constructive result => null, explicitly reported by the adapter.
++            // Sin ninguna construccion evaluada => null, reportado explicitamente por el adaptador.
++        } finally {
++            memoRutas.clear();
+         }
+         return mejor;
+     }
+@@ -132,14 +106,13 @@ public class GraspPlanificador {
+ 
+     private ResultadoPlanificacion construirGreedyAleatorizada(OperationalSnapshot snapshot, Collection<Order> pedidos,
+                                                                 List<RoadBlock> bloqueos, double alpha) {
+-        Warehouse central = snapshot.inventory().warehouses().stream()
+-                .filter(Warehouse::isCentral).findFirst()
+-                .orElseThrow(() -> new IllegalStateException("El snapshot no tiene almacen central"));
+-
+-        Map<String, EstadoConstruccion> estadoPorVehiculo = new LinkedHashMap<>();
++        Warehouse central = central(snapshot);
++        Map<String, EstadoConstruccion> estados = new LinkedHashMap<>();
++        int capacidadMaxima = 0;
+         for (VehicleOperationalState estado : snapshot.vehiclesById().values()) {
+             if (snapshot.isVehiclePlannableAt(estado.vehicle().id(), snapshot.planningTime())) {
+-                estadoPorVehiculo.put(estado.vehicle().id(), new EstadoConstruccion(estado));
++                estados.put(estado.vehicle().id(), new EstadoConstruccion(estado, horaDisponible(estado, snapshot)));
++                capacidadMaxima = Math.max(capacidadMaxima, capacidad(snapshot, estado.vehicle()));
+             }
+         }
+ 
+@@ -148,30 +121,40 @@ public class GraspPlanificador {
+         pendientes.sort(Comparator.comparing(Order::deadline));
+         List<Order> noAtendidos = new ArrayList<>();
+ 
+-        while (!pendientes.isEmpty()) {
++        for (Order pedido : pendientes) {
+             SearchControl.checkpoint();
+-            Order pedido = pendientes.remove(0);
+-            List<Candidato> candidatos = generarCandidatos(pedido, snapshot, estadoPorVehiculo, inventario, central, bloqueos);
+-
+-            if (candidatos.isEmpty()) {
+-                noAtendidos.add(pedido);
+-                continue;
++            List<Integer> partes = partesDe(pedido.packages(), capacidadMaxima);
++            Map<String, Respaldo> respaldos = new LinkedHashMap<>();
++            InventorySnapshot inventarioAntes = inventario;
++            boolean atendido = !partes.isEmpty();
++            for (int cantidad : partes) {
++                List<Candidato> candidatos = generarCandidatos(pedido, cantidad, snapshot, estados, inventario, central, bloqueos);
++                if (candidatos.isEmpty()) {
++                    atendido = false;
++                    break;
++                }
++                Candidato elegido = elegirDeLaRcl(candidatos, alpha);
++                if (elegido.almacenRetiro() != null) {
++                    inventario = inventario.withdraw(elegido.almacenRetiro().id(), elegido.cantidad());
++                }
++                EstadoConstruccion estado = estados.get(elegido.vehiculoId());
++                respaldos.putIfAbsent(elegido.vehiculoId(), estado.respaldo());
++                Linea linea = calcularLinea(elegido.rutaResultante(), snapshot, central, bloqueos);
++                if (linea == null) {
++                    throw new IllegalStateException("Candidato aceptado sin linea temporal factible: inconsistencia interna");
++                }
++                estado.aplicar(elegido, linea);
+             }
+-
+-            double cMin = candidatos.stream().mapToDouble(Candidato::costo).min().orElseThrow();
+-            double cMax = candidatos.stream().mapToDouble(Candidato::costo).max().orElseThrow();
+-            double umbral = cMin + alpha * (cMax - cMin);
+-            List<Candidato> rcl = candidatos.stream().filter(c -> c.costo() <= umbral).toList();
+-            Candidato elegido = rcl.get(random.nextInt(rcl.size()));
+-
+-            if (elegido.almacenReabastecimiento() != null) {
+-                inventario = inventario.withdraw(elegido.almacenReabastecimiento().id(), elegido.cargaReabastecida());
++            if (!atendido) {
++                // Todas las partes o ninguna: un pedido nunca queda atendido a medias.
++                respaldos.forEach((id, respaldo) -> estados.get(id).restaurar(respaldo));
++                inventario = inventarioAntes;
++                noAtendidos.add(pedido);
+             }
+-            estadoPorVehiculo.get(elegido.vehiculoId()).aplicar(elegido);
+         }
+ 
+         OperationalPlan plan = OperationalPlan.empty();
+-        for (EstadoConstruccion estado : estadoPorVehiculo.values()) {
++        for (EstadoConstruccion estado : estados.values()) {
+             if (estado.ruta != null) {
+                 plan = plan.withRoute(estado.ruta.returningTo(central));
+             }
+@@ -181,75 +164,99 @@ public class GraspPlanificador {
+         return new ResultadoPlanificacion(plan, evaluacion, List.copyOf(noAtendidos));
+     }
+ 
+-    /** Genera, para un pedido, los candidatos de ASIGNACION DE RUTA: (a)
+-     *  insertar el DeliveryStop en el tramo de entregas actualmente abierto
+-     *  de un vehiculo, o (b) si esta vacio, agregar un WarehouseVisit de
+-     *  recarga (o iniciar su primera DeliveryRoute desde el central)
+-     *  seguido del DeliveryStop. */
+-    private List<Candidato> generarCandidatos(Order pedido, OperationalSnapshot snapshot,
+-            Map<String, EstadoConstruccion> estadoPorVehiculo, InventorySnapshot inventario,
++    /** Un pedido que cabe en algun vehiculo va entero; si no, en partes del tamano de la mayor capacidad. */
++    static List<Integer> partesDe(int paquetes, int capacidadMaxima) {
++        if (capacidadMaxima <= 0) return List.of();
++        if (paquetes <= capacidadMaxima) return List.of(paquetes);
++        List<Integer> partes = new ArrayList<>();
++        int restante = paquetes;
++        while (restante > 0) {
++            int parte = Math.min(restante, capacidadMaxima);
++            partes.add(parte);
++            restante -= parte;
++        }
++        return partes;
++    }
++
++    private Candidato elegirDeLaRcl(List<Candidato> candidatos, double alpha) {
++        double cMin = Double.POSITIVE_INFINITY;
++        double cMax = Double.NEGATIVE_INFINITY;
++        for (Candidato c : candidatos) {
++            if (Double.isFinite(c.costo())) {
++                cMin = Math.min(cMin, c.costo());
++                cMax = Math.max(cMax, c.costo());
++            }
++        }
++        List<Candidato> rcl;
++        if (Double.isFinite(cMin)) {
++            double umbral = cMin + alpha * (cMax - cMin);
++            rcl = candidatos.stream().filter(c -> Double.isFinite(c.costo()) && c.costo() <= umbral).toList();
++        } else {
++            rcl = candidatos;
++        }
++        return rcl.get(random.nextInt(rcl.size()));
++    }
++
++    /**
++     * Candidatos para asignar {@code cantidad} paquetes de {@code pedido}: (a) apilar la entrega
++     * en el tramo abierto del vehiculo (desde su ultima carga), aumentando lo que se recoge en esa
++     * carga: el pickup de la recarga o, en el primer tramo, la carga inicial de la ruta desde el
++     * central; (b) si el vehiculo esta libre, iniciar su ruta desde el central; si ya tiene ruta,
++     * recargar en el almacen con stock mas cercano y entregar.
++     * El costo es el aumento exacto de km de la ruta completa por el costo/km del vehiculo.
++     */
++    private List<Candidato> generarCandidatos(Order pedido, int cantidad, OperationalSnapshot snapshot,
++            Map<String, EstadoConstruccion> estados, InventorySnapshot inventario,
+             Warehouse central, List<RoadBlock> bloqueos) {
+ 
+         List<Candidato> candidatos = new ArrayList<>();
+-        FleetProfile perfil = snapshot.fleetProfile();
++        DeliveryStop entrega = new DeliveryStop(pedido, cantidad);
+ 
+-        for (EstadoConstruccion estado : estadoPorVehiculo.values()) {
++        for (EstadoConstruccion estado : estados.values()) {
+             Vehicle vehiculo = estado.estadoInicial.vehicle();
+-            int capacidad = perfil.parametersFor(vehiculo.type()).capacity();
+-
+-            if (estado.ruta != null && estado.cargaActual + pedido.packages() <= capacidad) {
+-                List<RouteStop> stops = estado.ruta.stops();
+-                int desde = indiceUltimoAlmacen(stops) + 1;
+-                for (int pos = desde; pos <= stops.size(); pos++) {
+-                    // El tramo inicial (antes de cualquier WarehouseVisit) esta
+-                    // gobernado por initialLoad, fijado UNA vez al crear la ruta
+-                    // (rama (b) mas abajo) para cubrir exactamente el primer
+-                    // pedido -- es inmutable, asi que no se le puede apilar un
+-                    // 2do pedido sin invalidar el balance de carga (NEGATIVE_LOAD).
+-                    // Un tramo abierto por una recarga real si se puede ampliar.
+-                    int indiceAlmacen = indiceAlmacenQueAbreSegmento(stops, pos);
+-                    if (indiceAlmacen == -1) continue;
+-                    List<RouteStop> stopsCandidatos = new ArrayList<>(stops);
+-                    WarehouseVisit visitaOriginal = (WarehouseVisit) stopsCandidatos.get(indiceAlmacen);
+-                    stopsCandidatos.set(indiceAlmacen, new WarehouseVisit(visitaOriginal.warehouse(),
+-                            visitaOriginal.pickupPackages() + pedido.packages()));
+-                    stopsCandidatos.add(pos, new DeliveryStop(pedido, pedido.packages()));
+-                    DeliveryRoute candidataRuta = estado.ruta.withReplacedStops(stopsCandidatos);
+-                    if (esFactibleCandidato(candidataRuta, snapshot, bloqueos)) {
+-                        double costo = costoInsercionMarginal(estado.ruta, pos, pedido, snapshot, bloqueos);
+-                        candidatos.add(new Candidato(vehiculo.id(), candidataRuta, false, pedido, null, 0, costo));
+-                    }
++            int capacidad = capacidad(snapshot, vehiculo);
++            if (cantidad > capacidad) continue;
++            double costoKm = snapshot.fleetProfile().parametersFor(vehiculo.type()).costPerKm();
++
++            if (estado.ruta == null) {
++                DeliveryRoute base = DeliveryRoute.startScenarioAtCentral(
++                        vehiculo.id() + "-R", vehiculo, central, cantidad, estado.horaDisponible);
++                Paso inicio = new Paso(central.location(), estado.horaDisponible, null, 0);
++                double total = recorrer(inicio, List.of(entrega), List.of(), base, snapshot, central, bloqueos);
++                if (!Double.isNaN(total)) {
++                    candidatos.add(new Candidato(vehiculo.id(), base.withAppendedStop(entrega), true,
++                            pedido, cantidad, central, total * costoKm));
+                 }
++                continue;
+             }
+ 
+-            if (pedido.packages() <= capacidad) {
+-                if (estado.ruta == null) {
+-                    Instant horaDisponible = horaDisponible(estado.estadoInicial, snapshot);
+-                    int carga = Math.min(capacidad, pedido.packages());
+-                    DeliveryRoute rutaBase = DeliveryRoute.startScenarioAtCentral(
+-                            vehiculo.id() + "-R", vehiculo, central, carga, horaDisponible);
+-                    DeliveryRoute candidataRuta = rutaBase.withAppendedStop(new DeliveryStop(pedido, pedido.packages()));
+-                    if (esFactibleCandidato(candidataRuta, snapshot, bloqueos)) {
+-                        double costo = costoInsercionMarginal(rutaBase, 0, pedido, snapshot, bloqueos);
+-                        candidatos.add(new Candidato(vehiculo.id(), candidataRuta, true, pedido, central, carga, costo));
+-                    }
+-                } else {
+-                    double velocidad = perfil.parametersFor(vehiculo.type()).speedKmPerHour();
+-                    Warehouse mejorAlmacen = elegirAlmacen(estado.ubicacionActual(),
+-                            List.copyOf(snapshot.inventory().warehouses()), pedido.packages(), inventario,
+-                            snapshot.planningTime(), velocidad, bloqueos);
+-                    if (mejorAlmacen != null) {
+-                        int carga = Math.min(capacidad, pedido.packages());
+-                        DeliveryRoute rutaBase = estado.ruta.withAppendedStop(new WarehouseVisit(mejorAlmacen, carga));
+-                        DeliveryRoute candidataRuta = rutaBase.withAppendedStop(new DeliveryStop(pedido, pedido.packages()));
+-                        if (esFactibleCandidato(candidataRuta, snapshot, bloqueos)) {
+-                            double distanciaAlAlmacen = distanciaKmCacheada(estado.ubicacionActual(), mejorAlmacen.location(),
+-                                    snapshot.planningTime(), velocidad, bloqueos);
+-                            double costo = distanciaAlAlmacen * perfil.parametersFor(vehiculo.type()).costPerKm()
+-                                    + costoInsercionMarginal(rutaBase, rutaBase.stops().size(), pedido, snapshot, bloqueos);
+-                            candidatos.add(new Candidato(vehiculo.id(), candidataRuta, true, pedido, mejorAlmacen, carga, costo));
+-                        }
+-                    }
++            List<RouteStop> stops = estado.ruta.stops();
++            int ultimoAlmacen = indiceUltimoAlmacen(stops);
++
++            // (a) Apilar en el tramo abierto: lo recoge la ultima recarga o, si aun no hubo, la carga inicial.
++            Warehouse proveedor = almacenDelTramo(estado.ruta, stops.size());
++            if (proveedor != null && estado.cargaActual + cantidad <= capacidad
++                    && inventario.hasStockFor(proveedor.id(), cantidad)) {
++                for (int pos = ultimoAlmacen + 1; pos <= stops.size(); pos++) {
++                    double total = recorrer(estado.linea.pasos().get(pos), List.of(entrega),
++                            stops.subList(pos, stops.size()), estado.ruta, snapshot, central, bloqueos);
++                    if (Double.isNaN(total)) continue;
++                    DeliveryRoute nueva = insertar(estado.ruta, pos, entrega);
++                    if (nueva == null) continue;
++                    candidatos.add(new Candidato(vehiculo.id(), nueva, false, pedido, cantidad, proveedor,
++                            (total - estado.linea.distanciaConRegreso()) * costoKm));
++                }
++            }
++
++            // (b) Recargar en el almacen con stock mas cercano y entregar.
++            Paso ultimo = estado.linea.pasos().getLast();
++            Warehouse almacen = elegirAlmacen(ultimo, cantidad, inventario, vehiculo, snapshot, bloqueos);
++            if (almacen != null) {
++                WarehouseVisit recarga = new WarehouseVisit(almacen, cantidad);
++                double total = recorrer(ultimo, List.of(recarga, entrega), List.of(), estado.ruta, snapshot, central, bloqueos);
++                if (!Double.isNaN(total)) {
++                    candidatos.add(new Candidato(vehiculo.id(), estado.ruta.withAppendedStop(recarga).withAppendedStop(entrega),
++                            true, pedido, cantidad, almacen, (total - estado.linea.distanciaConRegreso()) * costoKm));
+                 }
+             }
+         }
+@@ -261,140 +268,150 @@ public class GraspPlanificador {
+                 ? estadoInicial.availableAt() : snapshot.planningTime();
+     }
+ 
+-    /** Elige, entre los almacenes con stock suficiente, el mas cercano por
+-     *  distancia real de calles (RoadNetwork, consciente de bloqueos con
+-     *  ventana de tiempo). Usa la cache: es habitual volver a preguntar por
+-     *  el mismo origen-almacen entre varios pedidos seguidos. */
+-    private Warehouse elegirAlmacen(Location desde, List<Warehouse> elegibles, int cantidadNecesaria,
+-            InventorySnapshot inventario, Instant horaReferencia, double velocidadKmH, List<RoadBlock> bloqueos) {
++    /** El almacen con stock suficiente mas cercano por calles reales, desde donde y cuando queda el vehiculo. */
++    private Warehouse elegirAlmacen(Paso desde, int cantidadNecesaria, InventorySnapshot inventario, Vehicle vehiculo,
++                                    OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
+         Warehouse mejor = null;
+         double mejorDistancia = Double.POSITIVE_INFINITY;
+-        for (Warehouse almacen : elegibles) {
++        for (Warehouse almacen : List.copyOf(snapshot.inventory().warehouses())) {
+             if (!inventario.hasStockFor(almacen.id(), cantidadNecesaria)) continue;
+-            double distancia = distanciaKmCacheada(desde, almacen.location(), horaReferencia, velocidadKmH, bloqueos);
+-            if (distancia < mejorDistancia) { mejorDistancia = distancia; mejor = almacen; }
++            Optional<RoadPath> camino = camino(desde.posicion(), almacen.location(), desde.tiempo(), vehiculo, snapshot, bloqueos);
++            double distancia = camino.map(c -> (double) c.distanceKm()).orElse(Double.POSITIVE_INFINITY);
++            if (distancia < mejorDistancia) {
++                mejorDistancia = distancia;
++                mejor = almacen;
++            }
+         }
+         return mejor;
+     }
+ 
+-    // ---------- costeo marginal + factibilidad pierna-por-pierna para la
+-    // fase constructiva -- separados a proposito: rankear muchos candidatos
+-    // debe ser barato (delta de 2-3 tramos, cacheado); esFactibleCandidato
+-    // si recorre toda la ruta, porque insertar en cualquier posicion puede
+-    // retrasar TODO lo que viene despues. ----
++    // ---------- Linea temporal de una ruta: el mismo calculo que RouteScheduler.schedule(),
++    // parada por parada, mas las reglas duras por tramo que aplica el evaluador. ----------
+ 
+-    private Optional<RoadPath> caminoCacheado(Location origen, Location destino, Instant horaSalida,
+-            double velocidadKmH, List<RoadBlock> bloqueos) {
+-        SearchControl.checkpoint();
+-        ConsultaCamino clave = new ConsultaCamino(origen, destino, horaSalida, velocidadKmH);
+-        return cacheCaminos.computeIfAbsent(clave, k -> {
+-            Duration porTramo = Duration.ofMillis(Math.round(3_600_000.0 / velocidadKmH));
+-            return roadNetwork.shortestPath(origen, destino, horaSalida, porTramo, bloqueos);
+-        });
++    /** Estado del vehiculo al salir de una parada: donde esta, cuando sale, turno en que ya tomo refrigerio y km acumulados. */
++    private record Paso(Location posicion, Instant tiempo, Instant turnoConRefrigerio, double distancia) {
+     }
+ 
+-    private double distanciaKmCacheada(Location origen, Location destino, Instant horaSalida,
+-            double velocidadKmH, List<RoadBlock> bloqueos) {
+-        return caminoCacheado(origen, destino, horaSalida, velocidadKmH, bloqueos)
+-                .map(camino -> (double) camino.distanceKm()).orElse(Double.POSITIVE_INFINITY);
++    /** pasos().get(0) es la salida de la ruta; pasos().get(k) es el estado tras la parada k-1. */
++    private record Linea(List<Paso> pasos, double distanciaConRegreso) {
+     }
+ 
+-    /** Costo marginal de insertar un pedido en la posicion `pos` de `ruta`
+-     *  (antes de insertarlo) -- 1 a 3 consultas de camino cacheadas, no un
+-     *  recorrido completo de la ruta. Usa ruta.departureAt() como instante
+-     *  de referencia para las tres distancias: no es exacto pierna por
+-     *  pierna, pero es intencionalmente barato porque es solo para RANKEAR
+-     *  dentro del RCL -- esFactibleCandidato es quien valida de verdad. */
+-    private double costoInsercionMarginal(DeliveryRoute ruta, int pos, Order pedido,
+-            OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
+-        VehicleParameters parametros = snapshot.fleetProfile().parametersFor(ruta.vehicle().type());
+-        Instant horaReferencia = ruta.departureAt();
+-        double velocidad = parametros.speedKmPerHour();
+-        double costoKm = parametros.costPerKm();
+-
+-        Location anterior = pos == 0 ? ruta.startLocation() : ruta.stops().get(pos - 1).location();
+-        double dAntNuevo = distanciaKmCacheada(anterior, pedido.destination(), horaReferencia, velocidad, bloqueos);
+-        if (pos == ruta.stops().size()) return dAntNuevo * costoKm;
+-
+-        Location siguiente = ruta.stops().get(pos).location();
+-        double dNuevoSig = distanciaKmCacheada(pedido.destination(), siguiente, horaReferencia, velocidad, bloqueos);
+-        double dAntSig = distanciaKmCacheada(anterior, siguiente, horaReferencia, velocidad, bloqueos);
+-        return (dAntNuevo + dNuevoSig - dAntSig) * costoKm;
+-    }
+-
+-    /** Verificacion EXACTA, pierna por pierna: recorre toda la ruta
+-     *  candidata comprobando que exista camino hacia cada parada, que
+-     *  ningun tramo supere el limite de 80 km (hoja "Flota"), y que ningun
+-     *  DeliveryStop llegue despues de su deadline -- incluyendo el
+-     *  refrigerio (RouteScheduler.schedule() lo aplica antes de comparar
+-     *  contra el deadline; si esta verificacion no lo hiciera tambien,
+-     *  aceptaria candidatos durante la construccion que el evaluador
+-     *  autoritativo rechaza despues por SLA_MISSED, justo la 1h que el
+-     *  refrigerio agrega no estaba contemplada aqui -- encontrado probando
+-     *  con data real, ver README). Usa la misma cache de caminos. No valida
+-     *  capacidad -- eso ya lo garantiza el llamador (estado.cargaActual). */
+-    private boolean esFactibleCandidato(DeliveryRoute candidataRuta, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
+-        double velocidad = snapshot.fleetProfile().parametersFor(candidataRuta.vehicle().type()).speedKmPerHour();
+-        Location posicion = candidataRuta.startLocation();
+-        Instant tiempo = candidataRuta.departureAt();
+-        Instant turnoConRefrigerioTomado = null;
+-
+-        for (RouteStop stop : candidataRuta.stops()) {
+-            Optional<RoadPath> camino = caminoCacheado(posicion, stop.location(), tiempo, velocidad, bloqueos);
+-            if (camino.isEmpty()) return false;
+-            if (camino.get().distanceKm() > DISTANCIA_MAXIMA_POR_TRAMO_KM) return false;
+-            tiempo = camino.get().arrivesAt();
+-
+-            ShiftSchedule.ShiftWindow turno = snapshot.shiftSchedule().shiftAt(tiempo);
+-            ShiftSchedule.ShiftWindow ventanaRefrigerio = snapshot.shiftSchedule().mealWindow(tiempo);
+-            if (!turno.startsAt().equals(turnoConRefrigerioTomado) && !tiempo.isBefore(ventanaRefrigerio.startsAt())) {
+-                tiempo = tiempo.plus(Duration.ofHours(1));
+-                turnoConRefrigerioTomado = turno.startsAt();
+-            }
++    /** Avanza una parada. null si no hay camino, el tramo supera 80 km o la entrega llega tarde. */
++    private Paso avanzar(Paso actual, RouteStop parada, Vehicle vehiculo, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
++        Optional<RoadPath> camino = camino(actual.posicion(), parada.location(), actual.tiempo(), vehiculo, snapshot, bloqueos);
++        if (camino.isEmpty()) return null;
++        RoadPath recorrido = camino.get();
++        if (recorrido.distanceKm() > DISTANCIA_MAXIMA_POR_TRAMO_KM) return null;
++        Instant llegada = recorrido.arrivesAt();
++        Instant turnoTomado = actual.turnoConRefrigerio();
++        ShiftSchedule.ShiftWindow turno = snapshot.shiftSchedule().shiftAt(llegada);
++        ShiftSchedule.ShiftWindow ventanaRefrigerio = snapshot.shiftSchedule().mealWindow(llegada);
++        if (!turno.startsAt().equals(turnoTomado) && !llegada.isBefore(ventanaRefrigerio.startsAt())) {
++            llegada = llegada.plus(Duration.ofHours(1));
++            turnoTomado = turno.startsAt();
++        }
++        Instant salida;
++        if (parada instanceof DeliveryStop entrega) {
++            if (llegada.isAfter(entrega.order().deadline())) return null;
++            salida = llegada.plus(DeliveryStop.SERVICE_TIME);
++        } else {
++            salida = llegada;
++        }
++        return new Paso(parada.location(), salida, turnoTomado, actual.distancia() + recorrido.distanceKm());
++    }
+ 
+-            if (stop instanceof DeliveryStop entrega) {
+-                if (tiempo.isAfter(entrega.order().deadline())) return false;
+-                tiempo = tiempo.plus(DeliveryStop.SERVICE_TIME);
+-            }
+-            posicion = stop.location();
++    /**
++     * Recorre desde {@code inicio} las paradas nuevas, luego el resto de la ruta y el regreso al
++     * central. Devuelve los km totales de la ruta completa, o NaN si algo es infactible (incluido
++     * mantenimiento o averia del vehiculo en cualquier momento de la ruta).
++     */
++    private double recorrer(Paso inicio, List<RouteStop> nuevas, List<RouteStop> resto, DeliveryRoute ruta,
++                            OperationalSnapshot snapshot, Warehouse central, List<RoadBlock> bloqueos) {
++        Vehicle vehiculo = ruta.vehicle();
++        Paso paso = inicio;
++        for (RouteStop parada : nuevas) {
++            paso = avanzar(paso, parada, vehiculo, snapshot, bloqueos);
++            if (paso == null) return Double.NaN;
++        }
++        for (RouteStop parada : resto) {
++            paso = avanzar(paso, parada, vehiculo, snapshot, bloqueos);
++            if (paso == null) return Double.NaN;
++        }
++        Paso fin = avanzar(paso, new WarehouseVisit(central, 0), vehiculo, snapshot, bloqueos);
++        if (fin == null || interrumpida(vehiculo, ruta.departureAt(), fin.tiempo(), snapshot)) return Double.NaN;
++        return fin.distancia();
++    }
++
++    private Linea calcularLinea(DeliveryRoute ruta, OperationalSnapshot snapshot, Warehouse central, List<RoadBlock> bloqueos) {
++        List<Paso> pasos = new ArrayList<>(ruta.stops().size() + 1);
++        Paso paso = new Paso(ruta.startLocation(), ruta.departureAt(), null, 0);
++        pasos.add(paso);
++        for (RouteStop parada : ruta.stops()) {
++            paso = avanzar(paso, parada, ruta.vehicle(), snapshot, bloqueos);
++            if (paso == null) return null;
++            pasos.add(paso);
+         }
+-        return true;
++        Paso fin = avanzar(paso, new WarehouseVisit(central, 0), ruta.vehicle(), snapshot, bloqueos);
++        if (fin == null || interrumpida(ruta.vehicle(), ruta.departureAt(), fin.tiempo(), snapshot)) return null;
++        return new Linea(List.copyOf(pasos), fin.distancia());
++    }
++
++    /** Mismo criterio que MAINTENANCE_OR_BREAKDOWN del evaluador: [salida de la ruta, fin del regreso). */
++    private boolean interrumpida(Vehicle vehiculo, Instant salida, Instant fin, OperationalSnapshot snapshot) {
++        return fin.isAfter(salida) && snapshot.hasVehicleDisruptionDuring(vehiculo.id(), salida, fin);
++    }
++
++    private Optional<RoadPath> camino(Location origen, Location destino, Instant horaSalida, Vehicle vehiculo,
++                                      OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
++        double velocidad = snapshot.fleetProfile().parametersFor(vehiculo.type()).speedKmPerHour();
++        Duration porTramo = Duration.ofMillis(Math.round(3_600_000.0 / velocidad));
++        return roadNetwork.shortestPath(origen, destino, horaSalida, porTramo, bloqueos);
++    }
++
++    // ---------- Evaluacion exacta de rutas para la busqueda local (RouteScheduler), memorizada ----------
++
++    private record ClaveRuta(String vehiculoId, Location inicio, Instant salida, int cargaInicial, List<RouteStop> paradas) {
+     }
+ 
+-    private record ConsultaCamino(Location origen, Location destino, Instant horaSalida, double velocidadKmH) {
++    private record EvaluacionRuta(double costo, boolean factible) {
+     }
+ 
+-    /** Costo de una ruta candidata si es factible; vacio si no lo es. Usada
+-     *  por la busqueda local: sus movimientos (2-opt sobre todo un tramo,
+-     *  reubicaciones, intercambios) no se prestan a un delta marginal
+-     *  simple en una red con bloqueos dependientes del tiempo, asi que
+-     *  siguen recalculando la ruta completa via RouteScheduler. */
+-    private Optional<Double> costoSiFactible(DeliveryRoute candidataRuta, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
++    private EvaluacionRuta evaluar(DeliveryRoute ruta, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
++        ClaveRuta clave = new ClaveRuta(ruta.vehicle().id(), ruta.startLocation(), ruta.departureAt(), ruta.initialLoad(), ruta.stops());
++        EvaluacionRuta conocida = memoRutas.get(clave);
++        if (conocida != null) return conocida;
++        EvaluacionRuta evaluacion;
+         try {
+-            ScheduledDeliveryRoute programada = scheduler.schedule(candidataRuta, snapshot, bloqueos);
++            ScheduledDeliveryRoute programada = scheduler.schedule(ruta, snapshot, bloqueos);
++            boolean factible = true;
+             for (ScheduledRouteStop parada : programada.scheduledStops()) {
+-                if (parada.approach().distanceKm() > DISTANCIA_MAXIMA_POR_TRAMO_KM) return Optional.empty();
+-                if (parada.stop() instanceof DeliveryStop entrega && parada.arrivedAt().isAfter(entrega.order().deadline())) {
+-                    return Optional.empty();
++                if (parada.approach().distanceKm() > DISTANCIA_MAXIMA_POR_TRAMO_KM
++                        || (parada.stop() instanceof DeliveryStop entrega && parada.arrivedAt().isAfter(entrega.order().deadline()))) {
++                    factible = false;
++                    break;
+                 }
+             }
+-            return Optional.of(programada.totalCost());
++            if (factible && interrumpida(ruta.vehicle(), ruta.departureAt(), programada.completedAt(), snapshot)) {
++                factible = false;
++            }
++            evaluacion = new EvaluacionRuta(programada.totalCost(), factible);
+         } catch (IllegalStateException sinCaminoFactible) {
+-            return Optional.empty();
++            evaluacion = new EvaluacionRuta(Double.POSITIVE_INFINITY, false);
+         }
++        if (memoRutas.size() >= LIMITE_MEMO_RUTAS) memoRutas.clear();
++        memoRutas.put(clave, evaluacion);
++        return evaluacion;
++    }
++
++    /** Costo de la ruta si cumple las reglas por ruta (camino, 80 km, plazos, mantenimiento); vacio si no. */
++    private Optional<Double> costoSiFactible(DeliveryRoute ruta, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
++        EvaluacionRuta evaluacion = evaluar(ruta, snapshot, bloqueos);
++        return evaluacion.factible() ? Optional.of(evaluacion.costo()) : Optional.empty();
+     }
+ 
+-    /** Defensivo a proposito: una ruta que ya era parte de un plan valido no
+-     *  deberia fallar al reprogramarse, pero si ocurriera (p.ej. un bloqueo
+-     *  deja sin camino a una parada en el instante exacto de transito), la
+-     *  busqueda local debe tratarla como "no conviene", no tumbar la
+-     *  corrida completa. */
++    /** Defensivo: una ruta sin camino se trata como costo infinito, no tumba la corrida. */
+     private double costoRuta(DeliveryRoute ruta, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
+-        try {
+-            return scheduler.schedule(ruta, snapshot, bloqueos).totalCost();
+-        } catch (IllegalStateException sinCaminoFactible) {
+-            return Double.POSITIVE_INFINITY;
+-        }
++        return evaluar(ruta, snapshot, bloqueos).costo();
+     }
+ 
+     private int indiceUltimoAlmacen(List<RouteStop> stops) {
+@@ -415,10 +432,9 @@ public class GraspPlanificador {
+     }
+ 
+     // =========================================================
+-    // Busqueda local: 2-opt, reubicacion e intercambio.
+-    // Estrategia de primera-mejora: cada paso busca UN movimiento que
+-    // mejore el costo, lo aplica y reinicia el barrido; se repite hasta que
+-    // ninguno de los tres produzca mejora.
++    // Busqueda local de primera mejora: insercion de pendientes, 2-opt,
++    // reubicacion e intercambio. Cada paso aplica el primer movimiento que
++    // mejora y reinicia; termina cuando ninguno mejora.
+     // =========================================================
+ 
+     private ResultadoPlanificacion busquedaLocal(ResultadoPlanificacion actual, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
+@@ -444,42 +460,29 @@ public class GraspPlanificador {
+         return new ResultadoPlanificacion(plan, evaluacion, List.copyOf(pendientes));
+     }
+ 
+-    /** Repara pedidos que la fase constructiva dejo en noAtendidos solo por
+-     *  el orden en que el barrido greedy los proceso (branch (a) de
+-     *  generarCandidatos: insertar en el tramo de entregas ya abierto de
+-     *  alguna ruta), no porque fueran imposibles de atender. Se ejecuta
+-     *  DESPUES de 2-opt/reubicacion/intercambio, sobre el plan ya
+-     *  reordenado, con prioridad sobre el costo -- reducir noAtendidos pesa
+-     *  mas que el costo (ver esMejorQue), asi que se acepta la insercion
+-     *  factible mas barata encontrada sin comparar contra "no insertar".
+-     *  A proposito NO abre WarehouseVisit nuevos (esa rama de
+-     *  generarCandidatos consume inventario, que aqui ya no se rastrea tras
+-     *  la fase constructiva) -- si el pedido solo cabe abriendo una recarga
+-     *  o un vehiculo nuevo, sigue quedando en noAtendidos: eso ya es
+-     *  colapso real, no un artefacto del greedy. */
++    /**
++     * Rescata pedidos que la construccion dejo sin atender solo por el orden del barrido greedy:
++     * los inserta enteros en un tramo existente de alguna ruta, aumentando lo que recoge la carga
++     * de ese tramo, con capacidad y stock. No abre recargas ni vehiculos nuevos; si no cabe asi,
++     * sigue sin atender.
++     */
+     ResultadoInsercion pasoInsercionPendientes(OperationalPlan plan, List<Order> pendientes,
+             OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
++        Map<String, Integer> stock = stockRestante(plan, snapshot);
+         for (Order pedido : pendientes) {
++            SearchControl.checkpoint();
+             DeliveryRoute mejorRuta = null;
+             double mejorCosto = Double.POSITIVE_INFINITY;
++            DeliveryStop entrega = new DeliveryStop(pedido, pedido.packages());
+             for (DeliveryRoute ruta : plan.routes()) {
+-                int capacidad = snapshot.fleetProfile().parametersFor(ruta.vehicle().type()).capacity();
++                int capacidad = capacidad(snapshot, ruta.vehicle());
+                 int posMax = ultimaPosicionValidaParaInsertar(ruta.stops());
+-                // Recorre TODAS las posiciones (como pasoReubicacion), no solo
+-                // el ultimo tramo: una ruta puede tener varios viajes/recargas.
+                 for (int pos = 0; pos <= posMax; pos++) {
+                     if (cargaDelSegmento(ruta.stops(), pos) + pedido.packages() > capacidad) continue;
+-                    // El tramo inicial (antes de cualquier WarehouseVisit) esta
+-                    // gobernado por initialLoad, inmutable -- igual que en
+-                    // pasoReubicacion, se descarta ese caso.
+-                    int indiceAlmacen = indiceAlmacenQueAbreSegmento(ruta.stops(), pos);
+-                    if (indiceAlmacen == -1) continue;
+-                    List<RouteStop> stopsCandidatos = new ArrayList<>(ruta.stops());
+-                    WarehouseVisit visitaOriginal = (WarehouseVisit) stopsCandidatos.get(indiceAlmacen);
+-                    stopsCandidatos.set(indiceAlmacen, new WarehouseVisit(visitaOriginal.warehouse(),
+-                            visitaOriginal.pickupPackages() + pedido.packages()));
+-                    stopsCandidatos.add(pos, new DeliveryStop(pedido, pedido.packages()));
+-                    DeliveryRoute candidata = ruta.withReplacedStops(stopsCandidatos);
++                    Warehouse proveedor = almacenDelTramo(ruta, pos);
++                    if (proveedor == null || !hayStock(stock, proveedor, pedido.packages())) continue;
++                    DeliveryRoute candidata = insertar(ruta, pos, entrega);
++                    if (candidata == null) continue;
+                     Optional<Double> costo = costoSiFactible(candidata, snapshot, bloqueos);
+                     if (costo.isPresent() && costo.get() < mejorCosto) {
+                         mejorCosto = costo.get();
+@@ -497,12 +500,10 @@ public class GraspPlanificador {
+     record ResultadoInsercion(OperationalPlan plan, Order pedidoInsertado) {
+     }
+ 
+-    /** Inversion (2-opt): invierte un tramo dentro de un mismo segmento de
+-     *  entregas (entre dos WarehouseVisit consecutivos) para eliminar
+-     *  cruces. Retorna el plan con el primer movimiento que mejora el
+-     *  costo, o null si ninguno mejora. */
++    /** 2-opt: invierte un tramo dentro de un mismo segmento de entregas; primer movimiento que mejora. */
+     private OperationalPlan pasoDosOpt(OperationalPlan plan, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
+         for (DeliveryRoute ruta : plan.routes()) {
++            SearchControl.checkpoint();
+             double costoActual = costoRuta(ruta, snapshot, bloqueos);
+             for (int[] segmento : segmentosDeEntrega(ruta.stops())) {
+                 for (int i = segmento[0]; i < segmento[1]; i++) {
+@@ -521,50 +522,46 @@ public class GraspPlanificador {
+         return null;
+     }
+ 
+-    /** Reubicacion (Or-opt): mueve un pedido de una ruta a otra (incluso
+-     *  entre vehiculos distintos), respetando la capacidad del SEGMENTO de
+-     *  destino (entre sus dos WarehouseVisit mas cercanos), ya que una
+-     *  DeliveryRoute puede tener mas de un viaje. Si la ruta de origen se
+-     *  queda sin ninguna entrega, se ELIMINA del plan en vez de dejarla
+-     *  como un viaje vacio (bug corregido: antes inflaba el conteo de
+-     *  viajes de ValidadorUtilizacionFlota sin aportar carga real). */
++    /**
++     * Reubicacion (Or-opt): mueve una entrega a otra ruta, en cualquier tramo con capacidad y
++     * stock (aumenta lo que recoge la carga de ese tramo). La ruta de origen deja de recoger esa
++     * cantidad (y elimina la recarga si quedo vacia); si se queda sin entregas, sale del plan.
++     */
+     private OperationalPlan pasoReubicacion(OperationalPlan plan, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
+         List<DeliveryRoute> rutas = List.copyOf(plan.routes());
++        Map<String, Integer> stock = stockRestante(plan, snapshot);
++        Map<String, Double> costoActualPorVehiculo = new HashMap<>();
++        for (DeliveryRoute ruta : rutas) {
++            costoActualPorVehiculo.put(ruta.vehicle().id(), costoRuta(ruta, snapshot, bloqueos));
++        }
+         for (DeliveryRoute origen : rutas) {
++            double costoOrigenActual = costoActualPorVehiculo.get(origen.vehicle().id());
+             for (int i : deliveryIndexes(origen.stops())) {
++                SearchControl.checkpoint();
+                 DeliveryStop movido = (DeliveryStop) origen.stops().get(i);
+-                double costoOrigenActual = costoRuta(origen, snapshot, bloqueos);
+-                DeliveryRoute origenSinParada = origen.withReplacedStops(sinIndice(origen.stops(), i));
++                Retiro retiro = quitar(origen, i);
++                DeliveryRoute origenSinParada = retiro.ruta();
+                 Optional<Double> costoOrigenNuevo = costoSiFactible(origenSinParada, snapshot, bloqueos);
+                 if (costoOrigenNuevo.isEmpty()) continue;
+                 double ahorro = costoOrigenActual - costoOrigenNuevo.get();
+ 
+                 for (DeliveryRoute destino : rutas) {
+                     if (destino.vehicle().id().equals(origen.vehicle().id())) continue;
+-                    int capacidad = snapshot.fleetProfile().parametersFor(destino.vehicle().type()).capacity();
+-                    // Nunca insertar despues del ultimo WarehouseVisit si ese
+-                    // es el regreso final al almacen -- una ruta terminada
+-                    // siempre debe terminar en un WarehouseVisit (exigido por
+-                    // OperationalPlanEvaluator), no en un DeliveryStop.
++                    int capacidad = capacidad(snapshot, destino.vehicle());
++                    double costoDestinoActual = costoActualPorVehiculo.get(destino.vehicle().id());
++                    // Nunca despues del regreso final: toda ruta debe terminar en un almacen.
+                     int posMax = ultimaPosicionValidaParaInsertar(destino.stops());
+                     for (int pos = 0; pos <= posMax; pos++) {
+                         if (cargaDelSegmento(destino.stops(), pos) + movido.deliveredPackages() > capacidad) continue;
+-                        // El WarehouseVisit que abre este tramo debe recoger
+-                        // tambien lo que ahora se entrega en el; el tramo
+-                        // inicial (antes de cualquier WarehouseVisit) no se
+-                        // puede ajustar porque initialLoad es inmutable una
+-                        // vez creada la ruta -- ese caso simplemente se salta.
+-                        int indiceAlmacen = indiceAlmacenQueAbreSegmento(destino.stops(), pos);
+-                        if (indiceAlmacen == -1) continue;
+-                        List<RouteStop> stopsDestino = new ArrayList<>(destino.stops());
+-                        WarehouseVisit visitaOriginal = (WarehouseVisit) stopsDestino.get(indiceAlmacen);
+-                        stopsDestino.set(indiceAlmacen, new WarehouseVisit(visitaOriginal.warehouse(),
+-                                visitaOriginal.pickupPackages() + movido.deliveredPackages()));
+-                        stopsDestino.add(pos, movido);
+-                        DeliveryRoute destinoNuevo = destino.withReplacedStops(stopsDestino);
++                        Warehouse proveedor = almacenDelTramo(destino, pos);
++                        if (proveedor == null) continue;
++                        int liberado = proveedor.equals(retiro.almacenLiberado()) ? movido.deliveredPackages() : 0;
++                        if (!hayStock(stock, proveedor, movido.deliveredPackages() - liberado)) continue;
++                        DeliveryRoute destinoNuevo = insertar(destino, pos, movido);
++                        if (destinoNuevo == null) continue;
+                         Optional<Double> costoDestinoNuevo = costoSiFactible(destinoNuevo, snapshot, bloqueos);
+                         if (costoDestinoNuevo.isEmpty()) continue;
+-                        double costoIncremental = costoDestinoNuevo.get() - costoRuta(destino, snapshot, bloqueos);
++                        double costoIncremental = costoDestinoNuevo.get() - costoDestinoActual;
+                         if (costoIncremental < ahorro) {
+                             OperationalPlan planConDestinoActualizado = plan.withRoute(destinoNuevo);
+                             boolean origenQuedaVacio = deliveryIndexes(origenSinParada.stops()).isEmpty();
+@@ -579,15 +576,19 @@ public class GraspPlanificador {
+         return null;
+     }
+ 
+-    /** Intercambio (Swap): intercambia dos pedidos entre dos rutas distintas. */
++    /** Intercambio: dos entregas entre dos rutas distintas, ajustando las recargas que las gobiernan. */
+     private OperationalPlan pasoIntercambio(OperationalPlan plan, OperationalSnapshot snapshot, List<RoadBlock> bloqueos) {
+         List<DeliveryRoute> rutas = List.copyOf(plan.routes());
++        Map<String, Integer> stock = stockRestante(plan, snapshot);
+         for (int a = 0; a < rutas.size(); a++) {
+             DeliveryRoute rutaA = rutas.get(a);
++            double costoA = costoRuta(rutaA, snapshot, bloqueos);
++            int capA = capacidad(snapshot, rutaA.vehicle());
+             for (int b = a + 1; b < rutas.size(); b++) {
++                SearchControl.checkpoint();
+                 DeliveryRoute rutaB = rutas.get(b);
+-                int capA = snapshot.fleetProfile().parametersFor(rutaA.vehicle().type()).capacity();
+-                int capB = snapshot.fleetProfile().parametersFor(rutaB.vehicle().type()).capacity();
++                double costoAntes = costoA + costoRuta(rutaB, snapshot, bloqueos);
++                int capB = capacidad(snapshot, rutaB.vehicle());
+ 
+                 for (int i : deliveryIndexes(rutaA.stops())) {
+                     DeliveryStop pA = (DeliveryStop) rutaA.stops().get(i);
+@@ -597,36 +598,28 @@ public class GraspPlanificador {
+                         int nuevaCargaSegB = cargaDelSegmento(rutaB.stops(), j) - pB.deliveredPackages() + pA.deliveredPackages();
+                         if (nuevaCargaSegA > capA || nuevaCargaSegB > capB) continue;
+ 
+-                        // Si las cantidades intercambiadas difieren, el
+-                        // WarehouseVisit que abre cada tramo debe recoger la
+-                        // diferencia; si el tramo es el inicial (gobernado
+-                        // por initialLoad, inmutable), no hay forma de
+-                        // ajustarlo y el intercambio se descarta.
++                        // Si las cantidades difieren, la carga de cada tramo absorbe la diferencia.
+                         int delta = pB.deliveredPackages() - pA.deliveredPackages();
+-                        List<RouteStop> stopsA = new ArrayList<>(rutaA.stops());
+-                        List<RouteStop> stopsB = new ArrayList<>(rutaB.stops());
+                         if (delta != 0) {
+-                            int almacenA = indiceAlmacenQueAbreSegmento(rutaA.stops(), i);
+-                            int almacenB = indiceAlmacenQueAbreSegmento(rutaB.stops(), j);
+-                            if (almacenA == -1 || almacenB == -1) continue;
+-                            WarehouseVisit visitaA = (WarehouseVisit) stopsA.get(almacenA);
+-                            WarehouseVisit visitaB = (WarehouseVisit) stopsB.get(almacenB);
+-                            if (visitaA.pickupPackages() + delta < 0 || visitaB.pickupPackages() - delta < 0) continue;
+-                            stopsA.set(almacenA, new WarehouseVisit(visitaA.warehouse(), visitaA.pickupPackages() + delta));
+-                            stopsB.set(almacenB, new WarehouseVisit(visitaB.warehouse(), visitaB.pickupPackages() - delta));
++                            Warehouse proveedorA = almacenDelTramo(rutaA, i);
++                            Warehouse proveedorB = almacenDelTramo(rutaB, j);
++                            if (proveedorA == null || proveedorB == null) continue;
++                            if (!stockParaIntercambio(stock, proveedorA, delta, proveedorB)) continue;
+                         }
++                        List<RouteStop> stopsA = new ArrayList<>(rutaA.stops());
++                        List<RouteStop> stopsB = new ArrayList<>(rutaB.stops());
+                         stopsA.set(i, new DeliveryStop(pB.order(), pB.deliveredPackages()));
+                         stopsB.set(j, new DeliveryStop(pA.order(), pA.deliveredPackages()));
+-                        DeliveryRoute rutaANueva = rutaA.withReplacedStops(stopsA);
+-                        DeliveryRoute rutaBNueva = rutaB.withReplacedStops(stopsB);
++                        DeliveryRoute rutaANueva = conCargaAjustada(rutaA, stopsA, i, delta);
++                        DeliveryRoute rutaBNueva = conCargaAjustada(rutaB, stopsB, j, -delta);
++                        if (rutaANueva == null || rutaBNueva == null) continue;
+ 
+                         Optional<Double> costoANuevo = costoSiFactible(rutaANueva, snapshot, bloqueos);
++                        if (costoANuevo.isEmpty()) continue;
+                         Optional<Double> costoBNuevo = costoSiFactible(rutaBNueva, snapshot, bloqueos);
+-                        if (costoANuevo.isEmpty() || costoBNuevo.isEmpty()) continue;
++                        if (costoBNuevo.isEmpty()) continue;
+ 
+-                        double costoAntes = costoRuta(rutaA, snapshot, bloqueos) + costoRuta(rutaB, snapshot, bloqueos);
+-                        double costoDespues = costoANuevo.get() + costoBNuevo.get();
+-                        if (costoDespues < costoAntes) {
++                        if (costoANuevo.get() + costoBNuevo.get() < costoAntes) {
+                             return plan.withRoute(rutaANueva).withRoute(rutaBNueva);
+                         }
+                     }
+@@ -636,6 +629,115 @@ public class GraspPlanificador {
+         return null;
+     }
+ 
++    // ---------- Auxiliares de tramos, carga e inventario ----------
++
++    /*
++     * Cada tramo de entregas lo abastece una carga: la carga inicial de la ruta (primer tramo) o
++     * el pickup de la recarga que lo abre. Insertar, quitar o cambiar una entrega ajusta esa
++     * carga para que siga igual a lo que el tramo entrega (sin carga negativa ni stock retirado de
++     * mas). La carga inicial se ajusta reconstruyendo la ruta desde el central con otro valor; una
++     * ruta replanificada desde la posicion del vehiculo (sin almacen inicial) no la puede cambiar.
++     */
++
++    /** Almacen que abastece el tramo de la posicion: la recarga previa o el almacen de salida (si hay). */
++    private Warehouse almacenDelTramo(DeliveryRoute ruta, int posicion) {
++        int indiceAlmacen = indiceAlmacenQueAbreSegmento(ruta.stops(), posicion);
++        if (indiceAlmacen >= 0) return ((WarehouseVisit) ruta.stops().get(indiceAlmacen)).warehouse();
++        return ruta.initialWarehouse().orElse(null);
++    }
++
++    /** La ruta con {@code paradas} y la carga del tramo de {@code posicion} cambiada en delta; null si no es posible. */
++    private DeliveryRoute conCargaAjustada(DeliveryRoute ruta, List<RouteStop> paradas, int posicion, int delta) {
++        if (delta == 0) return ruta.withReplacedStops(paradas);
++        int indiceAlmacen = indiceAlmacenQueAbreSegmento(paradas, posicion);
++        if (indiceAlmacen >= 0) {
++            WarehouseVisit visita = (WarehouseVisit) paradas.get(indiceAlmacen);
++            int nuevoPickup = visita.pickupPackages() + delta;
++            if (nuevoPickup < 0) return null;
++            List<RouteStop> copia = new ArrayList<>(paradas);
++            copia.set(indiceAlmacen, new WarehouseVisit(visita.warehouse(), nuevoPickup));
++            return ruta.withReplacedStops(copia);
++        }
++        Optional<Warehouse> inicial = ruta.initialWarehouse();
++        int nuevaCarga = ruta.initialLoad() + delta;
++        if (inicial.isEmpty() || nuevaCarga < 0 || nuevaCarga > ruta.vehicle().type().capacity()) return null;
++        return DeliveryRoute.startScenarioAtCentral(ruta.id(), ruta.vehicle(), inicial.get(), nuevaCarga, ruta.departureAt())
++                .withReplacedStops(paradas);
++    }
++
++    /** Inserta la entrega en pos y aumenta la carga de su tramo; null si esa carga no es ajustable. */
++    private DeliveryRoute insertar(DeliveryRoute ruta, int pos, DeliveryStop entrega) {
++        List<RouteStop> paradas = new ArrayList<>(ruta.stops());
++        paradas.add(pos, entrega);
++        return conCargaAjustada(ruta, paradas, pos, entrega.deliveredPackages());
++    }
++
++    /** Resultado de quitar una entrega: la ruta nueva y el almacen que deja de entregar esa carga. */
++    private record Retiro(DeliveryRoute ruta, Warehouse almacenLiberado) {
++    }
++
++    /**
++     * Quita la entrega i y reduce la carga de su tramo en esa cantidad; si una recarga queda sin
++     * carga ni entregas y no es el regreso final, se elimina.
++     */
++    private Retiro quitar(DeliveryRoute ruta, int i) {
++        List<RouteStop> paradas = new ArrayList<>(ruta.stops());
++        DeliveryStop quitada = (DeliveryStop) paradas.remove(i);
++        Warehouse proveedor = almacenDelTramo(ruta, i);
++        DeliveryRoute ajustada = conCargaAjustada(ruta, paradas, i, -quitada.deliveredPackages());
++        if (ajustada == null) {
++            return new Retiro(ruta.withReplacedStops(paradas), null);
++        }
++        int indiceAlmacen = indiceAlmacenQueAbreSegmento(paradas, i);
++        if (indiceAlmacen >= 0) {
++            WarehouseVisit visita = (WarehouseVisit) ajustada.stops().get(indiceAlmacen);
++            boolean esRegresoFinal = indiceAlmacen == ajustada.stops().size() - 1;
++            if (visita.pickupPackages() == 0 && !esRegresoFinal && !tramoTieneEntregas(ajustada.stops(), indiceAlmacen)) {
++                List<RouteStop> sinRecargaVacia = new ArrayList<>(ajustada.stops());
++                sinRecargaVacia.remove(indiceAlmacen);
++                ajustada = ajustada.withReplacedStops(sinRecargaVacia);
++            }
++        }
++        return new Retiro(ajustada, proveedor);
++    }
++
++    private boolean tramoTieneEntregas(List<RouteStop> stops, int indiceAlmacen) {
++        for (int k = indiceAlmacen + 1; k < stops.size(); k++) {
++            if (stops.get(k) instanceof WarehouseVisit) return false;
++            if (stops.get(k) instanceof DeliveryStop) return true;
++        }
++        return false;
++    }
++
++    /** Stock de cada almacen intermedio que el plan todavia no retira (el central no tiene limite). */
++    private Map<String, Integer> stockRestante(OperationalPlan plan, OperationalSnapshot snapshot) {
++        Map<String, Integer> restante = new HashMap<>();
++        for (Warehouse almacen : snapshot.inventory().warehouses()) {
++            if (!almacen.isCentral()) restante.put(almacen.id(), snapshot.inventory().availableStock(almacen.id()));
++        }
++        for (DeliveryRoute ruta : plan.routes()) {
++            ruta.initialWarehouse().ifPresent(almacen -> {
++                if (!almacen.isCentral()) restante.merge(almacen.id(), -ruta.initialLoad(), Integer::sum);
++            });
++            for (RouteStop parada : ruta.stops()) {
++                if (parada instanceof WarehouseVisit visita && !visita.warehouse().isCentral()) {
++                    restante.merge(visita.warehouse().id(), -visita.pickupPackages(), Integer::sum);
++                }
++            }
++        }
++        return restante;
++    }
++
++    private boolean hayStock(Map<String, Integer> restante, Warehouse almacen, int adicional) {
++        return adicional <= 0 || almacen.isCentral() || restante.getOrDefault(almacen.id(), 0) >= adicional;
++    }
++
++    /** A recoge delta mas y B delta menos (delta puede ser negativo). */
++    private boolean stockParaIntercambio(Map<String, Integer> restante, Warehouse almacenA, int delta, Warehouse almacenB) {
++        if (almacenA.equals(almacenB)) return true;
++        return delta > 0 ? hayStock(restante, almacenA, delta) : hayStock(restante, almacenB, -delta);
++    }
++
+     private int indiceAlmacenQueAbreSegmento(List<RouteStop> stops, int posicion) {
+         for (int k = posicion - 1; k >= 0; k--) {
+             if (stops.get(k) instanceof WarehouseVisit) return k;
+@@ -654,12 +756,6 @@ public class GraspPlanificador {
+         return indices;
+     }
+ 
+-    private List<RouteStop> sinIndice(List<RouteStop> stops, int indice) {
+-        List<RouteStop> copia = new ArrayList<>(stops);
+-        copia.remove(indice);
+-        return copia;
+-    }
+-
+     private int cargaDelSegmento(List<RouteStop> stops, int posicion) {
+         int inicio = 0;
+         for (int k = posicion - 1; k >= 0; k--) {
+@@ -691,32 +787,55 @@ public class GraspPlanificador {
+         return segmentos;
+     }
+ 
++    private static Warehouse central(OperationalSnapshot snapshot) {
++        return snapshot.inventory().warehouses().stream()
++                .filter(Warehouse::isCentral).findFirst()
++                .orElseThrow(() -> new IllegalStateException("El snapshot no tiene almacen central"));
++    }
++
++    private static int capacidad(OperationalSnapshot snapshot, Vehicle vehiculo) {
++        return snapshot.fleetProfile().parametersFor(vehiculo.type()).capacity();
++    }
++
+     // =========================================================
+     // Estado auxiliar de construccion
+     // =========================================================
+ 
++    private record Respaldo(DeliveryRoute ruta, int cargaActual, Linea linea) {
++    }
++
+     private static final class EstadoConstruccion {
+         final VehicleOperationalState estadoInicial;
++        final Instant horaDisponible;
+         DeliveryRoute ruta;
++        /** Paquetes comprometidos en el tramo abierto (desde la ultima carga). */
+         int cargaActual;
++        Linea linea;
+ 
+-        EstadoConstruccion(VehicleOperationalState estadoInicial) {
++        EstadoConstruccion(VehicleOperationalState estadoInicial, Instant horaDisponible) {
+             this.estadoInicial = estadoInicial;
+-            this.ruta = null;
+-            this.cargaActual = 0;
++            this.horaDisponible = horaDisponible;
++        }
++
++        Respaldo respaldo() {
++            return new Respaldo(ruta, cargaActual, linea);
+         }
+ 
+-        Location ubicacionActual() {
+-            return ruta == null ? estadoInicial.location() : ruta.stops().getLast().location();
++        void restaurar(Respaldo respaldo) {
++            ruta = respaldo.ruta();
++            cargaActual = respaldo.cargaActual();
++            linea = respaldo.linea();
+         }
+ 
+-        void aplicar(Candidato c) {
+-            this.cargaActual = c.esRutaNueva() ? c.pedido().packages() : this.cargaActual + c.pedido().packages();
+-            this.ruta = c.rutaResultante();
++        void aplicar(Candidato c, Linea nuevaLinea) {
++            cargaActual = c.abreTramo() ? c.cantidad() : cargaActual + c.cantidad();
++            ruta = c.rutaResultante();
++            linea = nuevaLinea;
+         }
+     }
+ 
+-    private record Candidato(String vehiculoId, DeliveryRoute rutaResultante, boolean esRutaNueva,
+-                              Order pedido, Warehouse almacenReabastecimiento, int cargaReabastecida, double costo) {
++    /** abreTramo: la entrega inicia un tramo nuevo (ruta nueva o recarga). */
++    private record Candidato(String vehiculoId, DeliveryRoute rutaResultante, boolean abreTramo,
++                             Order pedido, int cantidad, Warehouse almacenRetiro, double costo) {
+     }
+ }
+diff --git a/grasp/src/test/java/pe/pucp/paqrap/planificador/GraspPlanificadorTest.java b/grasp/src/test/java/pe/pucp/paqrap/planificador/GraspPlanificadorTest.java
+index 3cc68ce..d2b1f3d 100644
+--- a/grasp/src/test/java/pe/pucp/paqrap/planificador/GraspPlanificadorTest.java
++++ b/grasp/src/test/java/pe/pucp/paqrap/planificador/GraspPlanificadorTest.java
+@@ -7,6 +7,8 @@ import pe.pucp.paqrap.modelo.InicializadorFlota;
+ import pe.pucp.paqrap.modelo.ResultadoPlanificacion;
+ 
+ import java.time.Instant;
++import java.time.LocalDate;
++import java.time.LocalDateTime;
+ import java.time.ZoneId;
+ import java.util.*;
+ 
+@@ -40,6 +42,16 @@ class GraspPlanificadorTest {
+                 new MaintenanceCalendar(zona, List.of()), new ShiftSchedule(zona), List.of());
+     }
+ 
++    private OperationalSnapshot snapshotCon(Instant planificacion, List<Vehicle> flota, List<Warehouse> almacenes,
++                                            List<MaintenanceDay> mantenimiento) {
++        Map<String, VehicleOperationalState> estados = new LinkedHashMap<>();
++        for (Vehicle v : flota) {
++            estados.put(v.id(), new VehicleOperationalState(v, VehicleStatus.AVAILABLE, central.location(), planificacion));
++        }
++        return new OperationalSnapshot(planificacion, perfilDePrueba(), InventorySnapshot.from(almacenes), estados,
++                new MaintenanceCalendar(zona, mantenimiento), new ShiftSchedule(zona), List.of());
++    }
++
+     private GraspPlanificador planificadorDePrueba(long semilla) {
+         RoadNetwork roadNetwork = new RoadNetwork();
+         RouteScheduler scheduler = new RouteScheduler(roadNetwork);
+@@ -67,18 +79,119 @@ class GraspPlanificadorTest {
+     }
+ 
+     @Test
+-    void unPedidoQueExcedeTodaLaFlotaQuedaSinAtenderYNoRompeCapacidad() {
++    void unPedidoMayorQueCualquierVehiculoSeDivideEnEntregasParciales() {
++        // P&R 13: hay entregas parciales. 30 paquetes no caben en ningun vehiculo (maximo 24), pero
++        // si en la flota: GRASP-v2 lo reparte. Antes quedaba siempre sin atender.
+         List<Warehouse> almacenes = List.of(central);
+-        List<Order> pedidos = List.of(new Order("C-005", new Location(5, 5), 30, horaInicio, horaInicio.plusSeconds(36 * 3600)));
++        Order grande = new Order("C-005", new Location(5, 5), 30, horaInicio, horaInicio.plusSeconds(36 * 3600));
+ 
+         ResultadoPlanificacion resultado = planificadorDePrueba(7L)
+-                .planificar(snapshotDePrueba(almacenes), pedidos, List.of(), 0.3, 30);
++                .planificar(snapshotDePrueba(almacenes), List.of(grande), List.of(), 0.3, 30);
+ 
+-        assertEquals(1, resultado.noAtendidos().size());
+-        assertEquals("C-005", resultado.noAtendidos().get(0).id());
++        assertTrue(resultado.esFactible(), () -> "plan infactible: " + resultado.evaluacion().violations());
++        assertTrue(resultado.noAtendidos().isEmpty());
++        int entregados = 0;
++        int entregasParciales = 0;
++        for (DeliveryRoute ruta : resultado.plan().routes()) {
++            int capacidad = perfilDePrueba().parametersFor(ruta.vehicle().type()).capacity();
++            for (RouteStop parada : ruta.stops()) {
++                if (parada instanceof DeliveryStop entrega) {
++                    assertTrue(entrega.deliveredPackages() <= capacidad);
++                    entregados += entrega.deliveredPackages();
++                    entregasParciales++;
++                }
++            }
++        }
++        assertEquals(30, entregados);
++        assertTrue(entregasParciales >= 2);
++    }
++
++    @Test
++    void unPedidoConPlazoImposibleQuedaSinAtenderYNoDejaPartesSueltas() {
++        // (65,48) esta a 72 km del central: ni el auto (40 km/h) llega en 30 minutos.
++        List<Warehouse> almacenes = List.of(central);
++        Order imposible = new Order("C-LEJOS", new Location(65, 48), 30, horaInicio, horaInicio.plusSeconds(30 * 60));
++        Order posible = new Order("C-CERCA", new Location(28, 15), 3, horaInicio, horaInicio.plusSeconds(8 * 3600));
++
++        ResultadoPlanificacion resultado = planificadorDePrueba(3L)
++                .planificar(snapshotDePrueba(almacenes), List.of(imposible, posible), List.of(), 0.3, 10);
++
++        assertTrue(resultado.esFactible(), () -> "plan infactible: " + resultado.evaluacion().violations());
++        assertEquals(List.of(imposible), resultado.noAtendidos());
++        boolean quedoAlgunaParte = resultado.plan().routes().stream().flatMap(r -> r.stops().stream())
++                .anyMatch(p -> p instanceof DeliveryStop d && d.order().equals(imposible));
++        assertFalse(quedoAlgunaParte, "un pedido no atendido no debe dejar entregas parciales en el plan");
++    }
++
++    @Test
++    void noAsignaUnaRutaQueTerminaDentroDelMantenimientoDelVehiculo() {
++        // Planificacion a las 22:00 (Lima): la unica unidad entra a mantenimiento a las 00:00 del
++        // dia siguiente. Una entrega lejana obligaria a seguir en ruta pasada la medianoche.
++        Instant noche = LocalDateTime.of(2026, 9, 9, 22, 0).atZone(zona).toInstant();
++        Vehicle auto = new Vehicle("TA01", VehicleType.CAR, true);
++        OperationalSnapshot snapshot = snapshotCon(noche, List.of(auto), List.of(central),
++                List.of(new MaintenanceDay("TA01", LocalDate.of(2026, 9, 10))));
++        Order lejos = new Order("C-LEJOS", new Location(65, 48), 4, noche, noche.plusSeconds(36 * 3600));
++
++        ResultadoPlanificacion resultado = planificadorDePrueba(11L)
++                .planificar(snapshot, List.of(lejos), List.of(), 0.3, 5);
++
++        assertTrue(resultado.esFactible(), () -> "plan infactible: " + resultado.evaluacion().violations());
++        assertEquals(List.of(lejos), resultado.noAtendidos());
+         assertTrue(resultado.plan().routes().isEmpty());
+     }
+ 
++    @Test
++    void consolidaVariosPedidosEnElPrimerViajeSinVolverAUnAlmacen() {
++        // Un solo auto (24) y tres pedidos pequenos cercanos: deben ir en el mismo primer viaje,
++        // con una sola visita a almacen (el regreso final). Antes el primer tramo solo admitia un pedido.
++        Vehicle auto = new Vehicle("TA01", VehicleType.CAR, true);
++        OperationalSnapshot snapshot = snapshotCon(horaInicio, List.of(auto), List.of(central), List.of());
++        List<Order> pedidos = List.of(
++                new Order("C-1", new Location(30, 14), 3, horaInicio, horaInicio.plusSeconds(8 * 3600)),
++                new Order("C-2", new Location(31, 15), 4, horaInicio, horaInicio.plusSeconds(8 * 3600)),
++                new Order("C-3", new Location(32, 16), 5, horaInicio, horaInicio.plusSeconds(8 * 3600)));
++
++        ResultadoPlanificacion resultado = planificadorDePrueba(5L).planificar(snapshot, pedidos, List.of(), 0.0, 3);
++
++        assertTrue(resultado.esFactible(), () -> "plan infactible: " + resultado.evaluacion().violations());
++        assertTrue(resultado.noAtendidos().isEmpty());
++        DeliveryRoute ruta = resultado.plan().routes().iterator().next();
++        assertEquals(12, ruta.initialLoad());
++        assertEquals(1, ruta.stops().stream().filter(p -> p instanceof WarehouseVisit).count());
++        assertEquals(3, ruta.stops().stream().filter(p -> p instanceof DeliveryStop).count());
++    }
++
++    @Test
++    void conBloqueosMantenimientoYCruceDeMedianocheLosPlanesSonFactibles() {
++        // La factibilidad que usa la construccion debe coincidir con la del evaluador: planificando
++        // a las 19:00 las rutas cruzan de turno y de dia, con bloqueos activos y unidades que entran
++        // a mantenimiento al dia siguiente.
++        Instant tarde = LocalDateTime.of(2026, 9, 9, 19, 0).atZone(zona).toInstant();
++        List<Vehicle> flota = InicializadorFlota.crearFlotaInicial();
++        List<MaintenanceDay> mantenimiento = List.of(new MaintenanceDay("TA01", LocalDate.of(2026, 9, 10)),
++                new MaintenanceDay("TM01", LocalDate.of(2026, 9, 10)), new MaintenanceDay("TB01", LocalDate.of(2026, 9, 10)));
++        OperationalSnapshot snapshot = snapshotCon(tarde, flota, List.of(central, intNorOeste, intEste), mantenimiento);
++        List<RoadBlock> bloqueos = List.of(
++                new RoadBlock(tarde, tarde.plusSeconds(3 * 3600), List.of(new Location(27, 16), new Location(40, 16))),
++                new RoadBlock(tarde.plusSeconds(1800), tarde.plusSeconds(5 * 3600), List.of(new Location(20, 10), new Location(20, 30))),
++                new RoadBlock(tarde.plusSeconds(3600), tarde.plusSeconds(8 * 3600), List.of(new Location(45, 20), new Location(45, 35), new Location(55, 35))));
++        Random generador = new Random(99L);
++        int[] plazos = {4, 8, 12, 18, 36};
++        List<Order> pedidos = new ArrayList<>();
++        for (int i = 0; i < 18; i++) {
++            int paquetes = i % 6 == 0 ? 25 + generador.nextInt(8) : 1 + generador.nextInt(8);
++            pedidos.add(new Order(String.format("R-%02d", i), new Location(5 + generador.nextInt(61), 5 + generador.nextInt(41)),
++                    paquetes, tarde, tarde.plusSeconds(plazos[generador.nextInt(plazos.length)] * 3600L)));
++        }
++
++        for (long semilla : new long[]{1L, 2L, 3L, 4L, 5L}) {
++            ResultadoPlanificacion resultado = planificadorDePrueba(semilla).planificar(snapshot, pedidos, bloqueos, 0.3, 4);
++            assertTrue(resultado.esFactible(),
++                    () -> "semilla " + semilla + " produjo un plan infactible: " + resultado.evaluacion().violations());
++        }
++    }
++
+     @Test
+     void conVariosPedidosElPlanFinalSiempreEsFactibleYSinRutasVacias() {
+         // Regresion combinada: (1) reubicacion insertando despues del
+diff --git a/scripts/analyze.py b/scripts/analyze.py
+index 978e81b..7bc9ff2 100644
+--- a/scripts/analyze.py
++++ b/scripts/analyze.py
+@@ -31,6 +31,14 @@ def ok(row: dict[str, str]) -> bool:
+     return row.get("full_feasible") == "true"
+ 
+ 
++def ok_servable(row: dict[str, str]) -> bool:
++    """Rutas validas que cubren todo pedido atendible (secundaria; igual a ok() si no hay no atendibles).
++
++    Corridas de versiones anteriores sin esa columna usan ok()."""
++    value = row.get("full_servable_feasible", "")
++    return value == "true" if value else ok(row)
++
++
+ def average(values: list[float]) -> float | None:
+     return st.mean(values) if values else None
+ 
+@@ -100,7 +108,13 @@ def analyze(folder: Path, infer: bool, wilcoxon: bool, plots: bool) -> dict[str,
+         if both and (cg is None or cs is None):
+             raise ValueError("Corrida factible sin costo")
+         log_ratio = math.log(cg / cs) if both and cg is not None and cs is not None and cg > 0 and cs > 0 else None
++        both_servable = ok_servable(g) and ok_servable(s)
++        rg, rs = num(g, "cost_raw_do_not_rank_incomplete"), num(s, "cost_raw_do_not_rank_incomplete")
+         record = {"instance_id": key[0], "family": g["family"], "search_seed": key[1], "budget_ms": key[2], "mode": key[3],
++                  "orders_provably_unservable": g.get("orders_provably_unservable", ""),
++                  "grasp_servable_ok": int(ok_servable(g)), "sa_servable_ok": int(ok_servable(s)),
++                  # Si ambos cubren todo lo atendible entregan el mismo conjunto de pedidos: costos comparables.
++                  "log_cost_ratio_on_joint_servable_success": math.log(rg / rs) if both_servable and rg and rs and rg > 0 and rs > 0 else None,
+                   "grasp_ok": int(ok(g)), "sa_ok": int(ok(s)), "joint_success": int(both),
+                   "grasp_cost": cg, "sa_cost": cs,
+                   "cost_difference_grasp_minus_sa": cg-cs if both and cg is not None and cs is not None else None,
+@@ -122,7 +136,12 @@ def analyze(folder: Path, infer: bool, wilcoxon: bool, plots: bool) -> dict[str,
+                              "mean_log_cost_ratio_on_joint_success": average(logs),
+                              "all_repetitions_jointly_feasible": int(len(joint) == len(rr)),
+                              "grasp_mean_cost_on_joint_success": average([r["grasp_cost"] for r in joint]),
+-                             "sa_mean_cost_on_joint_success": average([r["sa_cost"] for r in joint])})
++                             "sa_mean_cost_on_joint_success": average([r["sa_cost"] for r in joint]),
++                             "orders_provably_unservable": rr[0]["orders_provably_unservable"],
++                             "grasp_servable_success_rate": st.mean(r["grasp_servable_ok"] for r in rr),
++                             "sa_servable_success_rate": st.mean(r["sa_servable_ok"] for r in rr),
++                             "mean_log_cost_ratio_on_joint_servable_success": average(
++                                 [r["log_cost_ratio_on_joint_servable_success"] for r in rr if r["log_cost_ratio_on_joint_servable_success"] is not None])})
+     grouped: dict[tuple[str, str, str, str], list[dict[str, str]]] = defaultdict(list)
+     for r in rows:
+         grouped[(r["family"], r["algorithm"], r["budget_ms"], r["mode"])].append(r)
+@@ -137,7 +156,10 @@ def analyze(folder: Path, infer: bool, wilcoxon: bool, plots: bool) -> dict[str,
+                           "mean_cost_on_success_not_directly_comparable": average(costs),
+                           "median_cost_on_success": st.median(costs) if costs else None,
+                           "sd_cost_on_success": st.stdev(costs) if len(costs)>1 else None,
+-                          "mean_elapsed_ms": average(elapsed), "mean_first_complete_ms_on_success": average(first)})
++                          "mean_elapsed_ms": average(elapsed), "mean_first_complete_ms_on_success": average(first),
++                          "servable_success_pct": 100 * sum(ok_servable(r) for r in rr) / len(rr),
++                          "mean_coverage_servable_pct": average([v for r in rr if (v := num(r, "coverage_servable_pct")) is not None]),
++                          "mean_coverage_orders_pct": average([v for r in rr if (v := num(r, "coverage_orders_pct")) is not None])})
+     out = folder / "analysis"
+     out.mkdir(exist_ok=True)
+     write_csv(out / "summary.csv", summaries)
+@@ -151,6 +173,8 @@ def analyze(folder: Path, infer: bool, wilcoxon: bool, plots: bool) -> dict[str,
+             "No se demuestra imposibilidad ni optimalidad. No extrapolar esta muestra a los tres escenarios operativos completos.",
+             "Las medias de costo por algoritmo sobre sus propios éxitos pueden usar muestras distintas: NO elegir ganador con ellas.",
+             "La independencia entre días reales no está garantizada. La inferencia es exploratoria para el conjunto de instancias definido.",
++            "Métricas *_servable_*: descriptivas y secundarias. Excluyen solo pedidos que ninguna ruta directa desde el central alcanza a tiempo (ver docs/PROTOCOLO.md). Las pruebas inferenciales usan la métrica primaria sin cambios.",
++            "Revisar mean_elapsed_ms: SA puede terminar por su esquema de enfriamiento antes del presupuesto; comparar costo a igual tiempo máximo no es comparar a igual tiempo usado.",
+         ], "statistics_requested": infer, "tests": []}
+     if infer:
+         for mode, budget in sorted({(r["mode"],r["budget_ms"]) for r in per_instance}):

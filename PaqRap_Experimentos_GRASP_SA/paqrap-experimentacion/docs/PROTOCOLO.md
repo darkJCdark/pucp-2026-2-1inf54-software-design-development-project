@@ -65,6 +65,8 @@ Para los sintéticos todas las demandas se conocen desde el instante de planific
 
 La campaña formal propone 8 instancias por familia: 32 sintéticas (6/12/18/24 pedidos y semillas publicadas), más 8 lotes reales de días distintos. Las fechas y parámetros están en el CSV y en los manifiestos, no ocultos en la interfaz.
 
+**Ventanas reales largas.** Con ventanas de varias horas, el lote se planifica al final de la ventana y algunos pedidos registrados al inicio ya vencieron: ningún plan de ese lote puede cubrirlos. Desde la versión 2 se excluyen al crear la instancia y se listan en `orders_expired_before_planning_excluded` del manifiesto. Con ventanas de 1 h no ocurre (el plazo mínimo es 4 h) y esas instancias conservan su huella. Estas ventanas modelan una acumulación de pedidos pendientes planificada de una vez: sirven para estudiar **volumen**, no reproducen la operación online.
+
 ## 6. Etapas y parámetros
 
 `smoke`: 4 instancias × 2 semillas × 2 algoritmos = 16 corridas. Verifica conectividad, métricas, fallos y formato de resultados, no superioridad.
@@ -73,7 +75,9 @@ La campaña formal propone 8 instancias por familia: 32 sintéticas (6/12/18/24 
 
 `formal`: 40 × 5 × 2 = 400. Es una propuesta práctica, no un cálculo de potencia ni un tamaño exigido por el curso. Los reales son 13–20 de septiembre. No se ajustarán parámetros mirando sus resultados y luego se presentarán como evaluación independiente.
 
-Los valores de `alpha=0.3`, temperatura 1000, enfriamiento 0.95 y 50 vecinos por nivel son puntos de partida conservados del desarrollo, **no configuraciones óptimas demostradas**. Si se calibra, dedicar esfuerzo comparable a los dos algoritmos y registrar el procedimiento, sin seleccionar únicamente su mejor corrida aislada.
+`escalabilidad` (versión 2): 8 × 3 × 2 algoritmos × 2 presupuestos (5 y 20 s) = 96. Estudia el comportamiento con más pedidos: 24, 48, 96 y 144 sintéticos, y ventanas reales de 1, 2, 4 y 8 h de los días 21–24 de septiembre, que no se usan en piloto ni en la campaña formal. Los dos presupuestos se analizan por separado.
+
+Los valores de `alpha=0.3`, temperatura 1000, enfriamiento 0.95 y 50 vecinos por nivel son puntos de partida conservados del desarrollo, **no configuraciones óptimas demostradas**. Si se calibra, dedicar esfuerzo comparable a los dos algoritmos y registrar el procedimiento, sin seleccionar únicamente su mejor corrida aislada. Con la red de caminos de la versión 2, ese esquema de SA termina en 1–2 s: en el piloto conviene decidir si se compara a igual tiempo máximo (diseño actual) o a igual tiempo usado (requiere calibrar el esquema de SA), y dejarlo escrito antes de la campaña formal.
 
 ## 7. Métricas e interpretación
 
@@ -83,7 +87,9 @@ Los valores de `alpha=0.3`, temperatura 1000, enfriamiento 0.95 y 50 vecinos por
 
 **Costo:** suma calculada por el evaluador. Se utiliza para comparación directa únicamente cuando ambos algoritmos de una pareja cubren toda la demanda con un plan factible. `cost_raw_do_not_rank_incomplete` es diagnóstico, no indicador para seleccionar ganador entre plan parcial y completo.
 
-**Eficiencia:** tiempo hasta la primera solución completa, calidad obtenida al consumir el presupuesto, evaluaciones y consultas de caminos. El tiempo total es poco informativo para seleccionar velocidad cuando ambos alcanzan el mismo tope. Los casos sin primer éxito son fallos/censurados, no tiempos cero.
+**Eficiencia:** tiempo hasta la primera solución completa, calidad obtenida al consumir el presupuesto, evaluaciones y consultas de caminos. El tiempo total es poco informativo para seleccionar velocidad cuando ambos alcanzan el mismo tope. Los casos sin primer éxito son fallos/censurados, no tiempos cero. `path_queries` cuenta solicitudes a la red (desde la versión 2, igual para ambos: GRASP ya no tiene caché privada); una solicitud repetida puede resolverse desde la caché exacta de la red.
+
+**Secundarias: pedidos atendibles (versión 2).** Un pedido es *demostrablemente no atendible* si, para cada vehículo disponible al planificar, la ruta directa central → pedido → central que sale en ese instante incumple el plazo u otra regla dura por ruta (camino, 80 km, refrigerio, mantenimiento), evaluada con el mismo scheduler común. Esa ruta da la llegada más temprana posible: cualquier parada previa o salida posterior solo la retrasa. `full_servable_feasible` exige rutas válidas que entreguen a tiempo todos los demás pedidos; `coverage_servable_pct` mide la cobertura sobre ellos. Si ambos algoritmos de una pareja cumplen `full_servable_feasible`, entregan el mismo conjunto y su costo es comparable. Estas métricas son **descriptivas**: la métrica primaria y las pruebas inferenciales no cambian. Se calculan en la auditoría, fuera del tiempo medido.
 
 **Memoria:** `heap_sampled_peak_mib` es el máximo de muestras de heap utilizado durante la búsqueda. No es pico exacto, memoria incremental atribuible al algoritmo, RSS del proceso ni memoria reservada. Se incluyen objetos preexistentes del proceso. No usarlo como una medición exhaustiva del consumo.
 

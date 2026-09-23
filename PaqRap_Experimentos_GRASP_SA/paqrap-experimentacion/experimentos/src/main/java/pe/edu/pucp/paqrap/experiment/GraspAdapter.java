@@ -6,6 +6,7 @@ import pe.pucp.paqrap.planificador.GraspPlanificador;
 
 public final class GraspAdapter implements UnifiedPlanner {
     @Override public String name(){return "GRASP";}
+    @Override public String version(){return GraspPlanificador.VERSION;}
     @Override public AlgorithmOutput solve(ProblemInstance p,ExperimentConfig c,long seed){
         RoadNetwork network=new RoadNetwork();
         RouteScheduler scheduler=new RouteScheduler(network);

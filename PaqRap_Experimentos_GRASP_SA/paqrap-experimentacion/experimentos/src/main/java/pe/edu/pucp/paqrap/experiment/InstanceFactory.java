@@ -26,6 +26,7 @@ public final class InstanceFactory {
         List<Order> orders=new ArrayList<>();List<RoadBlock> blocks=new ArrayList<>();
         List<MaintenanceDay> maintenance=new ArrayList<>();List<BreakdownEvent> breakdowns=new ArrayList<>();
         Map<String,Object> inputFiles=new TreeMap<>();
+        List<String> expired=new ArrayList<>();
         Random generator=new Random(spec.instanceSeed());
         if(spec.source().equals("REAL")) {
             YearMonth month=YearMonth.from(spec.date());
@@ -33,6 +34,11 @@ public final class InstanceFactory {
             Path sales=config.root().resolve("data/ventas/ventas."+ym+".txt");
             orders.addAll(CargadorPedidos.desdeArchivo(sales,month,zone,from,to));
             if(spec.orders()>0 && orders.size()>spec.orders()) orders=new ArrayList<>(orders.subList(0,spec.orders()));
+            // Un pedido cuyo plazo ya vencio al planificar (fin de la ventana de recogida) no puede
+            // cubrirlo ningun plan de este lote. Con ventanas de 1 h nunca ocurre (plazo minimo 4 h);
+            // con ventanas largas si. Se excluye y se registra en el manifiesto; no se oculta.
+            for(Order o:orders)if(!o.deadline().isAfter(planning))expired.add(o.id());
+            orders.removeIf(o->!o.deadline().isAfter(planning));
             hashFile(inputFiles,sales,config.root());
             // Load all provided months overlapping the planning horizon, not only the order-arrival hour.
             Instant horizon=orders.stream().map(Order::deadline).max(Instant::compareTo).orElse(planning).plus(Duration.ofDays(2));
@@ -90,6 +96,11 @@ public final class InstanceFactory {
                 "blocks",blocks.stream().map(b->obj("from",b.startsAt(),"to",b.endsAt(),"nodes",b.nodes().stream().map(n->List.of(n.x(),n.y())).toList())).toList(),
                 "maintenance",maintenance.stream().map(m->obj("vehicle",m.vehicleId(),"date",m.date())).toList(),
                 "breakdowns",List.of(),"source_file_sha256",inputFiles);
+        // Solo si hubo exclusiones: las instancias previas (ventanas de 1 h) conservan su huella.
+        if(!expired.isEmpty()){
+            manifest=new LinkedHashMap<>(manifest);
+            manifest.put("orders_expired_before_planning_excluded",expired);
+        }
         return new ProblemInstance(spec,snapshot,orders,blocks,manifest,Json.sha256(Json.encode(manifest)));
     }
     private static void hashFile(Map<String,Object> m,Path f,Path root){try{m.put(root.relativize(f).toString().replace('\\','/'),Json.sha256(Files.readAllBytes(f)));}catch(Exception e){throw new IllegalArgumentException("Cannot hash "+f,e);}}

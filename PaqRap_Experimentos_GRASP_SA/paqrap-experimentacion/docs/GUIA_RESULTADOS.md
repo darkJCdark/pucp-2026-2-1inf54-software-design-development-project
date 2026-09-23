@@ -36,7 +36,12 @@
 - `plan_evaluations`, `route_schedules`, `path_queries`: diagnósticos sobre el núcleo compartido.
 - `heap_sampled_peak_mib`: máximo observado de heap, aproximado (no RSS ni pico exacto).
 - `plan_sha256`: huella del detalle de rutas/horarios, usada para regresión con modo FIXED.
+- `orders_provably_unservable` (v2): pedidos que ni una ruta directa desde el central alcanza a tiempo con ningún vehículo disponible; ningún algoritmo puede cubrirlos.
+- `servable_orders_fully_served`, `coverage_servable_pct`, `full_servable_feasible` (v2): cobertura y éxito sobre los pedidos atendibles. Métricas secundarias; con cero no atendibles coinciden con las principales.
+- `algorithm_version` (v2): versión de la implementación medida. No mezclar versiones en un mismo análisis.
 - `detail`: motivo de fallo o información del adaptador.
+
+En el manifiesto de una instancia real, `orders_expired_before_planning_excluded` (v2) lista los pedidos cuyo plazo ya había vencido al planificar y que por eso no se entregaron a los algoritmos.
 
 ## Trazas
 
@@ -48,6 +53,6 @@
 
 `per_instance.csv`: agrega semillas de la misma instancia, con porcentaje de éxito por algoritmo y razón/diferencia de costo en éxitos conjuntos. `all_repetitions_jointly_feasible=1` identifica el subconjunto de inferencia condicional de costo.
 
-`summary.csv`: descripción por familia, algoritmo, presupuesto y modo. Una media de costos de los éxitos propios de GRASP y otra de los éxitos propios de SA pueden incluir distintas instancias. Por eso se etiqueta `mean_cost_on_success_not_directly_comparable`; no usarla sola para elegir ganador.
+`summary.csv`: descripción por familia, algoritmo, presupuesto y modo; desde la v2 incluye `servable_success_pct`, `mean_coverage_servable_pct` y `mean_coverage_orders_pct`. Una media de costos de los éxitos propios de GRASP y otra de los éxitos propios de SA pueden incluir distintas instancias. Por eso se etiqueta `mean_cost_on_success_not_directly_comparable`; no usarla sola para elegir ganador.
 
 `analysis.json`: advertencias, tamaños de muestra y contrastes solicitados. Se deja vacío lo no estimable, en vez de inventar ceros. Los contrastes son exploratorios, no una conclusión automática de superioridad.

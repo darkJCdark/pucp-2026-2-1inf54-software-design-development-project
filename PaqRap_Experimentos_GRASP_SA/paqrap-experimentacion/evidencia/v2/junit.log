@@ -1,0 +1,48 @@
+-------------------------------------------------------------------------------
+Test set: pe.edu.pucp.paqrap.planner.domain.DomainRulesSmokeTest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.133 s -- in pe.edu.pucp.paqrap.planner.domain.DomainRulesSmokeTest
+-------------------------------------------------------------------------------
+Test set: pe.edu.pucp.paqrap.planner.domain.OperationalSnapshotSmokeTest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.026 s -- in pe.edu.pucp.paqrap.planner.domain.OperationalSnapshotSmokeTest
+-------------------------------------------------------------------------------
+Test set: pe.edu.pucp.paqrap.planner.domain.RoadNetworkBloqueoTest
+-------------------------------------------------------------------------------
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.052 s -- in pe.edu.pucp.paqrap.planner.domain.RoadNetworkBloqueoTest
+-------------------------------------------------------------------------------
+Test set: pe.edu.pucp.paqrap.planner.domain.RoadNetworkDifferentialTest
+-------------------------------------------------------------------------------
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 10.24 s -- in pe.edu.pucp.paqrap.planner.domain.RoadNetworkDifferentialTest
+-------------------------------------------------------------------------------
+Test set: pe.edu.pucp.paqrap.planner.domain.RoadNetworkSmokeTest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s -- in pe.edu.pucp.paqrap.planner.domain.RoadNetworkSmokeTest
+-------------------------------------------------------------------------------
+Test set: pe.edu.pucp.paqrap.planner.route.DeliveryRouteSmokeTest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.017 s -- in pe.edu.pucp.paqrap.planner.route.DeliveryRouteSmokeTest
+-------------------------------------------------------------------------------
+Test set: pe.edu.pucp.paqrap.planner.route.OperationalPlanEvaluatorLegDistanceTest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.024 s -- in pe.edu.pucp.paqrap.planner.route.OperationalPlanEvaluatorLegDistanceTest
+-------------------------------------------------------------------------------
+Test set: pe.edu.pucp.paqrap.planner.route.OperationalPlanEvaluatorSmokeTest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.014 s -- in pe.edu.pucp.paqrap.planner.route.OperationalPlanEvaluatorSmokeTest
+-------------------------------------------------------------------------------
+Test set: pe.edu.pucp.paqrap.planner.route.RouteSchedulerRefrigerioTest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s -- in pe.edu.pucp.paqrap.planner.route.RouteSchedulerRefrigerioTest
+-------------------------------------------------------------------------------
+Test set: pe.edu.pucp.paqrap.experiment.ExperimentRegressionTest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.359 s -- in pe.edu.pucp.paqrap.experiment.ExperimentRegressionTest
+-------------------------------------------------------------------------------
+Test set: pe.pucp.paqrap.planificador.GraspPlanificadorTest
+-------------------------------------------------------------------------------
+Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.549 s -- in pe.pucp.paqrap.planificador.GraspPlanificadorTest
+-------------------------------------------------------------------------------
+Test set: pe.edu.pucp.paqrap.planner.sa.OperationalSimulatedAnnealingSmokeTest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.175 s -- in pe.edu.pucp.paqrap.planner.sa.OperationalSimulatedAnnealingSmokeTest

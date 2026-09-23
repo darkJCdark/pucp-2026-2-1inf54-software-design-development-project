@@ -1,0 +1,49 @@
+Benchmark GRASP/SA antes y despues (misma maquina: Windows 11, JDK 21, -Xmx512m, ActiveProcessorCount=2, semilla 42).
+Cada linea: una corrida en JVM nueva con calentamiento, presupuesto de tiempo fijo, auditoria comun con TODOS los pedidos.
+Bloques:
+  baseline        = ZIP recibido (version 1)
+  step1-network   = solo RoadNetwork optimizada (GRASP v1)
+  step2-grasp-clean = RoadNetwork optimizada + GRASP v2 (entregado)
+  step2-sa        = SA sin cambios sobre la RoadNetwork optimizada
+Nota: en step1-network la ventana real 7-11 fallo con IllegalArgumentException (RCL vacia por costo infinito, bug de GRASP v1 corregido en v2).
+Nota: la seccion 'step2-grasp' (sin -clean) se descarta: su JAR mezclaba clases viejas (shade sin clean).
+
+### baseline GRASP Wed Sep 23 12:35:02 HPS 2026
+BREAL0_7_8,REAL,orders=8,blocks=53,alg=GRASP,budget=5000,full=true,served=8/8,cost=3274,elapsed=5000,firstComplete=953,iters=12,evals=23,schedules=497,paths=1039,routes=7,timeout=true
+BREAL0_7_11,REAL,orders=38,blocks=52,alg=GRASP,budget=20000,full=false,served=35/38,cost=11672,elapsed=20000,firstComplete=-,iters=1,evals=1,schedules=1177,paths=7658,routes=26,timeout=true
+BREAL0_7_15,REAL,orders=75,blocks=51,alg=GRASP,budget=30000,full=false,served=67/75,cost=17744,elapsed=30000,firstComplete=-,iters=1,evals=1,schedules=1321,paths=11817,routes=32,timeout=true
+BNORMAL24_7_8,NORMAL,orders=24,blocks=0,alg=GRASP,budget=5000,full=true,served=24/24,cost=5834,elapsed=5000,firstComplete=623,iters=2,evals=3,schedules=1599,paths=8530,routes=14,timeout=true
+BNORMAL60_7_8,NORMAL,orders=60,blocks=0,alg=GRASP,budget=20000,full=true,served=60/60,cost=13778,elapsed=20000,firstComplete=1947,iters=1,evals=1,schedules=5956,paths=42794,routes=33,timeout=true
+BNORMAL120_7_8,NORMAL,orders=120,blocks=0,alg=GRASP,budget=30000,full=true,served=120/120,cost=24810,elapsed=30000,firstComplete=7833,iters=1,evals=1,schedules=6560,paths=67593,routes=36,timeout=true
+BSPLIT24_7_8,SPLIT,orders=24,blocks=0,alg=GRASP,budget=5000,full=false,served=16/24,cost=3780,elapsed=5000,firstComplete=-,iters=10,evals=19,schedules=3115,paths=8389,routes=10,timeout=true
+### baseline SA Wed Sep 23 12:37:03 HPS 2026
+BREAL0_7_8,REAL,orders=8,blocks=53,alg=SA,budget=5000,full=true,served=8/8,cost=4424,elapsed=5000,firstComplete=385,iters=62,evals=54,schedules=459,paths=1245,routes=8,timeout=true
+BREAL0_7_11,REAL,orders=38,blocks=52,alg=SA,budget=20000,full=false,served=0/38,cost=0,elapsed=943,firstComplete=-,iters=0,evals=1,schedules=36,paths=90,routes=0,timeout=false
+BREAL0_7_15,REAL,orders=75,blocks=51,alg=SA,budget=30000,full=false,served=0/75,cost=0,elapsed=1253,firstComplete=-,iters=0,evals=1,schedules=36,paths=176,routes=0,timeout=false
+BNORMAL24_7_8,NORMAL,orders=24,blocks=0,alg=SA,budget=5000,full=true,served=24/24,cost=9906,elapsed=5000,firstComplete=192,iters=105,evals=94,schedules=2704,paths=6394,routes=28,timeout=true
+BNORMAL60_7_8,NORMAL,orders=60,blocks=0,alg=SA,budget=20000,full=true,served=60/60,cost=23786,elapsed=20000,firstComplete=256,iters=227,evals=170,schedules=6269,paths=26611,routes=37,timeout=true
+BNORMAL120_7_8,NORMAL,orders=120,blocks=0,alg=SA,budget=30000,full=false,served=0/120,cost=0,elapsed=265,firstComplete=-,iters=0,evals=1,schedules=37,paths=268,routes=0,timeout=false
+BSPLIT24_7_8,SPLIT,orders=24,blocks=0,alg=SA,budget=5000,full=true,served=24/24,cost=15800,elapsed=5000,firstComplete=184,iters=84,evals=70,schedules=2544,paths=6430,routes=37,timeout=true
+### step1-network GRASP Wed Sep 23 12:41:04 HPS 2026
+BREAL0_7_8,REAL,orders=8,blocks=53,alg=GRASP,budget=5000,full=true,served=8/8,cost=2294,elapsed=5000,firstComplete=55,iters=16714,evals=33427,schedules=786385,paths=1654947,routes=4,timeout=true
+BREAL0_7_15,REAL,orders=75,blocks=51,alg=GRASP,budget=30000,full=false,served=67/75,cost=17042,elapsed=30000,firstComplete=-,iters=18,evals=35,schedules=708673,paths=6422866,routes=32,timeout=true
+BNORMAL24_7_8,NORMAL,orders=24,blocks=0,alg=GRASP,budget=5000,full=true,served=24/24,cost=4602,elapsed=5000,firstComplete=58,iters=557,evals=1113,schedules=632232,paths=3463716,routes=11,timeout=true
+BNORMAL60_7_8,NORMAL,orders=60,blocks=0,alg=GRASP,budget=20000,full=true,served=60/60,cost=10862,elapsed=20000,firstComplete=165,iters=155,evals=309,schedules=2575225,paths=21481842,routes=26,timeout=true
+BNORMAL120_7_8,NORMAL,orders=120,blocks=0,alg=GRASP,budget=30000,full=true,served=120/120,cost=22358,elapsed=30000,firstComplete=497,iters=17,evals=33,schedules=3450119,paths=34452219,routes=37,timeout=true
+BSPLIT24_7_8,SPLIT,orders=24,blocks=0,alg=GRASP,budget=5000,full=false,served=16/24,cost=2908,elapsed=5000,firstComplete=-,iters=2799,evals=5596,schedules=841475,paths=2272496,routes=6,timeout=true
+### step2-grasp-clean GRASP Wed Sep 23 12:56:10 HPS 2026
+BREAL0_7_8,REAL,orders=8,blocks=53,alg=GRASP,budget=5000,full=true,served=8/8,cost=2242,elapsed=5000,firstComplete=72,iters=8007,evals=16012,schedules=63342,paths=3857859,routes=3,timeout=true
+BREAL0_7_11,REAL,orders=38,blocks=52,alg=GRASP,budget=20000,full=false,served=35/38,cost=6356,elapsed=20001,firstComplete=-,iters=49,evals=97,schedules=73828,paths=1081108,routes=9,timeout=true
+BREAL0_7_15,REAL,orders=75,blocks=51,alg=GRASP,budget=30000,full=false,served=67/75,cost=11070,elapsed=30001,firstComplete=-,iters=14,evals=27,schedules=108324,paths=1638214,routes=14,timeout=true
+BNORMAL24_7_8,NORMAL,orders=24,blocks=0,alg=GRASP,budget=5000,full=true,served=24/24,cost=4248,elapsed=5002,firstComplete=61,iters=283,evals=564,schedules=86861,paths=1454749,routes=8,timeout=true
+BNORMAL60_7_8,NORMAL,orders=60,blocks=0,alg=GRASP,budget=20000,full=true,served=60/60,cost=8640,elapsed=20000,firstComplete=156,iters=231,evals=461,schedules=961312,paths=13107823,routes=14,timeout=true
+BNORMAL120_7_8,NORMAL,orders=120,blocks=0,alg=GRASP,budget=30000,full=true,served=120/120,cost=15634,elapsed=30001,firstComplete=363,iters=61,evals=121,schedules=1365060,paths=17341232,routes=21,timeout=true
+BSPLIT24_7_8,SPLIT,orders=24,blocks=0,alg=GRASP,budget=5000,full=true,served=24/24,cost=5474,elapsed=5001,firstComplete=92,iters=370,evals=738,schedules=169527,paths=2608615,routes=8,timeout=true
+### step2-sa SA Wed Sep 23 12:59:54 HPS 2026
+BREAL0_7_8,REAL,orders=8,blocks=53,alg=SA,budget=5000,full=true,served=8/8,cost=4424,elapsed=1367,firstComplete=32,iters=6750,evals=4861,schedules=136399,paths=497721,routes=8,timeout=false
+BREAL0_7_11,REAL,orders=38,blocks=52,alg=SA,budget=20000,full=false,served=0/38,cost=0,elapsed=63,firstComplete=-,iters=0,evals=1,schedules=36,paths=90,routes=0,timeout=false
+BREAL0_7_15,REAL,orders=75,blocks=51,alg=SA,budget=30000,full=false,served=0/75,cost=0,elapsed=91,firstComplete=-,iters=0,evals=1,schedules=36,paths=176,routes=0,timeout=false
+BNORMAL24_7_8,NORMAL,orders=24,blocks=0,alg=SA,budget=5000,full=true,served=24/24,cost=9906,elapsed=1739,firstComplete=18,iters=6750,evals=4884,schedules=179278,paths=825844,routes=28,timeout=false
+BNORMAL60_7_8,NORMAL,orders=60,blocks=0,alg=SA,budget=20000,full=true,served=60/60,cost=18948,elapsed=2184,firstComplete=28,iters=6750,evals=4866,schedules=180033,paths=1424624,routes=37,timeout=false
+BNORMAL120_7_8,NORMAL,orders=120,blocks=0,alg=SA,budget=30000,full=false,served=0/120,cost=0,elapsed=44,firstComplete=-,iters=0,evals=1,schedules=37,paths=268,routes=0,timeout=false
+BSPLIT24_7_8,SPLIT,orders=24,blocks=0,alg=SA,budget=5000,full=true,served=24/24,cost=14711,elapsed=1669,firstComplete=20,iters=6750,evals=4847,schedules=179297,paths=1157469,routes=37,timeout=false
