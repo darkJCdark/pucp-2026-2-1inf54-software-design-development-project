@@ -1,0 +1,15 @@
+# Alcance y limitaciones · v3
+
+El laboratorio está preparado para ejecutar pilotos y campañas de planificación **estática por lotes**, con los supuestos declarados en `PROTOCOLO.md`. No constituye una implementación ni validación de todo PaqRap.
+
+1. **Sin garantía de óptimo o cobertura total.** GRASP y SA son heurísticas. Que no encuentren un plan completo dentro del tiempo no prueba colapso. El certificado Manhattan solo descarta algunos pedidos individualmente imposibles en el estado estático.
+2. **Reloj y servicio explícitos.** Las comidas tienen franjas fijas, no horarios optimizados por conductor. La hora de servicio es ininterrumpida. Los márgenes de una hora provienen del código anterior; el contexto maestro no los cuantifica. Cambiar estas convenciones exige una campaña nueva para ambos algoritmos.
+3. **Lotes reales, no operación online.** La planificación ocurre al cierre de la ventana. Mantener vencidos hace visible esa dificultad; excluirlos cambia el problema. La operación continua podría haberlos despachado antes. No atribuir automáticamente este efecto al algoritmo ni al sistema productivo.
+4. **Alcance de las incidencias.** Se incluyen los bloqueos proporcionados. No se implementó la simulación interactiva de averías, trasvases de 30 minutos, mantenimiento de producción, cambios de velocidad durante una simulación ni detección certificada del colapso. Los tipos de dominio que ya existían se conservan, pero la fábrica experimental no los activa.
+5. **Búsqueda no exhaustiva.** La reparación usa recargas centrales cuando necesita dividir carga, y no enumera todos los esquemas de partición, espera o almacén posibles. La elección de camino minimiza llegada con desempates deterministas, no resuelve una optimización multiobjetivo global de espera y distancia. Esto limita calidad, no autoriza a relajar el evaluador.
+6. **Tiempo real.** Hay pequeñas sobrepasadas cooperativas; la JVM y el sistema operativo introducen variación. Se conserva el mejor candidato ya evaluado y se registra el tiempo consumido. Semilla fija en TIME no garantiza identidad bit a bit en hardware distinto.
+7. **Parámetros por calibrar.** Los perfiles formal y escalabilidad son configuraciones ejecutables, no prueba de que sus presupuestos sean adecuados para cualquier máquina o volumen. No se corrió aquí la campaña formal de 400 corridas. El lote real de 41 pedidos del piloto no fue completado por ninguno a 1,5 segundos.
+8. **Verificación acotada.** Se ejecutaron compilación Java 21, las pruebas autónomas y los experimentos documentados. Maven no estaba instalado; no se ejecutó `mvn test` ni se afirma que la suite JUnit haya sido corrida. Los scripts PowerShell están incluidos, pero esta verificación se realizó en Linux.
+9. **Integración separada.** El frontend y el backend REST del ZIP no fueron modificados ni probados. La versión corregida está dentro del laboratorio autónomo; integrar sus API al producto completo es una tarea distinta.
+
+Estas limitaciones no impiden medir ambas implementaciones con reglas comunes; delimitan exactamente qué significan sus resultados.

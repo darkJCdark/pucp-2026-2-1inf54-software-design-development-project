@@ -1,0 +1,2 @@
+id,family,source,n_orders,instance_seed,date,from_hour,to_hour
+EDGE,NORMAL,SYNTHETIC,20,921,2026-09-09,7,8

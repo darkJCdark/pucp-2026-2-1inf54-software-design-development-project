@@ -1,0 +1,16 @@
+{
+  "pass": true,
+  "runs_checked": 38,
+  "pairs_checked": 19,
+  "checks": [
+    "plan SHA-256",
+    "paired input equality",
+    "street adjacency and travel time",
+    "temporal blocked-node exclusion including exact activation",
+    "vehicle id/type/capacity and load continuity",
+    "order registration/deadline and quantity conservation",
+    "raw cost and distance recalculation",
+    "complete flags and blank incomplete-success cost"
+  ],
+  "scope": "Independent Python inspection of recorded plans; shared Java evaluator remains experimental authority."
+}

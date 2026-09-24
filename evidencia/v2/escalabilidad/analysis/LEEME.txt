@@ -1,0 +1,12 @@
+Las semillas son repeticiones dentro de instancia; no se tratan como instancias independientes.
+La factibilidad se compara con todas las corridas, incluidos los fallos. El costo se compara solo en parejas factibles.
+La inferencia de costo (opcional) usa SOLO instancias con todas sus repeticiones factibles en ambos algoritmos; su alcance es condicional a ese subconjunto.
+No se demuestra imposibilidad ni optimalidad. No extrapolar esta muestra a los tres escenarios operativos completos.
+Las medias de costo por algoritmo sobre sus propios éxitos pueden usar muestras distintas: NO elegir ganador con ellas.
+La independencia entre días reales no está garantizada. La inferencia es exploratoria para el conjunto de instancias definido.
+Métricas *_servable_*: descriptivas y secundarias. Excluyen solo pedidos que ninguna ruta directa desde el central alcanza a tiempo (ver docs/PROTOCOLO.md). Las pruebas inferenciales usan la métrica primaria sin cambios.
+Revisar mean_elapsed_ms: SA puede terminar por su esquema de enfriamiento antes del presupuesto; comparar costo a igual tiempo máximo no es comparar a igual tiempo usado.
+SciPy no instalado: se omitieron Shapiro y Wilcoxon, sin inventar p-valores.
+SciPy no instalado: se omitieron Shapiro y Wilcoxon, sin inventar p-valores.
+
+No copiar resultados de pruebas smoke al informe como evidencia definitiva.

@@ -1,0 +1,5 @@
+instance_id,family,budget_ms,mode,paired_repetitions,grasp_success_rate,sa_success_rate,success_difference_grasp_minus_sa,joint_success_repetitions,mean_cost_difference_on_joint_success,mean_log_cost_ratio_on_joint_success,all_repetitions_jointly_feasible,grasp_mean_cost_on_joint_success,sa_mean_cost_on_joint_success,orders_provably_unservable,grasp_unruled_out_success_rate,sa_unruled_out_success_rate,mean_log_cost_ratio_on_joint_unruled_out_success
+SMOKE01,NORMAL,1500,TIME,2,1,1,0,2,198.0,0.38171102210005725,1,624.0,426.0,0,1,1,0.38171102210005725
+SMOKE02,BLOCKED,1500,TIME,2,1,1,0,2,264.0,0.36509331620949137,1,864.0,600.0,0,1,1,0.36509331620949137
+SMOKE03,SPLIT,1500,TIME,2,1,1,0,2,296.0,0.40101075775878414,1,896.0,600.0,0,1,1,0.40101075775878414
+SMOKE04,REAL,1500,TIME,2,1,1,0,2,348.0,0.14786754601394617,1,2544.0,2196.0,0,1,1,0.14786754601394617

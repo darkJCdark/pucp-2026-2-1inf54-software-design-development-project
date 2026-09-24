@@ -1,0 +1,7 @@
+{
+  "java": "openjdk version \"21.0.11\" 2026-04-21\nOpenJDK Runtime Environment (build 21.0.11+10-1-deb13u2-Debian)\nOpenJDK 64-Bit Server VM (build 21.0.11+10-1-deb13u2-Debian, mixed mode, sharing)",
+  "os": "Linux c702884e5006 6.18.44 #1 SMP Tue Sep 22 17:26:16 UTC 2026 x86_64 GNU/Linux",
+  "maven_executed": false,
+  "powershell_executed": false,
+  "jar_sha256": "2130c4e3913a06c4f992be9b300c2b4d2784417d478d81ca5ae79100b1c5d181"
+}

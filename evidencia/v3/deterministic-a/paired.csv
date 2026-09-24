@@ -1,0 +1,3 @@
+instance_id,search_seed,budget_ms,grasp_ok,sa_ok,grasp_cost,sa_cost,difference_grasp_minus_sa
+SMOKE01,42,0,true,true,624.000000,600.000000,24.000000
+SMOKE02,42,0,true,true,864.000000,942.000000,-78.000000

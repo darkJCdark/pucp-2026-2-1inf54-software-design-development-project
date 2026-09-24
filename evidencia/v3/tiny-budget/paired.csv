@@ -1,0 +1,2 @@
+instance_id,search_seed,budget_ms,grasp_ok,sa_ok,grasp_cost,sa_cost,difference_grasp_minus_sa
+EDGE,42,1,false,false,,,

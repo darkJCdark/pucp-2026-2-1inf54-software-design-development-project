@@ -1,0 +1,5 @@
+{
+  "no_fleet_does_not_score_as_success": true,
+  "tiny_budget_preserves_explicit_unsuccessful_state": true,
+  "complete_cost_blank_for_both_cases": true
+}

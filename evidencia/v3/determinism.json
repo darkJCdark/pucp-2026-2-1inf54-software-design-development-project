@@ -1,0 +1,15 @@
+{
+  "pass": true,
+  "pairs_checked": 4,
+  "compared_fields": [
+    "run_id",
+    "input_sha256",
+    "plan_sha256",
+    "full_feasible",
+    "cost_complete_feasible",
+    "orders_missing",
+    "iterations",
+    "plan_evaluations"
+  ],
+  "note": "Different child JVMs; timing deliberately excluded."
+}

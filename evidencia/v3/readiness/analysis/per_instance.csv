@@ -1,0 +1,6 @@
+instance_id,family,budget_ms,mode,paired_repetitions,grasp_success_rate,sa_success_rate,success_difference_grasp_minus_sa,joint_success_repetitions,mean_cost_difference_on_joint_success,mean_log_cost_ratio_on_joint_success,all_repetitions_jointly_feasible,grasp_mean_cost_on_joint_success,sa_mean_cost_on_joint_success,orders_provably_unservable,grasp_unruled_out_success_rate,sa_unruled_out_success_rate,mean_log_cost_ratio_on_joint_unruled_out_success
+READY05,BLOCKED,1500,TIME,1,1,1,0,1,2.0,0.0018132371241807218,1,1104.0,1102.0,0,1,1,0.0018132371241807218
+READY10,BLOCKED,1500,TIME,1,1,1,0,1,308.0,0.15292368580828947,1,2172.0,1864.0,0,1,1,0.15292368580828947
+READY15,BLOCKED,1500,TIME,1,1,1,0,1,-531.0,-0.21086690926911095,1,2262.0,2793.0,0,1,1,-0.21086690926911095
+READY20,BLOCKED,1500,TIME,1,1,1,0,1,-2.0,-0.0005177323439488191,1,3862.0,3864.0,0,1,1,-0.0005177323439488191
+READYREAL,REAL,1500,TIME,1,0,0,0,0,,,0,,,3,0,1,

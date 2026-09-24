@@ -1,0 +1,286 @@
+--- original/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/RouteScheduler.java
++++ unificado/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/RouteScheduler.java
+@@ -1,4 +1,6 @@
+ package pe.edu.pucp.paqrap.planner.route;
++
++import pe.edu.pucp.paqrap.planner.search.SearchControl;
+ 
+ import pe.edu.pucp.paqrap.planner.domain.FleetProfile;
+ import pe.edu.pucp.paqrap.planner.domain.OperationalSnapshot;
+@@ -22,6 +24,7 @@
+     }
+ 
+     public ScheduledDeliveryRoute schedule(DeliveryRoute route, OperationalSnapshot snapshot, List<RoadBlock> blocks) {
++        SearchControl.routeSchedule();
+         Objects.requireNonNull(route, "route is required");
+         Objects.requireNonNull(snapshot, "snapshot is required");
+         Objects.requireNonNull(blocks, "blocks are required");
+--- original/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/InitialPlanBuilder.java
++++ unificado/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/InitialPlanBuilder.java
+@@ -8,6 +8,7 @@
+ import pe.edu.pucp.paqrap.planner.domain.Warehouse;
+ 
+ import java.util.ArrayList;
++import pe.edu.pucp.paqrap.planner.search.SearchControl;
+ import java.util.Collection;
+ import java.util.Comparator;
+ import java.util.List;
+@@ -44,8 +45,10 @@
+         ordered.sort(Comparator.comparing(Order::deadline));
+         int routeCursor = 0;
+         for (Order order : ordered) {
++            SearchControl.checkpoint();
+             int remaining = order.packages();
+             while (remaining > 0) {
++                SearchControl.checkpoint();
+                 RouteDraft draft = drafts.get(routeCursor % drafts.size());
+                 routeCursor++;
+                 draft.ensureLoadFor(remaining);
+@@ -61,7 +64,9 @@
+                 plan = plan.withRoute(draft.route.returningTo(central));
+             }
+         }
+-        return evaluator.evaluate(plan, snapshot, orders, blocks).isFeasible() ? Optional.of(plan) : Optional.empty();
++        PlanEvaluation evaluation = evaluator.evaluate(plan, snapshot, orders, blocks);
++        if (evaluation.isFeasible()) SearchControl.observe(true, 0, evaluation.totalCost());
++        return evaluation.isFeasible() ? Optional.of(plan) : Optional.empty();
+     }
+ 
+     private static final class RouteDraft {
+--- original/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/OperationalPlanEvaluator.java
++++ unificado/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/OperationalPlanEvaluator.java
+@@ -1,4 +1,6 @@
+ package pe.edu.pucp.paqrap.planner.route;
++
++import pe.edu.pucp.paqrap.planner.search.SearchControl;
+ 
+ import pe.edu.pucp.paqrap.planner.domain.InventorySnapshot;
+ import pe.edu.pucp.paqrap.planner.domain.OperationalSnapshot;
+@@ -34,6 +36,7 @@
+ 
+     public PlanEvaluation evaluate(OperationalPlan plan, OperationalSnapshot snapshot,
+                                    Collection<Order> requiredOrders, List<RoadBlock> blocks) {
++        SearchControl.planEvaluation();
+         Objects.requireNonNull(plan, "plan is required");
+         Objects.requireNonNull(snapshot, "snapshot is required");
+         Objects.requireNonNull(requiredOrders, "requiredOrders are required");
+--- original/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/OperationalPlan.java
++++ unificado/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/OperationalPlan.java
+@@ -11,7 +11,7 @@
+     private final Map<String, DeliveryRoute> routesByVehicleId;
+ 
+     private OperationalPlan(Map<String, DeliveryRoute> routesByVehicleId) {
+-        this.routesByVehicleId = Map.copyOf(routesByVehicleId);
++        this.routesByVehicleId = java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(routesByVehicleId));
+     }
+ 
+     public static OperationalPlan empty() {
+--- original/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/PlanEvaluation.java
++++ unificado/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/PlanEvaluation.java
+@@ -15,7 +15,7 @@
+ 
+     public PlanEvaluation(Map<String, ScheduledDeliveryRoute> schedulesByRouteId, List<PlanViolation> violations,
+                           InventorySnapshot remainingInventory, double totalCost) {
+-        this.schedulesByRouteId = Map.copyOf(Objects.requireNonNull(schedulesByRouteId, "schedules are required"));
++        this.schedulesByRouteId = java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(Objects.requireNonNull(schedulesByRouteId, "schedules are required")));
+         this.violations = List.copyOf(Objects.requireNonNull(violations, "violations are required"));
+         this.remainingInventory = Objects.requireNonNull(remainingInventory, "remainingInventory is required");
+         this.totalCost = totalCost;
+--- original/dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/FleetProfile.java
++++ unificado/dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/FleetProfile.java
+@@ -21,7 +21,7 @@
+             }
+             copy.put(type, parameters);
+         }
+-        this.parametersByType = Map.copyOf(copy);
++        this.parametersByType = java.util.Collections.unmodifiableMap(copy);
+     }
+ 
+     public static FleetProfile defaults() {
+--- original/dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/RoadNetwork.java
++++ unificado/dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/RoadNetwork.java
+@@ -1,4 +1,6 @@
+ package pe.edu.pucp.paqrap.planner.domain;
++
++import pe.edu.pucp.paqrap.planner.search.SearchControl;
+ 
+ import java.time.Duration;
+ import java.time.Instant;
+@@ -15,6 +17,7 @@
+ public final class RoadNetwork {
+     public Optional<RoadPath> shortestPath(Location origin, Location destination, Instant departureAt,
+                                            Duration travelTimePerStreet, List<RoadBlock> blocks) {
++        SearchControl.pathQuery();
+         Objects.requireNonNull(origin, "origin is required");
+         Objects.requireNonNull(destination, "destination is required");
+         Objects.requireNonNull(departureAt, "departureAt is required");
+@@ -37,11 +40,13 @@
+ 
+         Map<Location, Instant> earliestArrival = new HashMap<>();
+         Map<Location, RoadLeg> incomingLeg = new HashMap<>();
+-        PriorityQueue<NodeState> frontier = new PriorityQueue<>(Comparator.comparing(NodeState::arrivalAt));
++        PriorityQueue<NodeState> frontier = new PriorityQueue<>(Comparator.comparing(NodeState::arrivalAt)
++                .thenComparingInt(n -> n.node().x()).thenComparingInt(n -> n.node().y()));
+         earliestArrival.put(origin, departureAt);
+         frontier.add(new NodeState(origin, departureAt));
+ 
+         while (!frontier.isEmpty()) {
++            SearchControl.checkpoint();
+             NodeState state = frontier.remove();
+             if (!state.arrivalAt().equals(earliestArrival.get(state.node()))) {
+                 continue;
+@@ -88,6 +93,7 @@
+                                         Duration travelTime, BloqueosResueltos bloqueos) {
+         Instant departure = candidateDeparture;
+         while (true) {
++            SearchControl.checkpoint();
+             Instant arrival = departure.plus(travelTime);
+             Instant latestConflictEnd = null;
+             for (RoadBlock block : bloqueos.blocks()) {
+--- original/dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/OperationalSnapshot.java
++++ unificado/dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/OperationalSnapshot.java
+@@ -23,7 +23,7 @@
+         this.planningTime = Objects.requireNonNull(planningTime, "planningTime is required");
+         this.fleetProfile = Objects.requireNonNull(fleetProfile, "fleetProfile is required");
+         this.inventory = Objects.requireNonNull(inventory, "inventory is required");
+-        this.vehiclesById = Map.copyOf(Objects.requireNonNull(vehiclesById, "vehiclesById is required"));
++        this.vehiclesById = java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(Objects.requireNonNull(vehiclesById, "vehiclesById is required")));
+         this.maintenanceCalendar = Objects.requireNonNull(maintenanceCalendar, "maintenanceCalendar is required");
+         this.shiftSchedule = Objects.requireNonNull(shiftSchedule, "shiftSchedule is required");
+         this.breakdownCalculator = new BreakdownAvailabilityCalculator(this.shiftSchedule);
+--- original/dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/InventorySnapshot.java
++++ unificado/dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/InventorySnapshot.java
+@@ -11,8 +11,8 @@
+     private final Map<String, Integer> stockByWarehouseId;
+ 
+     private InventorySnapshot(Map<String, Warehouse> warehousesById, Map<String, Integer> stockByWarehouseId) {
+-        this.warehousesById = Map.copyOf(warehousesById);
+-        this.stockByWarehouseId = Map.copyOf(stockByWarehouseId);
++        this.warehousesById = java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(warehousesById));
++        this.stockByWarehouseId = java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(stockByWarehouseId));
+     }
+ 
+     public static InventorySnapshot from(Collection<Warehouse> warehouses) {
+--- original/sa/src/main/java/pe/edu/pucp/paqrap/planner/sa/OperationalSimulatedAnnealingPlanner.java
++++ unificado/sa/src/main/java/pe/edu/pucp/paqrap/planner/sa/OperationalSimulatedAnnealingPlanner.java
+@@ -6,6 +6,9 @@
+ import pe.edu.pucp.paqrap.planner.route.OperationalPlan;
+ import pe.edu.pucp.paqrap.planner.route.OperationalPlanEvaluator;
+ import pe.edu.pucp.paqrap.planner.route.PlanEvaluation;
++
++import pe.edu.pucp.paqrap.planner.search.SearchControl;
++import pe.edu.pucp.paqrap.planner.search.SearchStopped;
+ 
+ import java.util.Collection;
+ import java.util.List;
+@@ -41,18 +44,23 @@
+         int accepted = 0;
+         int withoutImprovement = 0;
+ 
++        SearchControl.observe(true, 0, bestEvaluation.totalCost());
++        try {
+         while (temperature >= config.minimumTemperature()
+                 && iterations < config.maximumIterations()
+                 && withoutImprovement < config.maximumIterationsWithoutImprovement()) {
+             for (int levelIteration = 0; levelIteration < config.iterationsPerTemperature()
+                     && iterations < config.maximumIterations(); levelIteration++) {
++                SearchControl.iteration();
+                 iterations++;
++                SearchControl.neighborAttempt();
+                 var candidate = neighborGenerator.generate(current, snapshot, random);
+                 if (candidate.isEmpty()) {
+                     continue;
+                 }
+                 PlanEvaluation candidateEvaluation = evaluator.evaluate(candidate.get(), snapshot, requiredOrders, blocks);
+                 if (!candidateEvaluation.isFeasible()) {
++                    SearchControl.invalidNeighbor();
+                     continue;
+                 }
+                 double delta = candidateEvaluation.totalCost() - currentEvaluation.totalCost();
+@@ -60,17 +68,22 @@
+                     current = candidate.get();
+                     currentEvaluation = candidateEvaluation;
+                     accepted++;
++                    SearchControl.acceptedNeighbor();
+                 }
+                 if (currentEvaluation.totalCost() < bestEvaluation.totalCost()) {
+                     best = current;
+                     bestEvaluation = currentEvaluation;
+                     withoutImprovement = 0;
++                    SearchControl.observe(true, 0, bestEvaluation.totalCost());
+                 } else {
+                     withoutImprovement++;
+                 }
+             }
+             temperature *= config.coolingFactor();
+         }
++        } catch (SearchStopped exhausted) {
++            // Return the best feasible plan completed before the deadline.
++        }
+         return new OperationalAnnealingResult(best, bestEvaluation, iterations, accepted);
+     }
+ }
+--- original/grasp/src/main/java/pe/pucp/paqrap/planificador/GraspPlanificador.java
++++ unificado/grasp/src/main/java/pe/pucp/paqrap/planificador/GraspPlanificador.java
+@@ -7,6 +7,8 @@
+ import java.time.Duration;
+ import java.time.Instant;
+ import java.util.*;
++import pe.edu.pucp.paqrap.planner.search.SearchControl;
++import pe.edu.pucp.paqrap.planner.search.SearchStopped;
+ 
+ /**
+  * GRASP para PaqRap, operando sobre el modelo de dominio unico compartido
+@@ -95,12 +97,24 @@
+ 
+     public ResultadoPlanificacion planificar(OperationalSnapshot snapshot, Collection<Order> pedidos,
+                                               List<RoadBlock> bloqueos, double alpha, int maxIteraciones) {
++        if (!Double.isFinite(alpha) || alpha < 0 || alpha > 1 || maxIteraciones <= 0) {
++            throw new IllegalArgumentException("alpha must be in [0,1] and maxIteraciones > 0");
++        }
+         cacheCaminos.clear();
+         ResultadoPlanificacion mejor = null;
+-        for (int iter = 0; iter < maxIteraciones; iter++) {
+-            ResultadoPlanificacion candidata = construirGreedyAleatorizada(snapshot, pedidos, bloqueos, alpha);
+-            candidata = busquedaLocal(candidata, snapshot, bloqueos);
+-            if (esMejorQue(candidata, mejor)) mejor = candidata;
++        try {
++            for (int iter = 0; iter < maxIteraciones; iter++) {
++                SearchControl.iteration();
++                ResultadoPlanificacion candidata = construirGreedyAleatorizada(snapshot, pedidos, bloqueos, alpha);
++                // An evaluated construction is already an incumbent. Preserve it if local search times out.
++                if (esMejorQue(candidata, mejor)) mejor = candidata;
++                SearchControl.observe(candidata.esFactible(), candidata.noAtendidos().size(), candidata.costoTotal());
++                candidata = busquedaLocal(candidata, snapshot, bloqueos);
++                if (esMejorQue(candidata, mejor)) mejor = candidata;
++                SearchControl.observe(candidata.esFactible(), candidata.noAtendidos().size(), candidata.costoTotal());
++            }
++        } catch (SearchStopped exhausted) {
++            // No complete iteration/constructive result => null, explicitly reported by the adapter.
+         }
+         return mejor;
+     }
+@@ -135,6 +149,7 @@
+         List<Order> noAtendidos = new ArrayList<>();
+ 
+         while (!pendientes.isEmpty()) {
++            SearchControl.checkpoint();
+             Order pedido = pendientes.remove(0);
+             List<Candidato> candidatos = generarCandidatos(pedido, snapshot, estadoPorVehiculo, inventario, central, bloqueos);
+ 
+@@ -270,6 +285,7 @@
+ 
+     private Optional<RoadPath> caminoCacheado(Location origen, Location destino, Instant horaSalida,
+             double velocidadKmH, List<RoadBlock> bloqueos) {
++        SearchControl.checkpoint();
+         ConsultaCamino clave = new ConsultaCamino(origen, destino, horaSalida, velocidadKmH);
+         return cacheCaminos.computeIfAbsent(clave, k -> {
+             Duration porTramo = Duration.ofMillis(Math.round(3_600_000.0 / velocidadKmH));
+@@ -410,6 +426,7 @@
+         List<Order> pendientes = new ArrayList<>(actual.noAtendidos());
+         boolean mejorado = true;
+         while (mejorado) {
++            SearchControl.checkpoint();
+             mejorado = false;
+             ResultadoInsercion insercion;
+             if (!pendientes.isEmpty() && (insercion = pasoInsercionPendientes(plan, pendientes, snapshot, bloqueos)) != null) {
