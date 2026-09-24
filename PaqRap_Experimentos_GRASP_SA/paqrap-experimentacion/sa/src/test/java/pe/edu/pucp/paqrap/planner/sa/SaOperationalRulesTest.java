@@ -25,7 +25,7 @@ class SaOperationalRulesTest {
         OperationalSnapshot snapshot = snapshot(List.of(car, motorcycle), List.of());
         Order order = order("P30", 30);
         OperationalPlan plan = new InitialPlanBuilder(evaluator()).build(
-                snapshot, List.of(order), CENTRAL, List.of()).orElseThrow();
+                snapshot, List.of(order), CENTRAL, List.of()).plan();
         PlanEvaluation evaluation = evaluator().evaluate(plan, snapshot, List.of(order), List.of());
         var deliveries = plan.routes().stream().flatMap(route -> route.stops().stream())
                 .filter(DeliveryStop.class::isInstance).map(DeliveryStop.class::cast).toList();
@@ -60,7 +60,7 @@ class SaOperationalRulesTest {
             OperationalSnapshot snapshot = snapshot(List.of(vehicle), List.of());
             Order order = order("CAP-" + entry.getKey(), entry.getValue());
             OperationalPlan plan = new InitialPlanBuilder(evaluator()).build(
-                    snapshot, List.of(order), CENTRAL, List.of()).orElseThrow();
+                    snapshot, List.of(order), CENTRAL, List.of()).plan();
             PlanEvaluation evaluation = evaluator().evaluate(plan, snapshot, List.of(order), List.of());
             assertEquals(entry.getValue().intValue(), snapshot.fleetProfile()
                     .parametersFor(entry.getKey()).capacity());
@@ -78,7 +78,7 @@ class SaOperationalRulesTest {
                     List.of(new MaintenanceDay(unavailable.id(), LocalDate.of(2026, 9, 9))));
             Order order = order("MAINT-" + type, 2);
             OperationalPlan plan = new InitialPlanBuilder(evaluator()).build(
-                    snapshot, List.of(order), CENTRAL, List.of()).orElseThrow();
+                    snapshot, List.of(order), CENTRAL, List.of()).plan();
             OperationalAnnealingResult result = new OperationalSimulatedAnnealingPlanner(evaluator(),
                     new OperationalRouteNeighborGenerator(), new Random(11)).optimize(
                     plan, snapshot, List.of(order), List.of(), new AnnealingConfig(100, 1, .9, 2, 10, 10));

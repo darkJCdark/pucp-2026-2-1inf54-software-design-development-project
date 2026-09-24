@@ -56,7 +56,9 @@ class OperationalPlanEvaluatorSmokeTest {
         assertTrue(invalid.violations().stream().anyMatch(v -> v.type() == PlanViolationType.VEHICLE_CAPACITY));
 
         InitialPlanBuilder builder = new InitialPlanBuilder(evaluator);
-        assertTrue(builder.build(snapshot, List.of(new Order("P-2", new Location(28, 14), 4, start,
-                start.plus(Duration.ofHours(4)))), central, List.of()).isPresent());
+        SeedPlan seed = builder.build(snapshot, List.of(new Order("P-2", new Location(28, 14), 4, start,
+                start.plus(Duration.ofHours(4)))), central, List.of());
+        assertEquals(1, seed.attended().size());
+        assertTrue(seed.unattended().isEmpty());
     }
 }

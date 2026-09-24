@@ -32,6 +32,15 @@ public final class OperationalSimulatedAnnealingPlanner {
     public OperationalAnnealingResult optimize(OperationalPlan initial, OperationalSnapshot snapshot,
                                                Collection<Order> requiredOrders, List<RoadBlock> blocks,
                                                AnnealingConfig config) {
+        return optimize(initial, snapshot, requiredOrders, blocks, config, 0);
+    }
+
+    public OperationalAnnealingResult optimize(OperationalPlan initial, OperationalSnapshot snapshot,
+                                               Collection<Order> requiredOrders, List<RoadBlock> blocks,
+                                               AnnealingConfig config, int fixedMissingOrders) {
+        if (fixedMissingOrders < 0) {
+            throw new IllegalArgumentException("Fixed missing order count cannot be negative");
+        }
         PlanEvaluation currentEvaluation = evaluator.evaluate(initial, snapshot, requiredOrders, blocks);
         if (!currentEvaluation.isFeasible()) {
             throw new IllegalArgumentException("SA requires a feasible initial operational plan");
@@ -46,7 +55,7 @@ public final class OperationalSimulatedAnnealingPlanner {
         int accepted = 0;
         int withoutImprovement = 0;
 
-        SearchControl.observe(true, 0, bestEvaluation.totalCost());
+        SearchControl.observe(true, fixedMissingOrders, bestEvaluation.totalCost());
         try {
         while (temperature >= config.minimumTemperature()
                 && iterations < config.maximumIterations()
@@ -77,7 +86,7 @@ public final class OperationalSimulatedAnnealingPlanner {
                     best = current;
                     bestEvaluation = currentEvaluation;
                     withoutImprovement = 0;
-                    SearchControl.observe(true, 0, bestEvaluation.totalCost());
+                    SearchControl.observe(true, fixedMissingOrders, bestEvaluation.totalCost());
                 } else {
                     withoutImprovement++;
                 }
