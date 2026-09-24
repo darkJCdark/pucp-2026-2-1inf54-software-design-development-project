@@ -1,0 +1,13 @@
+# SHA-256 de los insumos y artefactos de la campaña formal v5.
+# Las rutas bajo results/ identifican el archivo fuente copiado a evidencia/v5.
+ed9dab5b9c6347b06805cb65220c1c6f7a40dfc8e255b2f7c72e0c4b7cb3d5e6  dist/paqrap-experimentos.jar
+881ed98c93e4b99268c71dae168f3e35c11d36fe6ed89206227f220dcdec350d  config/formal.properties
+0a26cf29d152076557c7eaabff35f0fd3da7440a26d935df188aaab14e649962  config/formal.csv
+1e8c5cc364c93cc03764fb029a472c87b783d3dc4bd6b45d9d5461e846514014  results/formal-sa-v12-grasp-v2-20260924/metadata.json
+9fb8cf7305a9aff91055314d362b28f4b9f8e24f31cd57837349f1213627338e  results/formal-sa-v12-grasp-v2-20260924/runs.csv
+5cae0495aabaf06d6e8105eca716ab2b98ea65e0018bb6065e1620eb5c40c8f3  results/formal-sa-v12-grasp-v2-20260924/paired.csv
+dd7cd8d85567fba6cb3a09de53231adfd3250c970634599492a04f951c6333e0  results/formal-sa-v12-grasp-v2-20260924/report.html
+4cd4bad4517f17727d49000eaf51f0ae494e3b10d1f1aa478542351aac46fd17  results/formal-sa-v12-grasp-v2-20260924/analysis/analysis.json
+0928b742aa3086fe63fd189a5703a77de6bb3c8941b4a8860266662a7f839c4c  results/formal-sa-v12-grasp-v2-20260924/analysis/summary.csv
+92b326b6c51249d2c53f538f239314602b5a62bfb272174fcee3bdcd3397fcd4  results/formal-sa-v12-grasp-v2-20260924/analysis/per_instance.csv
+aaf9d5d71990608fb5e2bf58deffa40459cd324912d7677102fa4d0be87eec94  results/formal-sa-v12-grasp-v2-20260924/analysis/paired_runs.csv

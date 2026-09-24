@@ -1,5 +1,11 @@
 # Cambios y procedencia
 
+## Evidencia formal v5 (24 de septiembre de 2026)
+
+No se modificaron dominio, GRASP, SA, parámetros, configuración ni scripts estadísticos para esta ejecución. Sobre el commit `79760a7129723d3d21e5c3113a8d45c5417a0e31` se ejecutó una campaña formal de 40 instancias × 5 semillas × 2 algoritmos × límite máximo de 5 s. Las versiones registradas fueron `GRASP-v2 2026-09-23` y `SA-operational-v1.2 + shared-domain-v2 (semilla incremental; 2026-09-23)`.
+
+La campaña produjo 400/400 `OK`, 200 parejas completas y cobertura total para ambos algoritmos. Incluye bloqueos, pero excluye mantenimiento preventivo y averías: los manifiestos registran respectivamente 582, 0 y 0. SA termina por su calendario térmico antes del límite; el diseño preservado compara el mismo tiempo máximo, no tiempo usado idéntico. `evidencia/v5/` conserva los insumos, resultados compactos, hashes y análisis ya calculado; no se copiaron los 400 directorios `jobs/`.
+
 ## Versión 4 (23 de septiembre de 2026): semilla SA incremental y alcance experimental aclarado
 
 ### SA v1.2

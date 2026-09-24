@@ -1,5 +1,19 @@
 # Verificación del entregable
 
+## Ejecución formal v5 (24 de septiembre de 2026)
+
+La campaña formal se ejecutó una vez con el JAR de SHA-256 `ed9dab5b9c6347b06805cb65220c1c6f7a40dfc8e255b2f7c72e0c4b7cb3d5e6`, el commit `79760a7129723d3d21e5c3113a8d45c5417a0e31` y `config/formal.properties` de SHA-256 `881ed98c93e4b99268c71dae168f3e35c11d36fe6ed89206227f220dcdec350d`. El entorno fue Oracle Java 22 en Windows 10, con 512 MiB y 2 procesadores activos por JVM hija.
+
+| Comprobación | Resultado observado |
+|---|---|
+| Diseño | 40 instancias × 5 semillas × 2 algoritmos × 5.000 ms = 400 corridas; NORMAL 16, BLOCKED 8, SPLIT 8 y REAL 8 (13–20 de septiembre) |
+| Resultado | 400/400 `OK`; GRASP-v2 200/200 y SA-operational-v1.2 200/200; 200/200 parejas completas y cobertura total |
+| Restricciones experimentales | 0 mantenimiento preventivo, 0 averías y 582 bloqueos incluidos; las 400 auditorías no registran violaciones y todas las rutas son válidas |
+| Tiempo | Se usó un límite máximo común de 5 s; GRASP promedió 5001.05 ms y SA 1713.01 ms. SA terminó por su calendario térmico antes del límite |
+| Costo pareado | GRASP tuvo menor costo en 199 parejas, SA en 1 y no hubo empates; no se infiere optimalidad ni superioridad universal |
+
+El piloto precedente también se completó: 72/72 corridas `OK`, con cobertura total para ambos algoritmos. La evidencia compacta de la formal, incluidas configuración, CSV, metadata, filas, pares y análisis, está en `evidencia/v5/`; no se versionaron los 400 `jobs/` redundantes.
+
 ## Versión 4 (23 de septiembre de 2026): SA v1.2 y alcance experimental
 
 Entorno: Windows 10, Java/Javac 22 compilando con `--release 21`, Maven 3.9.9. El comando literal `mvn clean verify` falló antes de compilar porque el entorno intentó crear `C:\.m2\repository`. Se repitió con un settings temporal que apunta al repositorio local existente y modo offline: `mvn -s results/maven-settings.xml -o clean verify`; terminó `BUILD SUCCESS` en 27,980 s. `scripts/build.ps1` generó el JAR de `dist/`, SHA-256 `ed9dab5b9c6347b06805cb65220c1c6f7a40dfc8e255b2f7c72e0c4b7cb3d5e6`.
