@@ -1,4 +1,5 @@
 # PaqRap · laboratorio GRASP y Simulated Annealing · v3
+##IMPORTANTE: La exp numerica es un proyecto aislado, no mergear con main, ya luego lo integraremos, por ahora que se quede aislado :v
 
 **Entrega corregida: 24 de septiembre de 2026.** Módulo autónomo Java 21 para experimentación numérica. No requiere frontend, REST, base de datos, Docker ni Maven para compilar y ejecutar con los scripts incluidos.
 
