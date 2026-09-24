@@ -1,5 +1,49 @@
 # Verificación del entregable
 
+## Versión 4 (23 de septiembre de 2026): SA v1.2 y alcance experimental
+
+Entorno: Windows 10, Java/Javac 22 compilando con `--release 21`, Maven 3.9.9. El comando literal `mvn clean verify` falló antes de compilar porque el entorno intentó crear `C:\.m2\repository`. Se repitió con un settings temporal que apunta al repositorio local existente y modo offline: `mvn -s results/maven-settings.xml -o clean verify`; terminó `BUILD SUCCESS` en 27,980 s. `scripts/build.ps1` generó el JAR de `dist/`, SHA-256 `ed9dab5b9c6347b06805cb65220c1c6f7a40dfc8e255b2f7c72e0c4b7cb3d5e6`.
+
+| Comprobación ejecutada | Resultado observado |
+|---|---|
+| JUnit | 38 métodos: 12 dominio, 8 GRASP, 10 SA, 8 experimentos; 0 fallos, 0 errores, 0 omitidos |
+| Semilla S03 / S04 | 96/96 y 144/144 pedidos atendidos; plan evaluado factible |
+| Semilla S07 | 38/41; no atendidos exactos: `c3274-2026-09-3799`, `c4638-2026-09-3800`, `c9729-2026-09-3806` |
+| Semilla S08 | 49/53; no atendidos exactos: `c8715-2026-09-3985`, `c0901-2026-09-4013`, `c1413-2026-09-4015`, `c3076-2026-09-3994`; sin cruce de bloqueos |
+| Fallback | Bicicleta preferida inviable; se usa la primera alternativa factible y el pedido queda atendido |
+| Split atómico | Pedido inviable: 0 partes incorporadas; pedido factible de 30: varias partes que suman 30 |
+| Regla experimental | El mantenimiento presente en `data/` no altera disponibilidad; manifiestos con mantenimiento y averías vacíos; bloqueos reales presentes |
+| Soporte de producto | Los JUnit existentes siguen comprobando exclusión TA/TM/TB cuando un snapshot general sí contiene mantenimiento |
+| Self-test | 22/22 comprobaciones correctas |
+
+### Smoke v4
+
+`config/smoke.properties` sin cambios: 16/16 `OK`, sin parciales, fallos ni timeouts sin plan.
+
+| Instancia | GRASP semilla 42 / 73 | SA semilla 42 / 73 |
+|---|---:|---:|
+| SMOKE01 | S/ 624 / 624 | S/ 1.296 / 1.136 |
+| SMOKE02 | S/ 864 / 864 | S/ 1.320 / 1.352 |
+| SMOKE03 | S/ 896 / 896 | S/ 1.112 / 1.464 |
+| SMOKE04 | S/ 2.456 / 2.456 | S/ 4.960 / 4.638 |
+
+### Mini campaña previa al piloto
+
+Configuración temporal: S01, S02, S03, S04, S07 y S08 × semillas 42 y 73 × GRASP y SA × 5.000 ms = 24 corridas. Las 24 terminaron sin `ERROR`, `INVALID`, `NO_INITIAL_PLAN` ni `TIME_LIMIT_NO_PLAN`.
+
+| Instancia | GRASP (42 / 73) | SA v1.2 (42 / 73) |
+|---|---|---|
+| S01 | OK 24/24 · S/ 3.660 / 3.630 | OK 24/24 · S/ 9.085 / 9.676 |
+| S02 | OK 48/48 · S/ 7.956 / 8.118 | OK 48/48 · S/ 18.614 / 18.158 |
+| S03 | OK 96/96 · S/ 12.804 / 13.048 | OK 96/96 · S/ 27.684 / 26.856 |
+| S04 | OK 144/144 · S/ 20.486 / 20.390 | OK 144/144 · S/ 41.759 / 41.290 |
+| S07 | PARTIAL 38/41 · costo diagnóstico S/ 7.186 / 6.878 | PARTIAL 38/41 · costo diagnóstico S/ 17.614 / 17.753 |
+| S08 | PARTIAL 49/53 · costo diagnóstico S/ 10.034 / 11.314 | PARTIAL 49/53 · costo diagnóstico S/ 19.269 / 18.783 |
+
+Los costos parciales se conservan solo como diagnóstico y no se comparan contra planes completos. Frente a la campaña histórica v2, SA cambia de `NO_INITIAL_PLAN` a `OK` en S03/S04 y a `PARTIAL` válido en S07/S08. Esta mini campaña usa dos semillas y un solo presupuesto; valida la corrección antes del piloto, no sustenta superioridad. La evidencia exacta está en `evidencia/v4/`.
+
+No se ejecutaron `pilot`, `formal` ni la campaña completa de `escalabilidad` en esta versión.
+
 ## Versión 3 (23 de septiembre de 2026): validación SA
 
 Entorno de esta verificación: Windows, Java/Javac 22 compilando con `--release 21`, Maven 3.9.9. El primer `mvn clean verify` dentro del sandbox no pudo crear `C:\.m2\repository`; el mismo comando ejecutado con acceso al repositorio local terminó correctamente. Después de la última aserción de servicio por parada se repitió `mvn -q clean verify` con salida 0. `scripts/build.ps1` compiló el JAR de `dist/` desde el código actualizado; SHA-256: `58651887e58efe4300d33301bdad16bc815e7093ae91a6702bf170e569ad026d`.

@@ -1,0 +1,23 @@
+PASS 1: Identical input fingerprint
+PASS 2: Latest source central coordinates preserved
+PASS 3: Deterministic vehicle iteration order
+PASS 4: Snapshot map is immutable
+PASS 5: Empty cheap plan is not complete feasible
+PASS 6: Route validity is distinguished from demand coverage
+PASS 7: GRASP creates a complete feasible plan for the test fixture
+PASS 8: GRASP is repeatable with a fixed iteration protocol
+PASS 9: GRASP does not modify input stock
+PASS 10: SA creates a complete feasible plan for the test fixture
+PASS 11: SA is repeatable with a fixed iteration protocol
+PASS 12: SA does not modify input stock
+PASS 13: Input identity remains unchanged after both solvers
+PASS 14: Cooperative budget stops without a business-rule exception
+PASS 15: SA initialization failure is explicit and not called proven infeasibility
+PASS 16: Failed initializer does not score as a zero-cost success
+PASS 17: Real batch includes only already registered orders
+PASS 18: Future relevant road blocks are not truncated to the arrival window
+PASS 19: GRASP divides an order larger than any vehicle into partial deliveries (P&R 13)
+PASS 20: Long real windows exclude and record orders already expired at planning time
+PASS 21: Provably unservable orders are flagged; servable ones are not
+PASS 22: Exactly one shared evaluator on the runtime classpath
+PASS: 22 experimental regression checks.

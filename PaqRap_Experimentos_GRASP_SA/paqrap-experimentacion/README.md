@@ -8,6 +8,8 @@ Proyecto independiente para comparar **las implementaciones Java entregadas por 
 
 > **Versión 3 (23-sep-2026).** SA conserva constructor, fórmula, vecindario y parámetros. Se corrigió `evaluatedNeighbors`, se añadió telemetría de costo inicial/iteraciones/temperatura final y se amplió la suite de regresión. La etiqueta SA es `SA-operational-v1.1 + shared-domain-v2 (metricas; 2026-09-23)`. La campaña smoke conservó exactamente planes y costos de v2; ver `docs/VERIFICACION.md`. Piloto y formal siguen pendientes.
 
+> **Versión 4 (23-sep-2026).** `SA-operational-v1.2 + shared-domain-v2 (semilla incremental; 2026-09-23)` conserva Metropolis, vecindarios y parámetros, pero reemplaza el contrato todo-o-nada de la semilla: admite cada pedido atómicamente, usa round-robin como preferencia, prueba alternativas deterministas y conserva los no atendidos para la auditoría. Por aclaración docente, todas las instancias experimentales incluyen bloqueos pero excluyen mantenimiento preventivo y averías. Smoke y mini campaña de 24 corridas verificados; piloto y formal siguen pendientes.
+
 ## 1. Empezar en Windows / VS Code
 
 Descomprime el ZIP. Abre la carpeta `paqrap-experimentacion` —la que contiene `pom.xml`, `config`, `data` y `dist`— y abre una terminal PowerShell allí.
@@ -115,7 +117,7 @@ worker.processors=2
 
 Para estudiar más de un presupuesto puedes escribir `budgets.ms=1000,3000,5000`. Se forman parejas separadas por presupuesto y aumenta proporcionalmente el número de corridas. No mezcles todos los presupuestos en una única media.
 
-La lista de escenarios está en `config/formal.csv` (o el CSV del perfil elegido). Las familias son `NORMAL`, `BLOCKED`, `REDUCED`, `SPLIT` y `REAL`. Las primeras cuatro son **sintéticas y controladas**; `REAL` usa datos de los archivos entregados por el equipo. No se presentan los sintéticos como datos del docente.
+La lista de escenarios está en `config/formal.csv` (o el CSV del perfil elegido). Las familias activas son `NORMAL`, `BLOCKED`, `SPLIT` y `REAL`. Las primeras tres son **sintéticas y controladas**; `REAL` usa pedidos y bloqueos de los archivos entregados por el equipo. La antigua familia `REDUCED`, basada en mantenimiento, fue retirada de `pilot` y `formal` en la versión 4. En todo el diseño experimental los bloqueos están incluidos y el mantenimiento preventivo y las averías están excluidos. No se presentan los sintéticos como datos del docente.
 
 **Importante:** el modo `FIXED` y `config/deterministic.properties` sirven para comprobar repetibilidad con límites de iteraciones. No son la comparación de rendimiento: una iteración de GRASP no equivale al mismo trabajo que una de SA.
 
@@ -202,8 +204,8 @@ Puedes importar el `pom.xml` raíz en IntelliJ o abrir la carpeta raíz en VS Co
 ## 9. Limitaciones que importan antes de concluir
 
 - Desde la versión 2, GRASP sí divide un pedido mayor que la capacidad de cualquier vehículo (P&R 13); la versión 1 no lo hacía. Es un cambio algorítmico explícito y versionado.
-- SA depende de un constructor inicial que puede fallar aunque exista otra solución. Ese caso se registra como `NO_INITIAL_PLAN`. Si un solo pedido es no atendible, SA falla completo; GRASP devuelve el mejor plan parcial.
-- Con la red optimizada, el esquema de enfriamiento de SA termina en 1–2 s, antes de presupuestos de 5 s o más; GRASP usa todo el presupuesto. Se compara a igual tiempo **máximo**; revisar `elapsed_ms` y calibrar en el piloto si se quiere igual tiempo **usado**.
+- SA v1.2 puede dejar pedidos en `unattended` y optimizar el plan factible del subconjunto atendido; `CommonAudit` lo clasifica `PARTIAL`. `NO_INITIAL_PLAN` queda reservado para semillas sin ningún pedido atendido y no certifica imposibilidad.
+- El esquema de enfriamiento de SA sigue terminando por temperatura (6.750 iteraciones con la configuración actual) y puede acabar antes del presupuesto; GRASP normalmente usa todo el máximo. Se compara a igual tiempo **máximo**; revisar `elapsed_ms` y calibrar en el piloto si se quiere igual tiempo **usado**.
 - Los operadores de SA pueden generar vecinos inválidos por carga/abastecimiento; el evaluador común los rechaza. No se cambió esa estrategia de vecindad.
 - El dominio heredado tiene decisiones que requieren validación del equipo (refrigerio y regla de 80 km entre paradas). Comparabilidad entre algoritmos no significa conformidad completa con todos los requisitos de PaqRap.
 - No encontrar una solución en un presupuesto de tiempo **no demuestra imposibilidad ni colapso real**.
@@ -217,3 +219,5 @@ Lee `docs/LIMITACIONES.md` antes de redactar conclusiones. El documento de refer
 **Estado verificado (versión 2, 23-sep-2026, Windows 11):** `mvn clean verify` con 22 pruebas JUnit sin fallos (incluye la prueba diferencial de exactitud de la red de caminos); `--self-test` con 22 comprobaciones; smoke 16/16 `OK`; repetibilidad FIXED en dos ejecuciones; SA con planes idénticos bit a bit a la versión 1; perfil `escalabilidad` completo (96 corridas). Piloto y campaña formal están configurados y sus instancias cargan, pero **no** se ejecutaron: son la experimentación que debe correr el equipo. Resultados y cifras en `docs/VERIFICACION.md`; evidencia en `evidencia/v2/`.
 
 **Estado verificado (versión 3, 23-sep-2026):** 32 pruebas JUnit sin fallos, `--self-test` 22/22, smoke 16/16 `OK` y dos ejecuciones `FIXED` reproducibles. El JAR de `dist/` se compiló con `scripts/build.ps1` y Java 22 con `--release 21`. El perfil `escalabilidad` no se volvió a ejecutar en esta versión; piloto y formal siguen sin ejecutarse. Evidencia y limitaciones en `docs/VERIFICACION.md`.
+
+**Estado verificado (versión 4, 23-sep-2026):** 38 pruebas JUnit sin fallos, `--self-test` 22/22 y smoke 16/16 `OK`. La mini campaña previa al piloto ejecutó 24/24 corridas: S01–S04 completos para ambos algoritmos; S07 con 38/41 y S08 con 49/53 para ambos. SA ya no produce `NO_INITIAL_PLAN` en esos cuatro casos. No se ejecutaron piloto, formal ni la campaña completa de escalabilidad. Evidencia en `evidencia/v4/`.

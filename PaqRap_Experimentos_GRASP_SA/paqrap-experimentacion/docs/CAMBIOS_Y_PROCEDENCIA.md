@@ -1,5 +1,27 @@
 # Cambios y procedencia
 
+## Versión 4 (23 de septiembre de 2026): semilla SA incremental y alcance experimental aclarado
+
+### SA v1.2
+
+La etiqueta pasa a `SA-operational-v1.2 + shared-domain-v2 (semilla incremental; 2026-09-23)`. `SeedPlan` expone el `OperationalPlan` construido y listas inmutables de pedidos `attended` y `unattended`. `InitialPlanBuilder` mantiene orden por deadline, añade desempate por identificador y conserva round-robin como preferencia; si la rotación preferida no produce un plan factible, prueba las demás en orden determinista y acepta la primera factible. No elige por costo. Un pedido dividido se incorpora con todas sus partes o con ninguna.
+
+`SaAdapter` ejecuta SA solo sobre `attended`; la auditoría común sigue recibiendo todos los pedidos originales y clasifica correctamente los faltantes como `PARTIAL`. Cuando `attended` está vacío se conserva el contrato `NO_INITIAL_PLAN`. La instrumentación de SA recibe el número fijo de no atendidos para no registrar falsamente una primera solución completa.
+
+Este cambio es una **mejora heurística y de semántica de salida**, no una corrección de Metropolis. Permanecen intactos la fórmula de aceptación, los siete operadores de vecindad, el calendario de enfriamiento, los límites configurados, GRASP, `RoadNetwork` y `OperationalPlanEvaluator`. Los resultados v1.1 no deben mezclarse con v1.2.
+
+### Alcance del diseño experimental
+
+Una nueva aclaración docente establece para el diseño de experimentos: bloqueos incluidos; mantenimiento preventivo y averías excluidos. `InstanceFactory` crea calendarios/eventos vacíos y lo declara en cada manifiesto. No se eliminó el archivo ni el cargador de mantenimiento, `MaintenanceCalendar`, `BreakdownEvent` ni sus pruebas del dominio. La familia `REDUCED`, cuya perturbación era mantenimiento, se retiró de `pilot.csv` y `formal.csv`; sus filas conservan identificadores y semillas como casos `NORMAL`.
+
+Las averías se introducirán manualmente solo en futuros escenarios día a día/5D. Trasvase y la decisión giro en U/continuidad de ruta no pertenecen a esta experimentación y no se implementaron.
+
+### Verificación
+
+Se añadieron seis JUnit causales: fallback desde bicicleta a la primera alternativa factible; S03 96/96; S04 144/144; S07 38/41 con tres no atendidos exactos; S08 49/53 con cuatro no atendidos exactos y bloqueos respetados; y split atómico. La prueba real ahora demuestra que un archivo de mantenimiento presente no altera disponibilidad experimental, que no hay averías y que los bloqueos siguen activos. Las pruebas de producto que excluyen vehículos por mantenimiento permanecen.
+
+Resultado ejecutado: 38 JUnit correctos, self-test 22/22, smoke 16/16 `OK` y mini campaña 24/24 sin `ERROR`, `INVALID`, `NO_INITIAL_PLAN` ni timeout sin plan. En la mini campaña S01–S04 fueron completos para ambos; S07 fue 38/41 y S08 49/53 para ambos. Evidencia en `evidencia/v4/`. No se ejecutaron piloto, formal ni la campaña completa de escalabilidad.
+
 ## Versión 3 (23 de septiembre de 2026): Simulated Annealing validado e instrumentado
 
 ### Base y alcance
@@ -100,7 +122,7 @@ InstanceFactory -> ProblemInstance
                  /                   \
        GraspAdapter                 SaAdapter
             |                          |
-   GraspPlanificador          InitialPlanBuilder original
+   GraspPlanificador          InitialPlanBuilder propio de SA
             |                          |
  ResultadoPlanificacion       OperationalPlan inicial
                                        |
@@ -117,11 +139,11 @@ InstanceFactory -> ProblemInstance
 
 GRASP mantiene `planificar(...)`. SA mantiene `optimize(...)`. Los adaptadores normalizan salida y protocolo sin exigir que sus firmas originales sean idénticas ni afirmar que ya implementaban una interfaz Strategy común.
 
-El constructor inicial de SA se toma del núcleo compartido entregado. No depende de GRASP, no recibe gratuitamente un plan elaborado por este y su costo de construcción se mide.
+El constructor inicial de SA no depende de GRASP ni recibe gratuitamente un plan elaborado por este; su costo de construcción se mide. Desde v1.2 su política incremental/fallback está versionada explícitamente.
 
 ## Cambios que NO se hicieron
 
-No se añadieron microservicios, backend HTTP, frontend, algoritmos nuevos, penalizaciones de incumplimiento, un solucionador exacto, operadores de división a GRASP o reparaciones automáticas de carga a SA. No se alteraron ocultamente refrigerio, bloqueos, capacidades o mantenimiento para forzar factibilidad.
+No se añadieron microservicios, backend HTTP, frontend, penalizaciones de incumplimiento, un solucionador exacto ni reparaciones automáticas de carga a SA. No se alteraron refrigerio, bloqueos, capacidades, Metropolis ni vecindarios para forzar factibilidad. La exclusión de mantenimiento y averías está declarada y limitada a `InstanceFactory`; el dominio general conserva esas reglas.
 
 ## Lectura sugerida del código
 

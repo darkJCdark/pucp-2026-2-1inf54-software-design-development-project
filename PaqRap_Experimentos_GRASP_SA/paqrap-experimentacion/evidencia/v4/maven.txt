@@ -1,0 +1,17 @@
+Comando solicitado inicialmente:
+mvn clean verify
+
+Resultado local inicial:
+FAIL antes de compilar: Maven intentó crear C:\.m2\repository y devolvió LocalRepositoryNotAccessibleException.
+
+Comando equivalente con el repositorio Maven local explícito y modo offline:
+mvn -s results/maven-settings.xml -o clean verify
+
+Resultado:
+BUILD SUCCESS
+dominio: 12 tests
+grasp: 8 tests
+sa: 10 tests
+experimentos: 8 tests
+TOTAL: 38 tests, 0 failures, 0 errors, 0 skipped
+Duración Maven: 27.980 s

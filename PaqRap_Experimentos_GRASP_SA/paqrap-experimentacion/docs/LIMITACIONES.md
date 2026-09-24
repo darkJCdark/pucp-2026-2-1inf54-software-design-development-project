@@ -10,19 +10,25 @@ En la versión 1, `GraspPlanificador` no generaba entregas parciales: un pedido 
 
 ## Ambos algoritmos terminan de forma distinta dentro del presupuesto
 
-Con la red de caminos optimizada, el esquema de enfriamiento de SA (temperatura 1000 → 1, factor 0,95, 50 vecinos por nivel: 6.750 iteraciones) termina en 1–2 s, por debajo de presupuestos de 5 s o más; GRASP es un multiarranque que usa todo el presupuesto. El protocolo compara a igual tiempo **máximo**, no a igual tiempo **usado**: revisar `elapsed_ms` y `termination`. Si se quiere comparar a igual tiempo usado, calibrar en el piloto el esquema de SA (y con esfuerzo comparable los parámetros de GRASP) antes de la campaña formal; no se hizo aquí para no modificar SA.
+El esquema de enfriamiento de SA (temperatura 1000 → 1, factor 0,95, 50 vecinos por nivel: 6.750 iteraciones) termina por temperatura y puede acabar antes de presupuestos de 5 s o más; GRASP es un multiarranque que suele usar todo el presupuesto. El protocolo compara a igual tiempo **máximo**, no a igual tiempo **usado**: revisar `elapsed_ms` y `termination`. Si se quiere comparar a igual tiempo usado, calibrar en el piloto el esquema de SA (y con esfuerzo comparable los parámetros de GRASP) antes de la campaña formal; la versión 4 no cambió esos parámetros.
 
 ## Pedidos no atendibles, refrigerio y ventanas largas
 
 Con ventanas reales largas aparecen pedidos que ningún plan puede cubrir: (a) ya vencidos al planificar, que ahora se excluyen y registran en el manifiesto; (b) otros que ni una ruta directa desde el central llega a tiempo, que la auditoría señala en `orders_provably_unservable`. Un caso frecuente de (b) proviene de la regla heredada del refrigerio: un vehículo que sale después de las 08:00 toma la hora de refrigerio en su **primera** llegada, aunque acabe de salir, y eso lo hace llegar tarde a pedidos con plazo corto (verificado con 3 pedidos del 13-sep, ventana 07:00–11:00). Es una regla del dominio común, igual para ambos algoritmos; su conformidad con el enunciado debe validarla el equipo (ver abajo).
 
-SA exige que su plan inicial cubra **todos** los pedidos; si hay uno no atendible, falla (`NO_INITIAL_PLAN`) aunque el resto sea atendible. GRASP devuelve el mejor plan parcial. Es una diferencia real de las implementaciones que el experimento debe reportar, no un error de medición.
+Desde SA v1.2, la semilla conserva los pedidos que pudo admitir y separa los restantes como `unattended`. La búsqueda optimiza solo el subconjunto atendido y la auditoría común, aplicada a toda la demanda original, clasifica el resultado como `PARTIAL`. `NO_INITIAL_PLAN` queda para el caso en que no se admite ningún pedido y no es un certificado de imposibilidad.
 
 ## SA: solución inicial y vecindarios
 
-SA parte de un plan inicial completo y factible. El `InitialPlanBuilder` original está fuera del optimizador; construye un plan determinista y puede fallar aun cuando exista otro. Su tiempo está dentro del presupuesto. `NO_INITIAL_PLAN` no es un certificado de imposibilidad.
+SA v1.2 parte de una semilla factible para los pedidos admitidos. `InitialPlanBuilder` está fuera del optimizador y ordena por deadline con desempate por identificador; usa round-robin como preferencia, prueba las demás rotaciones en orden determinista y conserva el primer candidato factible, no el de menor costo. Cada pedido —incluidos sus `DeliveryStop` parciales— se acepta completo o no se incorpora. Esta mejora heurística no demuestra que el conjunto `unattended` sea imposible ni busca maximizar cobertura global. Su tiempo está dentro del presupuesto.
 
 La vecindad original contiene movimientos que cambian entregas sin reparar siempre cantidades recogidas en visitas de almacén. El evaluador rechaza esos candidatos. Se contabilizan los intentos y vecinos inválidos; no se sustituyó la vecindad por la de GRASP. Por tanto una baja mejora también puede ser consecuencia de esta implementación de operadores.
+
+## Exclusiones del diseño experimental
+
+Por aclaración docente, `smoke`, `escalabilidad`, `pilot` y `formal` incluyen bloqueos pero no mantenimiento preventivo ni averías. La exclusión se hace al construir la instancia; el dominio general conserva ambas capacidades y sus pruebas. La antigua familia `REDUCED`, basada en mantenimiento, dejó de formar parte de los CSV activos.
+
+Las averías manuales, el trasvase de productos y la decisión de que la unidad de apoyo gire en U o continúe pertenecen a futuros escenarios operacionales día a día/5D. No están implementados en este laboratorio y no deben inferirse de estos resultados.
 
 ## No atendidos, factibilidad y colapso
 
@@ -48,8 +54,8 @@ Una semilla fija con modo FIXED, mismas entradas y mismo entorno produjo planes 
 
 Los costos y entregas son planificados, no indicadores realizados del simulador. Los sintéticos tienen distribución deliberadamente sencilla y no se presentan como representativos estadísticos de toda la demanda real. Los datos reales son lotes conocidos al final de la ventana de recogida; esto evita anticipar pedidos, pero no reproduce la operación online.
 
-Los parámetros iniciales no fueron optimizados. El piloto y la campaña formal no se ejecutaron al elaborar el entregable. La prueba smoke incluida no permite declarar un ganador general.
+Los parámetros iniciales no fueron optimizados. El piloto y la campaña formal no se ejecutaron al elaborar el entregable. La prueba smoke y la mini campaña v4 de 24 corridas son validación previa, no permiten declarar un ganador general.
 
 ## Compilación y compatibilidad
 
-Versión 1: se verificaron compilación con JDK 21, lanzamiento del JAR y pruebas en Linux, sin `mvn`. Versión 2: en Windows 11 con JDK 21 se ejecutaron `mvn clean verify` (22 pruebas JUnit), `scripts/build.sh` (Git Bash) y el JAR resultante; `scripts/build.ps1` no se ejecutó. Con Maven, usar siempre `mvn clean ...`: sin `clean`, el `maven-shade-plugin` puede volver a empaquetar un JAR anterior y mezclar clases viejas y nuevas (ocurrió durante la verificación). No se incluyeron binarios de terceros de las carpetas `.m2` ni archivos compilados antiguos de los ZIP.
+Versión 1: se verificaron compilación con JDK 21, lanzamiento del JAR y pruebas en Linux, sin `mvn`. Versión 2: en Windows 11 con JDK 21 se ejecutaron `mvn clean verify` (22 pruebas JUnit), `scripts/build.sh` (Git Bash) y el JAR resultante; `scripts/build.ps1` no se ejecutó. Versión 4: en Windows 10, Java/Javac 22 con `--release 21`, se ejecutaron 38 pruebas JUnit y `scripts/build.ps1`. El `mvn clean verify` literal falló antes de compilar porque el entorno apuntó a `C:\.m2\repository`; con un settings temporal que señala el repositorio local existente, `mvn -s ... -o clean verify` terminó correctamente. Con Maven, usar siempre `clean`: sin él, el `maven-shade-plugin` puede mezclar clases viejas con nuevas. No se incluyeron dependencias de `.m2`.

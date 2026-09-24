@@ -12,7 +12,7 @@ El documento de referencia `22.dis.experim.v01.docx` aporta la organización: ob
 
 Una corrida se identifica por `(instancia, algoritmo, semilla de búsqueda, presupuesto, configuración)`. Una pareja contiene GRASP y SA sobre la misma instancia, semilla y presupuesto.
 
-Una instancia es una combinación concreta de pedidos, flota, inventarios, tiempo, mantenimiento y bloqueos. Sus datos se guardan en JSON y se verifican mediante SHA-256. Hay dos semillas distintas:
+Una instancia es una combinación concreta de pedidos, flota, inventarios, tiempo y bloqueos. Por aclaración docente incorporada en la versión 4, el diseño experimental no introduce mantenimiento preventivo ni averías. Sus datos se guardan en JSON y se verifican mediante SHA-256. Hay dos semillas distintas:
 
 - `instance_seed`: genera datos sintéticos; no cambia entre repeticiones de una instancia.
 - `search_seed`: controla las decisiones pseudoaleatorias del algoritmo; cambia entre repeticiones.
@@ -26,6 +26,7 @@ Usar el mismo número de semilla en GRASP y SA **no hace que sus secuencias de d
 | Dominio | Una única copia del módulo actualizado de GRASP; SA depende de ella |
 | Factibilidad | Mismo `OperationalPlanEvaluator` y auditoría posterior con TODOS los pedidos |
 | Datos | Mismo generador/cargador, fechas, inventarios, flota, bloqueos y huella de entrada |
+| Incidencias | Bloqueos incluidos; mantenimiento preventivo y averías excluidos para ambos algoritmos |
 | Presupuesto | Mismo máximo de tiempo en modo TIME, incluido el plan inicial de SA |
 | Proceso | Una JVM nueva para cada corrida, ejecutadas secuencialmente |
 | Memoria | Mismos `-Xms64m` y `-Xmx512m` por defecto |
@@ -55,15 +56,16 @@ El modo `FIXED` usa límites nativos de iteraciones y presupuesto temporal desac
 |---|---|---|
 | NORMAL | Pedidos sintéticos de 1–8 paquetes; plazos 4, 8, 12, 18 o 36 h | Comparación base y volumen |
 | BLOCKED | Misma clase de demanda sintética, con tres bloqueos temporales generados | Efecto de restricciones viales |
-| REDUCED | Mantenimiento de aproximadamente la mitad de vehículos de cada tipo | Disponibilidad de flota |
 | SPLIT | Algunos pedidos tienen 25–32 paquetes | Comprobar efectividad frente a demanda que exige dividir entregas |
-| REAL | Lotes horarios de archivos originales, con bloqueos y mantenimientos originales | Contraste con datos proporcionados |
+| REAL | Lotes horarios de pedidos y bloqueos originales | Contraste con datos proporcionados |
 
-Estas cinco familias no equivalen a los tres modos finales de operación del sistema. No se simulan llegada continua, averías dinámicas, ejecución de rutas ni colapso cronológico.
+Estas cuatro familias no equivalen a los tres modos finales de operación del sistema. La antigua familia `REDUCED`, que reducía flota mediante mantenimiento, se retiró de los CSV de `pilot` y `formal`. No se simulan llegada continua, averías dinámicas, ejecución de rutas ni colapso cronológico.
+
+La exclusión es propia de `InstanceFactory`: el archivo y cargador de mantenimiento, `MaintenanceCalendar`, los eventos de avería y sus pruebas de producto permanecen en el dominio general. Los escenarios operacionales futuros día a día y 5D podrán introducir averías manuales, trasvase y la decisión giro en U/continuidad de ruta; esas reglas no están implementadas ni forman parte de esta comparación.
 
 Para los sintéticos todas las demandas se conocen desde el instante de planificación. Los destinos se generan dentro de la red y las semillas quedan publicadas. Para `REAL`, se recogen pedidos en `[07:00,08:00)` y se planifica a las `08:00`: así no se suministran al algoritmo pedidos que todavía no habían llegado a las 07:00. Los plazos conservan su fecha de registro original. Los bloqueos se cargan desde la planificación hasta la fecha límite más lejana más dos días, no solamente los activos durante la hora de recogida.
 
-La campaña formal propone 8 instancias por familia: 32 sintéticas (6/12/18/24 pedidos y semillas publicadas), más 8 lotes reales de días distintos. Las fechas y parámetros están en el CSV y en los manifiestos, no ocultos en la interfaz.
+La campaña formal propone 40 instancias: 32 sintéticas (16 `NORMAL`, 8 `BLOCKED`, 8 `SPLIT`, con 6/12/18/24 pedidos y semillas publicadas) y 8 lotes reales de días distintos. Las fechas y parámetros están en el CSV y en los manifiestos, no ocultos en la interfaz.
 
 **Ventanas reales largas.** Con ventanas de varias horas, el lote se planifica al final de la ventana y algunos pedidos registrados al inicio ya vencieron: ningún plan de ese lote puede cubrirlos. Desde la versión 2 se excluyen al crear la instancia y se listan en `orders_expired_before_planning_excluded` del manifiesto. Con ventanas de 1 h no ocurre (el plazo mínimo es 4 h) y esas instancias conservan su huella. Estas ventanas modelan una acumulación de pedidos pendientes planificada de una vez: sirven para estudiar **volumen**, no reproducen la operación online.
 
@@ -77,7 +79,7 @@ La campaña formal propone 8 instancias por familia: 32 sintéticas (6/12/18/24 
 
 `escalabilidad` (versión 2): 8 × 3 × 2 algoritmos × 2 presupuestos (5 y 20 s) = 96. Estudia el comportamiento con más pedidos: 24, 48, 96 y 144 sintéticos, y ventanas reales de 1, 2, 4 y 8 h de los días 21–24 de septiembre, que no se usan en piloto ni en la campaña formal. Los dos presupuestos se analizan por separado.
 
-Los valores de `alpha=0.3`, temperatura 1000, enfriamiento 0.95 y 50 vecinos por nivel son puntos de partida conservados del desarrollo, **no configuraciones óptimas demostradas**. Si se calibra, dedicar esfuerzo comparable a los dos algoritmos y registrar el procedimiento, sin seleccionar únicamente su mejor corrida aislada. Con la red de caminos de la versión 2, ese esquema de SA termina en 1–2 s: en el piloto conviene decidir si se compara a igual tiempo máximo (diseño actual) o a igual tiempo usado (requiere calibrar el esquema de SA), y dejarlo escrito antes de la campaña formal.
+Los valores de `alpha=0.3`, temperatura 1000, enfriamiento 0.95 y 50 vecinos por nivel son puntos de partida conservados del desarrollo, **no configuraciones óptimas demostradas**. Si se calibra, dedicar esfuerzo comparable a los dos algoritmos y registrar el procedimiento, sin seleccionar únicamente su mejor corrida aislada. El esquema actual de SA ejecuta 135 niveles × 50 vecinos = 6.750 iteraciones y termina por temperatura; puede acabar antes del límite. En el piloto conviene decidir si se compara a igual tiempo máximo (diseño actual) o a igual tiempo usado (requiere calibración), y dejarlo escrito antes de la campaña formal.
 
 ## 7. Métricas e interpretación
 
@@ -89,7 +91,7 @@ Los valores de `alpha=0.3`, temperatura 1000, enfriamiento 0.95 y 50 vecinos por
 
 **Eficiencia:** tiempo hasta la primera solución completa, calidad obtenida al consumir el presupuesto, evaluaciones y consultas de caminos. El tiempo total es poco informativo para seleccionar velocidad cuando ambos alcanzan el mismo tope. Los casos sin primer éxito son fallos/censurados, no tiempos cero. `path_queries` cuenta solicitudes a la red (desde la versión 2, igual para ambos: GRASP ya no tiene caché privada); una solicitud repetida puede resolverse desde la caché exacta de la red.
 
-**Secundarias: pedidos atendibles (versión 2).** Un pedido es *demostrablemente no atendible* si, para cada vehículo disponible al planificar, la ruta directa central → pedido → central que sale en ese instante incumple el plazo u otra regla dura por ruta (camino, 80 km, refrigerio, mantenimiento), evaluada con el mismo scheduler común. Esa ruta da la llegada más temprana posible: cualquier parada previa o salida posterior solo la retrasa. `full_servable_feasible` exige rutas válidas que entreguen a tiempo todos los demás pedidos; `coverage_servable_pct` mide la cobertura sobre ellos. Si ambos algoritmos de una pareja cumplen `full_servable_feasible`, entregan el mismo conjunto y su costo es comparable. Estas métricas son **descriptivas**: la métrica primaria y las pruebas inferenciales no cambian. Se calculan en la auditoría, fuera del tiempo medido.
+**Secundarias: pedidos atendibles (versión 2).** Un pedido es *demostrablemente no atendible* si, para cada vehículo disponible al planificar, la ruta directa central → pedido → central que sale en ese instante incumple el plazo u otra regla dura por ruta (camino, 80 km o refrigerio), evaluada con el mismo scheduler común. En el diseño experimental actual no intervienen mantenimiento ni averías. Esa ruta da la llegada más temprana posible: cualquier parada previa o salida posterior solo la retrasa. `full_servable_feasible` exige rutas válidas que entreguen a tiempo todos los demás pedidos; `coverage_servable_pct` mide la cobertura sobre ellos. Si ambos algoritmos de una pareja cumplen `full_servable_feasible`, entregan el mismo conjunto y su costo es comparable. Estas métricas son **descriptivas**: la métrica primaria y las pruebas inferenciales no cambian. Se calculan en la auditoría, fuera del tiempo medido.
 
 **Memoria:** `heap_sampled_peak_mib` es el máximo de muestras de heap utilizado durante la búsqueda. No es pico exacto, memoria incremental atribuible al algoritmo, RSS del proceso ni memoria reservada. Se incluyen objetos preexistentes del proceso. No usarlo como una medición exhaustiva del consumo.
 
