@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class SaRealDataIntegrationTest {
     @Test
-    void plansSeptemberFirstAtTwoWithRealOrdersBlocksAndMaintenance() {
+    void experimentalRealInstanceKeepsBlocksButExcludesMaintenanceAndBreakdowns() {
         Path root = Files.isDirectory(Path.of("data")) ? Path.of(".") : Path.of("..");
         root = root.toAbsolutePath().normalize();
         YearMonth month = YearMonth.of(2026, 9);
@@ -51,7 +51,14 @@ class SaRealDataIntegrationTest {
         assertEquals(realOrders, instance.orders());
         assertEquals(planning, instance.snapshot().planningTime());
         assertTrue(instance.blocks().containsAll(activeBlocks));
-        assertFalse(instance.snapshot().isVehiclePlannableAt("TA01", planning));
+        assertTrue(instance.snapshot().isVehiclePlannableAt("TA01", planning));
+        assertTrue(maintenance.stream().filter(day -> day.date().equals(LocalDate.of(2026, 9, 1)))
+                .allMatch(day -> instance.snapshot().isVehiclePlannableAt(day.vehicleId(), planning)));
+        assertTrue(instance.snapshot().breakdowns().isEmpty());
+        assertEquals(List.of(), instance.manifest().get("maintenance"));
+        assertEquals(List.of(), instance.manifest().get("breakdowns"));
+        assertFalse(((java.util.Map<?, ?>) instance.manifest().get("source_file_sha256"))
+                .containsKey("data/mant.preventivo.09.10.txt"));
 
         AlgorithmOutput output = new SaAdapter().solve(instance, config, 202609010200L);
         CommonAudit.AuditResult audit = CommonAudit.evaluate(instance, output.plan());
@@ -59,7 +66,6 @@ class SaRealDataIntegrationTest {
                 .evaluate(output.plan(), instance.snapshot(), instance.orders(), instance.blocks());
         assertFalse(output.plan().routes().isEmpty(), () -> output.termination() + ": " + output.detail());
         assertTrue(audit.fullFeasible(), () -> evaluation.violations().toString());
-        assertTrue(output.plan().routeForVehicle("TA01").isEmpty());
         assertTrue(evaluation.violations().isEmpty());
         for (ScheduledDeliveryRoute route : evaluation.schedulesByRouteId().values()) {
             int capacity = instance.snapshot().fleetProfile()

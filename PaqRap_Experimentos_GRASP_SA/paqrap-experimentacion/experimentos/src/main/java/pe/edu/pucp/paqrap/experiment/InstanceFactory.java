@@ -3,7 +3,6 @@ package pe.edu.pucp.paqrap.experiment;
 import pe.edu.pucp.paqrap.planner.domain.*;
 import pe.pucp.paqrap.modelo.CargadorPedidos;
 import pe.pucp.paqrap.modelo.CargadorBloqueos;
-import pe.pucp.paqrap.modelo.CargadorMantenimiento;
 import java.time.*;
 import java.nio.file.*;
 import java.util.*;
@@ -24,7 +23,7 @@ public final class InstanceFactory {
                 Warehouse.intermediate("EAST",new Location(config.integer("east.x",57),config.integer("east.y",27)),config.integer("stock.east",1000)));
         Warehouse central=warehouses.getFirst();
         List<Order> orders=new ArrayList<>();List<RoadBlock> blocks=new ArrayList<>();
-        List<MaintenanceDay> maintenance=new ArrayList<>();List<BreakdownEvent> breakdowns=new ArrayList<>();
+        List<MaintenanceDay> maintenance=List.of();List<BreakdownEvent> breakdowns=List.of();
         Map<String,Object> inputFiles=new TreeMap<>();
         List<String> expired=new ArrayList<>();
         Random generator=new Random(spec.instanceSeed());
@@ -48,8 +47,6 @@ public final class InstanceFactory {
                 if(!Files.exists(file))throw new IllegalArgumentException("Missing road block data: "+file);
                 blocks.addAll(CargadorBloqueos.desdeArchivo(file,m,zone,planning,horizon));hashFile(inputFiles,file,config.root());
             }
-            Path file=config.root().resolve("data/mant.preventivo.09.10.txt");
-            maintenance.addAll(CargadorMantenimiento.desdeArchivo(file));hashFile(inputFiles,file,config.root());
             if(orders.isEmpty())throw new IllegalArgumentException("No orders in real window: "+spec.id());
         } else {
             int[] deadlines={4,8,12,18,36};
@@ -75,8 +72,6 @@ public final class InstanceFactory {
             for(int i=1;i<=n;i++){
                 Vehicle vehicle=new Vehicle(type.fleetCode()+String.format("%02d",i),type,true);
                 states.put(vehicle.id(),new VehicleOperationalState(vehicle,VehicleStatus.AVAILABLE,central.location(),planning));
-                // Controlled resource perturbation: same unavailable units for both algorithms.
-                if(spec.family().equals("REDUCED") && i<=n/2)maintenance.add(new MaintenanceDay(vehicle.id(),spec.date()));
             }
         }
         FleetProfile fleet=FleetProfile.defaults()
@@ -95,7 +90,9 @@ public final class InstanceFactory {
                 "orders",orders.stream().map(o->obj("id",o.id(),"x",o.destination().x(),"y",o.destination().y(),"packages",o.packages(),"registered_at",o.registeredAt(),"deadline",o.deadline())).toList(),
                 "blocks",blocks.stream().map(b->obj("from",b.startsAt(),"to",b.endsAt(),"nodes",b.nodes().stream().map(n->List.of(n.x(),n.y())).toList())).toList(),
                 "maintenance",maintenance.stream().map(m->obj("vehicle",m.vehicleId(),"date",m.date())).toList(),
-                "breakdowns",List.of(),"source_file_sha256",inputFiles);
+                "breakdowns",List.of(),
+                "experimental_constraints",obj("road_blocks",true,"preventive_maintenance",false,"breakdowns",false),
+                "source_file_sha256",inputFiles);
         // Solo si hubo exclusiones: las instancias previas (ventanas de 1 h) conservan su huella.
         if(!expired.isEmpty()){
             manifest=new LinkedHashMap<>(manifest);
