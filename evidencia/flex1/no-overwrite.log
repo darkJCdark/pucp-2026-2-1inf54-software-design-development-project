@@ -1,0 +1,2 @@
+Exception in thread "main" java.lang.IllegalArgumentException: Output already contains results. Choose another --output or use --resume true with the same build/configuration.
+	at pe.edu.pucp.paqrap.experiment.ExperimentMain.main(ExperimentMain.java:46)

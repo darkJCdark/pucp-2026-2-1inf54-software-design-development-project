@@ -1,53 +1,96 @@
-# Protocolo experimental · v3
+# Protocolo de experimentación
 
-## Unidad de comparación
+## Alcance y controles
 
-Una instancia contiene pedidos, flota fija, inventario, almacenes, velocidades, costos, hora de planificación y bloqueos planificados. No incluye mantenimiento preventivo ni averías automáticas. La familia NORMAL es un control sintético sin bloqueos; BLOCKED y REAL sí los incorporan. REDUCED modifica la flota antes de empezar, no durante la corrida.
+Planificación estática por lotes. No requiere ni demuestra funcionamiento de Día a Día, 5D,
+colapso continuo, frontend o backend. Las entradas se materializan antes de buscar.
+En datos reales se planifica al cerrar la ventana de recepción y se conservan los deadlines
+originales. `n_orders=0` en una fila REAL significa cargar todos los pedidos de esa ventana,
+no una instancia vacía. La política base KEEP conserva pedidos vencidos o muy difíciles.
 
-GRASP y SA reciben la misma instancia inmutable y el mismo conjunto completo de pedidos. La semilla de generación sintética es distinta de la semilla de búsqueda. Las repeticiones de una misma instancia no se consideran instancias independientes.
+Las ventanas grandes pueden dejar pedidos imposibles antes de empezar: aumentar tiempo de
+cómputo no cambia el instante operativo del snapshot ni recupera un plazo ya agotado. Debe
+informarse este efecto y separar escalabilidad de envejecimiento de pedidos. No descartar
+silenciosamente esos pedidos para mejorar cobertura. Un pedido que la cota Manhattan no descarta
+no queda demostrado atendible: la cota es solo una condición necesaria optimista.
 
-## Regla de éxito y objetivo
+Se considera la flota 10/15/12 y sus capacidades 24/8/4, velocidades 40/25/12 y costos 8/6/3 por km,
+Central (27,14), NW (12,38), Este (57,27), inventarios, reposiciones, plazos y entregas divididas.
+Se incluyen bloqueos en las familias sintéticas y archivos reales. Mantenimiento y averías automáticas
+se excluyen y su activación por configuración se rechaza. No hay límite base de 80 km por tramo.
 
-Una solución completa exige rutas válidas y entrega de toda la cantidad de cada pedido entre su registro y su plazo. Llegar exactamente al plazo está permitido. La hora de acondicionamiento posterior ocupa al vehículo pero no se suma al plazo de entrega. Cada entrega parcial efectiva consume esa hora; dos fragmentos contiguos de la misma visita son una sola entrega efectiva.
+## Unidad y tiempos
 
-Durante la búsqueda se prioriza: validez operativa → menos pedidos pendientes → menos unidades pendientes → costo → distancia. No se penalizan los incumplimientos mediante dinero. Una reducción de costo no permite aceptar peores cantidades cubiertas. SA aplica Metropolis únicamente a propuestas de la misma cobertura; GRASP usa RCL y búsqueda local. La comparación estadística primaria del costo se limita a parejas de soluciones completas.
+Una corrida = algoritmo + instancia + semilla de búsqueda + presupuesto. Una pareja usa la misma
+instancia, semilla y presupuesto para GRASP y SA. La semilla de construcción sintética no es la
+semilla de búsqueda. Cada instancia tiene manifiesto y hash de sus datos materializados.
 
-La auditoría final usa una instancia nueva del mismo `OperationalPlanEvaluator`, fuera del límite de búsqueda. No se confía en una etiqueta de éxito del algoritmo sin volver a comprobar sus rutas.
+La campaña ejecuta una JVM hija nueva por corrida y alterna el orden entre combinaciones de
+instancia y repetición. GRASP y SA nunca se ejecutan simultáneamente dentro del ejecutor.
+`worker.processors=2` informa a la JVM cuántos procesadores utilizar; no reserva núcleos ni aísla
+al proceso de otros programas. Cierra cargas pesadas y usa el mismo equipo durante toda la campaña.
 
-## Reloj operativo y supuestos
+TIME limita tiempo real de búsqueda, no horas de circulación ni solo CPU consumida. Incluye
+la inicialización de SA, inserciones, programación del descanso y evaluaciones dentro de la búsqueda.
+Lectura, arranque JVM, calentamiento y auditoría final se excluyen; se registra `final_audit_ms`.
+El corte temporal es cooperativo: puede existir un pequeño exceso al llegar al siguiente checkpoint.
+Hay además un límite de seguridad del proceso hijo (al menos 90 s con los perfiles incluidos).
+`TIME_LIMIT` con un plan completo es normal: se encontró un plan y se siguió mejorando hasta agotar
+el presupuesto. No significa automáticamente error. El mejor plan ya validado se conserva.
 
-Retícula de 70 × 50 km, extremos incluidos, desplazamientos horizontales/verticales bidireccionales. Se calcula el tiempo por calle con precisión de nanosegundos redondeada desde la velocidad; no se usa una distancia recta diagonal.
+En la prevalidación de FIXED la suma mostrada corresponde a valores nominales del perfil, no a un tiempo estimado.
+FIXED sirve para pruebas de repetibilidad con pasos acotados; su `budget_ms=0` significa que no usa
+un límite temporal de búsqueda. No debe presentarse como igualdad de tiempo GRASP/SA.
+Repetir TIME con la misma semilla puede producir planes diferentes porque el sistema operativo
+permite completar distinto número de pasos antes del corte.
 
-Central `(27,14)` con stock permanente; Nor-Oeste `(12,38)` y Este `(57,27)` con 1000 unidades por defecto. Recargas sin duración extra, conservando la convención del código recibido. Inventario compartido por todas las rutas, eventos ordenados cronológicamente y reposición diaria a las 23:59:59. Volver a un almacén sin recoger unidades no consume stock. Todas las unidades parten del Central en las instancias experimentales.
+## Criterio de evaluación
 
-Turnos 07–15, 15–23 y 23–07. Se fija una hora de comida por turno con `meal.startOffsetMinutes=180`; franjas 10–11, 18–19 y 02–03. Esta es una decisión de modelado experimental: el contexto maestro no precisa la hora exacta. Los márgenes de una hora se conservan del código previo, no de una aclaración nueva. Viaje y servicio no invaden la franja; el servicio se modela como una hora ininterrumpida. El relevo no agrega tiempo.
+Primero validez de rutas; después demanda completamente atendida y cobertura de pedidos/unidades.
+El costo principal existe únicamente para planes completos factibles frente a TODA la demanda
+original. Para comparar costos directamente se usan parejas donde ambos completan. Se preservan
+costos brutos de planes parciales solo para inspección, nunca como ranking experimental.
 
-`routing.maxLegKm=0` significa sin tope artificial de distancia por tramo. `80` permite reproducir esa interpretación heredada como sensibilidad explícita, pero no es la línea base del contexto maestro.
+Las métricas `unruled_out` son diagnósticas y no reemplazan el denominador original. Un plan que
+atiende todos los pedidos no descartados por la cota puede seguir siendo incompleto frente al lote.
+Las salidas fallidas, no soluciones y timeouts forman parte de los resultados; no se repiten o borran
+selectivamente. Tampoco se declara un colapso porque una metaheurística no encuentre un plan.
 
-## Pedidos y bloqueos reales
+## Etapas
 
-Se toman pedidos recibidos en `[from_hour,to_hour)`; se planifica al terminar esa ventana, por lo que no se conocen pedidos futuros. Esto difiere de despachar continuamente durante la ventana. Un lote largo puede contener pedidos que una operación online habría atendido antes. Por defecto no se borran: `orders.expiredPolicy=KEEP`. La política EXCLUDE registra identificadores y cambia la población; debe informarse y no mezclarse con KEEP.
+1. `--self-test`, prueba diferencial, smoke y readiness: verificación técnica.
+2. Piloto: 12 instancias, 3 semillas, 3/5/10/20 s, 288 corridas. Ajustar parámetros aquí, no sobre formal.
+3. Revisar resultados y justificar presupuesto; mantener igual programador y reglas para ambos.
+4. Congelar código, datos, configuración y protocolo; plantilla formal de 400 corridas en instancias distintas.
+5. Ejecutar formal, auditar y producir resultados descriptivos y análisis previamente definido.
 
-Se cargan y fingerprintan los archivos mensuales de bloqueos relevantes para el horizonte de los plazos más dos días de margen operativo. Si falta un mes requerido, la instancia falla explícitamente. La factibilidad se refiere a los bloqueos suministrados; no se simulan incidencias desconocidas fuera de los archivos. Las rutas conservan todos sus nodos y horarios para inspección. No se equipara este horizonte a una prueba general de operación ilimitada o colapso.
+El minipiloto de 8 corridas incluido en evidencia solo prueba el funcionamiento del recorrido completo
+a 3 y 10 s. No sustituye el piloto de 288 corridas. La congelación de ejemplo incluida en evidencia
+es una PRUEBA del script, no aprobación de 10 s para la entrega final.
 
-Los bloqueos se consideran activos en `[inicio,fin)`: no se ingresa a un nodo bloqueado exactamente al inicio; tras el fin puede reabrirse. Si la espera de comida cambia los horarios, se vuelve a consultar la red. El plan evita bloqueos conocidos; el método operativo `traverse` conserva la respuesta de giro en U cuando se encuentra un nodo bloqueado. No hay bloqueos por averías en estos experimentos.
+## Análisis
 
-## Presupuesto y semillas
+`analyze.py` comprueba pares y hashes de configuración, distingue éxitos y agrupa las semillas por
+instancia. La sección estadística opcional usa diferencias agregadas por instancia; Shapiro se aplica
+sobre diferencias pareadas, no sirve por sí solo para validar todos los supuestos de Wilcoxon.
+Los contrastes son bilaterales exploratorios; no se elige una cola después de ver quién obtuvo
+menor costo. El costo inferencial opcional se limita a instancias con éxito en todas las repeticiones
+de ambos algoritmos y su interpretación es condicional a ese subconjunto.
 
-Modo principal `TIME`: mismo máximo de milisegundos por algoritmo, incluyendo inicialización de SA y construcción de GRASP. Se permite un pequeño exceso por comprobaciones cooperativas, planificación del sistema operativo y salida de funciones; se informa `elapsed_ms` real y `budget_exhausted`. No se presenta el límite como un reloj duro exacto a nivel de instrucción.
+`pilot_summary.py` exporta cobertura y éxito por presupuesto y algoritmo. Los costos se comparan
+sobre las MISMAS parejas que completaron en TODOS los presupuestos: evita una falsa mejora por
+cambiar el conjunto de casos que entran a la media. Si no hay ese subconjunto, el costo queda vacío.
+No se consideran 200 semillas-instancias como 200 problemas independientes ni se garantiza potencia
+estadística solo por llegar a 400 corridas. Los días reales pueden estar relacionados entre sí.
 
-Cada corrida utiliza una JVM nueva; el controlador ejecuta secuencialmente y alterna el orden GRASP/SA. Carga de archivos, inicio de JVM, calentamiento de ambos algoritmos y auditoría final quedan fuera del tiempo de búsqueda. Se registra tiempo de inicialización y auditoría. Parámetros de JVM iguales dentro de una campaña.
+## Resultados y reanudación
 
-GRASP se instancia de nuevo con su semilla. SA utiliza una semilla de búsqueda explícita e inicialización determinista. En TIME recalienta a la temperatura inicial cuando cae por debajo de Tmin, conservando su mejor plan. También existen topes de iteraciones y estancamiento que pueden acabar antes del tiempo; siempre revisar `termination`.
+Conservar `runs.csv`, `paired.csv`, `metadata.json`, `experiment.properties`, `instances.csv`,
+manifiestos JSON y `jobs/*.plan.json`, `*.trace.csv`, `*.result.properties` y logs. Las trazas registran
+mejoras encontradas, no necesariamente una muestra equiespaciada del tiempo. En los JSON los
+instantes se exportan en UTC; para leer hora Lima restar cinco horas.
 
-FIXED es un protocolo para comprobar repetibilidad con un número fijo de pasos. Sus “iteraciones” no son trabajo equivalente entre algoritmos y no deben utilizarse para una conclusión temporal justa. En FIXED, `budget_ms=0` significa sin límite cooperativo, no cero tiempo consumido. El guardián de proceso sigue activo.
-
-Una semilla fija no garantiza idéntico plan al cortar por tiempo real en distintas máquinas. Sí hace reproducible la secuencia pseudoaleatoria de la búsqueda bajo el mismo protocolo determinista.
-
-## Interpretación y campaña
-
-`orders_provably_unservable` es una cota necesaria conservadora: si incluso el viaje Manhattan optimista desde cualquier vehículo disponible llega tarde, ese pedido no se puede cumplir en la instancia estática. Se ignoran bloqueos, inventario, comidas, servicio, retornos y otros pedidos para no exagerar la imposibilidad. **Que un pedido no sea descartado no demuestra que pueda atenderse.** `*_unruled_out_*` son indicadores secundarios, nunca sustitutos del éxito primario.
-
-Primero ejecutar smoke/readiness; luego calibrar tiempo y parámetros en instancias de desarrollo. Congelar configuración, semillas, familias, cantidades, políticas y compilación antes de la campaña formal. Reportar todos los fallos y resultados incompletos. No aumentar selectivamente el tiempo solo al algoritmo que perdió ni reintentar únicamente semillas fallidas.
-
-El análisis descriptivo está listo en `scripts/analyze.py`. La inferencia opcional trabaja a nivel de instancia, no de cada semilla como observación independiente, y sigue siendo condicional al diseño escogido. No se ejecutó una campaña formal ni se declara un ganador con esta entrega.
+Una nueva ejecución usa una carpeta nueva. `--resume true` retiene corridas terminadas, incluidas
+fallidas, y rechaza cambios de binario, entradas, configuración o ciertos datos del entorno Java/SO.
+No detecta el modelo físico de procesador ni todas las fuentes de carga: el equipo debe controlar
+manualmente esas condiciones. No lanzar dos procesos sobre la misma carpeta de salida.

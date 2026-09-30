@@ -1,0 +1,79 @@
+{
+  "checked_plans": 10,
+  "invalid_or_failed_runs_retained": [],
+  "route_meals_checked": 104,
+  "result": "PASS",
+  "checks": [
+    {
+      "run_id": "READY05-r1-b1500-GRASP",
+      "routes": 2,
+      "route_meals": 3,
+      "complete": true,
+      "distance_km": 184
+    },
+    {
+      "run_id": "READY05-r1-b1500-SA",
+      "routes": 3,
+      "route_meals": 3,
+      "complete": true,
+      "distance_km": 204
+    },
+    {
+      "run_id": "READY10-r1-b1500-SA",
+      "routes": 3,
+      "route_meals": 7,
+      "complete": true,
+      "distance_km": 450
+    },
+    {
+      "run_id": "READY10-r1-b1500-GRASP",
+      "routes": 4,
+      "route_meals": 5,
+      "complete": true,
+      "distance_km": 388
+    },
+    {
+      "run_id": "READY15-r1-b1500-GRASP",
+      "routes": 7,
+      "route_meals": 11,
+      "complete": true,
+      "distance_km": 694
+    },
+    {
+      "run_id": "READY15-r1-b1500-SA",
+      "routes": 4,
+      "route_meals": 10,
+      "complete": true,
+      "distance_km": 588
+    },
+    {
+      "run_id": "READY20-r1-b1500-SA",
+      "routes": 5,
+      "route_meals": 13,
+      "complete": true,
+      "distance_km": 801
+    },
+    {
+      "run_id": "READY20-r1-b1500-GRASP",
+      "routes": 10,
+      "route_meals": 16,
+      "complete": true,
+      "distance_km": 908
+    },
+    {
+      "run_id": "READYREAL-r1-b1500-GRASP",
+      "routes": 13,
+      "route_meals": 21,
+      "complete": false,
+      "distance_km": 1154
+    },
+    {
+      "run_id": "READYREAL-r1-b1500-SA",
+      "routes": 6,
+      "route_meals": 15,
+      "complete": false,
+      "distance_km": 932
+    }
+  ],
+  "scope": "Verificación independiente de exportaciones, no prueba de optimalidad."
+}

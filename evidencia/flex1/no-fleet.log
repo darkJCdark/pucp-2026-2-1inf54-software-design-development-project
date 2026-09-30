@@ -1,0 +1,6 @@
+[1/2] EDGE-r1-b1500-GRASP | 3 orders | budget 1500 ms ...
+  NO_SOLUTION | coverage=0.000000% | cost(full)= | ms=3.993271
+[2/2] EDGE-r1-b1500-SA | 3 orders | budget 1500 ms ...
+  NO_SOLUTION | coverage=0.000000% | cost(full)= | ms=2.081134
+Done. Open: /mnt/data/paqrap_actualizado/paqrap-experimentacion/evidencia/flex1/no-fleet/report.html
+Raw, paired results: /mnt/data/paqrap_actualizado/paqrap-experimentacion/evidencia/flex1/no-fleet/runs.csv

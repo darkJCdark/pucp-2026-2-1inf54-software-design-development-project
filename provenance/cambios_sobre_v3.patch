@@ -1,0 +1,2066 @@
+--- a/dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/ShiftSchedule.java
++++ b/dominio/src/main/java/pe/edu/pucp/paqrap/planner/domain/ShiftSchedule.java
+@@ -13,48 +13,30 @@
+ public final class ShiftSchedule {
+     public static final ZoneId DEFAULT_ZONE = ZoneId.of("America/Lima");
+ 
++    public static final Duration MEAL_DURATION = Duration.ofHours(1);
+     private final ZoneId zoneId;
+-    private final int mealStartOffsetMinutes;
++    private final int mealBeamWidth;
+ 
+-    public ShiftSchedule(ZoneId zoneId) {
+-        this(zoneId, 180);
++    public ShiftSchedule(ZoneId zoneId) { this(zoneId, 8, true); }
++
++    private ShiftSchedule(ZoneId zoneId, int mealBeamWidth, boolean flexible) {
++        this.zoneId = Objects.requireNonNull(zoneId, "zoneId is required");
++        if (mealBeamWidth < 2 || mealBeamWidth > 32)
++            throw new IllegalArgumentException("meal.beamWidth must be in 2..32");
++        this.mealBeamWidth = mealBeamWidth;
+     }
+ 
+-    /** Explicit experimental policy, not an assertion of a mandatory meal clock time.
+-     * One uninterrupted hour, inside [shift+1h, shiftEnd-1h]. Default: 10/18/02h. */
+-    public ShiftSchedule(ZoneId zoneId, int mealStartOffsetMinutes) {
+-        if (mealStartOffsetMinutes < 60 || mealStartOffsetMinutes > 360)
+-            throw new IllegalArgumentException("Meal start offset must be 60..360 minutes after shift start");
+-        this.mealStartOffsetMinutes = mealStartOffsetMinutes;
+-        this.zoneId = Objects.requireNonNull(zoneId, "zoneId is required");
++    /** There is deliberately NO fixed-clock meal constructor or optional-meal switch. */
++    public static ShiftSchedule flexible(ZoneId zoneId, int beamWidth) {
++        return new ShiftSchedule(zoneId, beamWidth, true);
+     }
++    public static ShiftSchedule defaultSchedule() { return new ShiftSchedule(DEFAULT_ZONE); }
++    public ZoneId zoneId() { return zoneId; }
++    public int mealBeamWidth() { return mealBeamWidth; }
+ 
+-    public static ShiftSchedule defaultSchedule() {
+-        return new ShiftSchedule(DEFAULT_ZONE);
+-    }
+-
+-    public ZoneId zoneId() { return zoneId; }
+-    public int mealStartOffsetMinutes() { return mealStartOffsetMinutes; }
+-
+-    public ShiftWindow mealSlot(Instant instant) {
+-        Instant start = shiftAt(instant).startsAt().plusSeconds(mealStartOffsetMinutes * 60L);
+-        return new ShiftWindow(start, start.plusSeconds(3600));
+-    }
+-
+-    /** Earliest start for an uninterrupted action, without occupying a fixed meal slot.
+-     * Idle drivers are assumed to take their meal at this same slot; no extra first-arrival break. */
+-    public Instant nextWorkStart(Instant requested, Duration duration) {
+-        Objects.requireNonNull(duration, "duration");
+-        if (duration.isNegative() || duration.compareTo(Duration.ofHours(7)) > 0)
+-            throw new IllegalArgumentException("Action must take between 0 and 7 hours");
+-        if (duration.isZero()) return requested;
+-        Instant start = requested;
+-        while (true) {
+-            ShiftWindow slot = mealSlot(start);
+-            if (!start.isBefore(slot.endsAt())) slot = mealSlot(shiftAt(start).endsAt());
+-            if (!start.plus(duration).isAfter(slot.startsAt())) return start;
+-            start = slot.endsAt();
+-        }
++    /** Latest legal START of an uninterrupted one-hour break in this shift. */
++    public Instant latestMealStart(Instant instant) {
++        return mealWindow(instant).endsAt().minus(MEAL_DURATION);
+     }
+ 
+     public ShiftWindow shiftAt(Instant instant) {
+@@ -79,9 +61,9 @@
+         return shiftAt(instant).endsAt().plusSeconds(8 * 60 * 60L);
+     }
+ 
+-    /** The 6-hour meal window inside the shift containing `instant`: from
+-     *  1 hour after shift start to 1 hour before shift end (one-hour margins retained as an explicit model convention
+-     *  from the supplied implementation; exact margins are not quantified in the master text). */
++    /** Full break must lie inside [shift start + 1h, shift end - 1h].
++     * This implements the course wording with one-hour margins at both shift changes.
++     * For 07-15, legal STARTS are 08-13, not a mandatory clock time. */
+     public ShiftWindow mealWindow(Instant instant) {
+         ShiftWindow shift = shiftAt(instant);
+         return new ShiftWindow(shift.startsAt().plusSeconds(3600), shift.startsAt().plusSeconds(7 * 3600));
+--- a/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/FlexibleMealClock.java
++++ b/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/FlexibleMealClock.java
+@@ -0,0 +1,101 @@
++package pe.edu.pucp.paqrap.planner.route;
++
++import pe.edu.pucp.paqrap.planner.domain.*;
++import java.time.*;
++import java.util.*;
++import static pe.edu.pucp.paqrap.planner.route.ScheduledMealBreak.Placement.*;
++
++/** Copyable state of the driver-shift meals for one scheduling label.
++ * Decisions are route-local: not one global lunch time for the fleet.
++ * A compulsory latest-start safeguard acts at street nodes and before indivisible service.
++ */
++final class FlexibleMealClock {
++    private final ShiftSchedule shifts;
++    private final List<ScheduledMealBreak> breaks;
++    FlexibleMealClock(ShiftSchedule shifts, DeliveryRoute route) {
++        this.shifts = shifts; this.breaks = new ArrayList<>();
++        // Static-batch initial-state convention, EXPLICIT in the instance manifest:
++        // a scenario-start driver was idle at Central before this snapshot. If a full legal
++        // hour fits before departure, record it rather than assuming a missing meal away.
++        // Replans from a moving/current location do NOT receive this credit.
++        if (route.initialWarehouse().isPresent()) {
++            var window = shifts.mealWindow(route.departureAt());
++            Instant end = min(route.departureAt(), window.endsAt());
++            if (!end.minus(ShiftSchedule.MEAL_DURATION).isBefore(window.startsAt()))
++                take(end.minus(ShiftSchedule.MEAL_DURATION), route.startLocation(), BEFORE_ROUTE);
++        }
++    }
++    private FlexibleMealClock(ShiftSchedule shifts, List<ScheduledMealBreak> breaks) {
++        this.shifts=shifts; this.breaks=new ArrayList<>(breaks);
++    }
++    FlexibleMealClock copy() { return new FlexibleMealClock(shifts,breaks); }
++    List<ScheduledMealBreak> breaks() { return List.copyOf(breaks); }
++    boolean taken(Instant instant) {
++        Instant shift = shifts.shiftAt(instant).startsAt();
++        return breaks.stream().anyMatch(b -> b.shiftStart().equals(shift));
++    }
++    String stateKey(Instant time) { return shifts.shiftAt(time).startsAt()+":"+taken(time); }
++
++    /** Optional placement explored by the beam, not an optional obligation. */
++    Optional<Instant> takeNow(Instant time, Location location) {
++        if (taken(time)) return Optional.empty();
++        Instant start = max(time, shifts.mealWindow(time).startsAt());
++        if (start.isAfter(shifts.latestMealStart(time))) return Optional.empty();
++        return Optional.of(take(start,location,DURING_ROUTE));
++    }
++
++    /** An idle/blocking wait can contain the meal. It is never counted twice as work. */
++    Instant idleUntil(Instant from, Instant until, Location location) {
++        if (until.isBefore(from)) throw new IllegalArgumentException("Backwards idle interval");
++        Instant end=until;
++        for (Instant shiftStart=shifts.shiftAt(from).startsAt(); shiftStart.isBefore(end);
++             shiftStart=shifts.shiftAt(shiftStart).endsAt()) {
++            if (taken(shiftStart)) continue;
++            var window=shifts.mealWindow(shiftStart);
++            Instant begin=max(from,window.startsAt());
++            Instant freeEnd=min(end,window.endsAt());
++            if (!begin.plus(ShiftSchedule.MEAL_DURATION).isAfter(freeEnd)) {
++                take(begin,location,DURING_ROUTE);
++            } else if (end.isAfter(shifts.latestMealStart(shiftStart)) && !begin.isAfter(shifts.latestMealStart(shiftStart))) {
++                end=max(end,take(begin,location,DURING_ROUTE));
++            } else if (end.isAfter(window.endsAt()) && !taken(shiftStart)) {
++                throw new MealSchedulingException("No legal meal before shift limit: "+shiftStart);
++            }
++        }
++        return end;
++    }
++
++    /** Earliest admissible start of one uninterrupted work action for this label. */
++    Instant workStart(Instant requested, Duration duration, Location location) {
++        if (duration.isNegative() || duration.compareTo(Duration.ofHours(1))>0)
++            throw new IllegalArgumentException("Work atom must last 0..60 min (one street or one service)");
++        if (duration.isZero()) return requested;
++        if (taken(requested)) return requested;
++        Instant latest=shifts.latestMealStart(requested);
++        if (!requested.plus(duration).isAfter(latest)) return requested;
++        Instant start=max(requested,shifts.mealWindow(requested).startsAt());
++        if (start.isAfter(latest))
++            throw new MealSchedulingException("Missing mandatory meal / initial history at "+requested);
++        return take(start,location,DURING_ROUTE);
++    }
++
++    Instant finish(Instant returnedAt, Instant departureAt, Location location) {
++        Instant reference=returnedAt.isAfter(departureAt)?returnedAt.minusNanos(1):departureAt;
++        if (taken(reference)) return returnedAt;
++        Instant start=max(returnedAt,shifts.mealWindow(reference).startsAt());
++        if (start.isAfter(shifts.latestMealStart(reference)))
++            throw new MealSchedulingException("Route ends without a legal mandatory meal for "+shifts.shiftAt(reference).startsAt());
++        return take(start,location,AFTER_ROUTE);
++    }
++
++    private Instant take(Instant start, Location location, ScheduledMealBreak.Placement placement) {
++        var window=shifts.mealWindow(start);
++        Instant end=start.plus(ShiftSchedule.MEAL_DURATION);
++        if (taken(start) || start.isBefore(window.startsAt()) || end.isAfter(window.endsAt()))
++            throw new MealSchedulingException("Duplicate/out-of-window meal at "+start);
++        breaks.add(new ScheduledMealBreak(shifts.shiftAt(start).startsAt(),start,end,location,placement));
++        return end;
++    }
++    private static Instant min(Instant a,Instant b) { return a.isBefore(b)?a:b; }
++    private static Instant max(Instant a,Instant b) { return a.isAfter(b)?a:b; }
++}
+--- a/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/MealBreakAudit.java
++++ b/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/MealBreakAudit.java
+@@ -0,0 +1,56 @@
++package pe.edu.pucp.paqrap.planner.route;
++
++import pe.edu.pucp.paqrap.planner.domain.*;
++import java.time.*;
++import java.util.*;
++
++/** Independent invariant check; never delegates validation to the meal scheduler/clock. */
++public final class MealBreakAudit {
++    private MealBreakAudit() {}
++    public static List<String> validate(ScheduledDeliveryRoute schedule,ShiftSchedule shifts) {
++        List<String> errors=new ArrayList<>();
++        Map<Instant,Integer> counts=new HashMap<>();
++        List<RoadLeg> legs=schedule.scheduledStops().stream().flatMap(s->s.approach().legs().stream()).toList();
++        List<ScheduledMealBreak> sorted=new ArrayList<>(schedule.mealBreaks());
++        sorted.sort(Comparator.comparing(ScheduledMealBreak::startsAt));
++        Instant previousEnd=null;
++        for(ScheduledMealBreak b:sorted) {
++            var shift=shifts.shiftAt(b.startsAt());var window=shifts.mealWindow(b.startsAt());
++            counts.merge(b.shiftStart(),1,Integer::sum);
++            if(!b.shiftStart().equals(shift.startsAt()))errors.add("Meal assigned to wrong shift");
++            if(!Duration.between(b.startsAt(),b.endsAt()).equals(ShiftSchedule.MEAL_DURATION))errors.add("Meal must last exactly 60 uninterrupted minutes");
++            if(b.startsAt().isBefore(window.startsAt()) || b.endsAt().isAfter(window.endsAt()))errors.add("Meal violates shift margins");
++            if(previousEnd!=null && b.startsAt().isBefore(previousEnd))errors.add("Overlapping meals");
++            previousEnd=b.endsAt();
++            Location expected=schedule.route().startLocation();
++            for(RoadLeg leg:legs) {
++                if(overlap(b.startsAt(),b.endsAt(),leg.departsAt(),leg.arrivesAt()))errors.add("Driving during a meal");
++                if(!leg.arrivesAt().isAfter(b.startsAt()))expected=leg.to();
++            }
++            if(!expected.equals(b.location()))errors.add("Meal location differs from vehicle position");
++            for(ScheduledRouteStop s:schedule.scheduledStops()) {
++                if(s.stop() instanceof DeliveryStop && overlap(b.startsAt(),b.endsAt(),s.serviceStartedAt(),s.completedAt()))
++                    errors.add("Delivery service during a meal");
++                if(s.stop() instanceof WarehouseVisit && s.arrivedAt().isAfter(b.startsAt()) && s.arrivedAt().isBefore(b.endsAt()))
++                    errors.add("Warehouse operation during a meal");
++            }
++            if(b.endsAt().isAfter(schedule.completedAt()))errors.add("Route duty ends before its mandatory meal");
++            if(b.placement()==ScheduledMealBreak.Placement.BEFORE_ROUTE && b.endsAt().isAfter(schedule.route().departureAt()))errors.add("Initial meal exceeds departure");
++            if(b.placement()==ScheduledMealBreak.Placement.AFTER_ROUTE && b.startsAt().isBefore(schedule.returnedAt()))errors.add("Final idle meal precedes return");
++        }
++        Instant departure=schedule.route().departureAt();
++        Instant last=schedule.completedAt().isAfter(departure)?schedule.completedAt().minusNanos(1):departure;
++        Set<Instant> required=new HashSet<>();
++        for(Instant shift=shifts.shiftAt(departure).startsAt();!shift.isAfter(last);shift=shifts.shiftAt(shift).endsAt()) {
++            required.add(shift);
++            if(counts.getOrDefault(shift,0)!=1)errors.add("Exactly one meal required in shift "+shift);
++        }
++        for(Instant shift:counts.keySet())if(!required.contains(shift))errors.add("Meal outside the route duty horizon");
++        for(ScheduledRouteStop s:schedule.scheduledStops()) {
++            if(s.stop() instanceof DeliveryStop && !Duration.between(s.serviceStartedAt(),s.completedAt()).equals(DeliveryStop.SERVICE_TIME))
++                errors.add("Delivery service must last one hour, separately from rest");
++        }
++        return List.copyOf(errors);
++    }
++    private static boolean overlap(Instant a,Instant b,Instant c,Instant d) { return a.isBefore(d)&&c.isBefore(b); }
++}
+--- a/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/MealSchedulingException.java
++++ b/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/MealSchedulingException.java
+@@ -0,0 +1,6 @@
++package pe.edu.pucp.paqrap.planner.route;
++
++/** Infeasible rest timing is a hard route violation, never an optional interruption. */
++public final class MealSchedulingException extends IllegalStateException {
++    public MealSchedulingException(String message) { super(message); }
++}
+--- a/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/OperationalPlanEvaluator.java
++++ b/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/OperationalPlanEvaluator.java
+@@ -25,6 +25,19 @@
+     private OperationalSnapshot cachedSnapshot;
+     private List<RoadBlock> cachedBlocks;
+     private final Map<DeliveryRoute, ScheduledDeliveryRoute> timedRoutes = new java.util.IdentityHashMap<>();
++    /** Identical idle vehicles of one type have the same timing problem. Reuse only that
++     * immutable timetable, NEVER their capacity/inventory/availability validation results.
++     * The entire cache is invalidated when snapshot or block definitions change. */
++    private final Map<TimingKey, ScheduledDeliveryRoute> equivalentTimings = new LinkedHashMap<>(256,.75f,true) {
++        @Override protected boolean removeEldestEntry(Map.Entry<TimingKey,ScheduledDeliveryRoute> eldest) { return size()>2048; }
++    };
++    private record TimingKey(pe.edu.pucp.paqrap.planner.domain.Location start, Warehouse initialWarehouse,
++                             int initialLoad, Instant departure,
++                             pe.edu.pucp.paqrap.planner.domain.VehicleType type, List<RouteStop> stops) {
++        static TimingKey of(DeliveryRoute r) {
++            return new TimingKey(r.startLocation(),r.initialWarehouse().orElse(null),r.initialLoad(),r.departureAt(),r.vehicle().type(),r.stops());
++        }
++    }
+ 
+     public OperationalPlanEvaluator(RouteScheduler scheduler) {
+         this.scheduler = Objects.requireNonNull(scheduler, "scheduler is required");
+@@ -38,7 +51,7 @@
+         Objects.requireNonNull(requiredOrders, "requiredOrders are required");
+         Objects.requireNonNull(blocks, "blocks are required");
+         if (snapshot != cachedSnapshot || !blocks.equals(cachedBlocks)) {
+-            timedRoutes.clear(); cachedSnapshot = snapshot; cachedBlocks = List.copyOf(blocks);
++            timedRoutes.clear(); equivalentTimings.clear(); cachedSnapshot = snapshot; cachedBlocks = List.copyOf(blocks);
+         }
+         Map<String, Order> ordersById = indexOrders(requiredOrders);
+         List<PlanViolation> violations = new ArrayList<>();
+@@ -61,13 +74,23 @@
+             try {
+                 ScheduledDeliveryRoute schedule = timedRoutes.get(route);
+                 if (schedule == null) {
+-                    schedule = scheduler.schedule(route, snapshot, blocks);
++                    TimingKey key=TimingKey.of(route);
++                    ScheduledDeliveryRoute equivalent=equivalentTimings.get(key);
++                    if(equivalent==null) {
++                        schedule=scheduler.schedule(route,snapshot,blocks);
++                        equivalentTimings.put(key,schedule);
++                    } else {
++                        schedule=new ScheduledDeliveryRoute(route,equivalent.scheduledStops(),equivalent.completedAt(),
++                                equivalent.totalDistanceKm(),equivalent.totalCost(),equivalent.mealBreaks());
++                    }
+                     if (timedRoutes.size() >= 2048) timedRoutes.clear();
+                     timedRoutes.put(route, schedule);
+                 }
+                 schedules.put(route.id(), schedule);
+                 totalCost += schedule.totalCost();
+                 validateSchedule(route, schedule, snapshot, ordersById, deliveredByOrderId, inventoryEvents, violations);
++            } catch (MealSchedulingException exception) {
++                violations.add(violation(PlanViolationType.MANDATORY_MEAL_VIOLATION, route, exception.getMessage()));
+             } catch (IllegalStateException exception) {
+                 violations.add(violation(PlanViolationType.NO_ROAD_PATH, route, exception.getMessage()));
+             }
+--- a/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/PlanViolationType.java
++++ b/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/PlanViolationType.java
+@@ -1,6 +1,7 @@
+ package pe.edu.pucp.paqrap.planner.route;
+ 
+ public enum PlanViolationType {
++    MANDATORY_MEAL_VIOLATION,
+     UNKNOWN_VEHICLE,
+     UNKNOWN_WAREHOUSE,
+     DELIVERY_BEFORE_REGISTRATION,
+--- a/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/RouteScheduler.java
++++ b/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/RouteScheduler.java
+@@ -5,71 +5,141 @@
+ import java.time.*;
+ import java.util.*;
+ 
+-/** Common physical-arrival / service / meal clock for both algorithms and the final audit. */
++/** Shared deterministic bounded-label scheduler with flexible, mandatory driver meals.
++ * For a fixed route, explores resting before travel / before service / after service
++ * (next stop), uses blocking waits, and enforces the latest legal start at street nodes.
++ * A bounded beam is a scheduling HEURISTIC, not a proof of optimal break placement.
++ * Every returned schedule is checked independently by MealBreakAudit.
++ */
+ public final class RouteScheduler {
+     private final RoadNetwork roadNetwork;
+-    public RouteScheduler(RoadNetwork roadNetwork) { this.roadNetwork = Objects.requireNonNull(roadNetwork); }
++    public RouteScheduler(RoadNetwork roadNetwork) { this.roadNetwork=Objects.requireNonNull(roadNetwork); }
+ 
+-    public record TimedStop(RoadPath approach, Instant arrivedAt, Instant completedAt) {}
++    private record Label(Instant time, Location location, FlexibleMealClock clock,
++                         List<ScheduledRouteStop> stops, double distance, int late, long latenessSeconds,
++                         long arrivalScore) {}
+ 
+-    public TimedStop timeStop(Location from, Instant departure, RouteStop stop, Vehicle vehicle,
+-                              OperationalSnapshot snapshot, List<RoadBlock> blocks) {
+-        double speed = snapshot.fleetProfile().parametersFor(vehicle.type()).speedKmPerHour();
+-        Duration perStreet = Duration.ofNanos(Math.max(1, Math.round(3_600_000_000_000.0 / speed)));
+-        RoadPath path = travel(from, stop.location(), departure, perStreet, snapshot.shiftSchedule(), blocks);
+-        Instant arrived = path.arrivesAt();
+-        Instant completed = stop instanceof DeliveryStop
+-                ? snapshot.shiftSchedule().nextWorkStart(arrived, DeliveryStop.SERVICE_TIME).plus(DeliveryStop.SERVICE_TIME)
+-                : arrived;
+-        return new TimedStop(path, arrived, completed);
++    public ScheduledDeliveryRoute schedule(DeliveryRoute route, OperationalSnapshot snapshot, List<RoadBlock> blocks) {
++        SearchControl.routeSchedule(); Objects.requireNonNull(route); Objects.requireNonNull(snapshot); Objects.requireNonNull(blocks);
++        double speed=snapshot.fleetProfile().parametersFor(route.vehicle().type()).speedKmPerHour();
++        Duration perStreet=Duration.ofNanos(Math.max(1,Math.round(3_600_000_000_000.0/speed)));
++        if (perStreet.compareTo(Duration.ofHours(1))>0) throw new IllegalArgumentException("Experimental speed must be >= 1 km/h");
++        List<Label> labels=List.of(new Label(route.departureAt(),route.startLocation(),new FlexibleMealClock(snapshot.shiftSchedule(),route),List.of(),0,0,0,0));
++        int load=route.initialLoad();
++        for (RouteStop stop:route.stops()) {
++            SearchControl.checkpoint();
++            int after=stop instanceof DeliveryStop d?load-d.deliveredPackages():Math.addExact(load,((WarehouseVisit)stop).pickupPackages());
++            List<Label> candidates=new ArrayList<>();
++            for (Label label:labels) {
++                for (boolean restBeforeTravel:List.of(false,true)) {
++                    FlexibleMealClock travelClock=label.clock.copy();
++                    Instant departure=label.time;
++                    if (restBeforeTravel) {
++                        Optional<Instant> rested=travelClock.takeNow(departure,label.location);
++                        if (rested.isEmpty()) continue;
++                        departure=rested.get();
++                    }
++                    RoadPath path;
++                    try { path=travel(label.location,stop.location(),label.time,departure,perStreet,travelClock,blocks); }
++                    catch (IllegalStateException noPath) { continue; }
++                    Instant arrived=path.arrivesAt();
++                    for (boolean restBeforeService:List.of(false,true)) {
++                        if (restBeforeService && !(stop instanceof DeliveryStop)) continue;
++                        FlexibleMealClock clock=travelClock.copy();
++                        Instant start=arrived;
++                        if (restBeforeService) {
++                            Optional<Instant> rested=clock.takeNow(start,stop.location());
++                            if (rested.isEmpty()) continue;
++                            start=rested.get();
++                        }
++                        Instant completion=start;
++                        try {
++                            if (stop instanceof DeliveryStop) {
++                                start=clock.workStart(start,DeliveryStop.SERVICE_TIME,stop.location());
++                                completion=start.plus(DeliveryStop.SERVICE_TIME);
++                            }
++                        } catch (MealSchedulingException impossible) { continue; }
++                        int late=label.late; long tardy=label.latenessSeconds;
++                        if (stop instanceof DeliveryStop d && arrived.isAfter(d.order().deadline())) {
++                            late++; tardy+=Math.max(1,Duration.between(d.order().deadline(),arrived).getSeconds());
++                        }
++                        List<ScheduledRouteStop> stops=new ArrayList<>(label.stops);
++                        stops.add(new ScheduledRouteStop(stop,path,arrived,start,completion,load,after));
++                        candidates.add(new Label(completion,stop.location(),clock,List.copyOf(stops),label.distance+path.distanceKm(),late,tardy,
++                                label.arrivalScore+Duration.between(route.departureAt(),arrived).getSeconds()));
++                    }
++                }
++            }
++            if (candidates.isEmpty()) throw new MealSchedulingException("No road/rest schedule found for route "+route.id());
++            labels=prune(candidates,snapshot.shiftSchedule().mealBeamWidth());
++            load=after;
++        }
++        ScheduledDeliveryRoute best=null; Label bestLabel=null;
++        for (Label label:labels) {
++            FlexibleMealClock clock=label.clock.copy();
++            Instant done;
++            try { done=clock.finish(label.time,route.departureAt(),label.location); }
++            catch (MealSchedulingException invalid) { continue; }
++            var schedule=new ScheduledDeliveryRoute(route,label.stops,done,label.distance,
++                    label.distance*snapshot.fleetProfile().parametersFor(route.vehicle().type()).costPerKm(),clock.breaks());
++            if (best==null || compareFinal(label,schedule,bestLabel,best)<0) { best=schedule; bestLabel=label; }
++        }
++        if (best==null) throw new MealSchedulingException("Missing mandatory meal for route "+route.id());
++        List<String> errors=MealBreakAudit.validate(best,snapshot.shiftSchedule());
++        if (!errors.isEmpty()) throw new MealSchedulingException(String.join("; ",errors));
++        return best;
+     }
+ 
+-    /** Pauses only at street nodes. If a meal changes passage times, recompute the remainder
+-     * against the temporal road blocks instead of shifting an obsolete path. */
+-    private RoadPath travel(Location origin, Location destination, Instant requested, Duration perStreet,
+-                            ShiftSchedule shifts, List<RoadBlock> blocks) {
+-        Location current = origin;
+-        Instant time = requested;
+-        List<RoadLeg> completed = new ArrayList<>();
+-        while (true) {
++    private static int compareFinal(Label a,ScheduledDeliveryRoute sa,Label b,ScheduledDeliveryRoute sb) {
++        int c=Integer.compare(a.late,b.late); if(c!=0)return c;
++        c=Long.compare(a.latenessSeconds,b.latenessSeconds); if(c!=0)return c;
++        c=Double.compare(sa.totalCost(),sb.totalCost()); if(c!=0)return c;
++        c=sa.completedAt().compareTo(sb.completedAt()); if(c!=0)return c;
++        return Long.compare(a.arrivalScore,b.arrivalScore);
++    }
++
++    /** Preserve pending/taken-shift states; both an early and a cheap representative survive.
++     * Capacity is bounded explicitly: pruning can miss a feasible/better timetable, never
++     * makes an invalid one valid. Failure is not an infeasibility certificate. */
++    private static List<Label> prune(List<Label> candidates,int width) {
++        Comparator<Label> timeOrder=Comparator.comparingInt(Label::late).thenComparingLong(Label::latenessSeconds)
++                .thenComparing(Label::time).thenComparingDouble(Label::distance).thenComparingLong(Label::arrivalScore);
++        Comparator<Label> costOrder=Comparator.comparingInt(Label::late).thenComparingLong(Label::latenessSeconds)
++                .thenComparingDouble(Label::distance).thenComparing(Label::time).thenComparingLong(Label::arrivalScore);
++        candidates.sort(timeOrder);
++        Map<String,List<Label>> groups=new LinkedHashMap<>();
++        Set<String> seen=new HashSet<>();
++        for (Label l:candidates) {
++            String state=l.clock.stateKey(l.time);
++            String signature=state+":"+l.time+":"+l.distance+":"+l.late+":"+l.latenessSeconds;
++            if(seen.add(signature))groups.computeIfAbsent(state,k->new ArrayList<>()).add(l);
++        }
++        LinkedHashSet<Label> chosen=new LinkedHashSet<>();
++        for(List<Label> group:groups.values()) { if(chosen.size()<width)chosen.add(group.getFirst()); }
++        for(List<Label> group:groups.values()) { if(chosen.size()<width)chosen.add(group.stream().min(costOrder).orElseThrow()); }
++        for(List<Label> group:groups.values()) for(Label l:group)if(chosen.size()<width)chosen.add(l);
++        return List.copyOf(chosen);
++    }
++
++    /** Recompute the remaining time-dependent path whenever a break changes passage times. */
++    private RoadPath travel(Location origin, Location destination, Instant requested, Instant departure,
++                            Duration perStreet, FlexibleMealClock clock, List<RoadBlock> blocks) {
++        Location current=origin; Instant time=departure; List<RoadLeg> completed=new ArrayList<>();
++        while(true) {
+             SearchControl.checkpoint();
+-            time = roadNetwork.firstUnblockedAt(current, time, blocks);
+-            RoadPath suffix = roadNetwork.shortestPath(current, destination, time, perStreet, blocks)
+-                    .orElseThrow(() -> new IllegalStateException("No feasible road path to the next route stop"));
+-            boolean replan = false;
+-            for (RoadLeg leg : suffix.legs()) {
+-                Instant workStart = shifts.nextWorkStart(leg.departsAt(), perStreet);
+-                if (!workStart.equals(leg.departsAt())) {
+-                    time = workStart;
+-                    replan = true;
+-                    break;
+-                }
+-                completed.add(leg);
+-                current = leg.to();
+-                time = leg.arrivesAt();
++            Instant open=roadNetwork.firstUnblockedAt(current,time,blocks);
++            time=clock.idleUntil(time,open,current);
++            RoadPath suffix=roadNetwork.shortestPath(current,destination,time,perStreet,blocks)
++                    .orElseThrow(()->new IllegalStateException("No feasible road path"));
++            boolean replan=false;
++            for(RoadLeg leg:suffix.legs()) {
++                SearchControl.checkpoint();
++                Instant available=clock.idleUntil(time,leg.departsAt(),current);
++                Instant work=clock.workStart(available,perStreet,current);
++                if(!work.equals(leg.departsAt())) { time=work; replan=true; break; }
++                completed.add(leg);current=leg.to();time=leg.arrivesAt();
+             }
+-            if (!replan) return new RoadPath(origin, destination, requested, completed, time);
++            if(!replan)return new RoadPath(origin,destination,requested,completed,time);
+         }
+     }
+-
+-    public ScheduledDeliveryRoute schedule(DeliveryRoute route, OperationalSnapshot snapshot, List<RoadBlock> blocks) {
+-        SearchControl.routeSchedule();
+-        Objects.requireNonNull(route); Objects.requireNonNull(snapshot); Objects.requireNonNull(blocks);
+-        List<ScheduledRouteStop> stops = new ArrayList<>();
+-        Location location = route.startLocation();
+-        Instant time = route.departureAt();
+-        int load = route.initialLoad();
+-        double distance = 0;
+-        for (RouteStop stop : route.stops()) {
+-            TimedStop timing = timeStop(location, time, stop, route.vehicle(), snapshot, blocks);
+-            int before = load;
+-            if (stop instanceof DeliveryStop d) load -= d.deliveredPackages();
+-            else if (stop instanceof WarehouseVisit w) load = Math.addExact(load, w.pickupPackages());
+-            else throw new IllegalStateException("Unknown route stop type");
+-            stops.add(new ScheduledRouteStop(stop, timing.approach(), timing.arrivedAt(), timing.completedAt(), before, load));
+-            location = stop.location(); time = timing.completedAt(); distance += timing.approach().distanceKm();
+-        }
+-        double cost = distance * snapshot.fleetProfile().parametersFor(route.vehicle().type()).costPerKm();
+-        return new ScheduledDeliveryRoute(route, stops, time, distance, cost);
+-    }
+ }
+--- a/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/ScheduledDeliveryRoute.java
++++ b/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/ScheduledDeliveryRoute.java
+@@ -10,11 +10,19 @@
+     private final DeliveryRoute route;
+     private final List<ScheduledRouteStop> scheduledStops;
+     private final Instant completedAt;
++    private final List<ScheduledMealBreak> mealBreaks;
+     private final double totalDistanceKm;
+     private final double totalCost;
+ 
+     public ScheduledDeliveryRoute(DeliveryRoute route, List<ScheduledRouteStop> scheduledStops,
+                                   Instant completedAt, double totalDistanceKm, double totalCost) {
++        this(route, scheduledStops, completedAt, totalDistanceKm, totalCost, List.of());
++    }
++
++    public ScheduledDeliveryRoute(DeliveryRoute route, List<ScheduledRouteStop> scheduledStops,
++                                  Instant completedAt, double totalDistanceKm, double totalCost,
++                                  List<ScheduledMealBreak> mealBreaks) {
++        this.mealBreaks = List.copyOf(mealBreaks);
+         this.route = Objects.requireNonNull(route, "route is required");
+         this.scheduledStops = List.copyOf(Objects.requireNonNull(scheduledStops, "scheduledStops are required"));
+         this.completedAt = Objects.requireNonNull(completedAt, "completedAt is required");
+@@ -27,6 +35,9 @@
+ 
+     public DeliveryRoute route() { return route; }
+     public List<ScheduledRouteStop> scheduledStops() { return scheduledStops; }
++    public List<ScheduledMealBreak> mealBreaks() { return mealBreaks; }
++    /** Physical return can precede completion of the mandatory final-shift meal. */
++    public Instant returnedAt() { return scheduledStops.isEmpty() ? route.departureAt() : scheduledStops.getLast().completedAt(); }
+     public Instant completedAt() { return completedAt; }
+     public double totalDistanceKm() { return totalDistanceKm; }
+     public double totalCost() { return totalCost; }
+--- a/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/ScheduledMealBreak.java
++++ b/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/ScheduledMealBreak.java
+@@ -0,0 +1,16 @@
++package pe.edu.pucp.paqrap.planner.route;
++
++import pe.edu.pucp.paqrap.planner.domain.Location;
++import java.time.Instant;
++import java.util.Objects;
++
++/** A real, uninterrupted, stationary one-hour break, assigned to ONE driver shift. */
++public record ScheduledMealBreak(Instant shiftStart, Instant startsAt, Instant endsAt,
++                                 Location location, Placement placement) {
++    public enum Placement { BEFORE_ROUTE, DURING_ROUTE, AFTER_ROUTE }
++    public ScheduledMealBreak {
++        Objects.requireNonNull(shiftStart); Objects.requireNonNull(startsAt);
++        Objects.requireNonNull(endsAt); Objects.requireNonNull(location); Objects.requireNonNull(placement);
++        if (!endsAt.isAfter(startsAt)) throw new IllegalArgumentException("Nonpositive meal duration");
++    }
++}
+--- a/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/ScheduledRouteStop.java
++++ b/dominio/src/main/java/pe/edu/pucp/paqrap/planner/route/ScheduledRouteStop.java
+@@ -1,20 +1,20 @@
+ package pe.edu.pucp.paqrap.planner.route;
+ 
+ import pe.edu.pucp.paqrap.planner.domain.RoadPath;
+-
+ import java.time.Instant;
+ import java.util.Objects;
+ 
+-/** Timing and vehicle load before and after executing one planned stop. */
+-public record ScheduledRouteStop(RouteStop stop, RoadPath approach, Instant arrivedAt, Instant completedAt,
+-                                 int loadBefore, int loadAfter) {
++/** Arrival meets the SLA; serviceStart/completion expose service and meal separately. */
++public record ScheduledRouteStop(RouteStop stop, RoadPath approach, Instant arrivedAt,
++                                 Instant serviceStartedAt, Instant completedAt, int loadBefore, int loadAfter) {
+     public ScheduledRouteStop {
+-        Objects.requireNonNull(stop, "stop is required");
+-        Objects.requireNonNull(approach, "approach is required");
+-        Objects.requireNonNull(arrivedAt, "arrivedAt is required");
+-        Objects.requireNonNull(completedAt, "completedAt is required");
+-        if (completedAt.isBefore(arrivedAt)) {
+-            throw new IllegalArgumentException("Stop cannot complete before arrival");
+-        }
++        Objects.requireNonNull(stop); Objects.requireNonNull(approach); Objects.requireNonNull(arrivedAt);
++        Objects.requireNonNull(serviceStartedAt); Objects.requireNonNull(completedAt);
++        if (serviceStartedAt.isBefore(arrivedAt) || completedAt.isBefore(serviceStartedAt))
++            throw new IllegalArgumentException("Invalid stop timeline");
++    }
++    public ScheduledRouteStop(RouteStop stop, RoadPath approach, Instant arrivedAt, Instant completedAt,
++                              int loadBefore, int loadAfter) {
++        this(stop, approach, arrivedAt, arrivedAt, completedAt, loadBefore, loadAfter);
+     }
+ }
+--- a/dominio/src/test/java/pe/edu/pucp/paqrap/planner/route/RouteSchedulerRefrigerioTest.java
++++ b/dominio/src/test/java/pe/edu/pucp/paqrap/planner/route/RouteSchedulerRefrigerioTest.java
+@@ -39,7 +39,7 @@
+         OperationalSnapshot snapshot = snapshotConVelocidad(10.0, horaInicio, central, vehiculo);
+ 
+         // Primera entrega a 15 km (10 km/h -> 90 min): llegada sin
+-        // refrigerio 08:30. La politica experimental fija el refrigerio en 10:00-11:00.
++        // refrigerio 08:30. No se impone una franja fija a toda la flota.
+         Order pedido1 = new Order("C-1", new Location(15, 0), 1, horaInicio, horaInicio.plusSeconds(20 * 3600));
+         // Segunda entrega, 5 km mas adelante, mismo turno: NO debe sumar
+         // otra hora (el refrigerio de este turno ya se tomo).
+@@ -61,7 +61,11 @@
+         Instant llegada2Esperada = salidaHaciaParada2.plusSeconds(30 * 60);
+         assertEquals(llegada2Esperada, programada.scheduledStops().get(1).arrivedAt(),
+                 "la segunda parada llega a las 10:00");
+-        assertEquals(horaInicio.plusSeconds(5*3600), programada.scheduledStops().get(1).completedAt(),
+-                "El servicio comienza a las 11:00 tras el refrigerio y termina a las 12:00");
++        assertEquals(horaInicio.plusSeconds(4*3600), programada.scheduledStops().get(1).completedAt(),
++                "El servicio termina a las 11:00; el descanso se programa despues sin retrasar la entrega");
++        assertEquals(1, programada.mealBreaks().size());
++        assertEquals(Duration.ofHours(1), Duration.between(programada.mealBreaks().get(0).startsAt(), programada.mealBreaks().get(0).endsAt()));
++        assertEquals(horaInicio.plusSeconds(5*3600), programada.completedAt());
++        assertTrue(MealBreakAudit.validate(programada, snapshot.shiftSchedule()).isEmpty());
+     }
+ }
+--- a/grasp/src/main/java/pe/pucp/paqrap/planificador/GraspPlanificador.java
++++ b/grasp/src/main/java/pe/pucp/paqrap/planificador/GraspPlanificador.java
+@@ -11,7 +11,7 @@
+  * evaluated against ALL original orders with the shared chronological inventory evaluator.
+  * A partial feasible incumbent survives interruption, including during construction/local search. */
+ public final class GraspPlanificador {
+-    public static final String VERSION = "GRASP-v3 2026-09-24";
++    public static final String VERSION = "GRASP-shared-flex1; load-repair; full-demand; mandatory flexible meals";
+     private final OperationalPlanEvaluator evaluator;
+     private final FeasibleInsertionService insertions;
+     private final Random random;
+@@ -111,8 +111,10 @@
+                 if (source.vehicle().id().equals(targetState.vehicle().id()) || !snapshot.isVehiclePlannable(targetState.vehicle().id())) continue;
+                 DeliveryRoute target=current.plan().routeForVehicle(targetState.vehicle().id()).orElse(null);
+                 if (target==null) {
+-                    target=DeliveryRoute.replanFromCurrentLocation("R-"+targetState.vehicle().id(),targetState.vehicle(),
+-                            targetState.location(),targetState.carriedPackages(),snapshot.planningTime()).returningTo(central);
++                    target=targetState.location().equals(central.location()) && targetState.carriedPackages()==0
++                            ? DeliveryRoute.startScenarioAtCentral("R-"+targetState.vehicle().id(),targetState.vehicle(),central,0,snapshot.planningTime()).returningTo(central)
++                            : DeliveryRoute.replanFromCurrentLocation("R-"+targetState.vehicle().id(),targetState.vehicle(),
++                                targetState.location(),targetState.carriedPackages(),snapshot.planningTime()).returningTo(central);
+                 }
+                 List<RouteStop> from=new ArrayList<>(source.stops()); from.remove(index);
+                 for (int pos=0;pos<target.stops().size();pos++) {
+--- a/grasp/src/test/java/pe/pucp/paqrap/planificador/GraspPlanificadorTest.java
++++ b/grasp/src/test/java/pe/pucp/paqrap/planificador/GraspPlanificadorTest.java
+@@ -3,262 +3,80 @@
+ import org.junit.jupiter.api.Test;
+ import pe.edu.pucp.paqrap.planner.domain.*;
+ import pe.edu.pucp.paqrap.planner.route.*;
+-import pe.pucp.paqrap.modelo.InicializadorFlota;
+ import pe.pucp.paqrap.modelo.ResultadoPlanificacion;
+-
+-import java.time.Instant;
+-import java.time.LocalDate;
+-import java.time.LocalDateTime;
+-import java.time.ZoneId;
++import java.time.*;
+ import java.util.*;
+-
+ import static org.junit.jupiter.api.Assertions.*;
+ 
++/** Public-API regression tests. No dependency on deleted private GRASP helpers or old fleet classes. */
+ class GraspPlanificadorTest {
+-
+-    private final ZoneId zona = ShiftSchedule.DEFAULT_ZONE;
+-    private final Instant horaInicio = Instant.parse("2026-09-09T12:00:00Z");
+-
+-    // Coordenadas actualizadas (ver README raiz): Central (27,14), Este (57,27).
+-    private final Warehouse central = Warehouse.central("CENTRAL", new Location(27, 14));
+-    private final Warehouse intNorOeste = Warehouse.intermediate("INT-NOROESTE", new Location(12, 38), 1000);
+-    private final Warehouse intEste = Warehouse.intermediate("INT-ESTE", new Location(57, 27), 1000);
+-
+-    private FleetProfile perfilDePrueba() {
+-        Map<VehicleType, VehicleParameters> parametros = new EnumMap<>(VehicleType.class);
+-        parametros.put(VehicleType.CAR, new VehicleParameters(24, 40, 8.00));
+-        parametros.put(VehicleType.MOTORCYCLE, new VehicleParameters(8, 25, 6.00));
+-        parametros.put(VehicleType.BICYCLE, new VehicleParameters(4, 12, 3.00));
+-        return new FleetProfile(parametros);
++    private final Instant start=Instant.parse("2026-09-09T12:00:00Z");
++    private final Warehouse central=Warehouse.central("CENTRAL",new Location(27,14));
++    private OperationalSnapshot snapshot(int cars) {
++        Map<String,VehicleOperationalState> states=new LinkedHashMap<>();
++        for(int i=1;i<=cars;i++) {
++            var v=new Vehicle("TA"+String.format("%02d",i),VehicleType.CAR,true);
++            states.put(v.id(),new VehicleOperationalState(v,VehicleStatus.AVAILABLE,central.location(),start));
++        }
++        return new OperationalSnapshot(start,FleetProfile.defaults(),InventorySnapshot.from(List.of(central)),states,
++                new MaintenanceCalendar(ShiftSchedule.DEFAULT_ZONE,List.of()),ShiftSchedule.defaultSchedule(),List.of());
+     }
+-
+-    private OperationalSnapshot snapshotDePrueba(List<Warehouse> almacenes) {
+-        List<Vehicle> flota = InicializadorFlota.crearFlotaInicial();
+-        Map<String, VehicleOperationalState> estados = new LinkedHashMap<>();
+-        for (Vehicle v : flota) {
+-            estados.put(v.id(), new VehicleOperationalState(v, VehicleStatus.AVAILABLE, central.location(), horaInicio));
+-        }
+-        return new OperationalSnapshot(horaInicio, perfilDePrueba(), InventorySnapshot.from(almacenes), estados,
+-                new MaintenanceCalendar(zona, List.of()), new ShiftSchedule(zona), List.of());
++    private Order order(String id,int x,int y,int q,int hours) {
++        return new Order(id,new Location(x,y),q,start,start.plusSeconds(hours*3600L));
+     }
+-
+-    private OperationalSnapshot snapshotCon(Instant planificacion, List<Vehicle> flota, List<Warehouse> almacenes,
+-                                            List<MaintenanceDay> mantenimiento) {
+-        Map<String, VehicleOperationalState> estados = new LinkedHashMap<>();
+-        for (Vehicle v : flota) {
+-            estados.put(v.id(), new VehicleOperationalState(v, VehicleStatus.AVAILABLE, central.location(), planificacion));
+-        }
+-        return new OperationalSnapshot(planificacion, perfilDePrueba(), InventorySnapshot.from(almacenes), estados,
+-                new MaintenanceCalendar(zona, mantenimiento), new ShiftSchedule(zona), List.of());
++    private ResultadoPlanificacion solve(OperationalSnapshot snapshot,List<Order> orders,long seed,List<RoadBlock> blocks) {
++        var road=new RoadNetwork();var scheduler=new RouteScheduler(road);var evaluator=new OperationalPlanEvaluator(scheduler);
++        return new GraspPlanificador(road,scheduler,evaluator,seed).planificar(snapshot,orders,blocks,.3,3);
+     }
+-
+-    private GraspPlanificador planificadorDePrueba(long semilla) {
+-        RoadNetwork roadNetwork = new RoadNetwork();
+-        RouteScheduler scheduler = new RouteScheduler(roadNetwork);
+-        OperationalPlanEvaluator evaluator = new OperationalPlanEvaluator(scheduler);
+-        return new GraspPlanificador(roadNetwork, scheduler, evaluator, semilla);
+-    }
+-
+-    @Test
+-    void ningunaRutaExcedeLaCapacidadDeSuVehiculo() {
+-        List<Warehouse> almacenes = List.of(central, intNorOeste, intEste);
+-        // Pedido de 12 unidades: no cabe en bicicleta (4) ni en moto (8), si en auto (24).
+-        List<Order> pedidos = List.of(new Order("C-002", new Location(10, 40), 12, horaInicio, horaInicio.plusSeconds(12 * 3600)));
+-
+-        ResultadoPlanificacion resultado = planificadorDePrueba(42L)
+-                .planificar(snapshotDePrueba(almacenes), pedidos, List.of(), 0.3, 30);
+-
+-        assertTrue(resultado.esFactible(), () -> "plan infactible: " + resultado.evaluacion().violations());
+-        assertEquals(0, resultado.noAtendidos().size());
+-        for (DeliveryRoute ruta : resultado.plan().routes()) {
+-            int capacidad = perfilDePrueba().parametersFor(ruta.vehicle().type()).capacity();
+-            int cargaMaxima = ruta.stops().stream().filter(s -> s instanceof DeliveryStop)
+-                    .mapToInt(s -> ((DeliveryStop) s).deliveredPackages()).sum();
+-            assertTrue(cargaMaxima <= capacidad);
++    private void verify(ResultadoPlanificacion result,OperationalSnapshot snapshot,List<Order> orders,List<RoadBlock> blocks) {
++        var evaluator=new OperationalPlanEvaluator(new RouteScheduler(new RoadNetwork()));
++        var audit=evaluator.evaluate(result.plan(),snapshot,orders,blocks);
++        assertTrue(audit.isRouteFeasible(),()->audit.violations().toString());
++        for(var route:audit.schedulesByRouteId().values()) {
++            assertTrue(MealBreakAudit.validate(route,snapshot.shiftSchedule()).isEmpty());
++            for(var stop:route.scheduledStops())assertTrue(stop.loadBefore()<=24 && stop.loadAfter()>=0 && stop.loadAfter()<=24);
+         }
+     }
+-
+-    @Test
+-    void unPedidoMayorQueCualquierVehiculoSeDivideEnEntregasParciales() {
+-        // P&R 13: hay entregas parciales. 30 paquetes no caben en ningun vehiculo (maximo 24), pero
+-        // si en la flota: GRASP-v2 lo reparte. Antes quedaba siempre sin atender.
+-        List<Warehouse> almacenes = List.of(central);
+-        Order grande = new Order("C-005", new Location(5, 5), 30, horaInicio, horaInicio.plusSeconds(36 * 3600));
+-
+-        ResultadoPlanificacion resultado = planificadorDePrueba(7L)
+-                .planificar(snapshotDePrueba(almacenes), List.of(grande), List.of(), 0.3, 30);
+-
+-        assertTrue(resultado.esFactible(), () -> "plan infactible: " + resultado.evaluacion().violations());
+-        assertTrue(resultado.noAtendidos().isEmpty());
+-        int entregados = 0;
+-        int entregasParciales = 0;
+-        for (DeliveryRoute ruta : resultado.plan().routes()) {
+-            int capacidad = perfilDePrueba().parametersFor(ruta.vehicle().type()).capacity();
+-            for (RouteStop parada : ruta.stops()) {
+-                if (parada instanceof DeliveryStop entrega) {
+-                    assertTrue(entrega.deliveredPackages() <= capacidad);
+-                    entregados += entrega.deliveredPackages();
+-                    entregasParciales++;
+-                }
+-            }
+-        }
+-        assertEquals(30, entregados);
+-        assertTrue(entregasParciales >= 2);
++    @Test void respetaCapacidadYDescansoObligatorio() {
++        var state=snapshot(2);var orders=List.of(order("P",30,15,12,8));var result=solve(state,orders,42,List.of());
++        assertTrue(result.esCompleta());verify(result,state,orders,List.of());
+     }
+-
+-    @Test
+-    void unPedidoConPlazoImposibleQuedaSinAtenderYNoDejaPartesSueltas() {
+-        // (65,48) esta a 72 km del central: ni el auto (40 km/h) llega en 30 minutos.
+-        List<Warehouse> almacenes = List.of(central);
+-        Order imposible = new Order("C-LEJOS", new Location(65, 48), 30, horaInicio, horaInicio.plusSeconds(30 * 60));
+-        Order posible = new Order("C-CERCA", new Location(28, 15), 3, horaInicio, horaInicio.plusSeconds(8 * 3600));
+-
+-        ResultadoPlanificacion resultado = planificadorDePrueba(3L)
+-                .planificar(snapshotDePrueba(almacenes), List.of(imposible, posible), List.of(), 0.3, 10);
+-
+-        assertTrue(resultado.esFactible(), () -> "plan infactible: " + resultado.evaluacion().violations());
+-        assertEquals(List.of(imposible), resultado.noAtendidos());
+-        boolean quedoAlgunaParte = resultado.plan().routes().stream().flatMap(r -> r.stops().stream())
+-                .anyMatch(p -> p instanceof DeliveryStop d && d.order().equals(imposible));
+-        assertFalse(quedoAlgunaParte, "un pedido no atendido no debe dejar entregas parciales en el plan");
++    @Test void dividePedidoMayorQueCualquierVehiculo() {
++        var state=snapshot(2);var orders=List.of(order("P",30,15,30,36));var result=solve(state,orders,7,List.of());
++        assertTrue(result.esCompleta());verify(result,state,orders,List.of());
++        long delivered=result.plan().routes().stream().flatMap(r->r.stops().stream()).filter(DeliveryStop.class::isInstance)
++                .map(DeliveryStop.class::cast).mapToInt(DeliveryStop::deliveredPackages).sum();
++        assertEquals(30L,delivered);
+     }
+-
+-    @Test
+-    void noAsignaUnaRutaQueTerminaDentroDelMantenimientoDelVehiculo() {
+-        // Planificacion a las 22:00 (Lima): la unica unidad entra a mantenimiento a las 00:00 del
+-        // dia siguiente. Una entrega lejana obligaria a seguir en ruta pasada la medianoche.
+-        Instant noche = LocalDateTime.of(2026, 9, 9, 22, 0).atZone(zona).toInstant();
+-        Vehicle auto = new Vehicle("TA01", VehicleType.CAR, true);
+-        OperationalSnapshot snapshot = snapshotCon(noche, List.of(auto), List.of(central),
+-                List.of(new MaintenanceDay("TA01", LocalDate.of(2026, 9, 10))));
+-        Order lejos = new Order("C-LEJOS", new Location(65, 48), 4, noche, noche.plusSeconds(36 * 3600));
+-
+-        ResultadoPlanificacion resultado = planificadorDePrueba(11L)
+-                .planificar(snapshot, List.of(lejos), List.of(), 0.3, 5);
+-
+-        assertTrue(resultado.esFactible(), () -> "plan infactible: " + resultado.evaluacion().violations());
+-        assertEquals(List.of(lejos), resultado.noAtendidos());
+-        assertTrue(resultado.plan().routes().isEmpty());
++    @Test void pedidoImposibleNoDescartaLosAtendiblesNiSeDeclaraCompleto() {
++        var impossible=new Order("IMP",new Location(65,48),30,start,start.plusSeconds(30*60));
++        var state=snapshot(2);var orders=List.of(impossible,order("OK",28,15,3,8));var result=solve(state,orders,3,List.of());
++        assertTrue(result.esFactible());assertFalse(result.esCompleta());assertEquals(List.of(impossible),result.noAtendidos());
++        assertTrue(result.plan().routes().stream().flatMap(r->r.stops().stream()).anyMatch(s->s instanceof DeliveryStop d&&d.order().id().equals("OK")));
++        verify(result,state,orders,List.of());
+     }
+-
+-    @Test
+-    void consolidaVariosPedidosEnElPrimerViajeSinVolverAUnAlmacen() {
+-        // Un solo auto (24) y tres pedidos pequenos cercanos: deben ir en el mismo primer viaje,
+-        // con una sola visita a almacen (el regreso final). Antes el primer tramo solo admitia un pedido.
+-        Vehicle auto = new Vehicle("TA01", VehicleType.CAR, true);
+-        OperationalSnapshot snapshot = snapshotCon(horaInicio, List.of(auto), List.of(central), List.of());
+-        List<Order> pedidos = List.of(
+-                new Order("C-1", new Location(30, 14), 3, horaInicio, horaInicio.plusSeconds(8 * 3600)),
+-                new Order("C-2", new Location(31, 15), 4, horaInicio, horaInicio.plusSeconds(8 * 3600)),
+-                new Order("C-3", new Location(32, 16), 5, horaInicio, horaInicio.plusSeconds(8 * 3600)));
+-
+-        ResultadoPlanificacion resultado = planificadorDePrueba(5L).planificar(snapshot, pedidos, List.of(), 0.0, 3);
+-
+-        assertTrue(resultado.esFactible(), () -> "plan infactible: " + resultado.evaluacion().violations());
+-        assertTrue(resultado.noAtendidos().isEmpty());
+-        DeliveryRoute ruta = resultado.plan().routes().iterator().next();
+-        assertEquals(12, ruta.initialLoad());
+-        assertEquals(1, ruta.stops().stream().filter(p -> p instanceof WarehouseVisit).count());
+-        assertEquals(3, ruta.stops().stream().filter(p -> p instanceof DeliveryStop).count());
++    @Test void consolidaPedidosCompatiblesEnUnViaje() {
++        var state=snapshot(1);var orders=List.of(order("A",30,14,3,8),order("B",31,15,4,8),order("C",32,16,5,8));
++        var result=solve(state,orders,5,List.of());assertTrue(result.esCompleta());verify(result,state,orders,List.of());
++        assertEquals(1,result.plan().routes().size());
++        assertEquals(12,result.plan().routes().iterator().next().initialLoad());
+     }
+-
+-    @Test
+-    void conBloqueosMantenimientoYCruceDeMedianocheLosPlanesSonFactibles() {
+-        // La factibilidad que usa la construccion debe coincidir con la del evaluador: planificando
+-        // a las 19:00 las rutas cruzan de turno y de dia, con bloqueos activos y unidades que entran
+-        // a mantenimiento al dia siguiente.
+-        Instant tarde = LocalDateTime.of(2026, 9, 9, 19, 0).atZone(zona).toInstant();
+-        List<Vehicle> flota = InicializadorFlota.crearFlotaInicial();
+-        List<MaintenanceDay> mantenimiento = List.of(new MaintenanceDay("TA01", LocalDate.of(2026, 9, 10)),
+-                new MaintenanceDay("TM01", LocalDate.of(2026, 9, 10)), new MaintenanceDay("TB01", LocalDate.of(2026, 9, 10)));
+-        OperationalSnapshot snapshot = snapshotCon(tarde, flota, List.of(central, intNorOeste, intEste), mantenimiento);
+-        List<RoadBlock> bloqueos = List.of(
+-                new RoadBlock(tarde, tarde.plusSeconds(3 * 3600), List.of(new Location(27, 16), new Location(40, 16))),
+-                new RoadBlock(tarde.plusSeconds(1800), tarde.plusSeconds(5 * 3600), List.of(new Location(20, 10), new Location(20, 30))),
+-                new RoadBlock(tarde.plusSeconds(3600), tarde.plusSeconds(8 * 3600), List.of(new Location(45, 20), new Location(45, 35), new Location(55, 35))));
+-        Random generador = new Random(99L);
+-        int[] plazos = {4, 8, 12, 18, 36};
+-        List<Order> pedidos = new ArrayList<>();
+-        for (int i = 0; i < 18; i++) {
+-            int paquetes = i % 6 == 0 ? 25 + generador.nextInt(8) : 1 + generador.nextInt(8);
+-            pedidos.add(new Order(String.format("R-%02d", i), new Location(5 + generador.nextInt(61), 5 + generador.nextInt(41)),
+-                    paquetes, tarde, tarde.plusSeconds(plazos[generador.nextInt(plazos.length)] * 3600L)));
+-        }
+-
+-        for (long semilla : new long[]{1L, 2L, 3L, 4L, 5L}) {
+-            ResultadoPlanificacion resultado = planificadorDePrueba(semilla).planificar(snapshot, pedidos, bloqueos, 0.3, 4);
+-            assertTrue(resultado.esFactible(),
+-                    () -> "semilla " + semilla + " produjo un plan infactible: " + resultado.evaluacion().violations());
+-        }
++    @Test void sinFlotaConservaLaDemandaYNoDeclaraExito() {
++        var state=snapshot(0);var orders=List.of(order("P",30,15,2,8));var result=solve(state,orders,42,List.of());
++        assertFalse(result.esCompleta());assertEquals(orders,result.noAtendidos());assertTrue(result.plan().routes().isEmpty());
+     }
+-
+-    @Test
+-    void conVariosPedidosElPlanFinalSiempreEsFactibleYSinRutasVacias() {
+-        // Regresion combinada: (1) reubicacion insertando despues del
+-        // regreso al almacen (ROUTE_NOT_RETURNED_TO_WAREHOUSE), (2) mover
+-        // una entrega sin ajustar el WarehouseVisit que la recoge
+-        // (NEGATIVE_LOAD), (3) una ruta que queda con cero entregas tras
+-        // una reubicacion y debe eliminarse del plan, no quedar como viaje
+-        // vacio (bug encontrado en una revision anterior, corregido en
+-        // pasoReubicacion).
+-        List<Warehouse> almacenes = List.of(central, intNorOeste, intEste);
+-        List<Order> pedidos = List.of(
+-                new Order("C-001", new Location(30, 20), 5, horaInicio, horaInicio.plusSeconds(8 * 3600)),
+-                new Order("C-002", new Location(10, 40), 12, horaInicio, horaInicio.plusSeconds(12 * 3600)),
+-                new Order("C-003", new Location(50, 25), 3, horaInicio, horaInicio.plusSeconds(4 * 3600)),
+-                new Order("C-004", new Location(28, 18), 6, horaInicio, horaInicio.plusSeconds(18 * 3600)),
+-                new Order("C-005", new Location(15, 35), 4, horaInicio, horaInicio.plusSeconds(36 * 3600)),
+-                new Order("C-006", new Location(48, 27), 2, horaInicio, horaInicio.plusSeconds(36 * 3600))
+-        );
+-
+-        for (long semilla : new long[]{1L, 2L, 3L, 4L, 5L}) {
+-            ResultadoPlanificacion resultado = planificadorDePrueba(semilla)
+-                    .planificar(snapshotDePrueba(almacenes), pedidos, List.of(), 0.3, 20);
+-
+-            assertTrue(resultado.esFactible(),
+-                    () -> "semilla " + semilla + " produjo un plan infactible: " + resultado.evaluacion().violations());
+-
+-            for (DeliveryRoute ruta : resultado.plan().routes()) {
+-                boolean tieneAlgunaEntrega = ruta.stops().stream().anyMatch(s -> s instanceof DeliveryStop);
+-                assertTrue(tieneAlgunaEntrega,
+-                        () -> "semilla " + semilla + ": la ruta de " + ruta.vehicle().id() + " quedo vacia (sin eliminar del plan)");
+-            }
+-        }
++    @Test void insercionCompartidaRecuperaPedidosPendientes() {
++        var state=snapshot(1);var vehicle=state.vehiclesById().get("TA01").vehicle();
++        var first=order("A",28,15,5,8);var missing=order("B",29,16,6,8);var required=List.of(first,missing);
++        var route=DeliveryRoute.startScenarioAtCentral("R",vehicle,central,5,start).withAppendedStop(new DeliveryStop(first,5)).returningTo(central);
++        var plan=OperationalPlan.empty().withRoute(route);var evaluator=new OperationalPlanEvaluator(new RouteScheduler(new RoadNetwork()));
++        var candidates=new FeasibleInsertionService(evaluator).candidates(plan,evaluator.evaluate(plan,state,required,List.of()),state,required,missing,6,List.of());
++        assertFalse(candidates.isEmpty());assertTrue(candidates.stream().anyMatch(c->c.evaluation().isFeasible()));
+     }
+-
+-    @Test
+-    void pasoInsercionPendientesRescataUnPedidoQueCabeEnUnaRutaYaConstruida() {
+-        // Regresion del "hueco" reportado: un pedido puede quedar en
+-        // noAtendidos solo por el orden en que la construccion greedy lo
+-        // proceso, no porque fuera imposible. Se arma a mano un plan con UNA
+-        // ruta ya devuelta al almacen (como llega desde
+-        // construirGreedyAleatorizada) que tiene un segundo tramo (recarga
+-        // intermedia en almacen con pickup=0, dejado sin usar), y un pedido
+-        // "varado" que si cabe ahi -- pasoInsercionPendientes debe
+-        // encontrarlo y rescatarlo ajustando el pickup de esa recarga ya
+-        // existente, sin abrir ningun WarehouseVisit nuevo.
+-        List<Warehouse> almacenes = List.of(central, intNorOeste, intEste);
+-        Vehicle auto = InicializadorFlota.crearFlotaInicial().stream()
+-                .filter(v -> v.type() == VehicleType.CAR).findFirst().orElseThrow();
+-        Order pedidoYaEnRuta = new Order("C-EN-RUTA", new Location(28, 15), 5, horaInicio, horaInicio.plusSeconds(8 * 3600));
+-        Order pedidoVarado = new Order("C-VARADO", new Location(29, 16), 6, horaInicio, horaInicio.plusSeconds(8 * 3600));
+-
+-        DeliveryRoute ruta = DeliveryRoute.startScenarioAtCentral(auto.id() + "-R", auto, central, 5, horaInicio)
+-                .withAppendedStop(new DeliveryStop(pedidoYaEnRuta, 5))
+-                .withAppendedStop(new WarehouseVisit(central, 0))
+-                .returningTo(central);
+-        OperationalPlan plan = OperationalPlan.empty().withRoute(ruta);
+-
+-        GraspPlanificador grasp = planificadorDePrueba(1L);
+-        List<Order> pendientes = new ArrayList<>(List.of(pedidoVarado));
+-        GraspPlanificador.ResultadoInsercion insercion = grasp.pasoInsercionPendientes(
+-                plan, pendientes, snapshotDePrueba(almacenes), List.of());
+-
+-        assertNotNull(insercion, "el pedido varado deberia haber sido rescatado, cabe en la ruta existente");
+-        assertEquals("C-VARADO", insercion.pedidoInsertado().id());
+-        DeliveryRoute rutaActualizada = insercion.plan().routes().stream()
+-                .filter(r -> r.vehicle().id().equals(auto.id())).findFirst().orElseThrow();
+-        long entregas = rutaActualizada.stops().stream().filter(s -> s instanceof DeliveryStop).count();
+-        assertEquals(2, entregas, "la ruta rescatada deberia tener ambas entregas");
++    @Test void repitePlanConSemillaYPasosFijos() {
++        var state=snapshot(2);var orders=List.of(order("A",28,15,5,8),order("B",29,16,6,8));
++        var a=solve(state,orders,42,List.of());var b=solve(state,orders,42,List.of());
++        assertEquals(a.costoTotal(),b.costoTotal());assertEquals(a.noAtendidos(),b.noAtendidos());
++        verify(a,state,orders,List.of());verify(b,state,orders,List.of());
+     }
+ }
+--- a/sa/src/main/java/pe/edu/pucp/paqrap/planner/sa/OperationalRouteNeighborGenerator.java
++++ b/sa/src/main/java/pe/edu/pucp/paqrap/planner/sa/OperationalRouteNeighborGenerator.java
+@@ -145,11 +145,14 @@
+         if (central == null) {
+             return Optional.empty();
+         }
+-        DeliveryRoute newRoute = DeliveryRoute.replanFromCurrentLocation("SA-" + vehicle.vehicle().id(),
+-                        vehicle.vehicle(), vehicle.location(), vehicle.carriedPackages(), snapshot.planningTime())
+-                .withAppendedStop(new WarehouseVisit(central, pickup))
+-                .withAppendedStop(moved)
+-                .returningTo(central);
++        DeliveryRoute newRoute;
++        if(vehicle.location().equals(central.location()) && vehicle.carriedPackages()==0) {
++            newRoute=DeliveryRoute.startScenarioAtCentral("SA-"+vehicle.vehicle().id(),vehicle.vehicle(),central,pickup,snapshot.planningTime());
++        } else {
++            newRoute=DeliveryRoute.replanFromCurrentLocation("SA-"+vehicle.vehicle().id(),vehicle.vehicle(),vehicle.location(),vehicle.carriedPackages(),snapshot.planningTime())
++                    .withAppendedStop(new WarehouseVisit(central,pickup));
++        }
++        newRoute=newRoute.withAppendedStop(moved).returningTo(central);
+         DeliveryRoute sourceAfterRemoval = source.route().withReplacedStops(removeAt(source.route().stops(), source.index()));
+         OperationalPlan neighbor = current.withRoute(sourceAfterRemoval).withRoute(newRoute);
+         return Optional.of(removeIfNoDeliveries(neighbor, sourceAfterRemoval));
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/CommonAudit.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/CommonAudit.java
+@@ -46,10 +46,26 @@
+                 else if(s instanceof WarehouseVisit w)stops.add(obj("type","WAREHOUSE","warehouse_id",w.warehouse().id(),"pickup",w.pickupPackages(),"x",s.location().x(),"y",s.location().y()));
+             }
+             ScheduledDeliveryRoute scheduled=evaluation.schedulesByRouteId().get(r.id());
+-            Object timetable=scheduled==null?List.of():scheduled.scheduledStops().stream().map(s->obj("arrival",s.arrivedAt(),"completion",s.completedAt(),"load_before",s.loadBefore(),"load_after",s.loadAfter(),"approach_distance_km",s.approach().distanceKm(),"path",s.approach().legs().stream().map(l->obj("from",List.of(l.from().x(),l.from().y()),"to",List.of(l.to().x(),l.to().y()),"departure",l.departsAt(),"arrival",l.arrivesAt())).toList())).toList();
+-            routeDetails.add(obj("route_id",r.id(),"vehicle_id",r.vehicle().id(),"vehicle_type",r.vehicle().type(),"departure",r.departureAt(),"initial_load",r.initialLoad(),"stops",stops,"timetable",timetable));
++            Object timetable=scheduled==null?List.of():scheduled.scheduledStops().stream().map(s->obj("arrival",s.arrivedAt(),"service_start",s.serviceStartedAt(),"completion",s.completedAt(),"load_before",s.loadBefore(),"load_after",s.loadAfter(),"approach_distance_km",s.approach().distanceKm(),"path",s.approach().legs().stream().map(l->obj("from",List.of(l.from().x(),l.from().y()),"to",List.of(l.to().x(),l.to().y()),"departure",l.departsAt(),"arrival",l.arrivesAt())).toList())).toList();
++            routeDetails.add(obj("route_id",r.id(),"vehicle_id",r.vehicle().id(),"vehicle_type",r.vehicle().type(),"departure",r.departureAt(),"initial_load",r.initialLoad(),"stops",stops,"timetable",timetable,
++                    "returned_at",scheduled==null?null:scheduled.returnedAt(),"duty_completed_at",scheduled==null?null:scheduled.completedAt(),
++                    "meal_breaks",scheduled==null?List.of():scheduled.mealBreaks().stream().map(CommonAudit::mealJson).toList(),
++                    "meal_audit",scheduled==null?List.of("No valid route schedule"):MealBreakAudit.validate(scheduled,p.snapshot().shiftSchedule())));
+         }
+-        Map<String,Object> details=obj("full_feasible",full,"route_constraints_valid",structural,"orders_total",p.orders().size(),
++        // Unused vehicles are idle, but their first-shift mandatory meal remains explicit.
++        List<Object> idleMeals=new ArrayList<>();
++        for(VehicleOperationalState state:p.snapshot().vehiclesById().values())if(plan.routeForVehicle(state.vehicle().id()).isEmpty()) {
++            var shifts=p.snapshot().shiftSchedule();var window=shifts.mealWindow(p.snapshot().planningTime());
++            idleMeals.add(obj("vehicle_id",state.vehicle().id(),"shift_start",shifts.shiftAt(p.snapshot().planningTime()).startsAt(),
++                    "start",window.startsAt(),"end",window.startsAt().plus(ShiftSchedule.MEAL_DURATION),
++                    "x",state.location().x(),"y",state.location().y(),"placement","IDLE_VEHICLE",
++                    "note","Static-batch idle roster; not a driven route"));
++        }
++        boolean mealsValid=evaluation.schedulesByRouteId().size()==plan.routes().size()
++                && evaluation.schedulesByRouteId().values().stream().allMatch(s->MealBreakAudit.validate(s,p.snapshot().shiftSchedule()).isEmpty());
++        long mealCount=evaluation.schedulesByRouteId().values().stream().mapToLong(s->s.mealBreaks().size()).sum();
++        Map<String,Object> details=obj("mandatory_meals_valid",mealsValid,"scheduled_route_meals",mealCount,"idle_vehicle_meals",idleMeals,
++                "full_feasible",full,"route_constraints_valid",structural,"orders_total",p.orders().size(),
+                 "orders_fully_served",complete,"packages_total",total,"packages_covered_on_time",covered,"unserved_order_ids",missing,
+                 "provably_unservable_order_ids",List.copyOf(unservable),"unruled_out_orders_fully_served",servableComplete,"full_unruled_out_feasible",fullServable,
+                 "provably_unservable_rule","Optimistic Manhattan travel from actual vehicle states, ignoring blocks, meals, stock, service, return and other orders. Failing for every fixed-fleet vehicle is a necessary-condition certificate. Orders not excluded by this bound are NOT proven servable.",
+@@ -58,6 +74,12 @@
+                 "routes",routeDetails,"interpretation","Planning output, not observed delivery execution. Missing orders are NOT a mathematical infeasibility certificate.");
+         return new AuditResult(full,structural,complete,covered,total,missing.size(),evaluation.totalCost(),distance,plan.routes().size(),
+                 unservable.size(),servableComplete,fullServable,details);
++    }
++
++    private static Map<String,Object> mealJson(ScheduledMealBreak b) {
++        return obj("shift_start",b.shiftStart(),"start",b.startsAt(),"end",b.endsAt(),
++                "duration_minutes",java.time.Duration.between(b.startsAt(),b.endsAt()).toMinutes(),
++                "x",b.location().x(),"y",b.location().y(),"placement",b.placement());
+     }
+ 
+     /** Safe necessary-condition certificate, NOT a direct-route heuristic.
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/Csv.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/Csv.java
+@@ -2,7 +2,7 @@
+ import java.util.*;
+ public final class Csv {
+     private Csv(){}
+-    public static final List<String> COLUMNS=List.of("run_id","instance_id","family","source","instance_seed","search_seed","repetition","algorithm","mode","budget_ms","status","final_state","budget_exhausted","reheats","violations","termination","initialization","full_feasible","route_constraints_valid","orders_total","orders_fully_served","orders_missing","packages_total","packages_covered_on_time","coverage_orders_pct","orders_provably_unservable","unruled_out_orders_fully_served","coverage_unruled_out_pct","full_unruled_out_feasible","cost_complete_feasible","cost_raw_do_not_rank_incomplete","distance_km","routes","elapsed_ms","time_first_complete_ms","initialization_ms","final_audit_ms","iterations","neighbor_attempts","invalid_neighbors","accepted_neighbors","plan_evaluations","route_schedules","path_queries","heap_sampled_peak_mib","input_sha256","plan_sha256","config_sha256","algorithm_version","detail");
++    public static final List<String> COLUMNS=List.of("run_id","instance_id","family","source","instance_seed","search_seed","repetition","algorithm","mode","budget_ms","status","final_state","budget_exhausted","reheats","violations","termination","initialization","full_feasible","route_constraints_valid","orders_total","orders_fully_served","orders_missing","packages_total","packages_covered_on_time","coverage_orders_pct","orders_provably_unservable","unruled_out_orders_fully_served","coverage_unruled_out_pct","full_unruled_out_feasible","cost_complete_feasible","cost_raw_do_not_rank_incomplete","distance_km","routes","elapsed_ms","time_first_complete_ms","initialization_ms","final_audit_ms","iterations","neighbor_attempts","invalid_neighbors","accepted_neighbors","plan_evaluations","route_schedules","path_queries","heap_sampled_peak_mib","input_sha256","plan_sha256","config_sha256","algorithm_version","mandatory_meals_valid","scheduled_route_meals","detail");
+     public static String row(Map<String,String> m){return String.join(",",COLUMNS.stream().map(k->escape(m.getOrDefault(k,""))).toList());}
+     public static String escape(String s){return "\""+s.replace("\"","\"\"")+"\"";}
+     public static String number(double d){return Double.isFinite(d)?String.format(Locale.ROOT,"%.6f",d):"";}
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/ExperimentConfig.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/ExperimentConfig.java
+@@ -58,7 +58,13 @@
+         for(String w:List.of("northwest","east"))if(integer("stock."+w,1000)<0||integer("stock."+w,1000)>1000)throw new IllegalArgumentException("Stock must be in 0..1000");
+         double maxLeg=decimal("routing.maxLegKm",0);
+         if(!Double.isFinite(maxLeg)||maxLeg<0)throw new IllegalArgumentException("routing.maxLegKm must be finite and nonnegative");
+-        new pe.edu.pucp.paqrap.planner.domain.ShiftSchedule(pe.edu.pucp.paqrap.planner.domain.ShiftSchedule.DEFAULT_ZONE,integer("meal.startOffsetMinutes",180));
++        if(values.containsKey("meal.startOffsetMinutes"))
++            throw new IllegalArgumentException("Fixed meal.startOffsetMinutes is obsolete: remove it. Meals are mandatory and flexible.");
++        if(!text("meal.policy","FLEXIBLE").equals("FLEXIBLE") || !flag("meal.required",true) || integer("meal.durationMinutes",60)!=60)
++            throw new IllegalArgumentException("Numerical experiments require a FLEXIBLE mandatory uninterrupted 60-minute meal per shift");
++        pe.edu.pucp.paqrap.planner.domain.ShiftSchedule.flexible(pe.edu.pucp.paqrap.planner.domain.ShiftSchedule.DEFAULT_ZONE,integer("meal.beamWidth",8));
++        if(!Set.of("VERIFICATION","PILOT","FORMAL").contains(text("campaign.stage","VERIFICATION")))
++            throw new IllegalArgumentException("campaign.stage must be VERIFICATION, PILOT or FORMAL");
+         if(integer("worker.heap.mb",512)<64||integer("worker.processors",2)<1||integer("worker.timeout.seconds",90)<1||integer("warmup.rounds",1)<0)
+             throw new IllegalArgumentException("Invalid worker/warmup settings");
+     }
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/ExperimentMain.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/ExperimentMain.java
+@@ -15,7 +15,7 @@
+         if(args.length==1 && args[0].equals("--self-test")){VerificationMain.main(new String[0]);return;}
+         Map<String,String> a=new HashMap<>();
+         for(int i=0;i<args.length;i+=2){if(args[i].equals("--help")){usage();return;}if(i+1>=args.length)throw new IllegalArgumentException("Missing argument value");a.put(args[i],args[i+1]);}
+-        if(!Set.of("--config","--output","--resume").containsAll(a.keySet()))throw new IllegalArgumentException("Unknown command line option: "+a.keySet());
++        if(!Set.of("--config","--output","--resume","--validate-only").containsAll(a.keySet()))throw new IllegalArgumentException("Unknown command line option: "+a.keySet());
+         if(a.containsKey("--resume")&&!Set.of("true","false").contains(a.get("--resume")))throw new IllegalArgumentException("--resume expects true or false");
+         Path root=Path.of("").toAbsolutePath().normalize();
+         Path configFile=root.resolve(a.getOrDefault("--config","config/smoke.properties"));
+@@ -26,11 +26,24 @@
+         if(specs.stream().map(ScenarioSpec::id).distinct().count()!=specs.size())throw new IllegalArgumentException("Duplicate instance ids");
+         Map<String,ProblemInstance> materialized=new LinkedHashMap<>();
+         for(ScenarioSpec spec:specs)materialized.put(spec.id(),InstanceFactory.create(spec,config));
++        if(a.containsKey("--validate-only")&&!Set.of("true","false").contains(a.get("--validate-only")))
++            throw new IllegalArgumentException("--validate-only expects true or false");
++        if(Boolean.parseBoolean(a.getOrDefault("--validate-only","false"))) {
++            System.out.println("instance,orders,blocks,vehicles,provably_unservable,planning_time");
++            for(var p:materialized.values())System.out.printf("%s,%d,%d,%d,%d,%s%n",p.spec().id(),p.orders().size(),p.blocks().size(),
++                    p.snapshot().vehiclesById().size(),CommonAudit.provablyUnservable(p).size(),p.snapshot().planningTime());
++            long jobs=(long)specs.size()*config.seeds().size()*config.budgets().size()*2;
++            long searchMs=(long)specs.size()*config.seeds().size()*2*config.budgets().stream().mapToLong(Long::longValue).sum();
++            System.out.printf("VALID: %d instances, %d jobs; search budgets total %.1f min + JVM/IO/warmup/audit overhead.%n",specs.size(),jobs,searchMs/60000.0);
++            return;
++        }
++        if(config.text("campaign.stage","VERIFICATION").equals("FORMAL") && !config.flag("campaign.frozen",false))
++            throw new IllegalArgumentException("Formal template is not calibrated/frozen. Review the pilot and run scripts/freeze_formal.py first.");
+         Map<String,String> inputHashes=new TreeMap<>();materialized.forEach((id,p)->inputHashes.put(id,p.sha256()));
+         String stamp=DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneOffset.UTC).format(Instant.now());
+         Path out=root.resolve(a.getOrDefault("--output","results/"+config.text("name","experiment")+"-"+stamp));
+         boolean resume=Boolean.parseBoolean(a.getOrDefault("--resume","false"));
+-        if(Files.exists(out.resolve("runs.csv"))&&!resume)throw new IllegalArgumentException("Output already contains results. Choose another --output or use --resume true with the same build/configuration.");
++        if(Files.exists(out) && !resume && directoryNotEmpty(out))throw new IllegalArgumentException("Output already contains results. Choose another --output or use --resume true with the same build/configuration.");
+         String classpath=absoluteClasspath();
+         String identity=Json.sha256(Json.encode(obj("config",config.asMap(),"instances",Files.readString(config.path("instances.file","config/smoke.csv")),"classpath",classpathHashes(classpath),"inputs",inputHashes,
+                 "environment",List.of(System.getProperty("java.runtime.version"),System.getProperty("java.vendor"),System.getProperty("os.name"),System.getProperty("os.arch")))));
+@@ -103,6 +116,10 @@
+         System.out.println("Done. Open: "+out.resolve("report.html"));
+         System.out.println("Raw, paired results: "+csv);
+     }
++    private static boolean directoryNotEmpty(Path p)throws IOException {
++        if(!Files.isDirectory(p))return true;
++        try(var entries=Files.list(p)){return entries.findAny().isPresent();}
++    }
+     private static String absoluteClasspath(){return String.join(File.pathSeparator,Arrays.stream(System.getProperty("java.class.path").split(java.util.regex.Pattern.quote(File.pathSeparator))).map(s->Path.of(s).toAbsolutePath().toString()).toList());}
+     private static Map<String,Object> classpathHashes(String cp){Map<String,Object> m=new LinkedHashMap<>();for(String s:cp.split(java.util.regex.Pattern.quote(File.pathSeparator))){try{Path p=Path.of(s);m.put(p.getFileName().toString(),Files.isRegularFile(p)?Json.sha256(Files.readAllBytes(p)):hashDirectory(p));}catch(IOException e){m.put(s,"unreadable");}}return m;}
+     private static String hashDirectory(Path directory)throws IOException{
+@@ -116,5 +133,5 @@
+         Properties v=new Properties();try(var reader=Files.newBufferedReader(p,StandardCharsets.UTF_8)){v.load(reader);}
+         Map<String,String> result=new LinkedHashMap<>();v.forEach((k,x)->result.put(k.toString(),x.toString()));return result;
+     }
+-    private static void usage(){System.out.println("From project root: java -jar dist/paqrap-experimentos.jar --config config/smoke.properties [--output results/my-run] [--resume true]");}
++    private static void usage(){System.out.println("From project root: java -jar dist/paqrap-experimentos.jar --config config/smoke.properties [--output results/my-run] [--resume true] [--validate-only true]");}
+ }
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/FlexibleRestChecks.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/FlexibleRestChecks.java
+@@ -0,0 +1,162 @@
++package pe.edu.pucp.paqrap.experiment;
++
++import pe.edu.pucp.paqrap.planner.domain.*;
++import pe.edu.pucp.paqrap.planner.route.*;
++import java.nio.file.Path;
++import java.time.*;
++import java.util.*;
++import java.util.function.BiConsumer;
++
++/** Executable, dependency-free regressions of the NEW flexible mandatory-rest rule. */
++final class FlexibleRestChecks {
++    private static final ZoneId Z=ShiftSchedule.DEFAULT_ZONE;
++    private static final Instant T=ZonedDateTime.of(2026,9,9,7,0,0,0,Z).toInstant();
++    private static final Warehouse C=Warehouse.central("CENTRAL",new Location(27,14));
++    private static final Vehicle V=new Vehicle("TA01",VehicleType.CAR,true);
++    private static BiConsumer<Boolean,String> check;
++    private static void ok(boolean value,String message){check.accept(value,"Flexible rest: "+message);}
++    private static OperationalSnapshot snapshot(Instant at,Vehicle... vehicles) {
++        Map<String,VehicleOperationalState> states=new TreeMap<>();
++        for(Vehicle v:vehicles)states.put(v.id(),new VehicleOperationalState(v,VehicleStatus.AVAILABLE,C.location(),at));
++        return new OperationalSnapshot(at,FleetProfile.defaults(),InventorySnapshot.from(List.of(C)),states,
++                new MaintenanceCalendar(Z,List.of()),ShiftSchedule.defaultSchedule(),List.of());
++    }
++    private static Order order(String id,Location destination,Instant at,Instant deadline){return new Order(id,destination,1,at,deadline);}
++    private static DeliveryRoute route(Vehicle v,Instant at,List<Order> orders) {
++        DeliveryRoute r=DeliveryRoute.startScenarioAtCentral("R-"+v.id(),v,C,orders.size(),at);
++        for(Order o:orders)r=r.withAppendedStop(new DeliveryStop(o,1));
++        return r.returningTo(C);
++    }
++    private static List<Order> locals(int n,Instant at){List<Order> orders=new ArrayList<>();for(int i=0;i<n;i++)orders.add(order("P"+i,C.location(),at,at.plus(Duration.ofDays(3))));return orders;}
++    private static ScheduledDeliveryRoute schedule(DeliveryRoute route,OperationalSnapshot snapshot,List<RoadBlock> blocks){return new RouteScheduler(new RoadNetwork()).schedule(route,snapshot,blocks);}
++    private static ScheduledDeliveryRoute tamper(ScheduledDeliveryRoute s,List<ScheduledMealBreak> meals){return new ScheduledDeliveryRoute(s.route(),s.scheduledStops(),s.completedAt(),s.totalDistanceKm(),s.totalCost(),meals);}
++    private static boolean invalid(ScheduledDeliveryRoute s){return !MealBreakAudit.validate(s,ShiftSchedule.defaultSchedule()).isEmpty();}
++    static void run(BiConsumer<Boolean,String> assertion) {
++        check=assertion;ShiftSchedule shifts=ShiftSchedule.defaultSchedule();
++        ok(shifts.mealWindow(T).startsAt().atZone(Z).getHour()==8 && shifts.latestMealStart(T).atZone(Z).getHour()==13,
++                "day shift admits starts anywhere from 08:00 to 13:00");
++        Instant afternoon=T.plus(Duration.ofHours(8)),night=T.plus(Duration.ofHours(16));
++        ok(shifts.mealWindow(afternoon).startsAt().atZone(Z).getHour()==16 && shifts.latestMealStart(afternoon).atZone(Z).getHour()==21,
++                "afternoon shift admits starts from 16:00 to 21:00");
++        ok(shifts.mealWindow(night).startsAt().atZone(Z).getHour()==0 && shifts.latestMealStart(night).atZone(Z).getHour()==5,
++                "night shift admits starts from 00:00 to 05:00 on the next date");
++        var snap=snapshot(T,V);
++        Order near=order("NEAR",new Location(28,14),T,T.plus(Duration.ofHours(4)));
++        var shortRoute=schedule(route(V,T,List.of(near)),snap,List.of());
++        ok(shortRoute.mealBreaks().size()==1,"a short early-ending route still contains one mandatory meal");
++        ok(shortRoute.mealBreaks().getFirst().placement()==ScheduledMealBreak.Placement.AFTER_ROUTE,
++                "meal can be scheduled during idle time after the physical return");
++        ok(shortRoute.mealBreaks().getFirst().startsAt().equals(shortRoute.returnedAt()),
++                "rest at 08:03 follows this route, not a whole-hour/fixed-clock grid");
++        ok(shortRoute.completedAt().equals(shortRoute.returnedAt().plusSeconds(3600)),
++                "duty completion includes the mandatory meal even when the vehicle already returned");
++        ok(!invalid(shortRoute),"independent meal auditor accepts the generated early-return schedule");
++
++        List<Order> urgent=new ArrayList<>(locals(3,T));
++        urgent.add(order("URGENT_AT_TEN",new Location(28,14),T,T.plusSeconds(3*3600+120)));
++        var rush=schedule(route(V,T,urgent),snap,List.of());
++        ok(!rush.scheduledStops().get(3).arrivedAt().isAfter(urgent.get(3).deadline()),
++                "urgent 10:02 delivery is NOT delayed by the former 10-11 fixed meal");
++        ok(rush.mealBreaks().getFirst().startsAt().isAfter(T.plus(Duration.ofHours(3))),
++                "scheduler postpones rest when an urgent delivery makes that placement preferable");
++        ok(rush.scheduledStops().stream().filter(s->s.stop() instanceof DeliveryStop)
++                .allMatch(s->Duration.between(s.serviceStartedAt(),s.completedAt()).equals(Duration.ofHours(1))),
++                "every delivery keeps its separate uninterrupted hour of conditioning");
++        Vehicle other=new Vehicle("TA02",VehicleType.CAR,true);
++        var otherSchedule=schedule(route(other,T,urgent),snapshot(T,other),List.of());
++        ok(!shortRoute.mealBreaks().getFirst().startsAt().equals(otherSchedule.mealBreaks().getFirst().startsAt()),
++                "different routes/vehicles receive different meal times in the same shift");
++
++        var exactShiftEnd=schedule(route(V,T,locals(7,T)),snap,List.of());
++        ok(exactShiftEnd.returnedAt().equals(T.plus(Duration.ofHours(8))) && exactShiftEnd.mealBreaks().size()==1,
++                "return exactly at 15:00 does not invent an afternoon work shift");
++        var longSchedule=schedule(route(V,T,locals(20,T)),snap,List.of());
++        ok(longSchedule.mealBreaks().size()==3,"a route spanning day, afternoon and night has three meals");
++        ok(longSchedule.mealBreaks().stream().anyMatch(b->b.shiftStart().equals(night)),
++                "night meal is attached to the 23:00 shift, including its next-date portion");
++        ok(!invalid(longSchedule),"meals remain mandatory across all stops and across midnight");
++
++        RoadBlock waiting=new RoadBlock(T,T.plusSeconds(2*3600),List.of(C.location(),new Location(27,15)));
++        var waited=schedule(route(V,T,List.of(near)),snap,List.of(waiting));
++        ok(waited.mealBreaks().getFirst().startsAt().equals(T.plusSeconds(3600)) && waited.mealBreaks().getFirst().endsAt().equals(T.plusSeconds(2*3600)),
++                "a blocking wait contains the complete 08-09 meal without duplicate waiting");
++        ok(waited.scheduledStops().getFirst().arrivedAt().equals(T.plusSeconds(2*3600+90)),
++                "vehicle moves immediately after the blocking wait and meal end");
++
++        Instant eleven=T.plusSeconds(4*3600);
++        var pre=schedule(route(V,eleven,List.of(order("LATE_BATCH",C.location(),eleven,eleven.plusSeconds(36*3600)))),snapshot(eleven,V),List.of());
++        ok(pre.mealBreaks().getFirst().placement()==ScheduledMealBreak.Placement.BEFORE_ROUTE
++                        && pre.mealBreaks().getFirst().endsAt().equals(eleven),
++                "initial idle-at-Central convention is explicit in a before-route meal record");
++        ok(!invalid(pre),"before-route rest obeys the same windows and duration");
++        Instant lateStart=T.plusSeconds(7*3600+30*60);
++        var replanned=DeliveryRoute.replanFromCurrentLocation("UNKNOWN-HISTORY",V,C.location(),0,lateStart).returningTo(C);
++        var missingHistory=new OperationalPlanEvaluator(new RouteScheduler(new RoadNetwork())).evaluate(
++                OperationalPlan.empty().withRoute(replanned),snapshot(lateStart,V),List.of(),List.of());
++        ok(missingHistory.violations().stream().anyMatch(v->v.type()==PlanViolationType.MANDATORY_MEAL_VIOLATION),
++                "late replan with unknown rest history is NOT silently credited with a previous meal");
++
++        ScheduledMealBreak good=shortRoute.mealBreaks().getFirst();
++        ok(invalid(tamper(shortRoute,List.of())),"auditor rejects a missing mandatory meal");
++        ok(invalid(tamper(shortRoute,List.of(good,good))),"auditor rejects a duplicated meal for one shift");
++        ok(invalid(tamper(shortRoute,List.of(new ScheduledMealBreak(good.shiftStart(),good.startsAt(),good.startsAt().plusSeconds(1800),good.location(),good.placement())))),
++                "auditor rejects a 30-minute break instead of one hour");
++        ok(invalid(tamper(shortRoute,List.of(new ScheduledMealBreak(good.shiftStart(),T,T.plusSeconds(3600),C.location(),ScheduledMealBreak.Placement.DURING_ROUTE)))),
++                "auditor rejects a meal inside the shift-start safety margin");
++        ok(invalid(tamper(shortRoute,List.of(new ScheduledMealBreak(good.shiftStart(),good.startsAt(),good.endsAt(),new Location(1,1),good.placement())))),
++                "auditor rejects a rest location inconsistent with the vehicle position");
++        var service=shortRoute.scheduledStops().getFirst();
++        var duringService=new ScheduledMealBreak(good.shiftStart(),service.serviceStartedAt(),service.completedAt(),service.stop().location(),ScheduledMealBreak.Placement.DURING_ROUTE);
++        ok(invalid(tamper(shortRoute,List.of(duringService))),"auditor rejects overlapping meal and conditioning service");
++        var lateMeal=new ScheduledMealBreak(good.shiftStart(),T.plusSeconds(7*3600),T.plusSeconds(8*3600),C.location(),ScheduledMealBreak.Placement.AFTER_ROUTE);
++        ok(invalid(tamper(shortRoute,List.of(lateMeal))),"auditor rejects a break that ends at the shift change");
++
++        List<Order> impossibleRoute=new ArrayList<>(locals(8,T));
++        impossibleRoute.set(7,order("EIGHTH_TOO_EARLY",C.location(),T,T.plusSeconds(7*3600+60)));
++        var strict=new OperationalPlanEvaluator(new RouteScheduler(new RoadNetwork())).evaluate(
++                OperationalPlan.empty().withRoute(route(V,T,impossibleRoute)),snap,impossibleRoute,List.of());
++        ok(!strict.isFeasible() && strict.schedulesByRouteId().values().stream().allMatch(s->!s.mealBreaks().isEmpty()),
++                "a difficult deadline never disables the mandatory meal");
++
++        Properties props=new Properties();
++        ExperimentConfig cfg=new ExperimentConfig(props,Path.of(""));
++        for(String family:List.of("NORMAL","BLOCKED","REDUCED","SPLIT")) {
++            var instance=InstanceFactory.create(new ScenarioSpec("REST_"+family,family,"SYNTHETIC",2,912,LocalDate.of(2026,9,9),7,8),cfg);
++            ok(!instance.blocks().isEmpty(),family+" experiment includes planned road blocks");
++            var empty=CommonAudit.evaluate(instance,OperationalPlan.empty());
++            ok(((List<?>)empty.details().get("idle_vehicle_meals")).size()==instance.snapshot().vehiclesById().size(),
++                    family+" exports an idle first-shift meal for unused vehicles, without fake route cost");
++        }
++        Order shared=new Order("TWO",new Location(28,14),2,T,T.plusSeconds(36*3600));
++        var r1=DeliveryRoute.startScenarioAtCentral("SAME1",V,C,1,T).withAppendedStop(new DeliveryStop(shared,1)).returningTo(C);
++        var r2=DeliveryRoute.startScenarioAtCentral("SAME2",other,C,1,T).withAppendedStop(new DeliveryStop(shared,1)).returningTo(C);
++        var two=snapshot(T,V,other);
++        try(var control=pe.edu.pucp.paqrap.planner.search.SearchControl.install(0)) {
++            var evaluated=new OperationalPlanEvaluator(new RouteScheduler(new RoadNetwork())).evaluate(
++                    OperationalPlan.empty().withRoute(r1).withRoute(r2),two,List.of(shared),List.of());
++            ok(evaluated.isFeasible() && control.schedules()==1,"equivalent timing cache reuses only one route schedule for two identical vehicles");
++            ok(evaluated.schedulesByRouteId().get("SAME1").route()==r1 && evaluated.schedulesByRouteId().get("SAME2").route()==r2,
++                    "timing cache preserves actual vehicle and route identities");
++            var fresh=schedule(r2,two,List.of());
++            ok(fresh.mealBreaks().equals(evaluated.schedulesByRouteId().get("SAME2").mealBreaks())
++                    && fresh.scheduledStops().getFirst().arrivedAt().equals(evaluated.schedulesByRouteId().get("SAME2").scheduledStops().getFirst().arrivedAt())
++                    && fresh.scheduledStops().getFirst().approach().legs().equals(evaluated.schedulesByRouteId().get("SAME2").scheduledStops().getFirst().approach().legs()),
++                    "cached and freshly scheduled timelines/rests agree exactly");
++        }
++        // Independent randomized invariant checks on routes, not a claim that the beam is exact.
++        Random rng=new Random(20260929);boolean allValid=true,blocksRespected=true;
++        for(int caseNo=0;caseNo<60;caseNo++) {
++            Instant at=T.plusSeconds((caseNo%3)*8*3600L);
++            List<Order> orders=new ArrayList<>();
++            int n=3+rng.nextInt(8);
++            for(int i=0;i<n;i++)orders.add(order("R"+caseNo+"-"+i,new Location(5+rng.nextInt(61),5+rng.nextInt(41)),at,at.plus(Duration.ofDays(3))));
++            RoadBlock block=new RoadBlock(at.plusSeconds(3*3600),at.plusSeconds(8*3600),List.of(new Location(32,10),new Location(32,20)));
++            var result=schedule(route(V,at,orders),snapshot(at,V),List.of(block));
++            allValid &= MealBreakAudit.validate(result,shifts).isEmpty();
++            blocksRespected &= result.scheduledStops().stream().flatMap(s->s.approach().legs().stream())
++                    .noneMatch(l->block.isActiveAt(l.arrivesAt()) && block.blockedNodes().contains(l.to()));
++        }
++        ok(allValid,"60 randomized routes pass independent duration, margins, shift-count, location and non-overlap checks");
++        ok(blocksRespected,"60 randomized routes recompute time-dependent paths and do not enter active blocked nodes");
++    }
++}
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/GraspAdapter.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/GraspAdapter.java
+@@ -14,7 +14,7 @@
+         GraspPlanificador solver=new GraspPlanificador(network,scheduler,evaluator,seed);
+         var result=solver.planificar(p.snapshot(),p.orders(),p.blocks(),c.decimal("grasp.alpha",.3),c.integer("grasp.iterations",1000000));
+         OperationalPlan incumbent=pe.edu.pucp.paqrap.planner.search.SearchControl.bestPlan();
+-        if(incumbent!=null)return new AlgorithmOutput(incumbent,"INTEGRATED","RETURNED",Double.NaN,"v3: common full-demand evaluator; validated anytime incumbent");
++        if(incumbent!=null)return new AlgorithmOutput(incumbent,"INTEGRATED","RETURNED",Double.NaN,"flex1: common full-demand evaluator; validated anytime incumbent");
+         if(result==null)return AlgorithmOutput.empty("INTEGRATED","NO_INCUMBENT",Double.NaN,"No evaluated construction completed within the computational budget");
+         // esFactible describes route validity; complete coverage is evaluated separately against all original orders.
+         return new AlgorithmOutput(result.plan(),"INTEGRATED","RETURNED",Double.NaN,
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/HtmlReport.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/HtmlReport.java
+@@ -17,12 +17,12 @@
+             h.append("<div class='card'>").append(alg).append("<strong>").append(ok).append(" / ").append(n).append("</strong>soluciones completas factibles<br>")
+              .append(okServable).append(" / ").append(n).append(" cubren todos los no descartados por cota</div>");
+         }
+-        h.append("<div class='card'>Corridas registradas<strong>").append(rows.size()).append("</strong>incluye fallos y límites de tiempo</div></div><p><a href='runs.csv'>Resultados completos CSV</a> · <a href='metadata.json'>Entorno y protocolo</a> · <a href='experiment.properties'>Configuración</a> · <a href='instances.csv'>Instancias</a></p><h2>Resultados por corrida</h2><div class='scroll'><table><tr><th>Instancia</th><th>Semilla</th><th>Algoritmo</th><th>Estado</th><th>Atendidos / total</th><th>Descartados por cota</th><th>Costo factible S/</th><th>Tiempo ms</th><th>Terminación</th><th>Detalle</th></tr>");
++        h.append("<div class='card'>Corridas registradas<strong>").append(rows.size()).append("</strong>incluye fallos y límites de tiempo</div></div><p><a href='runs.csv'>Resultados completos CSV</a> · <a href='metadata.json'>Entorno y protocolo</a> · <a href='experiment.properties'>Configuración</a> · <a href='instances.csv'>Instancias</a></p><div class='note'><b>Descanso obligatorio flexible:</b> una hora continua por conductor y turno. Cada ruta decide su horario dentro de la ventana permitida; no se trabaja ni conduce durante esa hora. El enlace Plan muestra <code>meal_breaks</code>, <code>service_start</code> y la auditoría. Los conductores sin ruta tienen su descanso registrado como inactividad. Los resultados anteriores con horario fijo no pertenecen a esta versión.</div><h2>Resultados por corrida</h2><div class='scroll'><table><tr><th>Instancia</th><th>Semilla</th><th>Algoritmo</th><th>Estado</th><th>Atendidos / total</th><th>Descartados por cota</th><th>Costo factible S/</th><th>Tiempo ms</th><th>Terminación</th><th>Descansos válidos</th><th>Descansos en rutas</th><th>Detalle</th></tr>");
+         for(var r:rows){
+             h.append("<tr>");for(String k:List.of("instance_id","search_seed","algorithm","status"))h.append("<td>").append(esc(r.get(k))).append("</td>");
+             h.append("<td>").append(esc(r.get("orders_fully_served"))).append(" / ").append(esc(r.get("orders_total"))).append("</td>");
+             h.append("<td>").append(esc(r.get("orders_provably_unservable"))).append("</td>");
+-            for(String k:List.of("cost_complete_feasible","elapsed_ms","termination"))h.append("<td>").append(esc(r.get(k))).append("</td>");
++            for(String k:List.of("cost_complete_feasible","elapsed_ms","termination","mandatory_meals_valid","scheduled_route_meals"))h.append("<td>").append(esc(r.get(k))).append("</td>");
+             String id=esc(r.get("run_id"));h.append("<td><a href='jobs/").append(id).append(".plan.json'>Plan</a> · <a href='jobs/").append(id).append(".log'>Log</a></td></tr>");
+         }
+         h.append("</table></div><h2>Comparación pareada de costo</h2><p>Solo para parejas en las que AMBOS cubrieron toda la demanda. Diferencia = costo GRASP − costo SA. No es un gap contra el óptimo.</p><table><tr><th>Instancia</th><th>Semilla</th><th>Presupuesto ms</th><th>Costo GRASP</th><th>Costo SA</th><th>Diferencia S/</th></tr>");
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/InstanceFactory.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/InstanceFactory.java
+@@ -60,8 +60,10 @@
+                 int hours=deadlines[generator.nextInt(deadlines.length)];
+                 orders.add(new Order(spec.id()+"-P"+String.format("%03d",i+1),new Location(x,y),quantity,planning,planning.plusSeconds(hours*3600L)));
+             }
+-            if(spec.family().equals("BLOCKED")){
+-                for(int i=0;i<3;i++){
++            // Every experimental family includes planned road blocks. BLOCKED increases intensity.
++            {
++                int blockCount=spec.family().equals("BLOCKED")?3:1;
++                for(int i=0;i<blockCount;i++){
+                     int x=30+generator.nextInt(20),y=10+generator.nextInt(25);
+                     blocks.add(new RoadBlock(planning,planning.plus(Duration.ofHours(4+i)),List.of(new Location(x,y),new Location(x,y+4))));
+                 }
+@@ -84,16 +86,18 @@
+                 .withSpeed(VehicleType.MOTORCYCLE,config.decimal("speed.motorcycle",25))
+                 .withSpeed(VehicleType.BICYCLE,config.decimal("speed.bicycle",12));
+         OperationalSnapshot snapshot=new OperationalSnapshot(planning,fleet,InventorySnapshot.from(warehouses),states,
+-                new MaintenanceCalendar(zone,List.of()),new ShiftSchedule(zone,config.integer("meal.startOffsetMinutes",180)),List.of(),config.decimal("routing.maxLegKm",0));
++                new MaintenanceCalendar(zone,List.of()),ShiftSchedule.flexible(zone,config.integer("meal.beamWidth",8)),List.of(),config.decimal("routing.maxLegKm",0));
+         orders.sort(Comparator.comparing(Order::registeredAt).thenComparing(Order::id));
+         if(orders.stream().anyMatch(o->o.registeredAt().isAfter(planning)))throw new IllegalStateException("Snapshot cannot know future orders");
+         Map<String,Object> manifest=obj("id",spec.id(),"family",spec.family(),"source",spec.source(),"instance_seed",spec.instanceSeed(),
+                 "planning_time",planning,"collection_from",from,"collection_to_exclusive",to,
+-                "model","snapshot-batch-v3; full-demand common evaluator; all first departures from central",
++                "model","snapshot-batch-flex1; mandatory flexible meals; full-demand common evaluator; all first departures from central",
+                 "rules",obj("maintenance_enabled",false,"automatic_breakdowns_enabled",false,
+                     "max_leg_km_zero_means_unbounded",config.decimal("routing.maxLegKm",0),
+-                    "meal_policy","fixed uninterrupted 60-minute slots; experimental scheduling policy, not a mandated clock time",
+-                    "meal_start_offset_minutes",config.integer("meal.startOffsetMinutes",180),
++                    "meal_policy","FLEXIBLE: shared bounded-label scheduling; mandatory uninterrupted 60 min per driver shift; no driving/service overlap",
++                    "meal_required",true,"meal_duration_minutes",60,"meal_margin_after_shift_start_minutes",60,
++                    "meal_margin_before_shift_end_minutes",60,"meal_beam_width",config.integer("meal.beamWidth",8),
++                    "initial_meal_state_convention","STATIC BATCH: drivers idle at Central before snapshot; a full legal meal fitting before departure is recorded explicitly. Not an online rest-history model.",
+                     "expired_orders_policy",config.text("orders.expiredPolicy","KEEP")),
+                 "warehouses",warehouses.stream().map(w->obj("id",w.id(),"x",w.location().x(),"y",w.location().y(),"central",w.isCentral(),"initial_stock",w.initialStock(),"capacity",w.capacity())).toList(),
+                 "fleet",snapshot.vehiclesById().values().stream().map(v->{VehicleParameters p=fleet.parametersFor(v.vehicle().type());return obj("id",v.vehicle().id(),"type",v.vehicle().type(),"status",v.status(),"x",v.location().x(),"y",v.location().y(),"available_at",v.availableAt(),"capacity",p.capacity(),"speed",p.speedKmPerHour(),"cost_km",p.costPerKm());}).toList(),
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/NumericalRegressionChecks.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/NumericalRegressionChecks.java
+@@ -20,7 +20,7 @@
+     }
+     private static void ok(boolean condition,String description){assertion.accept(condition,description);}
+     private static ExperimentConfig config(String... entries){Properties p=new Properties();for(int i=0;i<entries.length;i+=2)p.setProperty(entries[i],entries[i+1]);ExperimentConfig result=new ExperimentConfig(p,Path.of(""));result.validate();return result;}
+-    private static ScenarioSpec spec(String family,int n){return new ScenarioSpec("V3_"+family,family,family.equals("REAL")?"REAL":"SYNTHETIC",n,991,LocalDate.of(2026,9,9),7,8);}
++    private static ScenarioSpec spec(String family,int n){return new ScenarioSpec("FLEX_"+family,family,family.equals("REAL")?"REAL":"SYNTHETIC",n,991,LocalDate.of(2026,9,9),7,8);}
+     private static Warehouse central(){return Warehouse.central("CENTRAL",new Location(27,14));}
+     private static Vehicle car(int n){return new Vehicle("TA0"+n,VehicleType.CAR,true);}
+     private static OperationalSnapshot snapshot(Instant time,List<Warehouse> warehouses,List<Vehicle> vehicles,FleetProfile fleet,double maxLeg){
+@@ -108,16 +108,8 @@
+         RoadPath detour=roads.shortestPath(central().location(),new Location(29,14),T,step,List.of(obstacle)).orElseThrow();
+         ok(detour.distanceKm()>2 && detour.legs().stream().noneMatch(l->obstacle.blockedNodes().contains(l.to()) && obstacle.isActiveAt(l.arrivesAt())),"Route detours around active blocked nodes without diagonal shortcuts");
+         ShiftSchedule shifts=new ShiftSchedule(Z);
+-        ok(shifts.nextWorkStart(T.plusSeconds(3*3600),Duration.ofMinutes(1)).equals(T.plusSeconds(4*3600)),"Work requested at fixed 10:00 meal slot resumes at 11:00");
+-        ok(shifts.nextWorkStart(T.plusSeconds(2*3600),Duration.ofHours(1)).equals(T.plusSeconds(2*3600)),"Service finishing exactly when a meal starts is allowed");
+-        ok(shifts.nextWorkStart(T.plusSeconds(2*3600+1),Duration.ofHours(1)).equals(T.plusSeconds(4*3600)),"Uninterrupted service cannot overlap a meal slot");
+-        Instant overnight=ZonedDateTime.of(2026,9,10,2,30,0,0,Z).toInstant();
+-        ok(shifts.nextWorkStart(overnight,Duration.ofMinutes(1)).equals(overnight.plusSeconds(1800)),"Overnight 23:00-07:00 shift meal is accounted for");
+-        Instant beforeMeal=T.plusSeconds(3*3600-30);
+-        OperationalSnapshot s=snapshot(beforeMeal,List.of(central()),List.of(car(1)),FleetProfile.defaults(),0);
+-        Order nearby=order("MEAL",new Location(28,14),1,beforeMeal,beforeMeal.plusSeconds(7200));
+-        PlanEvaluation meal=evaluate(s,List.of(nearby),route(car(1),1,beforeMeal,new DeliveryStop(nearby,1)));
+-        ok(meal.schedulesByRouteId().values().iterator().next().scheduledStops().getFirst().arrivedAt().equals(T.plusSeconds(4*3600+90)),"Travel pauses at a node rather than driving through a meal");
++        ok(shifts.mealWindow(T).startsAt().equals(T.plusSeconds(3600)),"Day meal window begins one hour after shift start");
++        ok(shifts.latestMealStart(T).equals(T.plusSeconds(6*3600)),"Latest meal START leaves one hour of break and the one-hour shift-end margin");
+         RoadBlock sameNode=new RoadBlock(T,T.plusSeconds(60),List.of(central().location(),new Location(27,15)));
+         Order local=order("LOCAL",27,14,1);
+         var localSchedule=new RouteScheduler(new RoadNetwork()).schedule(route(car(1),1,T,new DeliveryStop(local,1)),snapshot(),List.of(sameNode));
+@@ -183,7 +175,10 @@
+         rejects(()->config("resume","perhaps","maintenance.enabled","perhaps"),"Boolean parameters use strict parsing");
+         rejects(()->new ScenarioSpec("X","UNKNOWN","SYNTHETIC",1,1,LocalDate.now(),7,8),"Unknown scenario family fails loudly");
+         rejects(()->new AnnealingConfig(Double.NaN,1,0.9,1,1,1),"Nonfinite annealing temperature rejected");
+-        rejects(()->new ShiftSchedule(Z,361),"Meal policy offset must leave the configured end-of-shift margin");
++        rejects(()->config("meal.startOffsetMinutes","180"),"Obsolete fixed meal clock is rejected rather than silently reused");
++        rejects(()->config("meal.required","false"),"Mandatory meal cannot be disabled");
++        rejects(()->config("meal.durationMinutes","30"),"Mandatory meal cannot be shortened");
++        rejects(()->config("meal.beamWidth","0"),"Bounded meal scheduler configuration validated");
+         ok(new ScenarioSpec("MIDNIGHT","REAL","REAL",1,1,LocalDate.of(2026,9,9),23,24).toHour()==24,"Real collection windows may end at midnight (exclusive 24:00)");
+     }
+ }
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/SaAdapter.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/SaAdapter.java
+@@ -9,7 +9,7 @@
+ /** Initialization is inside the measured budget; no GRASP-generated seed. */
+ public final class SaAdapter implements UnifiedPlanner {
+     @Override public String name(){return "SA";}
+-    @Override public String version(){return "SA-v3 2026-09-24";}
++    @Override public String version(){return "SA-shared-flex1; load-repair; full-demand; mandatory flexible meals";}
+     @Override public AlgorithmOutput solve(ProblemInstance p,ExperimentConfig c,long seed){
+         OperationalPlanEvaluator evaluator=new OperationalPlanEvaluator(new RouteScheduler(new RoadNetwork()));
+         long start=System.nanoTime();
+@@ -31,6 +31,6 @@
+         OperationalPlan incumbent=SearchControl.bestPlan();
+         if(incumbent!=null)plan=incumbent;
+         return new AlgorithmOutput(plan,initialization,"RETURNED",initializationMs,
+-                "v3: feasible insertion seed; repaired moves; lexicographic coverage; TIME reheating; same complete-demand evaluator");
++                "flex1: feasible insertion seed; repaired moves; lexicographic coverage; TIME reheating; same complete-demand evaluator");
+     }
+ }
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/TrialMain.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/TrialMain.java
+@@ -54,6 +54,7 @@
+                     "time_first_complete_ms",Csv.number(control.firstCompleteMs()),"initialization_ms",Csv.number(output.initializationMs()),"final_audit_ms",Csv.number(auditMs),
+                     "iterations",control.iterations(),"neighbor_attempts",control.attempts(),"invalid_neighbors",control.invalid(),"accepted_neighbors",control.accepted(),
+                     "plan_evaluations",control.evaluations(),"route_schedules",control.schedules(),"path_queries",control.paths(),"heap_sampled_peak_mib",Csv.number(control.sampledHeapBytes()/1048576.0),
++                    "mandatory_meals_valid",audit.details().get("mandatory_meals_valid"),"scheduled_route_meals",audit.details().get("scheduled_route_meals"),
+                     "violations",((java.util.List<?>)audit.details().get("violations")).size(),
+                     "detail",output.detail(),"plan_sha256",Json.sha256(Json.encode(audit.details().get("routes"))));
+             Files.writeString(Path.of(prefix+".plan.json"),Json.encode(obj("run",row,"audit",audit.details())),StandardCharsets.UTF_8);
+--- a/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/VerificationMain.java
++++ b/experimentos/src/main/java/pe/edu/pucp/paqrap/experiment/VerificationMain.java
+@@ -67,6 +67,7 @@
+         var resources=Collections.list(VerificationMain.class.getClassLoader().getResources("pe/edu/pucp/paqrap/planner/route/OperationalPlanEvaluator.class"));
+         check(resources.size()==1,"Exactly one shared evaluator on the runtime classpath");
+         NumericalRegressionChecks.run(VerificationMain::check);
++        FlexibleRestChecks.run(VerificationMain::check);
+         System.out.println("PASS: "+checks+" experimental regression checks.");
+     }
+     private static void check(boolean ok,String message){if(!ok)throw new AssertionError(message);System.out.println("PASS "+(++checks)+": "+message);}
+--- a/config/deterministic.properties
++++ b/config/deterministic.properties
+@@ -2,7 +2,7 @@
+ instances.file=config/deterministic.csv
+ seeds=42
+ budgets.ms=1500
+-# Common PaqRap experimental baseline. Values reflect the latest GRASP ZIP README.
++# PaqRap shared experimental baseline; flexible mandatory meals.
+ # Strict feasibility and coverage, no numerical penalties.
+ fleet.cars=10
+ fleet.motorcycles=15
+@@ -32,7 +32,7 @@
+ worker.timeout.seconds=90
+ warmup.rounds=1
+ 
+-# v3: latest case, no maintenance or automatic breakdowns.
++# Numerical comparison: road blocks yes; maintenance and automatic breakdowns no.
+ maintenance.enabled=false
+ breakdowns.enabled=false
+ northwest.x=12
+@@ -41,5 +41,10 @@
+ orders.expiredPolicy=KEEP
+ # No 80-km-per-leg limit in the supplied master case. Set 80 only for a declared sensitivity check.
+ routing.maxLegKm=0
+-# Fixed one-hour meal slots at 10-11, 18-19, 02-03; a declared scheduling policy, not a teacher mandate.
+-meal.startOffsetMinutes=180
++# A one-hour uninterrupted mandatory break, scheduled separately per vehicle and shift.
++meal.policy=FLEXIBLE
++meal.required=true
++meal.durationMinutes=60
++meal.beamWidth=8
++
++campaign.stage=VERIFICATION
+--- a/config/escalabilidad.properties
++++ b/config/escalabilidad.properties
+@@ -34,7 +34,7 @@
+ worker.timeout.seconds=90
+ warmup.rounds=1
+ 
+-# v3: latest case, no maintenance or automatic breakdowns.
++# Numerical comparison: road blocks yes; maintenance and automatic breakdowns no.
+ maintenance.enabled=false
+ breakdowns.enabled=false
+ northwest.x=12
+@@ -43,5 +43,10 @@
+ orders.expiredPolicy=KEEP
+ # No 80-km-per-leg limit in the supplied master case. Set 80 only for a declared sensitivity check.
+ routing.maxLegKm=0
+-# Fixed one-hour meal slots at 10-11, 18-19, 02-03; a declared scheduling policy, not a teacher mandate.
+-meal.startOffsetMinutes=180
++# A one-hour uninterrupted mandatory break, scheduled separately per vehicle and shift.
++meal.policy=FLEXIBLE
++meal.required=true
++meal.durationMinutes=60
++meal.beamWidth=8
++
++campaign.stage=PILOT
+--- a/config/formal.properties
++++ b/config/formal.properties
+@@ -2,7 +2,7 @@
+ instances.file=config/formal.csv
+ seeds=42,73,101,211,997
+ budgets.ms=5000
+-# Common PaqRap experimental baseline. Values reflect the latest GRASP ZIP README.
++# PaqRap shared experimental baseline; flexible mandatory meals.
+ # Strict feasibility and coverage, no numerical penalties.
+ fleet.cars=10
+ fleet.motorcycles=15
+@@ -32,7 +32,7 @@
+ worker.timeout.seconds=90
+ warmup.rounds=1
+ 
+-# v3: latest case, no maintenance or automatic breakdowns.
++# Numerical comparison: road blocks yes; maintenance and automatic breakdowns no.
+ maintenance.enabled=false
+ breakdowns.enabled=false
+ northwest.x=12
+@@ -41,5 +41,12 @@
+ orders.expiredPolicy=KEEP
+ # No 80-km-per-leg limit in the supplied master case. Set 80 only for a declared sensitivity check.
+ routing.maxLegKm=0
+-# Fixed one-hour meal slots at 10-11, 18-19, 02-03; a declared scheduling policy, not a teacher mandate.
+-meal.startOffsetMinutes=180
++# A one-hour uninterrupted mandatory break, scheduled separately per vehicle and shift.
++meal.policy=FLEXIBLE
++meal.required=true
++meal.durationMinutes=60
++meal.beamWidth=8
++
++campaign.stage=FORMAL
++campaign.frozen=false
++# Prepare with scripts/freeze_formal.py after reviewing the pilot. 5000 ms is a placeholder, not a calibrated result.
+--- a/config/pilot.properties
++++ b/config/pilot.properties
+@@ -1,8 +1,8 @@
+ name=pilot
+ instances.file=config/pilot.csv
+ seeds=42,73,101
+-budgets.ms=3000
+-# Common PaqRap experimental baseline. Values reflect the latest GRASP ZIP README.
++budgets.ms=3000,5000,10000,20000
++# PaqRap shared experimental baseline; flexible mandatory meals.
+ # Strict feasibility and coverage, no numerical penalties.
+ fleet.cars=10
+ fleet.motorcycles=15
+@@ -32,7 +32,7 @@
+ worker.timeout.seconds=90
+ warmup.rounds=1
+ 
+-# v3: latest case, no maintenance or automatic breakdowns.
++# Numerical comparison: road blocks yes; maintenance and automatic breakdowns no.
+ maintenance.enabled=false
+ breakdowns.enabled=false
+ northwest.x=12
+@@ -41,5 +41,10 @@
+ orders.expiredPolicy=KEEP
+ # No 80-km-per-leg limit in the supplied master case. Set 80 only for a declared sensitivity check.
+ routing.maxLegKm=0
+-# Fixed one-hour meal slots at 10-11, 18-19, 02-03; a declared scheduling policy, not a teacher mandate.
+-meal.startOffsetMinutes=180
++# A one-hour uninterrupted mandatory break, scheduled separately per vehicle and shift.
++meal.policy=FLEXIBLE
++meal.required=true
++meal.durationMinutes=60
++meal.beamWidth=8
++
++campaign.stage=PILOT
+--- a/config/readiness.properties
++++ b/config/readiness.properties
+@@ -2,7 +2,7 @@
+ instances.file=config/readiness.csv
+ seeds=42
+ budgets.ms=1500
+-# Common PaqRap experimental baseline. Values reflect the latest GRASP ZIP README.
++# PaqRap shared experimental baseline; flexible mandatory meals.
+ # Strict feasibility and coverage, no numerical penalties.
+ fleet.cars=10
+ fleet.motorcycles=15
+@@ -32,7 +32,7 @@
+ worker.timeout.seconds=90
+ warmup.rounds=1
+ 
+-# v3: latest case, no maintenance or automatic breakdowns.
++# Numerical comparison: road blocks yes; maintenance and automatic breakdowns no.
+ maintenance.enabled=false
+ breakdowns.enabled=false
+ northwest.x=12
+@@ -41,5 +41,10 @@
+ orders.expiredPolicy=KEEP
+ # No 80-km-per-leg limit in the supplied master case. Set 80 only for a declared sensitivity check.
+ routing.maxLegKm=0
+-# Fixed one-hour meal slots at 10-11, 18-19, 02-03; a declared scheduling policy, not a teacher mandate.
+-meal.startOffsetMinutes=180
++# A one-hour uninterrupted mandatory break, scheduled separately per vehicle and shift.
++meal.policy=FLEXIBLE
++meal.required=true
++meal.durationMinutes=60
++meal.beamWidth=8
++
++campaign.stage=VERIFICATION
+--- a/config/smoke.properties
++++ b/config/smoke.properties
+@@ -2,7 +2,7 @@
+ instances.file=config/smoke.csv
+ seeds=42,73
+ budgets.ms=1500
+-# Common PaqRap experimental baseline. Values reflect the latest GRASP ZIP README.
++# PaqRap shared experimental baseline; flexible mandatory meals.
+ # Strict feasibility and coverage, no numerical penalties.
+ fleet.cars=10
+ fleet.motorcycles=15
+@@ -32,7 +32,7 @@
+ worker.timeout.seconds=90
+ warmup.rounds=1
+ 
+-# v3: latest case, no maintenance or automatic breakdowns.
++# Numerical comparison: road blocks yes; maintenance and automatic breakdowns no.
+ maintenance.enabled=false
+ breakdowns.enabled=false
+ northwest.x=12
+@@ -41,5 +41,10 @@
+ orders.expiredPolicy=KEEP
+ # No 80-km-per-leg limit in the supplied master case. Set 80 only for a declared sensitivity check.
+ routing.maxLegKm=0
+-# Fixed one-hour meal slots at 10-11, 18-19, 02-03; a declared scheduling policy, not a teacher mandate.
+-meal.startOffsetMinutes=180
++# A one-hour uninterrupted mandatory break, scheduled separately per vehicle and shift.
++meal.policy=FLEXIBLE
++meal.required=true
++meal.durationMinutes=60
++meal.beamWidth=8
++
++campaign.stage=VERIFICATION
+--- a/scripts/analysis-requirements.txt
++++ b/scripts/analysis-requirements.txt
+@@ -1,5 +1,5 @@
+-# Optional only. Java experiment and CSV/HTML report do NOT need Python packages.
+-# Versions used to verify the optional analysis in the delivered environment.
++# Opcionales: el ejecutable Java, las tablas, el resumen piloto y la auditoria Python no requieren estos paquetes.
++# Versiones de referencia. No se instalaron ni ejecutaron Maven/JUnit ni graficos en esta entrega.
+ numpy==2.3.5
+ scipy==1.17.0
+ matplotlib==3.10.8
+--- a/scripts/analyze.py
++++ b/scripts/analyze.py
+@@ -89,6 +89,15 @@
+     configs = {r["config_sha256"] for r in rows if r.get("config_sha256")}
+     if len(configs) != 1:
+         raise ValueError("Se detectaron configuraciones diferentes: no mezclar experimentos en un CSV")
++    versions = defaultdict(set)
++    for row in rows:
++        versions[row["algorithm"]].add(row.get("algorithm_version", ""))
++        if ok(row) and (row.get("route_constraints_valid") != "true" or row.get("mandatory_meals_valid") != "true"):
++            raise ValueError("Corrida completa sin validacion de rutas y descansos")
++        if not ok(row) and row.get("cost_complete_feasible", ""):
++            raise ValueError("Un plan incompleto no puede tener costo comparable")
++    if any(len(v) != 1 for v in versions.values()):
++        raise ValueError("Se detectaron versiones mezcladas del mismo algoritmo")
+     pairs: dict[tuple[str, str, str, str], dict[str, dict[str, str]]] = defaultdict(dict)
+     for r in rows:
+         key = (r["instance_id"], r["search_seed"], r["budget_ms"], r["mode"])
+@@ -114,7 +123,7 @@
+                   "orders_provably_unservable": g.get("orders_provably_unservable", ""),
+                   "grasp_unruled_out_ok": int(ok_unruled_out(g)), "sa_unruled_out_ok": int(ok_unruled_out(s)),
+                   # Descriptiva condicional: ambos cubren todo pedido no descartado por la cota optimista.
+-                  "log_cost_ratio_on_joint_unruled_out_success": math.log(rg / rs) if both_unruled_out and rg and rs and rg > 0 and rs > 0 else None,
++                  "log_cost_ratio_on_joint_unruled_out_success": None,  # no costo comparativo para planes incompletos
+                   "grasp_ok": int(ok(g)), "sa_ok": int(ok(s)), "joint_success": int(both),
+                   "grasp_cost": cg, "sa_cost": cs,
+                   "cost_difference_grasp_minus_sa": cg-cs if both and cg is not None and cs is not None else None,
+--- a/scripts/campaign_tools.py
++++ b/scripts/campaign_tools.py
+@@ -0,0 +1,55 @@
++"""Shared standard-library helpers for experiment audit/calibration (Python 3.10+)."""
++from __future__ import annotations
++import csv, hashlib, json
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parents[1]
++
++def digest(path: Path) -> str:
++    return hashlib.sha256(path.read_bytes()).hexdigest()
++
++def properties(path: Path) -> dict[str, str]:
++    result = {}
++    for line in path.read_text(encoding='utf-8-sig').splitlines():
++        line = line.strip()
++        if line and not line.startswith(('#', '!')):
++            key, separator, value = line.partition('=')
++            if not separator:
++                raise ValueError(f'Formato no compatible en {path}: {line}')
++            result[key.strip()] = value.strip()
++    return result
++
++def load_campaign(folder: Path, require_all: bool = True):
++    """Reject duplicated/mixed inputs and unfinished grids. Failures remain observations."""
++    metadata = json.loads((folder / 'metadata.json').read_text(encoding='utf-8'))
++    with (folder / 'runs.csv').open(encoding='utf-8-sig', newline='') as f:
++        rows = list(csv.DictReader(f))
++    if not rows:
++        raise ValueError('La campaña no tiene corridas.')
++    with (folder / 'instances.csv').open(encoding='utf-8-sig', newline='') as f:
++        specs = list(csv.DictReader(f))
++    cfg = metadata['settings']
++    expected = {(s['id'], seed.strip(), '0' if cfg.get('mode')=='FIXED' else budget.strip(), alg)
++                for s in specs for seed in cfg['seeds'].split(',')
++                for budget in cfg['budgets.ms'].split(',') for alg in ('GRASP', 'SA')}
++    observed, inputs = set(), {}
++    for row in rows:
++        key = (row['instance_id'], row['search_seed'], row['budget_ms'], row['algorithm'])
++        if key in observed:
++            raise ValueError(f'Corrida duplicada: {key}')
++        observed.add(key)
++        if row['config_sha256'] != metadata['config_sha256']:
++            raise ValueError('Se mezclaron configuraciones en runs.csv.')
++        iid = row['instance_id']
++        if inputs.setdefault(iid, row['input_sha256']) != row['input_sha256']:
++            raise ValueError(f'Entradas diferentes para la misma instancia: {iid}')
++        if row.get('algorithm_version') != metadata['algorithm_versions'][row['algorithm']]:
++            raise ValueError('Se mezclaron versiones de los algoritmos.')
++        complete = row.get('full_feasible') == 'true'
++        if complete and (row.get('mandatory_meals_valid') != 'true' or row.get('route_constraints_valid') != 'true'):
++            raise ValueError('Solución declarada completa sin descanso/rutas válidas.')
++        if not complete and row.get('cost_complete_feasible'):
++            raise ValueError('Un plan parcial no puede tener costo comparable.')
++    if not observed <= expected or (require_all and observed != expected):
++        raise ValueError(f'Cuadrícula incompleta o alterada: {len(observed)}/{len(expected)}. Reanuda sin cambiar la configuración.')
++    return metadata, rows, specs
+--- a/scripts/freeze_formal.py
++++ b/scripts/freeze_formal.py
+@@ -0,0 +1,69 @@
++#!/usr/bin/env python3
++"""Freeze a formal configuration from a completed pilot, WITHOUT reusing its results.
++Example (from module root):
++python scripts/freeze_formal.py --pilot results/pilot-01 --budget-ms 10000 \
++  --output config/formal-aprobado.properties --reason "Cobertura y costo se estabilizan; ver curvas del piloto."
++Only copies calibrated parameters. Formal instance table and seeds remain distinct.
++"""
++from __future__ import annotations
++import argparse, csv, json
++from datetime import datetime, timezone
++from pathlib import Path
++from campaign_tools import ROOT, digest, properties, load_campaign
++
++def freeze(pilot: Path, budget: int, output: Path, reason: str, template: Path) -> dict:
++    if len(reason.strip()) < 20:
++        raise ValueError('Escribe una justificación concreta de al menos 20 caracteres.')
++    if output.exists() or output.with_suffix('.freeze.json').exists():
++        raise ValueError('No sobrescribir una campaña congelada: elige otro nombre.')
++    metadata, rows, pilot_specs = load_campaign(pilot)
++    if metadata['settings'].get('campaign.stage') != 'PILOT':
++        raise ValueError('Solo se acepta una campaña declarada PILOT, no smoke/readiness.')
++    allowed = {int(b.strip()) for b in metadata['settings']['budgets.ms'].split(',')}
++    if len(allowed) < 2 or budget not in allowed:
++        raise ValueError('El piloto debe evaluar al menos dos presupuestos y el elegido debe estar entre ellos.')
++    if any(r['status'] in ('ERROR','WORKER_ERROR','HARD_TIMEOUT') for r in rows):
++        raise ValueError('Existen errores de ejecución: corrige y ejecuta un piloto nuevo antes de congelar.')
++    jar = ROOT/'dist/paqrap-experimentos.jar'
++    if metadata['classpath_sha256'].get(jar.name) != digest(jar):
++        raise ValueError('El JAR cambió desde el piloto. Recalibra la versión que se va a presentar.')
++    settings=properties(template)
++    instances=ROOT/settings['instances.file']
++    with instances.open(encoding='utf-8-sig',newline='') as f:
++        formal_specs=list(csv.DictReader(f))
++    # Compare scenario content even if someone renames its ID.
++    signature=lambda r: tuple(r[k] for k in ('family','source','n_orders','instance_seed','date','from_hour','to_hour'))
++    if {signature(r) for r in formal_specs} & {signature(r) for r in pilot_specs}:
++        raise ValueError('Piloto y formal contienen instancias idénticas: separa calibración y evaluación.')
++    keep={'name','instances.file','seeds','budgets.ms','campaign.stage','campaign.frozen'}
++    for k,v in metadata['settings'].items():
++        if k not in keep: settings[k]=v
++    settings.update({'name':output.stem,'budgets.ms':str(budget),'campaign.stage':'FORMAL','campaign.frozen':'true'})
++    # Detect changed on-disk data used by the pilot. No online lookup is required.
++    for f in (pilot/'instances').glob('*.json'):
++        for source, expected in json.loads(f.read_text(encoding='utf-8')).get('source_file_sha256',{}).items():
++            path=ROOT/source
++            if not path.is_file() or digest(path)!=expected:
++                raise ValueError(f'Cambiaron los datos del piloto: {source}')
++    output.parent.mkdir(parents=True,exist_ok=True)
++    header='# Congelada desde piloto revisado. No modificar durante la campaña.\n'
++    text=header+'\n'.join(f'{k}={v}' for k,v in sorted(settings.items()))+'\n'
++    output.write_text(text,encoding='utf-8')
++    info={'created_utc':datetime.now(timezone.utc).isoformat(),'reason':reason.strip(),
++          'budget_ms':budget,'pilot_folder':str(pilot),'pilot_runs_sha256':digest(pilot/'runs.csv'),
++          'pilot_metadata_sha256':digest(pilot/'metadata.json'),'jar_sha256':digest(jar),
++          'formal_config_sha256':digest(output),'formal_instances_sha256':digest(instances),
++          'formal_runs':len(formal_specs)*len(settings['seeds'].split(','))*2,
++          'note':'Congelación de configuración; NO significa que la campaña formal se haya ejecutado ni demuestra superioridad.'}
++    output.with_suffix('.freeze.json').write_text(json.dumps(info,indent=2,ensure_ascii=False),encoding='utf-8')
++    return info
++
++if __name__=='__main__':
++    p=argparse.ArgumentParser(description=__doc__)
++    p.add_argument('--pilot',type=Path,required=True);p.add_argument('--budget-ms',type=int,required=True)
++    p.add_argument('--output',type=Path,required=True);p.add_argument('--reason',required=True)
++    p.add_argument('--template',type=Path,default=ROOT/'config/formal.properties');a=p.parse_args()
++    try:
++        info=freeze(a.pilot,a.budget_ms,a.output,a.reason,a.template)
++        print(f"Creada {a.output}: {info['formal_runs']} corridas a {a.budget_ms} ms. Aún no ejecutadas.")
++    except (ValueError,OSError,KeyError) as e: p.exit(1,f'ERROR: {e}\n')
+--- a/scripts/pilot_summary.py
++++ b/scripts/pilot_summary.py
+@@ -0,0 +1,54 @@
++#!/usr/bin/env python3
++"""Summarize all pilot budgets without picking a winner/budget automatically.
++Usage: python scripts/pilot_summary.py results/pilot-01
++Costs only on the SAME jointly complete instance-seed pairs at ALL budgets.
++"""
++from __future__ import annotations
++import argparse, csv, json, statistics
++from collections import defaultdict
++from pathlib import Path
++from campaign_tools import load_campaign
++
++def summarize(folder: Path) -> list[dict]:
++    meta, rows, _ = load_campaign(folder)
++    budgets = sorted({int(r['budget_ms']) for r in rows})
++    by_pair = defaultdict(list)
++    for row in rows:
++        by_pair[(row['instance_id'], row['search_seed'])].append(row)
++    balanced_cost_keys = {k for k, rr in by_pair.items()
++                          if len(rr) == 2 * len(budgets) and all(r['full_feasible'] == 'true' for r in rr)}
++    result = []
++    for budget in budgets:
++        for alg in ('GRASP', 'SA'):
++            rr = [r for r in rows if int(r['budget_ms']) == budget and r['algorithm'] == alg]
++            costs = [float(r['cost_complete_feasible']) for r in rr
++                     if (r['instance_id'], r['search_seed']) in balanced_cost_keys]
++            valid = [r for r in rr if r.get('route_constraints_valid') == 'true']
++            # Failure means zero credited coverage, not a dropped observation.
++            coverage = [float(r.get('coverage_orders_pct') or 0) if r in valid else 0.0 for r in rr]
++            elapsed = [float(r['elapsed_ms']) for r in rr if r.get('elapsed_ms')]
++            result.append(dict(budget_ms=budget, algorithm=alg, runs=len(rr),
++                complete_runs=sum(r['full_feasible']=='true' for r in rr),
++                complete_pct=100*sum(r['full_feasible']=='true' for r in rr)/len(rr),
++                route_valid_runs=len(valid), mean_coverage_pct=statistics.mean(coverage),
++                worker_errors=sum(r['status'] in ('ERROR','WORKER_ERROR','HARD_TIMEOUT') for r in rr),
++                cost_balanced_pairs=len(costs),
++                mean_cost_balanced=statistics.mean(costs) if costs else '',
++                mean_elapsed_ms=statistics.mean(elapsed) if elapsed else ''))
++    out = folder/'analysis'; out.mkdir(exist_ok=True)
++    with (out/'pilot_budgets.csv').open('w',encoding='utf-8',newline='') as f:
++        writer=csv.DictWriter(f,fieldnames=list(result[0]));writer.writeheader();writer.writerows(result)
++    (out/'pilot_budgets.json').write_text(json.dumps({'budgets_ms':budgets,
++        'balanced_instance_seed_pairs':len(balanced_cost_keys), 'summary':result,
++        'notes':['Descriptivo: las semillas no son instancias independientes.',
++                 'El costo usa las mismas parejas completas en TODOS los presupuestos; si no existen queda vacío.',
++                 'Revisar cobertura, costo pareado, trazas y costo total de campaña antes de justificar el presupuesto.',
++                 'No se elige automáticamente presupuesto ni algoritmo ganador.']},indent=2,ensure_ascii=False),encoding='utf-8')
++    for row in result:
++        print(f"{row['budget_ms']:>6} ms | {row['algorithm']:5} | completas {row['complete_runs']}/{row['runs']} | cobertura {row['mean_coverage_pct']:.1f}% | costo pareado {row['mean_cost_balanced']}")
++    return result
++
++if __name__=='__main__':
++    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('folder',type=Path);args=parser.parse_args()
++    try: summarize(args.folder)
++    except (ValueError,OSError,KeyError) as e: parser.exit(1,f'ERROR: {e}\n')
+--- a/scripts/run.ps1
++++ b/scripts/run.ps1
+@@ -1,4 +1,4 @@
+-param([ValidateSet("smoke","pilot","formal","deterministic")][string]$Profile="smoke")
++param([ValidateSet("smoke","pilot","formal","deterministic","readiness","escalabilidad")][string]$Profile="smoke")
+ $ErrorActionPreference="Stop"
+ Push-Location (Split-Path -Parent $PSScriptRoot)
+ try {
+--- a/scripts/run.sh
++++ b/scripts/run.sh
+@@ -2,6 +2,6 @@
+ set -euo pipefail
+ cd "$(dirname "$0")/.."
+ profile="${1:-smoke}"
+-case "$profile" in smoke|pilot|formal|deterministic) ;; *) echo "Perfil: smoke, pilot, formal o deterministic"; exit 1;; esac
++case "$profile" in smoke|pilot|formal|deterministic|readiness|escalabilidad) ;; *) echo "Perfil: smoke, readiness, pilot, escalabilidad, formal o deterministic"; exit 1;; esac
+ [ -f dist/paqrap-experimentos.jar ] || bash scripts/build.sh
+ java -jar dist/paqrap-experimentos.jar --config "config/$profile.properties"
+--- a/scripts/test_java_sources.py
++++ b/scripts/test_java_sources.py
+@@ -0,0 +1,28 @@
++#!/usr/bin/env python3
++"""Compile/run existing Java test METHOD BODIES with a minimal offline adapter.
++No downloaded dependencies; NOT a Maven/JUnit execution. Temporary copies of imports
++point to paqrap.offlinecheck; original JUnit test files remain ready for Maven.
++Usage: python scripts/test_java_sources.py
++"""
++from pathlib import Path
++import re, shutil, subprocess, tempfile
++from campaign_tools import ROOT
++
++def main():
++    if not shutil.which('javac'): raise SystemExit('Se necesita JDK 21 (javac).')
++    with tempfile.TemporaryDirectory(prefix='paqrap-tests-') as tmp:
++        d=Path(tmp);sources=[];classes=[]
++        for module in ('dominio','grasp','sa','experimentos'):
++            for path in sorted((ROOT/module/'src/test/java').rglob('*.java')):
++                original=path.read_text(encoding='utf-8');text=original.replace('org.junit.jupiter.api.', 'paqrap.offlinecheck.')
++                dest=d/module/path.relative_to(ROOT/module/'src/test/java');dest.parent.mkdir(parents=True,exist_ok=True);dest.write_text(text,encoding='utf-8');sources.append(dest)
++                if '@Test' in original:
++                    package=re.search(r'package\s+([\w.]+)\s*;',original).group(1);classes.append(package+'.'+path.stem)
++        sources+=list((ROOT/'tests/java_support').glob('*.java'));out=d/'classes';out.mkdir()
++        argfile=d/'sources.txt';argfile.write_text('\n'.join('"'+str(p).replace('\\','/')+'"' for p in sources),encoding='utf-8')
++        jar=ROOT/'dist/paqrap-experimentos.jar'
++        subprocess.run(['javac','--release','21','-encoding','UTF-8','-cp',str(jar),'-d',str(out),'@'+str(argfile)],check=True)
++        import os
++        subprocess.run(['java','-Xmx512m','-cp',str(jar)+os.pathsep+str(out),'paqrap.offlinecheck.Runner',*classes],cwd=ROOT,check=True)
++
++if __name__=='__main__':main()
+--- a/scripts/verify_results.py
++++ b/scripts/verify_results.py
+@@ -0,0 +1,156 @@
++#!/usr/bin/env python3
++"""Independent checks on exported routes, without calling the Java scheduler.
++Checks rest duration/window/location/non-overlap/count; street continuity/block timing;
++capacity, exact conditioning duration, amounts, inventory, distance and cost. Does NOT
++certify optimality or prove that missing orders are unservable.
++Usage: python scripts/verify_results.py results/readiness-01
++"""
++from __future__ import annotations
++import argparse, json, math
++from collections import Counter, defaultdict
++from datetime import datetime, timedelta, timezone
++from pathlib import Path
++from campaign_tools import load_campaign
++
++HOUR=timedelta(hours=1)
++LOCAL=timezone(timedelta(hours=-5))  # PaqRap case Lima, fixed UTC-05:00.
++
++def instant(s: str) -> datetime:
++    return datetime.fromisoformat(s.replace('Z','+00:00'))
++
++def shift_start(t: datetime) -> datetime:
++    t=t.astimezone(LOCAL)
++    for hour in (23,15,7):
++        if t.hour>=hour: return t.replace(hour=hour,minute=0,second=0,microsecond=0)
++    return (t-timedelta(days=1)).replace(hour=23,minute=0,second=0,microsecond=0)
++
++def overlapping(a,b,c,d):
++    return a<d and c<b
++
++def blocked_nodes(block: dict) -> set[tuple[int,int]]:
++    result=set()
++    for start,end in zip(block['nodes'],block['nodes'][1:]):
++        x,y=start;tx,ty=end; dx=(tx>x)-(tx<x);dy=(ty>y)-(ty<y)
++        result.add((x,y))
++        while (x,y)!=(tx,ty):
++            x+=dx;y+=dy;result.add((x,y))
++    return result
++
++def audit_plan(manifest: dict, document: dict, row: dict) -> dict:
++    errors=[]
++    def require(value,message):
++        if not value: errors.append(message)
++    audit=document['audit']
++    vehicles={v['id']:v for v in manifest['fleet']}
++    warehouses={w['id']:w for w in manifest['warehouses']}
++    orders={o['id']:o for o in manifest['orders']}
++    blocks=[(instant(b['from']),instant(b['to']),blocked_nodes(b)) for b in manifest['blocks']]
++    served=Counter();total_dist=0;cost=0;meals_count=0;used=set();pickups=defaultdict(list)
++    for route in audit['routes']:
++        vid=route['vehicle_id'];require(vid in vehicles, 'Vehículo desconocido')
++        if vid not in vehicles: continue
++        require(vid not in used, 'Dos rutas simultáneas del mismo vehículo');used.add(vid)
++        vehicle=vehicles[vid];position=(vehicle['x'],vehicle['y']);capacity=vehicle['capacity']
++        departure=instant(route['departure']);now=departure;load=route['initial_load'];alllegs=[];service=[];distance=0
++        require(0<=load<=capacity, 'Carga inicial inválida')
++        require(len(route['stops'])==len(route['timetable']), 'Ruta sin horario completo')
++        for stop,time in zip(route['stops'],route['timetable']):
++            require(load==time['load_before'], 'Carga previa inconsistente')
++            legs=time['path']
++            require(time['approach_distance_km']==len(legs), 'Distancia del tramo inconsistente')
++            for leg in legs:
++                start=instant(leg['departure']);end=instant(leg['arrival'])
++                source=tuple(leg['from']);target=tuple(leg['to'])
++                require(source==position, 'Camino discontinuo')
++                require(abs(source[0]-target[0])+abs(source[1]-target[1])==1, 'Tramo no unitario o diagonal')
++                require(0<=target[0]<=70 and 0<=target[1]<=50, 'Nodo fuera del mapa')
++                require(start>=now and end>start, 'Cronología de conducción inválida')
++                require(abs((end-start).total_seconds()-3600/vehicle['speed'])<0.00001, 'Velocidad de tramo incorrecta')
++                require(not any(a<=end<b and target in nodes for a,b,nodes in blocks), 'Entrada en nodo bloqueado')
++                require(not any(a<=start<b and source in nodes for a,b,nodes in blocks), 'Salida de nodo bloqueado')
++                alllegs.append((start,end,source,target));position=target;now=end;distance+=1
++            arrival=instant(time['arrival']);start=instant(time['service_start']);end=instant(time['completion'])
++            require(arrival>=now and start>=arrival and end>=start, 'Cronología de parada inválida')
++            require(position==(stop['x'],stop['y']), 'Parada en ubicación incorrecta')
++            if stop['type']=='DELIVERY':
++                order=orders.get(stop['order_id']);require(order is not None,'Pedido desconocido')
++                quantity=stop['packages'];require(quantity>0,'Entrega no positiva');load-=quantity
++                require(end-start==HOUR, 'Acondicionamiento distinto de una hora')
++                service.append((start,end))
++                if order:
++                    require(position==(order['x'],order['y']), 'Destino alterado')
++                    require(instant(order['registered_at'])<=arrival<=instant(order['deadline']), 'Entrega fuera del plazo')
++                    if instant(order['registered_at'])<=arrival<=instant(order['deadline']):served[order['id']]+=quantity
++            else:
++                require(stop['type']=='WAREHOUSE','Tipo de parada desconocido')
++                warehouse=warehouses[stop['warehouse_id']];quantity=stop['pickup']
++                require(position==(warehouse['x'],warehouse['y']), 'Almacén en coordenadas incorrectas')
++                require(quantity>=0,'Recarga negativa');load+=quantity;pickups[warehouse['id']].append((arrival,quantity))
++            require(0<=load<=capacity,'Carga fuera de capacidad o negativa')
++            require(load==time['load_after'],'Carga posterior inconsistente');now=end
++        require(route['stops'] and route['stops'][-1]['type']=='WAREHOUSE','Ruta sin retorno a almacén')
++        returned=instant(route['returned_at']);done=instant(route['duty_completed_at'])
++        require(returned==now and done>=returned,'Fin de recorrido/jornada incorrecto')
++        counts=Counter();prior=None
++        for meal in sorted(route['meal_breaks'],key=lambda b:b['start']):
++            start=instant(meal['start']);end=instant(meal['end']);shift=shift_start(start)
++            require(instant(meal['shift_start'])==shift,'Turno del descanso incorrecto')
++            require(end-start==HOUR,'Descanso no dura una hora continua')
++            require(start>=shift+HOUR and end<=shift+7*HOUR,'Descanso fuera del margen del turno')
++            require(prior is None or start>=prior,'Descansos solapados');prior=end
++            require(end<=done,'Fin de jornada anterior al descanso')
++            if meal['placement']=='BEFORE_ROUTE':require(end<=departure,'Descanso previo termina después de la salida')
++            if meal['placement']=='AFTER_ROUTE':require(start>=returned,'Descanso final anterior al retorno')
++            expected=(vehicle['x'],vehicle['y'])
++            for a,b,source,target in alllegs:
++                require(not overlapping(start,end,a,b),'Conducción durante descanso')
++                if b<=start:expected=target
++            require(expected==(meal['x'],meal['y']),'Descanso en ubicación físicamente inconsistente')
++            require(not any(overlapping(start,end,a,b) for a,b in service),'Acondicionamiento durante descanso')
++            counts[shift]+=1;meals_count+=1
++        required=set();shift=shift_start(departure)
++        last=done-timedelta(microseconds=1) if done>departure else departure
++        while shift<=last:
++            required.add(shift);shift+=8*HOUR
++        require(set(counts)==required and all(n==1 for n in counts.values()),'Falta/sobra descanso por turno')
++        total_dist+=distance;cost+=distance*vehicle['cost_km']
++    for wid,events in pickups.items():
++        warehouse=warehouses[wid]
++        if warehouse['central']: continue
++        stock=warehouse['initial_stock'];last=instant(manifest['planning_time'])
++        for time,qty in sorted(events):
++            reset=last.astimezone(LOCAL).replace(hour=23,minute=59,second=59,microsecond=0)
++            if reset<=last:reset+=timedelta(days=1)
++            if reset<=time:stock=warehouse['capacity']
++            stock-=qty;require(stock>=0,'Inventario intermedio negativo');last=time
++    complete=sum(served[o['id']]==o['packages'] for o in orders.values())
++    require(all(served[o['id']]<=o['packages'] for o in orders.values()),'Sobreentrega')
++    require(complete==int(row['orders_fully_served']),'Conteo de pedidos inconsistente')
++    require(sum(min(served[o['id']],o['packages']) for o in orders.values())==int(row['packages_covered_on_time']),'Unidades entregadas inconsistentes')
++    require(math.isclose(total_dist,float(row['distance_km'])),'Distancia total incorrecta')
++    require(math.isclose(cost,float(row['cost_raw_do_not_rank_incomplete'])),'Costo total incorrecto')
++    require(meals_count==int(row['scheduled_route_meals']),'Conteo de descansos inconsistente')
++    require((complete==len(orders) and not errors)==(row['full_feasible']=='true'), 'Clasificación completa incorrecta')
++    require(document['run']['input_sha256']==row['input_sha256'],'Entrada distinta en CSV y plan')
++    if errors: raise ValueError(row['run_id']+': '+'; '.join(sorted(set(errors))))
++    return {'run_id':row['run_id'],'routes':len(used),'route_meals':meals_count,'complete':complete==len(orders),'distance_km':total_dist}
++
++def verify(folder: Path) -> dict:
++    _,rows,_=load_campaign(folder)
++    checks=[];failures=[]
++    for row in rows:
++        if row.get('route_constraints_valid')!='true':
++            failures.append({'run_id':row['run_id'],'status':row['status'],'note':'No se interpreta como solución válida.'});continue
++        manifest=json.loads((folder/'instances'/f"{row['instance_id']}.json").read_text(encoding='utf-8'))
++        plan=json.loads((folder/'jobs'/f"{row['run_id']}.plan.json").read_text(encoding='utf-8'))
++        checks.append(audit_plan(manifest,plan,row))
++    result={'checked_plans':len(checks),'invalid_or_failed_runs_retained':failures,'route_meals_checked':sum(r['route_meals'] for r in checks),
++            'result':'PASS','checks':checks,'scope':'Verificación independiente de exportaciones, no prueba de optimalidad.'}
++    (folder/'independent_verification.json').write_text(json.dumps(result,indent=2,ensure_ascii=False),encoding='utf-8')
++    print(f"PASS: {len(checks)} planes; {result['route_meals_checked']} descansos de rutas; {len(failures)} fallos/planes no válidos conservados.")
++    return result
++
++if __name__=='__main__':
++    p=argparse.ArgumentParser(description=__doc__);p.add_argument('folder',type=Path);args=p.parse_args()
++    try:verify(args.folder)
++    except (ValueError,OSError,KeyError,TypeError) as e:p.exit(1,f'ERROR: {e}\n')

@@ -1,0 +1,6 @@
+instance_id,search_seed,budget_ms,grasp_ok,sa_ok,grasp_cost,sa_cost,difference_grasp_minus_sa
+READY05,42,1500,true,true,1104.000000,1416.000000,-312.000000
+READY10,42,1500,true,true,2172.000000,2268.000000,-96.000000
+READY15,42,1500,true,true,3114.000000,2658.000000,456.000000
+READY20,42,1500,true,true,4416.000000,3873.000000,543.000000
+READYREAL,42,1500,false,false,,,

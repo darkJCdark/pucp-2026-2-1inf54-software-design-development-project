@@ -1,0 +1,5 @@
+PaqRap experimentacion — flex1
+Descanso obligatorio de 60 min con horario flexible.
+Modelo: snapshot-batch-flex1
+Java: --release 21
+Ver docs/VERIFICACION.md y docs/LIMITACIONES.md.

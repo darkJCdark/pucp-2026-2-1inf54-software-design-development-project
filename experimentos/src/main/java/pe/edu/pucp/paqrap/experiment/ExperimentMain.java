@@ -15,7 +15,7 @@ public final class ExperimentMain {
         if(args.length==1 && args[0].equals("--self-test")){VerificationMain.main(new String[0]);return;}
         Map<String,String> a=new HashMap<>();
         for(int i=0;i<args.length;i+=2){if(args[i].equals("--help")){usage();return;}if(i+1>=args.length)throw new IllegalArgumentException("Missing argument value");a.put(args[i],args[i+1]);}
-        if(!Set.of("--config","--output","--resume").containsAll(a.keySet()))throw new IllegalArgumentException("Unknown command line option: "+a.keySet());
+        if(!Set.of("--config","--output","--resume","--validate-only").containsAll(a.keySet()))throw new IllegalArgumentException("Unknown command line option: "+a.keySet());
         if(a.containsKey("--resume")&&!Set.of("true","false").contains(a.get("--resume")))throw new IllegalArgumentException("--resume expects true or false");
         Path root=Path.of("").toAbsolutePath().normalize();
         Path configFile=root.resolve(a.getOrDefault("--config","config/smoke.properties"));
@@ -26,11 +26,24 @@ public final class ExperimentMain {
         if(specs.stream().map(ScenarioSpec::id).distinct().count()!=specs.size())throw new IllegalArgumentException("Duplicate instance ids");
         Map<String,ProblemInstance> materialized=new LinkedHashMap<>();
         for(ScenarioSpec spec:specs)materialized.put(spec.id(),InstanceFactory.create(spec,config));
+        if(a.containsKey("--validate-only")&&!Set.of("true","false").contains(a.get("--validate-only")))
+            throw new IllegalArgumentException("--validate-only expects true or false");
+        if(Boolean.parseBoolean(a.getOrDefault("--validate-only","false"))) {
+            System.out.println("instance,orders,blocks,vehicles,provably_unservable,planning_time");
+            for(var p:materialized.values())System.out.printf("%s,%d,%d,%d,%d,%s%n",p.spec().id(),p.orders().size(),p.blocks().size(),
+                    p.snapshot().vehiclesById().size(),CommonAudit.provablyUnservable(p).size(),p.snapshot().planningTime());
+            long jobs=(long)specs.size()*config.seeds().size()*config.budgets().size()*2;
+            long searchMs=(long)specs.size()*config.seeds().size()*2*config.budgets().stream().mapToLong(Long::longValue).sum();
+            System.out.printf("VALID: %d instances, %d jobs; search budgets total %.1f min + JVM/IO/warmup/audit overhead.%n",specs.size(),jobs,searchMs/60000.0);
+            return;
+        }
+        if(config.text("campaign.stage","VERIFICATION").equals("FORMAL") && !config.flag("campaign.frozen",false))
+            throw new IllegalArgumentException("Formal template is not calibrated/frozen. Review the pilot and run scripts/freeze_formal.py first.");
         Map<String,String> inputHashes=new TreeMap<>();materialized.forEach((id,p)->inputHashes.put(id,p.sha256()));
         String stamp=DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneOffset.UTC).format(Instant.now());
         Path out=root.resolve(a.getOrDefault("--output","results/"+config.text("name","experiment")+"-"+stamp));
         boolean resume=Boolean.parseBoolean(a.getOrDefault("--resume","false"));
-        if(Files.exists(out.resolve("runs.csv"))&&!resume)throw new IllegalArgumentException("Output already contains results. Choose another --output or use --resume true with the same build/configuration.");
+        if(Files.exists(out) && !resume && directoryNotEmpty(out))throw new IllegalArgumentException("Output already contains results. Choose another --output or use --resume true with the same build/configuration.");
         String classpath=absoluteClasspath();
         String identity=Json.sha256(Json.encode(obj("config",config.asMap(),"instances",Files.readString(config.path("instances.file","config/smoke.csv")),"classpath",classpathHashes(classpath),"inputs",inputHashes,
                 "environment",List.of(System.getProperty("java.runtime.version"),System.getProperty("java.vendor"),System.getProperty("os.name"),System.getProperty("os.arch")))));
@@ -103,6 +116,10 @@ public final class ExperimentMain {
         System.out.println("Done. Open: "+out.resolve("report.html"));
         System.out.println("Raw, paired results: "+csv);
     }
+    private static boolean directoryNotEmpty(Path p)throws IOException {
+        if(!Files.isDirectory(p))return true;
+        try(var entries=Files.list(p)){return entries.findAny().isPresent();}
+    }
     private static String absoluteClasspath(){return String.join(File.pathSeparator,Arrays.stream(System.getProperty("java.class.path").split(java.util.regex.Pattern.quote(File.pathSeparator))).map(s->Path.of(s).toAbsolutePath().toString()).toList());}
     private static Map<String,Object> classpathHashes(String cp){Map<String,Object> m=new LinkedHashMap<>();for(String s:cp.split(java.util.regex.Pattern.quote(File.pathSeparator))){try{Path p=Path.of(s);m.put(p.getFileName().toString(),Files.isRegularFile(p)?Json.sha256(Files.readAllBytes(p)):hashDirectory(p));}catch(IOException e){m.put(s,"unreadable");}}return m;}
     private static String hashDirectory(Path directory)throws IOException{
@@ -116,5 +133,5 @@ public final class ExperimentMain {
         Properties v=new Properties();try(var reader=Files.newBufferedReader(p,StandardCharsets.UTF_8)){v.load(reader);}
         Map<String,String> result=new LinkedHashMap<>();v.forEach((k,x)->result.put(k.toString(),x.toString()));return result;
     }
-    private static void usage(){System.out.println("From project root: java -jar dist/paqrap-experimentos.jar --config config/smoke.properties [--output results/my-run] [--resume true]");}
+    private static void usage(){System.out.println("From project root: java -jar dist/paqrap-experimentos.jar --config config/smoke.properties [--output results/my-run] [--resume true] [--validate-only true]");}
 }

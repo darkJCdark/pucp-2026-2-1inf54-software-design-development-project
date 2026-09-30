@@ -13,48 +13,30 @@ import java.util.Objects;
 public final class ShiftSchedule {
     public static final ZoneId DEFAULT_ZONE = ZoneId.of("America/Lima");
 
+    public static final Duration MEAL_DURATION = Duration.ofHours(1);
     private final ZoneId zoneId;
-    private final int mealStartOffsetMinutes;
+    private final int mealBeamWidth;
 
-    public ShiftSchedule(ZoneId zoneId) {
-        this(zoneId, 180);
-    }
+    public ShiftSchedule(ZoneId zoneId) { this(zoneId, 8, true); }
 
-    /** Explicit experimental policy, not an assertion of a mandatory meal clock time.
-     * One uninterrupted hour, inside [shift+1h, shiftEnd-1h]. Default: 10/18/02h. */
-    public ShiftSchedule(ZoneId zoneId, int mealStartOffsetMinutes) {
-        if (mealStartOffsetMinutes < 60 || mealStartOffsetMinutes > 360)
-            throw new IllegalArgumentException("Meal start offset must be 60..360 minutes after shift start");
-        this.mealStartOffsetMinutes = mealStartOffsetMinutes;
+    private ShiftSchedule(ZoneId zoneId, int mealBeamWidth, boolean flexible) {
         this.zoneId = Objects.requireNonNull(zoneId, "zoneId is required");
+        if (mealBeamWidth < 2 || mealBeamWidth > 32)
+            throw new IllegalArgumentException("meal.beamWidth must be in 2..32");
+        this.mealBeamWidth = mealBeamWidth;
     }
 
-    public static ShiftSchedule defaultSchedule() {
-        return new ShiftSchedule(DEFAULT_ZONE);
+    /** There is deliberately NO fixed-clock meal constructor or optional-meal switch. */
+    public static ShiftSchedule flexible(ZoneId zoneId, int beamWidth) {
+        return new ShiftSchedule(zoneId, beamWidth, true);
     }
-
+    public static ShiftSchedule defaultSchedule() { return new ShiftSchedule(DEFAULT_ZONE); }
     public ZoneId zoneId() { return zoneId; }
-    public int mealStartOffsetMinutes() { return mealStartOffsetMinutes; }
+    public int mealBeamWidth() { return mealBeamWidth; }
 
-    public ShiftWindow mealSlot(Instant instant) {
-        Instant start = shiftAt(instant).startsAt().plusSeconds(mealStartOffsetMinutes * 60L);
-        return new ShiftWindow(start, start.plusSeconds(3600));
-    }
-
-    /** Earliest start for an uninterrupted action, without occupying a fixed meal slot.
-     * Idle drivers are assumed to take their meal at this same slot; no extra first-arrival break. */
-    public Instant nextWorkStart(Instant requested, Duration duration) {
-        Objects.requireNonNull(duration, "duration");
-        if (duration.isNegative() || duration.compareTo(Duration.ofHours(7)) > 0)
-            throw new IllegalArgumentException("Action must take between 0 and 7 hours");
-        if (duration.isZero()) return requested;
-        Instant start = requested;
-        while (true) {
-            ShiftWindow slot = mealSlot(start);
-            if (!start.isBefore(slot.endsAt())) slot = mealSlot(shiftAt(start).endsAt());
-            if (!start.plus(duration).isAfter(slot.startsAt())) return start;
-            start = slot.endsAt();
-        }
+    /** Latest legal START of an uninterrupted one-hour break in this shift. */
+    public Instant latestMealStart(Instant instant) {
+        return mealWindow(instant).endsAt().minus(MEAL_DURATION);
     }
 
     public ShiftWindow shiftAt(Instant instant) {
@@ -79,9 +61,9 @@ public final class ShiftSchedule {
         return shiftAt(instant).endsAt().plusSeconds(8 * 60 * 60L);
     }
 
-    /** The 6-hour meal window inside the shift containing `instant`: from
-     *  1 hour after shift start to 1 hour before shift end (one-hour margins retained as an explicit model convention
-     *  from the supplied implementation; exact margins are not quantified in the master text). */
+    /** Full break must lie inside [shift start + 1h, shift end - 1h].
+     * This implements the course wording with one-hour margins at both shift changes.
+     * For 07-15, legal STARTS are 08-13, not a mandatory clock time. */
     public ShiftWindow mealWindow(Instant instant) {
         ShiftWindow shift = shiftAt(instant);
         return new ShiftWindow(shift.startsAt().plusSeconds(3600), shift.startsAt().plusSeconds(7 * 3600));

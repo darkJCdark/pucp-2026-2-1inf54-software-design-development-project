@@ -1,0 +1,9 @@
+family,algorithm,budget_ms,mode,runs,instances,complete_feasible_runs,success_pct,mean_cost_on_success_not_directly_comparable,median_cost_on_success,sd_cost_on_success,mean_elapsed_ms,mean_first_complete_ms_on_success,unruled_out_success_pct,mean_coverage_unruled_out_pct,mean_coverage_orders_pct
+BLOCKED,GRASP,10000,TIME,1,1,1,100.0,3744.0,3744.0,,10000.191407,937.571592,100.0,100.0,100.0
+BLOCKED,GRASP,3000,TIME,1,1,1,100.0,4212.0,4212.0,,3000.133098,862.524986,100.0,100.0,100.0
+BLOCKED,SA,10000,TIME,1,1,1,100.0,3873.0,3873.0,,10000.131986,783.500302,100.0,100.0,100.0
+BLOCKED,SA,3000,TIME,1,1,1,100.0,3873.0,3873.0,,3000.127065,805.96182,100.0,100.0,100.0
+REAL,GRASP,10000,TIME,1,1,0,0.0,,,,10000.265132,,100.0,100.0,92.682927
+REAL,GRASP,3000,TIME,1,1,0,0.0,,,,3000.21311,,0.0,86.842105,80.487805
+REAL,SA,10000,TIME,1,1,0,0.0,,,,10000.264568,,100.0,100.0,92.682927
+REAL,SA,3000,TIME,1,1,0,0.0,,,,3000.150386,,0.0,86.842105,80.487805

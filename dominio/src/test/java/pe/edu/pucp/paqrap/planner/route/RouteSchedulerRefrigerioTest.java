@@ -39,7 +39,7 @@ class RouteSchedulerRefrigerioTest {
         OperationalSnapshot snapshot = snapshotConVelocidad(10.0, horaInicio, central, vehiculo);
 
         // Primera entrega a 15 km (10 km/h -> 90 min): llegada sin
-        // refrigerio 08:30. La politica experimental fija el refrigerio en 10:00-11:00.
+        // refrigerio 08:30. No se impone una franja fija a toda la flota.
         Order pedido1 = new Order("C-1", new Location(15, 0), 1, horaInicio, horaInicio.plusSeconds(20 * 3600));
         // Segunda entrega, 5 km mas adelante, mismo turno: NO debe sumar
         // otra hora (el refrigerio de este turno ya se tomo).
@@ -61,7 +61,11 @@ class RouteSchedulerRefrigerioTest {
         Instant llegada2Esperada = salidaHaciaParada2.plusSeconds(30 * 60);
         assertEquals(llegada2Esperada, programada.scheduledStops().get(1).arrivedAt(),
                 "la segunda parada llega a las 10:00");
-        assertEquals(horaInicio.plusSeconds(5*3600), programada.scheduledStops().get(1).completedAt(),
-                "El servicio comienza a las 11:00 tras el refrigerio y termina a las 12:00");
+        assertEquals(horaInicio.plusSeconds(4*3600), programada.scheduledStops().get(1).completedAt(),
+                "El servicio termina a las 11:00; el descanso se programa despues sin retrasar la entrega");
+        assertEquals(1, programada.mealBreaks().size());
+        assertEquals(Duration.ofHours(1), Duration.between(programada.mealBreaks().get(0).startsAt(), programada.mealBreaks().get(0).endsAt()));
+        assertEquals(horaInicio.plusSeconds(5*3600), programada.completedAt());
+        assertTrue(MealBreakAudit.validate(programada, snapshot.shiftSchedule()).isEmpty());
     }
 }

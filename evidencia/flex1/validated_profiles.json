@@ -1,0 +1,32 @@
+[
+  {
+    "config": "deterministic.properties",
+    "exit_code": 0,
+    "summary": "VALID: 2 instances, 4 jobs; search budgets total 0.1 min + JVM/IO/warmup/audit overhead."
+  },
+  {
+    "config": "escalabilidad.properties",
+    "exit_code": 0,
+    "summary": "VALID: 8 instances, 96 jobs; search budgets total 20.0 min + JVM/IO/warmup/audit overhead."
+  },
+  {
+    "config": "formal.properties",
+    "exit_code": 0,
+    "summary": "VALID: 40 instances, 400 jobs; search budgets total 33.3 min + JVM/IO/warmup/audit overhead."
+  },
+  {
+    "config": "pilot.properties",
+    "exit_code": 0,
+    "summary": "VALID: 12 instances, 288 jobs; search budgets total 45.6 min + JVM/IO/warmup/audit overhead."
+  },
+  {
+    "config": "readiness.properties",
+    "exit_code": 0,
+    "summary": "VALID: 5 instances, 10 jobs; search budgets total 0.3 min + JVM/IO/warmup/audit overhead."
+  },
+  {
+    "config": "smoke.properties",
+    "exit_code": 0,
+    "summary": "VALID: 4 instances, 16 jobs; search budgets total 0.4 min + JVM/IO/warmup/audit overhead."
+  }
+]

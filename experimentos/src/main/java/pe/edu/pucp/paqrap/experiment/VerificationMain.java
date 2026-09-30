@@ -67,6 +67,7 @@ public final class VerificationMain {
         var resources=Collections.list(VerificationMain.class.getClassLoader().getResources("pe/edu/pucp/paqrap/planner/route/OperationalPlanEvaluator.class"));
         check(resources.size()==1,"Exactly one shared evaluator on the runtime classpath");
         NumericalRegressionChecks.run(VerificationMain::check);
+        FlexibleRestChecks.run(VerificationMain::check);
         System.out.println("PASS: "+checks+" experimental regression checks.");
     }
     private static void check(boolean ok,String message){if(!ok)throw new AssertionError(message);System.out.println("PASS "+(++checks)+": "+message);}

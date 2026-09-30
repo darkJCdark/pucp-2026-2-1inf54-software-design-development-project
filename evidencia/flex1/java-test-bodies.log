@@ -1,0 +1,141 @@
+PASS offline body: pe.edu.pucp.paqrap.planner.domain.DomainRulesSmokeTest.enforcesPhaseOneDomainRules
+PASS offline body: pe.edu.pucp.paqrap.planner.domain.OperationalSnapshotSmokeTest.maintainsImmutableOperationalState
+PASS offline body: pe.edu.pucp.paqrap.planner.domain.RoadNetworkBloqueoTest.bloqueoVigenteEnElInstanteDeTransitoObligaUnDesvio
+PASS offline body: pe.edu.pucp.paqrap.planner.domain.RoadNetworkBloqueoTest.elMismoBloqueoFueraDeSuVentanaNoAfectaLaRuta
+PASS offline body: pe.edu.pucp.paqrap.planner.domain.RoadNetworkBloqueoTest.sinBloqueosUsaElCaminoDirecto
+PASS offline body: pe.edu.pucp.paqrap.planner.domain.RoadNetworkDifferentialTest.blockedSegmentBetweenBlockedNodesIsEquivalentToNodeCheck
+PASS offline body: pe.edu.pucp.paqrap.planner.domain.RoadNetworkDifferentialTest.optimizedNetworkMatchesReferenceLegByLeg
+PASS offline body: pe.edu.pucp.paqrap.planner.domain.RoadNetworkSmokeTest.routesAroundBlocksAndPerformsUTurns
+PASS offline body: pe.edu.pucp.paqrap.planner.route.DeliveryRouteSmokeTest.schedulesPartialDeliveriesReloadsAndReturns
+PASS offline body: pe.edu.pucp.paqrap.planner.route.OperationalPlanEvaluatorLegDistanceTest.unTramoDeMasDe80KmEsRechazado
+PASS offline body: pe.edu.pucp.paqrap.planner.route.OperationalPlanEvaluatorSmokeTest.validatesHardConstraintsAndBuildsInitialPlan
+PASS offline body: pe.edu.pucp.paqrap.planner.route.RouteSchedulerRefrigerioTest.elRefrigerioSeAgregaUnaVezDentroDeLaVentanaDelTurnoYNoSeRepite
+PASS offline body: pe.pucp.paqrap.planificador.GraspPlanificadorTest.consolidaPedidosCompatiblesEnUnViaje
+PASS offline body: pe.pucp.paqrap.planificador.GraspPlanificadorTest.dividePedidoMayorQueCualquierVehiculo
+PASS offline body: pe.pucp.paqrap.planificador.GraspPlanificadorTest.insercionCompartidaRecuperaPedidosPendientes
+PASS offline body: pe.pucp.paqrap.planificador.GraspPlanificadorTest.pedidoImposibleNoDescartaLosAtendiblesNiSeDeclaraCompleto
+PASS offline body: pe.pucp.paqrap.planificador.GraspPlanificadorTest.repitePlanConSemillaYPasosFijos
+PASS offline body: pe.pucp.paqrap.planificador.GraspPlanificadorTest.respetaCapacidadYDescansoObligatorio
+PASS offline body: pe.pucp.paqrap.planificador.GraspPlanificadorTest.sinFlotaConservaLaDemandaYNoDeclaraExito
+PASS offline body: pe.edu.pucp.paqrap.planner.sa.OperationalSimulatedAnnealingSmokeTest.searchesOnlyOperationallyFeasibleCandidates
+PASS 1: Identical input fingerprint
+PASS 2: Latest source central coordinates preserved
+PASS 3: Deterministic vehicle iteration order
+PASS 4: Snapshot map is immutable
+PASS 5: Empty cheap plan is not complete feasible
+PASS 6: Route validity is distinguished from demand coverage
+PASS 7: GRASP creates a complete feasible plan for the test fixture
+PASS 8: GRASP is repeatable with a fixed iteration protocol
+PASS 9: GRASP does not modify input stock
+PASS 10: SA creates a complete feasible plan for the test fixture
+PASS 11: SA is repeatable with a fixed iteration protocol
+PASS 12: SA does not modify input stock
+PASS 13: Input identity remains unchanged after both solvers
+PASS 14: Cooperative budget stops without a business-rule exception
+PASS 15: SA initialization failure is explicit and not called proven infeasibility
+PASS 16: Failed initializer does not score as a zero-cost success
+PASS 17: Real batch includes only already registered orders
+PASS 18: Future relevant road blocks are not truncated to the arrival window
+PASS 19: GRASP divides an order larger than any vehicle into partial deliveries (P&R 13)
+PASS 20: Expired orders remain in default full-demand batches and are recorded
+PASS 21: Explicit EXCLUDE sensitivity policy records exclusions
+PASS 22: Optimistic travel bound rules out the impossible fixture, not the easy one
+PASS 23: Exactly one shared evaluator on the runtime classpath
+PASS 24: Case default fleet contains exactly 37 physical vehicles
+PASS 25: Latest intermediate warehouse coordinates
+PASS 26: Capacities, speeds and costs exactly match the supplied fleet
+PASS 27: REDUCED uses 19 vehicles and no maintenance events
+PASS 28: Real experiments exclude maintenance and automatic breakdown files
+PASS 29: Real planned blocks are loaded and source-fingerprinted
+PASS 30: No unsupported hidden 80 km restriction in default experiments
+PASS 31: Arrival exactly at deadline is feasible despite service finishing later
+PASS 32: Each effective delivery reserves one full service hour
+PASS 33: Arrival one second after deadline is rejected
+PASS 34: Delivery before order registration is rejected
+PASS 35: Partial delivery has explicit remaining demand and is not complete
+PASS 36: Overdelivery is a hard violation, not coverage above 100 percent
+PASS 37: Vehicle cannot deliver stock that it does not carry
+PASS 38: Reload that exceeds capacity is rejected
+PASS 39: Vehicle id and type must agree
+PASS 40: Vehicle definition must match the immutable snapshot
+PASS 41: A warehouse id cannot override its canonical location or type
+PASS 42: Replanned route cannot teleport away from the physical vehicle state
+PASS 43: Completeness outranks a cheaper empty or partial plan
+PASS 44: Concurrent routes share one chronological warehouse stock balance
+PASS 45: Inventory audit does not mutate instance stock
+PASS 46: Returning without pickup to an empty warehouse is permitted
+PASS 47: Empty intermediate warehouse cannot dispatch before 23:59:59 replenishment
+PASS 48: Inventory becomes available exactly at daily 23:59:59 replenishment
+PASS 49: Entry into a blocked destination exactly at block activation is prohibited
+PASS 50: Block end is exclusive and permits traversal after reopening
+PASS 51: Route detours around active blocked nodes without diagonal shortcuts
+PASS 52: Day meal window begins one hour after shift start
+PASS 53: Latest meal START leaves one hour of break and the one-hour shift-end margin
+PASS 54: Zero-distance stops preserve stationary waiting until a blocked node reopens
+PASS 55: A 120 km leg is not rejected by an unsupported default distance rule
+PASS 56: An explicitly enabled legacy distance sensitivity limit is enforced
+PASS 57: Closed block polyline is rejected instead of silently treated as open
+PASS 58: Load repair splits a five-unit bike delivery into capacity-feasible trips with conserved quantity
+PASS 59: Adjacent same-visit parts are one effective delivery and one service hour
+PASS 60: GRASP retains the easy order instead of discarding everything when another order is impossible
+PASS 61: SA retains the easy order instead of discarding everything when another order is impossible
+PASS 62: 150 seeded SA edit attempts conserve demand and repair all vehicle loads
+PASS 63: Fixed-iteration SA stops at Tmin without implicit reheating
+PASS 64: Time-mode SA reheats; empty neighbor attempts still count toward stagnation
+PASS 65: Time limit preserves the last fully evaluated immutable incumbent
+PASS 66: NaN speed rejected before experiments
+PASS 67: Preventive maintenance cannot be enabled in the numerical protocol
+PASS 68: Automatic breakdowns cannot be enabled in the numerical protocol
+PASS 69: Boolean parameters use strict parsing
+PASS 70: Unknown scenario family fails loudly
+PASS 71: Nonfinite annealing temperature rejected
+PASS 72: Obsolete fixed meal clock is rejected rather than silently reused
+PASS 73: Mandatory meal cannot be disabled
+PASS 74: Mandatory meal cannot be shortened
+PASS 75: Bounded meal scheduler configuration validated
+PASS 76: Real collection windows may end at midnight (exclusive 24:00)
+PASS 77: Flexible rest: day shift admits starts anywhere from 08:00 to 13:00
+PASS 78: Flexible rest: afternoon shift admits starts from 16:00 to 21:00
+PASS 79: Flexible rest: night shift admits starts from 00:00 to 05:00 on the next date
+PASS 80: Flexible rest: a short early-ending route still contains one mandatory meal
+PASS 81: Flexible rest: meal can be scheduled during idle time after the physical return
+PASS 82: Flexible rest: rest at 08:03 follows this route, not a whole-hour/fixed-clock grid
+PASS 83: Flexible rest: duty completion includes the mandatory meal even when the vehicle already returned
+PASS 84: Flexible rest: independent meal auditor accepts the generated early-return schedule
+PASS 85: Flexible rest: urgent 10:02 delivery is NOT delayed by the former 10-11 fixed meal
+PASS 86: Flexible rest: scheduler postpones rest when an urgent delivery makes that placement preferable
+PASS 87: Flexible rest: every delivery keeps its separate uninterrupted hour of conditioning
+PASS 88: Flexible rest: different routes/vehicles receive different meal times in the same shift
+PASS 89: Flexible rest: return exactly at 15:00 does not invent an afternoon work shift
+PASS 90: Flexible rest: a route spanning day, afternoon and night has three meals
+PASS 91: Flexible rest: night meal is attached to the 23:00 shift, including its next-date portion
+PASS 92: Flexible rest: meals remain mandatory across all stops and across midnight
+PASS 93: Flexible rest: a blocking wait contains the complete 08-09 meal without duplicate waiting
+PASS 94: Flexible rest: vehicle moves immediately after the blocking wait and meal end
+PASS 95: Flexible rest: initial idle-at-Central convention is explicit in a before-route meal record
+PASS 96: Flexible rest: before-route rest obeys the same windows and duration
+PASS 97: Flexible rest: late replan with unknown rest history is NOT silently credited with a previous meal
+PASS 98: Flexible rest: auditor rejects a missing mandatory meal
+PASS 99: Flexible rest: auditor rejects a duplicated meal for one shift
+PASS 100: Flexible rest: auditor rejects a 30-minute break instead of one hour
+PASS 101: Flexible rest: auditor rejects a meal inside the shift-start safety margin
+PASS 102: Flexible rest: auditor rejects a rest location inconsistent with the vehicle position
+PASS 103: Flexible rest: auditor rejects overlapping meal and conditioning service
+PASS 104: Flexible rest: auditor rejects a break that ends at the shift change
+PASS 105: Flexible rest: a difficult deadline never disables the mandatory meal
+PASS 106: Flexible rest: NORMAL experiment includes planned road blocks
+PASS 107: Flexible rest: NORMAL exports an idle first-shift meal for unused vehicles, without fake route cost
+PASS 108: Flexible rest: BLOCKED experiment includes planned road blocks
+PASS 109: Flexible rest: BLOCKED exports an idle first-shift meal for unused vehicles, without fake route cost
+PASS 110: Flexible rest: REDUCED experiment includes planned road blocks
+PASS 111: Flexible rest: REDUCED exports an idle first-shift meal for unused vehicles, without fake route cost
+PASS 112: Flexible rest: SPLIT experiment includes planned road blocks
+PASS 113: Flexible rest: SPLIT exports an idle first-shift meal for unused vehicles, without fake route cost
+PASS 114: Flexible rest: equivalent timing cache reuses only one route schedule for two identical vehicles
+PASS 115: Flexible rest: timing cache preserves actual vehicle and route identities
+PASS 116: Flexible rest: cached and freshly scheduled timelines/rests agree exactly
+PASS 117: Flexible rest: 60 randomized routes pass independent duration, margins, shift-count, location and non-overlap checks
+PASS 118: Flexible rest: 60 randomized routes recompute time-dependent paths and do not enter active blocked nodes
+PASS: 118 experimental regression checks.
+PASS offline body: pe.edu.pucp.paqrap.experiment.ExperimentRegressionTest.sharedProtocolRegressionChecks
+PASS: 21 test method bodies via offline adapter. Maven/JUnit engine NOT executed.

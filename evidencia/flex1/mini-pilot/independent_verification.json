@@ -1,0 +1,65 @@
+{
+  "checked_plans": 8,
+  "invalid_or_failed_runs_retained": [],
+  "route_meals_checked": 161,
+  "result": "PASS",
+  "checks": [
+    {
+      "run_id": "MINI20-r1-b3000-GRASP",
+      "routes": 9,
+      "route_meals": 16,
+      "complete": true,
+      "distance_km": 904
+    },
+    {
+      "run_id": "MINI20-r1-b3000-SA",
+      "routes": 5,
+      "route_meals": 13,
+      "complete": true,
+      "distance_km": 801
+    },
+    {
+      "run_id": "MINI20-r1-b10000-GRASP",
+      "routes": 7,
+      "route_meals": 13,
+      "complete": true,
+      "distance_km": 794
+    },
+    {
+      "run_id": "MINI20-r1-b10000-SA",
+      "routes": 5,
+      "route_meals": 13,
+      "complete": true,
+      "distance_km": 801
+    },
+    {
+      "run_id": "MINIREAL-r1-b3000-SA",
+      "routes": 7,
+      "route_meals": 20,
+      "complete": false,
+      "distance_km": 1382
+    },
+    {
+      "run_id": "MINIREAL-r1-b3000-GRASP",
+      "routes": 16,
+      "route_meals": 31,
+      "complete": false,
+      "distance_km": 1846
+    },
+    {
+      "run_id": "MINIREAL-r1-b10000-SA",
+      "routes": 7,
+      "route_meals": 21,
+      "complete": false,
+      "distance_km": 1456
+    },
+    {
+      "run_id": "MINIREAL-r1-b10000-GRASP",
+      "routes": 14,
+      "route_meals": 34,
+      "complete": false,
+      "distance_km": 1954
+    }
+  ],
+  "scope": "Verificación independiente de exportaciones, no prueba de optimalidad."
+}

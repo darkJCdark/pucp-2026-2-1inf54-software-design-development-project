@@ -1,77 +1,76 @@
-# PaqRap v3 · informe de correcciones y verificación
+# Verificación ejecutada — flex1
 
-**Entrega: 24 de septiembre de 2026.** Se modificó el módulo autónomo `PaqRap_Experimentos_GRASP_SA/paqrap-experimentacion`. No se modificó el frontend ni el backend REST.
+Entorno: Linux amd64, OpenJDK 21.0.11, Python 3. Herramientas ejecutadas dentro del entorno de
+esta entrega, no en la computadora del estudiante. Los timestamps UTC son los registrados por el
+entorno de ejecución; no se usan para atribuir horas de trabajo a integrantes del equipo.
 
-## Resultado de la entrega
+## Pruebas
 
-El módulo queda ejecutable para pilotos y campañas de planificación estática por lotes, con reglas compartidas, presupuesto temporal, semillas y resultados auditables. Incluye fuente, JAR Java 21, datos originales, configuración, scripts y evidencia. Esto no significa que todas las instancias tengan solución completa ni que ya se haya realizado la campaña formal.
+- Compilación de 87 archivos Java principales. Las 111 clases recompiladas coinciden byte a byte con las del JAR probado.
+- 118 comprobaciones autónomas (`--self-test`), incluyendo 60 rutas aleatorias con auditoría de
+  descanso, mutaciones inválidas, cambio de turno, medianoche, bloqueos y caché de horarios.
+- 500 escenarios diferenciales de red: 1000 comparaciones de caminos (con repetición de caché)
+  y 500 comparaciones de recorrido.
+- 21 cuerpos de métodos de pruebas Java compilados/ejecutados con adaptador offline. **No es
+  una ejecución de Maven/JUnit/Surefire**. Incluye la suite autónoma; no sumar sus 118 checks dos veces.
+- 14 pruebas Python: pares, duplicados, cuadrícula incompleta, mezclas, costo de parciales,
+  resumen del piloto, congelación y detección de errores en horarios exportados.
+- 8 verificaciones del ejecutor: reanudación idéntica, no sobrescritura, cambio de configuración,
+  guardia formal, rechazo de horario fijo, exclusión de mantenimiento, flota vacía y presupuesto 1 ms.
+- Repetibilidad FIXED: 4 de 4 pares conservan hash de plan y métricas entre procesos separados.
 
-## Cambios principales
+Los logs y resultados detallados se conservan en `evidencia/flex1/`.
 
-Se excluyó mantenimiento preventivo y averías automáticas de las instancias numéricas, conservando bloqueos planificados. La flota reducida ahora es una flota menor, no mantenimiento simulado. Se corrigió la separación entre llegada física y hora de acondicionamiento; las entregas parciales, recargas y vecinos conservan cantidades. La factibilidad y el inventario cronológico se comprueban en un evaluador común sobre todos los pedidos originales.
+## Campañas de verificación nuevas
 
-GRASP conserva construcción RCL y búsqueda local; se retiró su lógica privada duplicada de factibilidad. SA tiene inicialización de mejor esfuerzo y reparación de vecinos: un pedido imposible ya no elimina las entregas atendibles. Ambos conservan el mejor plan validado al agotarse el tiempo. En TIME, la inicialización de SA consume su presupuesto y SA recalienta al llegar a Tmin. Se retiró la equivalencia incorrecta entre pedido no asignado y colapso.
+| Campaña | Corridas | Completas factibles | Rutas válidas |
+|---|---:|---:|---:|
+| smoke | 16 | 16 | 16 |
+| readiness | 10 | 8 | 10 |
+| deterministic-a | 4 | 4 | 4 |
+| deterministic-b | 4 | 4 | 4 |
+| mini-pilot | 8 | 4 | 8 |
+| no-fleet | 2 | 0 | 2 |
+| one-ms | 2 | 0 | 2 |
 
-Los resultados distinguen completitud, validez de rutas, cobertura, costo, distancia y terminación. El costo principal queda vacío si el plan no es completo y factible. Se verifican identidades de datos/configuración/compilación antes de reanudar y se conservan fallos.
+En total se ejecutaron 46 corridas: se conservan también los casos NO_SOLUTION y TIMEOUT.
+La auditoría Python revisó 42 planes no fallidos y sus 343 descansos de rutas; para flota vacía
+la solución está vacía y para 1 ms se conservan los timeouts. No se presentan esos casos como éxitos.
+La evidencia no equivale a 46 instancias independientes: contiene repeticiones y pruebas técnicas.
 
-## Verificación realmente ejecutada
+Readiness completa las 8 corridas sintéticas de 5, 10, 15 y 20 pedidos. En el lote real de 41 pedidos,
+a 1,5 s GRASP atendió 21 y SA 22; ambos son planes parciales con rutas válidas. El nuevo programador
+consume más trabajo que una pausa fija: el presupuesto antiguo no se mantiene sin recalibración.
 
-Entorno: Linux x86_64, OpenJDK 21.0.11. Compilación con `javac --release 21`, sin Maven. Se recompilaron los **82 archivos fuente principales** y todos los `.class` coincidieron byte a byte con el JAR probado.
+## Minipiloto técnico a 3 y 10 segundos
 
-| Verificación | Resultado |
-|---|---|
-| Batería autónoma `--self-test` | **76 comprobaciones aprobadas** |
-| Red vial contra referencia lenta corregida | **500 escenarios aprobados**, 1000 comparaciones de caminos con caché y 500 de recorrido operativo |
-| Smoke: 4 instancias × 2 semillas × 2 algoritmos | **16/16 planes completos y factibles** |
-| Readiness: 5, 10, 15 y 20 pedidos con bloqueos | **8/8 planes completos y factibles**, una semilla por algoritmo e instancia |
-| Readiness: lote real de 41 pedidos | 2 planes parciales válidos; no contados como éxito completo |
-| Repetibilidad FIXED en JVM separadas | **4/4 parejas de planes idénticas**; se comparan dos ejecuciones de 4 corridas cada una |
-| Flota vacía | 2 resultados NO_SOLUTION, sin costo de éxito |
-| Presupuesto de 1 ms | 2 resultados TIMEOUT, sin falso éxito |
-| Reanudación sin cambios | Retiene las 16 filas sin alterar resultados |
-| Reanudación con cambio de configuración o archivo fuente | Rechazada antes de modificar la campaña |
-| Inspección independiente de JSON/CSV con Python | **38 corridas / 19 parejas**: cargas, cantidades, bloqueos, plazos, costos, distancias, hashes y completitud coherentes |
+| Instancia | Presupuesto (s) | Algoritmo | Pedidos completos | Costo solo completo (S/) |
+|---|---:|---|---:|---:|
+| MINI20 | 3 | GRASP | 20/20 | 4212.000000 |
+| MINI20 | 3 | SA | 20/20 | 3873.000000 |
+| MINI20 | 10 | GRASP | 20/20 | 3744.000000 |
+| MINI20 | 10 | SA | 20/20 | 3873.000000 |
+| MINIREAL | 3 | SA | 33/41 | — |
+| MINIREAL | 3 | GRASP | 33/41 | — |
+| MINIREAL | 10 | SA | 38/41 | — |
+| MINIREAL | 10 | GRASP | 38/41 | — |
 
-Las comprobaciones autónomas cubren, entre otros, capacidad, falta de carga, sobreentrega, stock compartido entre rutas, reposición a las 23:59:59, bloqueos activados exactamente al llegar, comidas, plazo exacto, pedidos imposibles mezclados con atendibles, reparación de 150 propuestas de vecinos y retención de mejor plan ante interrupción.
+En esta corrida real ambos llegaron a 38/41 con 10 s. Tres pedidos fueron descartados por la cota
+optimista de llegada desde el snapshot: aumentar el tiempo de búsqueda no cambia sus deadlines.
+Atender los 38 no convierte el plan en completo frente a los 41 originales ni prueba optimalidad
+de costo. Es una observación de esta instancia/semilla, no un ganador general.
 
-### Piloto: lectura sin ocultar resultados parciales
+El minipiloto comprueba ejecución y análisis con varios presupuestos. No se ejecutaron el piloto
+completo de 288 corridas ni la campaña formal de 400. La configuración de congelación de ejemplo
+se validó para 400 trabajos, pero esos trabajos **no se lanzaron**.
 
-Presupuesto: **1500 ms por algoritmo**, incluyendo construcción/inicialización. Las 26 corridas TIME de smoke y readiness consumieron aproximadamente 1500–1510 ms; son cortes cooperativos, no un límite exacto a nivel de instrucción.
+## Identidad del binario
 
-| Instancia readiness | Pedidos | GRASP completos | SA completos | Estado |
-|---|---:|---:|---:|---|
-| READY05 · bloqueada | 5 | 5 | 5 | Ambos completos/factibles |
-| READY10 · bloqueada | 10 | 10 | 10 | Ambos completos/factibles |
-| READY15 · bloqueada | 15 | 15 | 15 | Ambos completos/factibles |
-| READY20 · bloqueada | 20 | 20 | 20 | Ambos completos/factibles |
-| READYREAL · real 23/09, recepción 07–11 | 41 | 32 | 38 | Ambos parciales con rutas válidas |
+SHA-256 del JAR usado por las campañas anteriores:
 
-En READYREAL, la cota optimista Manhattan descarta 3 pedidos como individualmente imposibles desde el estado de planificación del lote. Eso no demuestra que todos los demás sean atendibles por cualquier algoritmo. SA cubrió los 38 no descartados en esta corrida; GRASP cubrió 32 de 41 dentro del mismo presupuesto. **No se comparó el costo de estos planes como si ambos fueran completos.** Un tiempo mayor o una operación online constituyen experimentos distintos.
-
-No se ejecutaron completas las campañas `pilot` (72 corridas), `escalabilidad` (96) ni `formal` (400) con esta versión. Los resultados anteriores de v1/v2 no se reutilizaron como evidencia de v3. Esta muestra no establece un ganador general.
-
-## Decisiones del modelo que deben mantenerse explícitas
-
-**Refrigerio:** una hora por turno con franjas 10–11, 18–19 y 02–03, configurables mediante `meal.startOffsetMinutes`. La hora exacta no está fijada en el contexto maestro. Los márgenes de una hora se conservaron como convención heredada, no como una nueva regla atribuida al profesor.
-
-**Distancia:** el tope heredado de 80 km por tramo no aparece en el contexto maestro; la línea base usa `routing.maxLegKm=0`. La opción `80` está disponible para una sensibilidad declarada.
-
-**Lotes reales:** se planifica al final de la ventana y se conservan vencidos por defecto. No equivale a despachar continuamente. La alternativa EXCLUDE registra exclusiones y cambia la población.
-
-## Ejecución inicial
-
-Abrir una terminal dentro de `paqrap-experimentacion`:
-
-```powershell
-java -version
-java -Xmx512m -jar dist/paqrap-experimentos.jar --self-test
-java -jar dist/paqrap-experimentos.jar --config config/readiness.properties --output results/mi-piloto-v3
+```
+8df53b32c9606470925c3a9d3428a716cc61c02007ae16ae399dfac1794cc2e8
 ```
 
-Abrir `results/mi-piloto-v3/report.html` y revisar `runs.csv`. Para una segunda campaña usar otra carpeta. Para recompilar en Windows: `powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1`. En Linux/macOS: `bash scripts/build.sh`.
-
-## Evidencia y límites
-
-Los logs y resultados actuales están en `evidencia/v3/`. El archivo `environment.json` y `source-binary-verification.json` identifican el JAR. La suite Maven/JUnit **no se ejecutó** porque Maven no estaba instalado; no se presentan logs históricos como prueba nueva. Los scripts PowerShell no se probaron en Windows en esta sesión. No se verificaron frontend, REST, persistencia ni una simulación productiva de cinco días.
-
-El siguiente paso experimental es calibrar presupuesto y parámetros en el equipo de ejecución, congelar el protocolo y correr la campaña formal. No hace falta integrar frontend o backend para ello.
+No reutilizar estos resultados después de cambiar el código/configuración/descanso. Los hashes y
+el modelo `snapshot-batch-flex1` aparecen también en los metadatos y manifiestos de cada campaña.

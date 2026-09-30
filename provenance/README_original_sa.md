@@ -1,1 +1,0 @@
-# pucp-2026-2-1inf54-software-design-development-project

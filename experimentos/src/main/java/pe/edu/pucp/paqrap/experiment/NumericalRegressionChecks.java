@@ -20,7 +20,7 @@ final class NumericalRegressionChecks {
     }
     private static void ok(boolean condition,String description){assertion.accept(condition,description);}
     private static ExperimentConfig config(String... entries){Properties p=new Properties();for(int i=0;i<entries.length;i+=2)p.setProperty(entries[i],entries[i+1]);ExperimentConfig result=new ExperimentConfig(p,Path.of(""));result.validate();return result;}
-    private static ScenarioSpec spec(String family,int n){return new ScenarioSpec("V3_"+family,family,family.equals("REAL")?"REAL":"SYNTHETIC",n,991,LocalDate.of(2026,9,9),7,8);}
+    private static ScenarioSpec spec(String family,int n){return new ScenarioSpec("FLEX_"+family,family,family.equals("REAL")?"REAL":"SYNTHETIC",n,991,LocalDate.of(2026,9,9),7,8);}
     private static Warehouse central(){return Warehouse.central("CENTRAL",new Location(27,14));}
     private static Vehicle car(int n){return new Vehicle("TA0"+n,VehicleType.CAR,true);}
     private static OperationalSnapshot snapshot(Instant time,List<Warehouse> warehouses,List<Vehicle> vehicles,FleetProfile fleet,double maxLeg){
@@ -108,16 +108,8 @@ final class NumericalRegressionChecks {
         RoadPath detour=roads.shortestPath(central().location(),new Location(29,14),T,step,List.of(obstacle)).orElseThrow();
         ok(detour.distanceKm()>2 && detour.legs().stream().noneMatch(l->obstacle.blockedNodes().contains(l.to()) && obstacle.isActiveAt(l.arrivesAt())),"Route detours around active blocked nodes without diagonal shortcuts");
         ShiftSchedule shifts=new ShiftSchedule(Z);
-        ok(shifts.nextWorkStart(T.plusSeconds(3*3600),Duration.ofMinutes(1)).equals(T.plusSeconds(4*3600)),"Work requested at fixed 10:00 meal slot resumes at 11:00");
-        ok(shifts.nextWorkStart(T.plusSeconds(2*3600),Duration.ofHours(1)).equals(T.plusSeconds(2*3600)),"Service finishing exactly when a meal starts is allowed");
-        ok(shifts.nextWorkStart(T.plusSeconds(2*3600+1),Duration.ofHours(1)).equals(T.plusSeconds(4*3600)),"Uninterrupted service cannot overlap a meal slot");
-        Instant overnight=ZonedDateTime.of(2026,9,10,2,30,0,0,Z).toInstant();
-        ok(shifts.nextWorkStart(overnight,Duration.ofMinutes(1)).equals(overnight.plusSeconds(1800)),"Overnight 23:00-07:00 shift meal is accounted for");
-        Instant beforeMeal=T.plusSeconds(3*3600-30);
-        OperationalSnapshot s=snapshot(beforeMeal,List.of(central()),List.of(car(1)),FleetProfile.defaults(),0);
-        Order nearby=order("MEAL",new Location(28,14),1,beforeMeal,beforeMeal.plusSeconds(7200));
-        PlanEvaluation meal=evaluate(s,List.of(nearby),route(car(1),1,beforeMeal,new DeliveryStop(nearby,1)));
-        ok(meal.schedulesByRouteId().values().iterator().next().scheduledStops().getFirst().arrivedAt().equals(T.plusSeconds(4*3600+90)),"Travel pauses at a node rather than driving through a meal");
+        ok(shifts.mealWindow(T).startsAt().equals(T.plusSeconds(3600)),"Day meal window begins one hour after shift start");
+        ok(shifts.latestMealStart(T).equals(T.plusSeconds(6*3600)),"Latest meal START leaves one hour of break and the one-hour shift-end margin");
         RoadBlock sameNode=new RoadBlock(T,T.plusSeconds(60),List.of(central().location(),new Location(27,15)));
         Order local=order("LOCAL",27,14,1);
         var localSchedule=new RouteScheduler(new RoadNetwork()).schedule(route(car(1),1,T,new DeliveryStop(local,1)),snapshot(),List.of(sameNode));
@@ -183,7 +175,10 @@ final class NumericalRegressionChecks {
         rejects(()->config("resume","perhaps","maintenance.enabled","perhaps"),"Boolean parameters use strict parsing");
         rejects(()->new ScenarioSpec("X","UNKNOWN","SYNTHETIC",1,1,LocalDate.now(),7,8),"Unknown scenario family fails loudly");
         rejects(()->new AnnealingConfig(Double.NaN,1,0.9,1,1,1),"Nonfinite annealing temperature rejected");
-        rejects(()->new ShiftSchedule(Z,361),"Meal policy offset must leave the configured end-of-shift margin");
+        rejects(()->config("meal.startOffsetMinutes","180"),"Obsolete fixed meal clock is rejected rather than silently reused");
+        rejects(()->config("meal.required","false"),"Mandatory meal cannot be disabled");
+        rejects(()->config("meal.durationMinutes","30"),"Mandatory meal cannot be shortened");
+        rejects(()->config("meal.beamWidth","0"),"Bounded meal scheduler configuration validated");
         ok(new ScenarioSpec("MIDNIGHT","REAL","REAL",1,1,LocalDate.of(2026,9,9),23,24).toHour()==24,"Real collection windows may end at midnight (exclusive 24:00)");
     }
 }

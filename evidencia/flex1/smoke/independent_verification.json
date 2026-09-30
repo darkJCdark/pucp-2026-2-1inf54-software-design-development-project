@@ -1,0 +1,121 @@
+{
+  "checked_plans": 16,
+  "invalid_or_failed_runs_retained": [],
+  "route_meals_checked": 52,
+  "result": "PASS",
+  "checks": [
+    {
+      "run_id": "SMOKE01-r1-b1500-GRASP",
+      "routes": 2,
+      "route_meals": 2,
+      "complete": true,
+      "distance_km": 118
+    },
+    {
+      "run_id": "SMOKE01-r1-b1500-SA",
+      "routes": 2,
+      "route_meals": 2,
+      "complete": true,
+      "distance_km": 75
+    },
+    {
+      "run_id": "SMOKE01-r2-b1500-SA",
+      "routes": 2,
+      "route_meals": 2,
+      "complete": true,
+      "distance_km": 75
+    },
+    {
+      "run_id": "SMOKE01-r2-b1500-GRASP",
+      "routes": 2,
+      "route_meals": 2,
+      "complete": true,
+      "distance_km": 118
+    },
+    {
+      "run_id": "SMOKE02-r1-b1500-SA",
+      "routes": 1,
+      "route_meals": 4,
+      "complete": true,
+      "distance_km": 202
+    },
+    {
+      "run_id": "SMOKE02-r1-b1500-GRASP",
+      "routes": 2,
+      "route_meals": 4,
+      "complete": true,
+      "distance_km": 176
+    },
+    {
+      "run_id": "SMOKE02-r2-b1500-GRASP",
+      "routes": 2,
+      "route_meals": 4,
+      "complete": true,
+      "distance_km": 176
+    },
+    {
+      "run_id": "SMOKE02-r2-b1500-SA",
+      "routes": 2,
+      "route_meals": 4,
+      "complete": true,
+      "distance_km": 202
+    },
+    {
+      "run_id": "SMOKE03-r1-b1500-GRASP",
+      "routes": 2,
+      "route_meals": 2,
+      "complete": true,
+      "distance_km": 118
+    },
+    {
+      "run_id": "SMOKE03-r1-b1500-SA",
+      "routes": 2,
+      "route_meals": 2,
+      "complete": true,
+      "distance_km": 81
+    },
+    {
+      "run_id": "SMOKE03-r2-b1500-SA",
+      "routes": 2,
+      "route_meals": 2,
+      "complete": true,
+      "distance_km": 81
+    },
+    {
+      "run_id": "SMOKE03-r2-b1500-GRASP",
+      "routes": 2,
+      "route_meals": 2,
+      "complete": true,
+      "distance_km": 118
+    },
+    {
+      "run_id": "SMOKE04-r1-b1500-SA",
+      "routes": 3,
+      "route_meals": 5,
+      "complete": true,
+      "distance_km": 448
+    },
+    {
+      "run_id": "SMOKE04-r1-b1500-GRASP",
+      "routes": 3,
+      "route_meals": 5,
+      "complete": true,
+      "distance_km": 394
+    },
+    {
+      "run_id": "SMOKE04-r2-b1500-GRASP",
+      "routes": 3,
+      "route_meals": 5,
+      "complete": true,
+      "distance_km": 394
+    },
+    {
+      "run_id": "SMOKE04-r2-b1500-SA",
+      "routes": 3,
+      "route_meals": 5,
+      "complete": true,
+      "distance_km": 448
+    }
+  ],
+  "scope": "Verificación independiente de exportaciones, no prueba de optimalidad."
+}

@@ -60,8 +60,10 @@ public final class InstanceFactory {
                 int hours=deadlines[generator.nextInt(deadlines.length)];
                 orders.add(new Order(spec.id()+"-P"+String.format("%03d",i+1),new Location(x,y),quantity,planning,planning.plusSeconds(hours*3600L)));
             }
-            if(spec.family().equals("BLOCKED")){
-                for(int i=0;i<3;i++){
+            // Every experimental family includes planned road blocks. BLOCKED increases intensity.
+            {
+                int blockCount=spec.family().equals("BLOCKED")?3:1;
+                for(int i=0;i<blockCount;i++){
                     int x=30+generator.nextInt(20),y=10+generator.nextInt(25);
                     blocks.add(new RoadBlock(planning,planning.plus(Duration.ofHours(4+i)),List.of(new Location(x,y),new Location(x,y+4))));
                 }
@@ -84,16 +86,18 @@ public final class InstanceFactory {
                 .withSpeed(VehicleType.MOTORCYCLE,config.decimal("speed.motorcycle",25))
                 .withSpeed(VehicleType.BICYCLE,config.decimal("speed.bicycle",12));
         OperationalSnapshot snapshot=new OperationalSnapshot(planning,fleet,InventorySnapshot.from(warehouses),states,
-                new MaintenanceCalendar(zone,List.of()),new ShiftSchedule(zone,config.integer("meal.startOffsetMinutes",180)),List.of(),config.decimal("routing.maxLegKm",0));
+                new MaintenanceCalendar(zone,List.of()),ShiftSchedule.flexible(zone,config.integer("meal.beamWidth",8)),List.of(),config.decimal("routing.maxLegKm",0));
         orders.sort(Comparator.comparing(Order::registeredAt).thenComparing(Order::id));
         if(orders.stream().anyMatch(o->o.registeredAt().isAfter(planning)))throw new IllegalStateException("Snapshot cannot know future orders");
         Map<String,Object> manifest=obj("id",spec.id(),"family",spec.family(),"source",spec.source(),"instance_seed",spec.instanceSeed(),
                 "planning_time",planning,"collection_from",from,"collection_to_exclusive",to,
-                "model","snapshot-batch-v3; full-demand common evaluator; all first departures from central",
+                "model","snapshot-batch-flex1; mandatory flexible meals; full-demand common evaluator; all first departures from central",
                 "rules",obj("maintenance_enabled",false,"automatic_breakdowns_enabled",false,
                     "max_leg_km_zero_means_unbounded",config.decimal("routing.maxLegKm",0),
-                    "meal_policy","fixed uninterrupted 60-minute slots; experimental scheduling policy, not a mandated clock time",
-                    "meal_start_offset_minutes",config.integer("meal.startOffsetMinutes",180),
+                    "meal_policy","FLEXIBLE: shared bounded-label scheduling; mandatory uninterrupted 60 min per driver shift; no driving/service overlap",
+                    "meal_required",true,"meal_duration_minutes",60,"meal_margin_after_shift_start_minutes",60,
+                    "meal_margin_before_shift_end_minutes",60,"meal_beam_width",config.integer("meal.beamWidth",8),
+                    "initial_meal_state_convention","STATIC BATCH: drivers idle at Central before snapshot; a full legal meal fitting before departure is recorded explicitly. Not an online rest-history model.",
                     "expired_orders_policy",config.text("orders.expiredPolicy","KEEP")),
                 "warehouses",warehouses.stream().map(w->obj("id",w.id(),"x",w.location().x(),"y",w.location().y(),"central",w.isCentral(),"initial_stock",w.initialStock(),"capacity",w.capacity())).toList(),
                 "fleet",snapshot.vehiclesById().values().stream().map(v->{VehicleParameters p=fleet.parametersFor(v.vehicle().type());return obj("id",v.vehicle().id(),"type",v.vehicle().type(),"status",v.status(),"x",v.location().x(),"y",v.location().y(),"available_at",v.availableAt(),"capacity",p.capacity(),"speed",p.speedKmPerHour(),"cost_km",p.costPerKm());}).toList(),

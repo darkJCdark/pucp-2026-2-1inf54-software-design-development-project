@@ -1,87 +1,125 @@
-# PaqRap · laboratorio GRASP y Simulated Annealing · v3
+# PaqRap — Experimentación numérica con descanso flexible (flex1)
 
-**Entrega corregida: 24 de septiembre de 2026.** Módulo autónomo Java 21 para experimentación numérica. No requiere frontend, REST, base de datos, Docker ni Maven para compilar y ejecutar con los scripts incluidos.
+Esta carpeta es autónoma: contiene dominio, GRASP, Simulated Annealing, ejecutor experimental,
+datos, pruebas y herramientas de análisis. No necesita frontend, REST, MySQL, Docker ni modo 5D.
+Se entrega el código fuente y `dist/paqrap-experimentos.jar`, compilado para Java 21.
 
-La versión modifica **ambos algoritmos** y su dominio compartido. No mezclar sus resultados con `evidencia/` histórica o `evidencia/v2/`. Las verificaciones de esta entrega están exclusivamente en **`evidencia/v3/`**.
+## Cambio principal
 
-## Empezar en Windows
+El descanso de alimentación es **obligatorio, continuo y de 60 minutos por turno**, pero **no tiene
+una hora fija para toda la flota**. El programador común explora distintas ubicaciones temporales
+del descanso para cada ruta. Puede aprovechar esperas, descansar antes/después de una entrega o
+al volver al almacén. Nunca cuenta la conducción o el acondicionamiento como descanso.
+Se registran lugar, turno, inicio y fin; un auditor independiente comprueba las restricciones.
 
-Descomprimir y abrir una terminal **dentro de esta carpeta `paqrap-experimentacion`**, no en el backend ni en la raíz superior del repositorio.
+Se conserva una hora de margen después del inicio y antes del fin del turno. Por ejemplo,
+en 07:00–15:00 el descanso puede INICIAR entre 08:00 y 13:00 y debe terminar a más tardar a las 14:00.
+La interpretación y el estado inicial de descanso de los lotes están en `docs/DESCANSO_FLEXIBLE.md`.
+
+**No reutilizar los resultados antiguos de descanso fijo.** Los datos de evidencia incluidos se
+volvieron a ejecutar con este JAR. No son una campaña formal ni una demostración de superioridad.
+
+## Empezar en Windows (PowerShell)
+
+Descomprime el ZIP. Abre la terminal dentro de `paqrap-experimentacion`, donde están
+`dominio`, `grasp`, `sa`, `experimentos`, `config` y `dist`.
 
 ```powershell
 java -version
 java -Xmx512m -jar dist/paqrap-experimentos.jar --self-test
-java -jar dist/paqrap-experimentos.jar --config config/readiness.properties --output results/mi-piloto-v3
+java -jar dist/paqrap-experimentos.jar --config config/readiness.properties --output results/readiness-01
 ```
 
-El JAR incluido requiere Java 21 o superior. Para recompilar después de modificar código, se necesita un **JDK** con `javac` y `jar`:
+Se necesita Java 21 o superior. Abre `results/readiness-01/report.html` al finalizar.
+El reporte y los archivos JSON contienen los descansos y la validez de las rutas.
+
+Para validar las entradas sin ejecutar las búsquedas:
+
+```powershell
+java -jar dist/paqrap-experimentos.jar --config config/pilot.properties --validate-only true
+```
+
+## Piloto y campaña formal
+
+```powershell
+java -jar dist/paqrap-experimentos.jar --config config/pilot.properties --output results/pilot-01
+python scripts/verify_results.py results/pilot-01
+python scripts/analyze.py results/pilot-01
+python scripts/pilot_summary.py results/pilot-01
+```
+
+El piloto configurado tiene 12 instancias × 3 semillas × 4 presupuestos × 2 algoritmos = **288 corridas**.
+Prueba 3, 5, 10 y 20 segundos; suma **45,6 minutos de presupuestos de búsqueda**, más inicio de JVM,
+calentamiento, lectura y auditoría. No hay que introducir pedidos durante esos segundos:
+las entradas quedan fijas antes de cronometrar.
+
+Revisa cobertura, soluciones completas, costos sobre las mismas parejas y trazas. Elige y justifica
+un presupuesto a partir del piloto. El comando siguiente muestra un EJEMPLO con 10 segundos,
+no una recomendación automática ni un presupuesto ya aprobado:
+
+```powershell
+python scripts/freeze_formal.py --pilot results/pilot-01 --budget-ms 10000 --output config/formal-aprobado.properties --reason "Escribir aqui la justificacion concreta basada en el piloto completo."
+java -jar dist/paqrap-experimentos.jar --config config/formal-aprobado.properties --output results/formal-01
+python scripts/verify_results.py results/formal-01
+python scripts/analyze.py results/formal-01
+```
+
+La plantilla formal contiene **40 instancias × 5 semillas × 2 algoritmos = 400 corridas**.
+Está protegida con `campaign.frozen=false`: no se lanza accidentalmente antes de revisar el piloto.
+`freeze_formal.py` conserva las instancias y semillas formales, copia los parámetros del piloto,
+comprueba que el JAR y los datos del piloto no cambiaron y guarda hashes y justificación.
+No selecciona un ganador, no demuestra que el presupuesto sea suficiente y no ejecuta la campaña.
+
+El análisis estadístico/gráfico es opcional:
+
+```powershell
+python -m pip install -r scripts/analysis-requirements.txt
+python scripts/analyze.py results/formal-01 --statistics --wilcoxon --plots
+```
+
+Debe definirse el análisis antes de inspeccionar los resultados formales. Las semillas son repeticiones
+de una instancia, no observaciones independientes. Lee `docs/PROTOCOLO.md`.
+
+## Interrumpir y reanudar
+
+Una campaña nueva necesita una carpeta de salida nueva. Para continuar una campaña interrumpida:
+
+```powershell
+java -jar dist/paqrap-experimentos.jar --config config/pilot.properties --output results/pilot-01 --resume true
+```
+
+Las corridas terminadas, incluidas las fallidas, se conservan; no se repiten selectivamente.
+Cambiar JAR, datos o configuración obliga a una campaña nueva. Mantén también el mismo equipo.
+No ejecutes dos procesos apuntando a una misma carpeta de salida.
+
+## Compilar cambios y probar
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1
-java -Xmx512m -jar dist/paqrap-experimentos.jar --self-test
+powershell -ExecutionPolicy Bypass -File .\scripts\test.ps1
+python scripts/test_java_sources.py
+python -m unittest discover -s tests -v
 ```
 
-En Linux/macOS:
+En Linux/macOS, sustituye los dos comandos PowerShell por `bash scripts/build.sh` y
+`bash scripts/test.sh`. Los comandos `java` y `python` son equivalentes.
+Las pruebas de método Java adicionales se ejecutan con un adaptador offline propio, **no con
+el motor JUnit**. Los archivos JUnit siguen disponibles para `mvn test` en un entorno con Maven.
+Las pruebas Python usan copias temporales de la evidencia como fixtures y no la sobrescriben.
 
-```bash
-bash scripts/build.sh
-java -Xmx512m -jar dist/paqrap-experimentos.jar --self-test
-bash scripts/test-road-network.sh
-java -jar dist/paqrap-experimentos.jar --config config/readiness.properties --output results/mi-piloto-v3
-```
+**Si editas Java, recompila el JAR antes de ejecutar.** Recompilar después de calibrar puede cambiar
+el hash del binario: no mezcles versiones en una misma campaña.
 
-No ejecutar dos campañas simultáneamente si se van a comparar tiempos. La carpeta de salida debe ser nueva. Para continuar una ejecución interrumpida con **exactamente el mismo JAR, datos, configuración y entorno**:
+## Contenido
 
-```powershell
-java -jar dist/paqrap-experimentos.jar --config config/readiness.properties --output results/mi-piloto-v3 --resume true
-```
+- `dominio/`: pedidos, vehículos, inventario, bloqueos, rutas, descanso flexible, validador y control de búsqueda.
+- `grasp/`, `sa/`: estrategias metaheurísticas sobre el mismo dominio.
+- `experimentos/`: instancias, ejecutor, adaptadores, auditoría y exportación.
+- `config/`, `data/`: campañas y datos; mantenimiento no se carga en el experimento.
+- `scripts/`, `tests/`: compilación, pruebas, auditoría, calibración y análisis.
+- `evidencia/flex1/`: ejecuciones de verificación de esta versión, no resultados formales.
+- `docs/`: regla de descanso, protocolo, limitaciones y resultados verificados.
+- `provenance/`: archivos de entrada y cambios respecto de la base utilizada.
 
-Una recompilación puede cambiar la huella del JAR, incluso sin cambios funcionales. En ese caso corresponde una carpeta nueva, no forzar la reanudación. Las rutas absolutas registradas en los `jobs` de la evidencia son del entorno de verificación; no deben ejecutarse directamente en otra computadora.
-
-## Qué está corregido
-
-Los dos algoritmos comparten `OperationalSnapshot`, `RouteScheduler`, `OperationalPlanEvaluator`, reconstrucción de cargas y validación cronológica de inventario. GRASP conserva construcción greedy-aleatorizada con RCL y búsqueda local. SA conserva vecinos y aceptación de Metropolis, aplicada al costo solo cuando no cambia la cobertura.
-
-- **Bloqueos sí; mantenimiento preventivo y averías automáticas no.** La familia REDUCED reduce realmente la flota antes de la corrida.
-- Plazos duros; llegada física separada de la hora de acondicionamiento. Entregas parciales y recargas conservan cantidades y respetan capacidad.
-- SA ya no descarta todos los pedidos si uno no puede insertarse. Los dos conservan el mejor plan validado al agotarse el tiempo.
-- Los movimientos de SA y GRASP ajustan cargas y recargas; toda propuesta se valida sobre la demanda original completa.
-- Presupuesto común de tiempo, incluyendo inicialización de SA; semillas explícitas y planificador nuevo por corrida. SA recalienta en modo TIME al llegar a la temperatura mínima.
-- CSV, planes JSON con rutas y cronología, trazas, huellas de entrada, informe HTML y reanudación verificada.
-
-**No se convierte un plan parcial en éxito completo ni se interpreta como colapso por sí solo.** `cost_complete_feasible` queda vacío cuando el plan no cubre toda la demanda válidamente.
-
-## Políticas del modelo que debes conocer
-
-La descripción maestra no fija la hora exacta del refrigerio ni cuantifica sus márgenes. Se declaró una política común y configurable: una hora por turno, con inicio a los 180 minutos del turno (10–11, 18–19 y 02–03). Se conservan márgenes de una hora del código previo; no se presentan como una nueva aclaración del profesor. `meal.startOffsetMinutes` permite otro inicio entre 60 y 360 minutos.
-
-El límite heredado de 80 km por tramo **no aparece en el contexto maestro**. Por eso `routing.maxLegKm=0` lo desactiva en la línea base. Se puede declarar una sensibilidad con `80`; no cambiarlo después de observar resultados para favorecer un algoritmo.
-
-Los lotes reales se planifican al final de la ventana de recepción. Esto es una **comparación estática**, no una simulación online: por defecto se conservan pedidos ya vencidos (`orders.expiredPolicy=KEEP`). La alternativa `EXCLUDE` es explícita y registra los identificadores excluidos. No mezclar ambas poblaciones.
-
-## Configuraciones disponibles
-
-| Perfil | Propósito | Corridas configuradas |
-|---|---|---:|
-| `smoke` | Integración corta: normal, bloqueado, dividido y real | 16 |
-| `readiness` | 5, 10, 15 y 20 pedidos con bloqueos; lote real de 41 pedidos | 10 |
-| `deterministic` | Repetibilidad FIXED, no comparación temporal | 4 por ejecución |
-| `pilot` | Piloto más amplio para calibrar parámetros | 72 |
-| `escalabilidad` | Volúmenes sintéticos y ventanas reales mayores | 96 |
-| `formal` | Plantilla de campaña; **calibrar y congelar antes de usar** | 400 |
-
-Los números de corrida son los de los archivos entregados, no una prescripción estadística. Las campañas `pilot`, `escalabilidad` y `formal` no se ejecutaron completas con v3 en esta entrega. Los datos originales de mantenimiento se conservan en `data/` por procedencia, pero el constructor experimental no los carga.
-
-## Resultados y verificación
-
-Cada salida contiene `runs.csv`, `paired.csv`, `report.html`, `metadata.json`, `instances/` y `jobs/`. El costo pareado se calcula únicamente cuando **ambos** algoritmos completan la misma instancia y repetición.
-
-Análisis descriptivo opcional con Python, sin paquetes adicionales:
-
-```powershell
-python scripts/analyze.py results/mi-piloto-v3
-```
-
-Se verificaron 76 comprobaciones ejecutables, 500 escenarios diferenciales de red vial, 16 corridas smoke, 10 de readiness, repetibilidad en dos campañas FIXED y reanudación segura. Ver números y limitaciones en **`docs/VERIFICACION.md`**. Esta evidencia valida el funcionamiento probado, no optimalidad ni un ganador general.
-
-Documentación: `docs/CAMBIOS_Y_PROCEDENCIA.md`, `docs/PROTOCOLO.md`, `docs/GUIA_RESULTADOS.md` y `docs/LIMITACIONES.md`.
+Para actualizar tu rama, reemplaza la carpeta experimental anterior por esta carpeta completa,
+no mezcles clases de ambas versiones. No se incluyen ni modifican archivos del resto del sistema.

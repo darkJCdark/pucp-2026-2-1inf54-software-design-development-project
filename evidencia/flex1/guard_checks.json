@@ -1,0 +1,58 @@
+[
+  {
+    "test": "resume-identical",
+    "exit_code": 0,
+    "expected_success": true,
+    "passed": true
+  },
+  {
+    "test": "no-overwrite",
+    "exit_code": 1,
+    "expected_success": false,
+    "passed": true
+  },
+  {
+    "test": "resume-changed",
+    "exit_code": 1,
+    "expected_success": false,
+    "passed": true
+  },
+  {
+    "test": "formal-guard",
+    "exit_code": 1,
+    "expected_success": false,
+    "passed": true
+  },
+  {
+    "test": "fixed-meal-rejected",
+    "exit_code": 1,
+    "expected_success": false,
+    "passed": true
+  },
+  {
+    "test": "maintenance-rejected",
+    "exit_code": 1,
+    "expected_success": false,
+    "passed": true
+  },
+  {
+    "test": "no-fleet",
+    "exit_code": 0,
+    "expected_success": true,
+    "passed": true,
+    "states": [
+      "NO_SOLUTION",
+      "NO_SOLUTION"
+    ]
+  },
+  {
+    "test": "one-ms",
+    "exit_code": 0,
+    "expected_success": true,
+    "passed": true,
+    "states": [
+      "TIMEOUT",
+      "TIMEOUT"
+    ]
+  }
+]

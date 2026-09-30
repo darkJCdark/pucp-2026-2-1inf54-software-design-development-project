@@ -54,6 +54,7 @@ public final class TrialMain {
                     "time_first_complete_ms",Csv.number(control.firstCompleteMs()),"initialization_ms",Csv.number(output.initializationMs()),"final_audit_ms",Csv.number(auditMs),
                     "iterations",control.iterations(),"neighbor_attempts",control.attempts(),"invalid_neighbors",control.invalid(),"accepted_neighbors",control.accepted(),
                     "plan_evaluations",control.evaluations(),"route_schedules",control.schedules(),"path_queries",control.paths(),"heap_sampled_peak_mib",Csv.number(control.sampledHeapBytes()/1048576.0),
+                    "mandatory_meals_valid",audit.details().get("mandatory_meals_valid"),"scheduled_route_meals",audit.details().get("scheduled_route_meals"),
                     "violations",((java.util.List<?>)audit.details().get("violations")).size(),
                     "detail",output.detail(),"plan_sha256",Json.sha256(Json.encode(audit.details().get("routes"))));
             Files.writeString(Path.of(prefix+".plan.json"),Json.encode(obj("run",row,"audit",audit.details())),StandardCharsets.UTF_8);

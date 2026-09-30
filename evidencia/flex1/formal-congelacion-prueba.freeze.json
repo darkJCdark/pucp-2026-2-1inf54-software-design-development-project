@@ -1,0 +1,13 @@
+{
+  "created_utc": "2026-09-30T02:40:03.819745+00:00",
+  "reason": "Prueba tecnica del mecanismo de congelacion; no es aprobacion del presupuesto final.",
+  "budget_ms": 10000,
+  "pilot_folder": "evidencia/flex1/mini-pilot",
+  "pilot_runs_sha256": "7e0d35f0f70707a306022eb8804cc8a6e54dee95b1bcbedc7a7607876ccde642",
+  "pilot_metadata_sha256": "53b92275356dec01799640c78227123df1585f0879f482afcb54d934348c2eb4",
+  "jar_sha256": "8df53b32c9606470925c3a9d3428a716cc61c02007ae16ae399dfac1794cc2e8",
+  "formal_config_sha256": "37f7e95098ed87167d34dcd0e38910bc8b63a5475ac4ec623bbedf43ee65bff4",
+  "formal_instances_sha256": "17a3f3906dac0ea08858b0033225fef757110581697784ed6537579a25b84fe6",
+  "formal_runs": 400,
+  "note": "Congelación de configuración; NO significa que la campaña formal se haya ejecutado ni demuestra superioridad."
+}

@@ -9,3 +9,6 @@ __pycache__/
 .venv/
 node_modules/
 .m2/
+
+# Evidencia de la version entregada (las nuevas campañas siguen en results/).
+!evidencia/**/*.log

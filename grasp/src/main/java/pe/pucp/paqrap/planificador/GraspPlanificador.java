@@ -11,7 +11,7 @@ import java.util.*;
  * evaluated against ALL original orders with the shared chronological inventory evaluator.
  * A partial feasible incumbent survives interruption, including during construction/local search. */
 public final class GraspPlanificador {
-    public static final String VERSION = "GRASP-v3 2026-09-24";
+    public static final String VERSION = "GRASP-shared-flex1; load-repair; full-demand; mandatory flexible meals";
     private final OperationalPlanEvaluator evaluator;
     private final FeasibleInsertionService insertions;
     private final Random random;
@@ -111,8 +111,10 @@ public final class GraspPlanificador {
                 if (source.vehicle().id().equals(targetState.vehicle().id()) || !snapshot.isVehiclePlannable(targetState.vehicle().id())) continue;
                 DeliveryRoute target=current.plan().routeForVehicle(targetState.vehicle().id()).orElse(null);
                 if (target==null) {
-                    target=DeliveryRoute.replanFromCurrentLocation("R-"+targetState.vehicle().id(),targetState.vehicle(),
-                            targetState.location(),targetState.carriedPackages(),snapshot.planningTime()).returningTo(central);
+                    target=targetState.location().equals(central.location()) && targetState.carriedPackages()==0
+                            ? DeliveryRoute.startScenarioAtCentral("R-"+targetState.vehicle().id(),targetState.vehicle(),central,0,snapshot.planningTime()).returningTo(central)
+                            : DeliveryRoute.replanFromCurrentLocation("R-"+targetState.vehicle().id(),targetState.vehicle(),
+                                targetState.location(),targetState.carriedPackages(),snapshot.planningTime()).returningTo(central);
                 }
                 List<RouteStop> from=new ArrayList<>(source.stops()); from.remove(index);
                 for (int pos=0;pos<target.stops().size();pos++) {

@@ -9,7 +9,7 @@ import java.util.Random;
 /** Initialization is inside the measured budget; no GRASP-generated seed. */
 public final class SaAdapter implements UnifiedPlanner {
     @Override public String name(){return "SA";}
-    @Override public String version(){return "SA-v3 2026-09-24";}
+    @Override public String version(){return "SA-shared-flex1; load-repair; full-demand; mandatory flexible meals";}
     @Override public AlgorithmOutput solve(ProblemInstance p,ExperimentConfig c,long seed){
         OperationalPlanEvaluator evaluator=new OperationalPlanEvaluator(new RouteScheduler(new RoadNetwork()));
         long start=System.nanoTime();
@@ -31,6 +31,6 @@ public final class SaAdapter implements UnifiedPlanner {
         OperationalPlan incumbent=SearchControl.bestPlan();
         if(incumbent!=null)plan=incumbent;
         return new AlgorithmOutput(plan,initialization,"RETURNED",initializationMs,
-                "v3: feasible insertion seed; repaired moves; lexicographic coverage; TIME reheating; same complete-demand evaluator");
+                "flex1: feasible insertion seed; repaired moves; lexicographic coverage; TIME reheating; same complete-demand evaluator");
     }
 }

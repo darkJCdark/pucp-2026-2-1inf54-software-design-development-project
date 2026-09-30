@@ -1,4 +1,4 @@
-param([ValidateSet("smoke","pilot","formal","deterministic")][string]$Profile="smoke")
+param([ValidateSet("smoke","pilot","formal","deterministic","readiness","escalabilidad")][string]$Profile="smoke")
 $ErrorActionPreference="Stop"
 Push-Location (Split-Path -Parent $PSScriptRoot)
 try {

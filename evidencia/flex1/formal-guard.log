@@ -1,0 +1,2 @@
+Exception in thread "main" java.lang.IllegalArgumentException: Formal template is not calibrated/frozen. Review the pilot and run scripts/freeze_formal.py first.
+	at pe.edu.pucp.paqrap.experiment.ExperimentMain.main(ExperimentMain.java:41)

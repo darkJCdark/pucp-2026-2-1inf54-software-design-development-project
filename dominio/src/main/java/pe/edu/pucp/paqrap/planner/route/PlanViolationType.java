@@ -1,6 +1,7 @@
 package pe.edu.pucp.paqrap.planner.route;
 
 public enum PlanViolationType {
+    MANDATORY_MEAL_VIOLATION,
     UNKNOWN_VEHICLE,
     UNKNOWN_WAREHOUSE,
     DELIVERY_BEFORE_REGISTRATION,

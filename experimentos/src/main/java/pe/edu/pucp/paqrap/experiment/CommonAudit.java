@@ -46,10 +46,26 @@ public final class CommonAudit {
                 else if(s instanceof WarehouseVisit w)stops.add(obj("type","WAREHOUSE","warehouse_id",w.warehouse().id(),"pickup",w.pickupPackages(),"x",s.location().x(),"y",s.location().y()));
             }
             ScheduledDeliveryRoute scheduled=evaluation.schedulesByRouteId().get(r.id());
-            Object timetable=scheduled==null?List.of():scheduled.scheduledStops().stream().map(s->obj("arrival",s.arrivedAt(),"completion",s.completedAt(),"load_before",s.loadBefore(),"load_after",s.loadAfter(),"approach_distance_km",s.approach().distanceKm(),"path",s.approach().legs().stream().map(l->obj("from",List.of(l.from().x(),l.from().y()),"to",List.of(l.to().x(),l.to().y()),"departure",l.departsAt(),"arrival",l.arrivesAt())).toList())).toList();
-            routeDetails.add(obj("route_id",r.id(),"vehicle_id",r.vehicle().id(),"vehicle_type",r.vehicle().type(),"departure",r.departureAt(),"initial_load",r.initialLoad(),"stops",stops,"timetable",timetable));
+            Object timetable=scheduled==null?List.of():scheduled.scheduledStops().stream().map(s->obj("arrival",s.arrivedAt(),"service_start",s.serviceStartedAt(),"completion",s.completedAt(),"load_before",s.loadBefore(),"load_after",s.loadAfter(),"approach_distance_km",s.approach().distanceKm(),"path",s.approach().legs().stream().map(l->obj("from",List.of(l.from().x(),l.from().y()),"to",List.of(l.to().x(),l.to().y()),"departure",l.departsAt(),"arrival",l.arrivesAt())).toList())).toList();
+            routeDetails.add(obj("route_id",r.id(),"vehicle_id",r.vehicle().id(),"vehicle_type",r.vehicle().type(),"departure",r.departureAt(),"initial_load",r.initialLoad(),"stops",stops,"timetable",timetable,
+                    "returned_at",scheduled==null?null:scheduled.returnedAt(),"duty_completed_at",scheduled==null?null:scheduled.completedAt(),
+                    "meal_breaks",scheduled==null?List.of():scheduled.mealBreaks().stream().map(CommonAudit::mealJson).toList(),
+                    "meal_audit",scheduled==null?List.of("No valid route schedule"):MealBreakAudit.validate(scheduled,p.snapshot().shiftSchedule())));
         }
-        Map<String,Object> details=obj("full_feasible",full,"route_constraints_valid",structural,"orders_total",p.orders().size(),
+        // Unused vehicles are idle, but their first-shift mandatory meal remains explicit.
+        List<Object> idleMeals=new ArrayList<>();
+        for(VehicleOperationalState state:p.snapshot().vehiclesById().values())if(plan.routeForVehicle(state.vehicle().id()).isEmpty()) {
+            var shifts=p.snapshot().shiftSchedule();var window=shifts.mealWindow(p.snapshot().planningTime());
+            idleMeals.add(obj("vehicle_id",state.vehicle().id(),"shift_start",shifts.shiftAt(p.snapshot().planningTime()).startsAt(),
+                    "start",window.startsAt(),"end",window.startsAt().plus(ShiftSchedule.MEAL_DURATION),
+                    "x",state.location().x(),"y",state.location().y(),"placement","IDLE_VEHICLE",
+                    "note","Static-batch idle roster; not a driven route"));
+        }
+        boolean mealsValid=evaluation.schedulesByRouteId().size()==plan.routes().size()
+                && evaluation.schedulesByRouteId().values().stream().allMatch(s->MealBreakAudit.validate(s,p.snapshot().shiftSchedule()).isEmpty());
+        long mealCount=evaluation.schedulesByRouteId().values().stream().mapToLong(s->s.mealBreaks().size()).sum();
+        Map<String,Object> details=obj("mandatory_meals_valid",mealsValid,"scheduled_route_meals",mealCount,"idle_vehicle_meals",idleMeals,
+                "full_feasible",full,"route_constraints_valid",structural,"orders_total",p.orders().size(),
                 "orders_fully_served",complete,"packages_total",total,"packages_covered_on_time",covered,"unserved_order_ids",missing,
                 "provably_unservable_order_ids",List.copyOf(unservable),"unruled_out_orders_fully_served",servableComplete,"full_unruled_out_feasible",fullServable,
                 "provably_unservable_rule","Optimistic Manhattan travel from actual vehicle states, ignoring blocks, meals, stock, service, return and other orders. Failing for every fixed-fleet vehicle is a necessary-condition certificate. Orders not excluded by this bound are NOT proven servable.",
@@ -58,6 +74,12 @@ public final class CommonAudit {
                 "routes",routeDetails,"interpretation","Planning output, not observed delivery execution. Missing orders are NOT a mathematical infeasibility certificate.");
         return new AuditResult(full,structural,complete,covered,total,missing.size(),evaluation.totalCost(),distance,plan.routes().size(),
                 unservable.size(),servableComplete,fullServable,details);
+    }
+
+    private static Map<String,Object> mealJson(ScheduledMealBreak b) {
+        return obj("shift_start",b.shiftStart(),"start",b.startsAt(),"end",b.endsAt(),
+                "duration_minutes",java.time.Duration.between(b.startsAt(),b.endsAt()).toMinutes(),
+                "x",b.location().x(),"y",b.location().y(),"placement",b.placement());
     }
 
     /** Safe necessary-condition certificate, NOT a direct-route heuristic.

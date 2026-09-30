@@ -58,7 +58,13 @@ public final class ExperimentConfig {
         for(String w:List.of("northwest","east"))if(integer("stock."+w,1000)<0||integer("stock."+w,1000)>1000)throw new IllegalArgumentException("Stock must be in 0..1000");
         double maxLeg=decimal("routing.maxLegKm",0);
         if(!Double.isFinite(maxLeg)||maxLeg<0)throw new IllegalArgumentException("routing.maxLegKm must be finite and nonnegative");
-        new pe.edu.pucp.paqrap.planner.domain.ShiftSchedule(pe.edu.pucp.paqrap.planner.domain.ShiftSchedule.DEFAULT_ZONE,integer("meal.startOffsetMinutes",180));
+        if(values.containsKey("meal.startOffsetMinutes"))
+            throw new IllegalArgumentException("Fixed meal.startOffsetMinutes is obsolete: remove it. Meals are mandatory and flexible.");
+        if(!text("meal.policy","FLEXIBLE").equals("FLEXIBLE") || !flag("meal.required",true) || integer("meal.durationMinutes",60)!=60)
+            throw new IllegalArgumentException("Numerical experiments require a FLEXIBLE mandatory uninterrupted 60-minute meal per shift");
+        pe.edu.pucp.paqrap.planner.domain.ShiftSchedule.flexible(pe.edu.pucp.paqrap.planner.domain.ShiftSchedule.DEFAULT_ZONE,integer("meal.beamWidth",8));
+        if(!Set.of("VERIFICATION","PILOT","FORMAL").contains(text("campaign.stage","VERIFICATION")))
+            throw new IllegalArgumentException("campaign.stage must be VERIFICATION, PILOT or FORMAL");
         if(integer("worker.heap.mb",512)<64||integer("worker.processors",2)<1||integer("worker.timeout.seconds",90)<1||integer("warmup.rounds",1)<0)
             throw new IllegalArgumentException("Invalid worker/warmup settings");
     }

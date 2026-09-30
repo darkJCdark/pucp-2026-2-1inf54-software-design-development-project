@@ -145,11 +145,14 @@ public final class OperationalRouteNeighborGenerator implements OperationalNeigh
         if (central == null) {
             return Optional.empty();
         }
-        DeliveryRoute newRoute = DeliveryRoute.replanFromCurrentLocation("SA-" + vehicle.vehicle().id(),
-                        vehicle.vehicle(), vehicle.location(), vehicle.carriedPackages(), snapshot.planningTime())
-                .withAppendedStop(new WarehouseVisit(central, pickup))
-                .withAppendedStop(moved)
-                .returningTo(central);
+        DeliveryRoute newRoute;
+        if(vehicle.location().equals(central.location()) && vehicle.carriedPackages()==0) {
+            newRoute=DeliveryRoute.startScenarioAtCentral("SA-"+vehicle.vehicle().id(),vehicle.vehicle(),central,pickup,snapshot.planningTime());
+        } else {
+            newRoute=DeliveryRoute.replanFromCurrentLocation("SA-"+vehicle.vehicle().id(),vehicle.vehicle(),vehicle.location(),vehicle.carriedPackages(),snapshot.planningTime())
+                    .withAppendedStop(new WarehouseVisit(central,pickup));
+        }
+        newRoute=newRoute.withAppendedStop(moved).returningTo(central);
         DeliveryRoute sourceAfterRemoval = source.route().withReplacedStops(removeAt(source.route().stops(), source.index()));
         OperationalPlan neighbor = current.withRoute(sourceAfterRemoval).withRoute(newRoute);
         return Optional.of(removeIfNoDeliveries(neighbor, sourceAfterRemoval));

@@ -1,0 +1,2 @@
+Exception in thread "main" java.lang.IllegalArgumentException: Resume rejected: build, configuration or instance definitions changed. Use a NEW output directory.
+	at pe.edu.pucp.paqrap.experiment.ExperimentMain.main(ExperimentMain.java:52)

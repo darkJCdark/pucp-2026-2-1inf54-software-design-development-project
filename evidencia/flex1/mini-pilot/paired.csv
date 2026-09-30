@@ -1,0 +1,5 @@
+instance_id,search_seed,budget_ms,grasp_ok,sa_ok,grasp_cost,sa_cost,difference_grasp_minus_sa
+MINI20,42,3000,true,true,4212.000000,3873.000000,339.000000
+MINI20,42,10000,true,true,3744.000000,3873.000000,-129.000000
+MINIREAL,42,3000,false,false,,,
+MINIREAL,42,10000,false,false,,,

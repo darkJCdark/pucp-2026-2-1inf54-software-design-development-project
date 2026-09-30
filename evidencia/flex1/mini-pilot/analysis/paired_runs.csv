@@ -1,0 +1,5 @@
+instance_id,family,search_seed,budget_ms,mode,orders_provably_unservable,grasp_unruled_out_ok,sa_unruled_out_ok,log_cost_ratio_on_joint_unruled_out_success,grasp_ok,sa_ok,joint_success,grasp_cost,sa_cost,cost_difference_grasp_minus_sa,log_cost_ratio_grasp_over_sa,grasp_time_first_complete_ms,sa_time_first_complete_ms,input_sha256
+MINI20,BLOCKED,42,3000,TIME,0,1,1,,1,1,1,4212.0,3873.0,339.0,0.083908193739114,862.524986,805.96182,3f312ed012345faaf32b62ecd44d5166772a94481c9df1b4efe017db2005443b
+MINI20,BLOCKED,42,10000,TIME,0,1,1,,1,1,1,3744.0,3873.0,-129.0,-0.03387484191726952,937.571592,783.500302,3f312ed012345faaf32b62ecd44d5166772a94481c9df1b4efe017db2005443b
+MINIREAL,REAL,42,3000,TIME,3,0,0,,0,0,0,,,,,,,2a9f657e76097b6c58f693496042d7b05218103068a15ab28cc006c0b1cb8e77
+MINIREAL,REAL,42,10000,TIME,3,1,1,,0,0,0,,,,,,,2a9f657e76097b6c58f693496042d7b05218103068a15ab28cc006c0b1cb8e77

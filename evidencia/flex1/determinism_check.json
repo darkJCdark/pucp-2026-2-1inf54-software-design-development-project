@@ -1,0 +1,22 @@
+[
+  {
+    "run_id": "SMOKE01-r1-b1500-GRASP",
+    "same_plan": true,
+    "same_metrics": true
+  },
+  {
+    "run_id": "SMOKE01-r1-b1500-SA",
+    "same_plan": true,
+    "same_metrics": true
+  },
+  {
+    "run_id": "SMOKE02-r1-b1500-SA",
+    "same_plan": true,
+    "same_metrics": true
+  },
+  {
+    "run_id": "SMOKE02-r1-b1500-GRASP",
+    "same_plan": true,
+    "same_metrics": true
+  }
+]

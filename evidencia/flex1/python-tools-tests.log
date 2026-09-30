@@ -1,0 +1,23 @@
+test_balanced_cost_subset (test_experiment_tools.ToolTests.test_balanced_cost_subset) ... ok
+test_complete_grid (test_experiment_tools.ToolTests.test_complete_grid) ... ok
+test_fixed_mode_has_no_time_budget (test_experiment_tools.ToolTests.test_fixed_mode_has_no_time_budget) ... ok
+test_freeze_refuses_overwrite (test_experiment_tools.ToolTests.test_freeze_refuses_overwrite) ... ok
+test_freeze_rejects_untried_budget (test_experiment_tools.ToolTests.test_freeze_rejects_untried_budget) ... ok
+test_freeze_valid (test_experiment_tools.ToolTests.test_freeze_valid) ... ok
+test_independent_audit_rejects_missing_break (test_experiment_tools.ToolTests.test_independent_audit_rejects_missing_break) ... ok
+test_independent_audit_rejects_short_service (test_experiment_tools.ToolTests.test_independent_audit_rejects_short_service) ... ok
+test_independent_audit_rejects_wrong_break_location (test_experiment_tools.ToolTests.test_independent_audit_rejects_wrong_break_location) ... ok
+test_independent_audit_valid (test_experiment_tools.ToolTests.test_independent_audit_valid) ... ok
+test_reject_cost_for_incomplete (test_experiment_tools.ToolTests.test_reject_cost_for_incomplete) ... ok
+test_reject_duplicate (test_experiment_tools.ToolTests.test_reject_duplicate) ... ok
+test_reject_missing_run (test_experiment_tools.ToolTests.test_reject_missing_run) ... ok
+test_reject_mixed_config (test_experiment_tools.ToolTests.test_reject_mixed_config) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.089s
+
+OK
+  3000 ms | GRASP | completas 1/2 | cobertura 90.2% | costo pareado 4212.0
+  3000 ms | SA    | completas 1/2 | cobertura 90.2% | costo pareado 3873.0
+ 10000 ms | GRASP | completas 1/2 | cobertura 96.3% | costo pareado 3744.0
+ 10000 ms | SA    | completas 1/2 | cobertura 96.3% | costo pareado 3873.0

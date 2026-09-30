@@ -1,0 +1,67 @@
+{
+  "budgets_ms": [
+    3000,
+    10000
+  ],
+  "balanced_instance_seed_pairs": 1,
+  "summary": [
+    {
+      "budget_ms": 3000,
+      "algorithm": "GRASP",
+      "runs": 2,
+      "complete_runs": 1,
+      "complete_pct": 50.0,
+      "route_valid_runs": 2,
+      "mean_coverage_pct": 90.24390249999999,
+      "worker_errors": 0,
+      "cost_balanced_pairs": 1,
+      "mean_cost_balanced": 4212.0,
+      "mean_elapsed_ms": 3000.173104
+    },
+    {
+      "budget_ms": 3000,
+      "algorithm": "SA",
+      "runs": 2,
+      "complete_runs": 1,
+      "complete_pct": 50.0,
+      "route_valid_runs": 2,
+      "mean_coverage_pct": 90.24390249999999,
+      "worker_errors": 0,
+      "cost_balanced_pairs": 1,
+      "mean_cost_balanced": 3873.0,
+      "mean_elapsed_ms": 3000.1387255
+    },
+    {
+      "budget_ms": 10000,
+      "algorithm": "GRASP",
+      "runs": 2,
+      "complete_runs": 1,
+      "complete_pct": 50.0,
+      "route_valid_runs": 2,
+      "mean_coverage_pct": 96.3414635,
+      "worker_errors": 0,
+      "cost_balanced_pairs": 1,
+      "mean_cost_balanced": 3744.0,
+      "mean_elapsed_ms": 10000.2282695
+    },
+    {
+      "budget_ms": 10000,
+      "algorithm": "SA",
+      "runs": 2,
+      "complete_runs": 1,
+      "complete_pct": 50.0,
+      "route_valid_runs": 2,
+      "mean_coverage_pct": 96.3414635,
+      "worker_errors": 0,
+      "cost_balanced_pairs": 1,
+      "mean_cost_balanced": 3873.0,
+      "mean_elapsed_ms": 10000.198277
+    }
+  ],
+  "notes": [
+    "Descriptivo: las semillas no son instancias independientes.",
+    "El costo usa las mismas parejas completas en TODOS los presupuestos; si no existen queda vacío.",
+    "Revisar cobertura, costo pareado, trazas y costo total de campaña antes de justificar el presupuesto.",
+    "No se elige automáticamente presupuesto ni algoritmo ganador."
+  ]
+}

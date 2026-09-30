@@ -1,0 +1,5 @@
+budget_ms,algorithm,runs,complete_runs,complete_pct,route_valid_runs,mean_coverage_pct,worker_errors,cost_balanced_pairs,mean_cost_balanced,mean_elapsed_ms
+3000,GRASP,2,1,50.0,2,90.24390249999999,0,1,4212.0,3000.173104
+3000,SA,2,1,50.0,2,90.24390249999999,0,1,3873.0,3000.1387255
+10000,GRASP,2,1,50.0,2,96.3414635,0,1,3744.0,10000.2282695
+10000,SA,2,1,50.0,2,96.3414635,0,1,3873.0,10000.198277

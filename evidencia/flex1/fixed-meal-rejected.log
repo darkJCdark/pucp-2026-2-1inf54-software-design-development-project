@@ -1,0 +1,3 @@
+Exception in thread "main" java.lang.IllegalArgumentException: Fixed meal.startOffsetMinutes is obsolete: remove it. Meals are mandatory and flexible.
+	at pe.edu.pucp.paqrap.experiment.ExperimentConfig.validate(ExperimentConfig.java:62)
+	at pe.edu.pucp.paqrap.experiment.ExperimentMain.main(ExperimentMain.java:22)

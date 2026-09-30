@@ -1,0 +1,12 @@
+[1/10] READY05-r1-b1500-GRASP | retained OK
+[2/10] READY05-r1-b1500-SA | retained OK
+[3/10] READY10-r1-b1500-SA | retained OK
+[4/10] READY10-r1-b1500-GRASP | retained OK
+[5/10] READY15-r1-b1500-GRASP | retained OK
+[6/10] READY15-r1-b1500-SA | retained OK
+[7/10] READY20-r1-b1500-SA | retained OK
+[8/10] READY20-r1-b1500-GRASP | retained OK
+[9/10] READYREAL-r1-b1500-GRASP | retained PARTIAL
+[10/10] READYREAL-r1-b1500-SA | retained PARTIAL
+Done. Open: /mnt/data/paqrap_actualizado/paqrap-experimentacion/evidencia/flex1/readiness/report.html
+Raw, paired results: /mnt/data/paqrap_actualizado/paqrap-experimentacion/evidencia/flex1/readiness/runs.csv

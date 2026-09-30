@@ -1,0 +1,6 @@
+instance_id,family,search_seed,budget_ms,mode,orders_provably_unservable,grasp_unruled_out_ok,sa_unruled_out_ok,log_cost_ratio_on_joint_unruled_out_success,grasp_ok,sa_ok,joint_success,grasp_cost,sa_cost,cost_difference_grasp_minus_sa,log_cost_ratio_grasp_over_sa,grasp_time_first_complete_ms,sa_time_first_complete_ms,input_sha256
+READY05,BLOCKED,42,1500,TIME,0,1,1,,1,1,1,1104.0,1416.0,-312.0,-0.2488960474166244,123.670071,178.552068,7f1147224d99487efbd214271cf72a5224966051940305a1f6b07145317bc99c
+READY10,BLOCKED,42,1500,TIME,0,1,1,,1,1,1,2172.0,2268.0,-96.0,-0.04324998379381663,303.698155,260.522017,2d04d23cc8a5e411f4e66d355a56ff4977c5013260bd7d0b61ed3c3d0d11b524
+READY15,BLOCKED,42,1500,TIME,0,1,1,,1,1,1,3114.0,2658.0,456.0,0.1583341131207529,778.161405,545.919137,f581e9fb98415cf87985c31c8a6d2d6a9c72d16ac294ff7e7f8a0289a799e321
+READY20,BLOCKED,42,1500,TIME,0,1,1,,1,1,1,4416.0,3873.0,543.0,0.1312049084421791,876.905957,1232.631053,41e7872fcba8b763ba87abbe73bddf7fa2aa676632e1ca1c210a8ca763ea104b
+READYREAL,REAL,42,1500,TIME,3,0,0,,0,0,0,,,,,,,5b373d560213bafa15be63117da92e8d092d9ec9c89535e38627eaae13f63ac3

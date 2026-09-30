@@ -1,0 +1,3 @@
+Exception in thread "main" java.lang.IllegalArgumentException: Maintenance and automatic breakdowns are excluded from numerical experiments
+	at pe.edu.pucp.paqrap.experiment.ExperimentConfig.validate(ExperimentConfig.java:49)
+	at pe.edu.pucp.paqrap.experiment.ExperimentMain.main(ExperimentMain.java:22)

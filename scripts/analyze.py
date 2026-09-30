@@ -89,6 +89,15 @@ def analyze(folder: Path, infer: bool, wilcoxon: bool, plots: bool) -> dict[str,
     configs = {r["config_sha256"] for r in rows if r.get("config_sha256")}
     if len(configs) != 1:
         raise ValueError("Se detectaron configuraciones diferentes: no mezclar experimentos en un CSV")
+    versions = defaultdict(set)
+    for row in rows:
+        versions[row["algorithm"]].add(row.get("algorithm_version", ""))
+        if ok(row) and (row.get("route_constraints_valid") != "true" or row.get("mandatory_meals_valid") != "true"):
+            raise ValueError("Corrida completa sin validacion de rutas y descansos")
+        if not ok(row) and row.get("cost_complete_feasible", ""):
+            raise ValueError("Un plan incompleto no puede tener costo comparable")
+    if any(len(v) != 1 for v in versions.values()):
+        raise ValueError("Se detectaron versiones mezcladas del mismo algoritmo")
     pairs: dict[tuple[str, str, str, str], dict[str, dict[str, str]]] = defaultdict(dict)
     for r in rows:
         key = (r["instance_id"], r["search_seed"], r["budget_ms"], r["mode"])
@@ -114,7 +123,7 @@ def analyze(folder: Path, infer: bool, wilcoxon: bool, plots: bool) -> dict[str,
                   "orders_provably_unservable": g.get("orders_provably_unservable", ""),
                   "grasp_unruled_out_ok": int(ok_unruled_out(g)), "sa_unruled_out_ok": int(ok_unruled_out(s)),
                   # Descriptiva condicional: ambos cubren todo pedido no descartado por la cota optimista.
-                  "log_cost_ratio_on_joint_unruled_out_success": math.log(rg / rs) if both_unruled_out and rg and rs and rg > 0 and rs > 0 else None,
+                  "log_cost_ratio_on_joint_unruled_out_success": None,  # no costo comparativo para planes incompletos
                   "grasp_ok": int(ok(g)), "sa_ok": int(ok(s)), "joint_success": int(both),
                   "grasp_cost": cg, "sa_cost": cs,
                   "cost_difference_grasp_minus_sa": cg-cs if both and cg is not None and cs is not None else None,

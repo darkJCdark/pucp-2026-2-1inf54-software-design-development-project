@@ -25,6 +25,19 @@ public final class OperationalPlanEvaluator {
     private OperationalSnapshot cachedSnapshot;
     private List<RoadBlock> cachedBlocks;
     private final Map<DeliveryRoute, ScheduledDeliveryRoute> timedRoutes = new java.util.IdentityHashMap<>();
+    /** Identical idle vehicles of one type have the same timing problem. Reuse only that
+     * immutable timetable, NEVER their capacity/inventory/availability validation results.
+     * The entire cache is invalidated when snapshot or block definitions change. */
+    private final Map<TimingKey, ScheduledDeliveryRoute> equivalentTimings = new LinkedHashMap<>(256,.75f,true) {
+        @Override protected boolean removeEldestEntry(Map.Entry<TimingKey,ScheduledDeliveryRoute> eldest) { return size()>2048; }
+    };
+    private record TimingKey(pe.edu.pucp.paqrap.planner.domain.Location start, Warehouse initialWarehouse,
+                             int initialLoad, Instant departure,
+                             pe.edu.pucp.paqrap.planner.domain.VehicleType type, List<RouteStop> stops) {
+        static TimingKey of(DeliveryRoute r) {
+            return new TimingKey(r.startLocation(),r.initialWarehouse().orElse(null),r.initialLoad(),r.departureAt(),r.vehicle().type(),r.stops());
+        }
+    }
 
     public OperationalPlanEvaluator(RouteScheduler scheduler) {
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler is required");
@@ -38,7 +51,7 @@ public final class OperationalPlanEvaluator {
         Objects.requireNonNull(requiredOrders, "requiredOrders are required");
         Objects.requireNonNull(blocks, "blocks are required");
         if (snapshot != cachedSnapshot || !blocks.equals(cachedBlocks)) {
-            timedRoutes.clear(); cachedSnapshot = snapshot; cachedBlocks = List.copyOf(blocks);
+            timedRoutes.clear(); equivalentTimings.clear(); cachedSnapshot = snapshot; cachedBlocks = List.copyOf(blocks);
         }
         Map<String, Order> ordersById = indexOrders(requiredOrders);
         List<PlanViolation> violations = new ArrayList<>();
@@ -61,13 +74,23 @@ public final class OperationalPlanEvaluator {
             try {
                 ScheduledDeliveryRoute schedule = timedRoutes.get(route);
                 if (schedule == null) {
-                    schedule = scheduler.schedule(route, snapshot, blocks);
+                    TimingKey key=TimingKey.of(route);
+                    ScheduledDeliveryRoute equivalent=equivalentTimings.get(key);
+                    if(equivalent==null) {
+                        schedule=scheduler.schedule(route,snapshot,blocks);
+                        equivalentTimings.put(key,schedule);
+                    } else {
+                        schedule=new ScheduledDeliveryRoute(route,equivalent.scheduledStops(),equivalent.completedAt(),
+                                equivalent.totalDistanceKm(),equivalent.totalCost(),equivalent.mealBreaks());
+                    }
                     if (timedRoutes.size() >= 2048) timedRoutes.clear();
                     timedRoutes.put(route, schedule);
                 }
                 schedules.put(route.id(), schedule);
                 totalCost += schedule.totalCost();
                 validateSchedule(route, schedule, snapshot, ordersById, deliveredByOrderId, inventoryEvents, violations);
+            } catch (MealSchedulingException exception) {
+                violations.add(violation(PlanViolationType.MANDATORY_MEAL_VIOLATION, route, exception.getMessage()));
             } catch (IllegalStateException exception) {
                 violations.add(violation(PlanViolationType.NO_ROAD_PATH, route, exception.getMessage()));
             }

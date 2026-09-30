@@ -1,0 +1,27 @@
+[
+  {
+    "campaign": "smoke",
+    "exit_code": 0,
+    "wall_seconds": 31.519971825000084
+  },
+  {
+    "campaign": "readiness",
+    "exit_code": 0,
+    "wall_seconds": 20.37682301100017
+  },
+  {
+    "campaign": "deterministic-a",
+    "exit_code": 0,
+    "wall_seconds": 3.0536347750000914
+  },
+  {
+    "campaign": "deterministic-b",
+    "exit_code": 0,
+    "wall_seconds": 2.8516096099999686
+  },
+  {
+    "campaign": "mini-pilot",
+    "exit_code": 0,
+    "wall_seconds": 56.368124889
+  }
+]

@@ -1,0 +1,37 @@
+{
+  "checked_plans": 4,
+  "invalid_or_failed_runs_retained": [],
+  "route_meals_checked": 13,
+  "result": "PASS",
+  "checks": [
+    {
+      "run_id": "SMOKE01-r1-b1500-GRASP",
+      "routes": 2,
+      "route_meals": 2,
+      "complete": true,
+      "distance_km": 118
+    },
+    {
+      "run_id": "SMOKE01-r1-b1500-SA",
+      "routes": 2,
+      "route_meals": 2,
+      "complete": true,
+      "distance_km": 118
+    },
+    {
+      "run_id": "SMOKE02-r1-b1500-SA",
+      "routes": 1,
+      "route_meals": 4,
+      "complete": true,
+      "distance_km": 202
+    },
+    {
+      "run_id": "SMOKE02-r1-b1500-GRASP",
+      "routes": 3,
+      "route_meals": 5,
+      "complete": true,
+      "distance_km": 202
+    }
+  ],
+  "scope": "Verificación independiente de exportaciones, no prueba de optimalidad."
+}
