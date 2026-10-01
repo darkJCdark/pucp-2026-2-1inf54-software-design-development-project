@@ -1,0 +1,13 @@
+{
+  "created_utc": "2026-10-01T00:59:09.422287+00:00",
+  "reason": "Ambos algoritmos alcanzaron 100% de soluciones completas y cobertura. Entre 10 y 20 segundos GRASP mejoró aproximadamente 0.90% en costo y SA 3.74%, por lo que se seleccionó el mayor presupuesto evaluado.",
+  "budget_ms": 20000,
+  "pilot_folder": "results\\pilot-01",
+  "pilot_runs_sha256": "beb9b4ed178165691c629ec635ec11a52c294629ca59e6da32018aa136cccec7",
+  "pilot_metadata_sha256": "95b3db80cbb2e616cdba2447439ab5b177ff8b028c013379747c6ccafe96323f",
+  "jar_sha256": "8df53b32c9606470925c3a9d3428a716cc61c02007ae16ae399dfac1794cc2e8",
+  "formal_config_sha256": "149832bd89e4e6216308a0c98e8afa18fddd5c0d765f3262bed7ed0a2e738fef",
+  "formal_instances_sha256": "17a3f3906dac0ea08858b0033225fef757110581697784ed6537579a25b84fe6",
+  "formal_runs": 400,
+  "note": "Congelación de configuración; NO significa que la campaña formal se haya ejecutado ni demuestra superioridad."
+}
