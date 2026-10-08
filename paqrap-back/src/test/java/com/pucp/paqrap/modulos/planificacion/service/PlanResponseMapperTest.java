@@ -88,7 +88,7 @@ class PlanResponseMapperTest {
         ResultadoPlanificacion resultado =
                 new ResultadoPlanificacion(OperationalPlan.empty().withRoute(e.ruta()), ev, List.of(sinAtender));
 
-        PlanResponse respuesta = mapper.aResponse(ModoOperacion.COLAPSO, HORA, resultado, 123L, 45L);
+        PlanResponse respuesta = mapper.aResponse(ModoOperacion.COLAPSO, HORA, resultado, 123L, 45L, 1_500L);
 
         assertEquals(ModoOperacion.COLAPSO, respuesta.modo());
         assertEquals(HORA, respuesta.planificadoEn());
@@ -97,6 +97,8 @@ class PlanResponseMapperTest {
         assertEquals(resultado.costoTotal(), respuesta.costoTotal());
         assertEquals(123L, respuesta.semilla());
         assertEquals(45L, respuesta.duracionMs());
+        assertEquals(1_500L, respuesta.presupuestoMs());
+        assertFalse(respuesta.presupuestoAgotado());
         assertTrue(respuesta.colapso());
         assertTrue(respuesta.factible());
     }
@@ -107,7 +109,7 @@ class PlanResponseMapperTest {
         ResultadoPlanificacion resultado = new ResultadoPlanificacion(OperationalPlan.empty().withRoute(e.ruta()),
                 evaluacion(Map.of(e.ruta().id(), e.programada()), List.of(), 64.0), List.of());
 
-        RutaResponse ruta = mapper.aResponse(ModoOperacion.DIA_A_DIA, HORA, resultado, 1L, 0L).rutas().getFirst();
+        RutaResponse ruta = mapper.aResponse(ModoOperacion.DIA_A_DIA, HORA, resultado, 1L, 0L, 1_500L).rutas().getFirst();
 
         assertEquals(e.ruta().id(), ruta.id());
         assertEquals(e.ruta().vehicle().id(), ruta.vehiculoId());
@@ -124,7 +126,7 @@ class PlanResponseMapperTest {
         ResultadoPlanificacion resultado = new ResultadoPlanificacion(OperationalPlan.empty().withRoute(e.ruta()),
                 evaluacion(Map.of(e.ruta().id(), e.programada()), List.of(), 64.0), List.of());
 
-        ParadaResponse parada = mapper.aResponse(ModoOperacion.DIA_A_DIA, HORA, resultado, 1L, 0L)
+        ParadaResponse parada = mapper.aResponse(ModoOperacion.DIA_A_DIA, HORA, resultado, 1L, 0L, 1_500L)
                 .rutas().getFirst().paradas().get(0);
 
         assertEquals(1, parada.orden());
@@ -146,7 +148,7 @@ class PlanResponseMapperTest {
         ResultadoPlanificacion resultado = new ResultadoPlanificacion(OperationalPlan.empty().withRoute(e.ruta()),
                 evaluacion(Map.of(e.ruta().id(), e.programada()), List.of(), 64.0), List.of());
 
-        ParadaResponse parada = mapper.aResponse(ModoOperacion.DIA_A_DIA, HORA, resultado, 1L, 0L)
+        ParadaResponse parada = mapper.aResponse(ModoOperacion.DIA_A_DIA, HORA, resultado, 1L, 0L, 1_500L)
                 .rutas().getFirst().paradas().get(1);
 
         assertEquals(2, parada.orden());
@@ -178,7 +180,7 @@ class PlanResponseMapperTest {
         ResultadoPlanificacion resultado =
                 new ResultadoPlanificacion(plan, evaluacion(programadas, List.of(), 79.0), List.of());
 
-        PlanResponse respuesta = mapper.aResponse(ModoOperacion.DIA_A_DIA, HORA, resultado, 1L, 0L);
+        PlanResponse respuesta = mapper.aResponse(ModoOperacion.DIA_A_DIA, HORA, resultado, 1L, 0L, 1_500L);
 
         assertEquals(List.of("TA01", "TB01"), respuesta.rutas().stream().map(RutaResponse::vehiculoId).toList());
         assertEquals(ta.programada().totalDistanceKm() + schedTb.totalDistanceKm(), respuesta.distanciaTotalKm());
@@ -193,7 +195,7 @@ class PlanResponseMapperTest {
         ResultadoPlanificacion resultado = new ResultadoPlanificacion(OperationalPlan.empty().withRoute(e.ruta()),
                 evaluacion(Map.of(e.ruta().id(), e.programada()), violaciones, 64.0), List.of());
 
-        PlanResponse respuesta = mapper.aResponse(ModoOperacion.DIA_A_DIA, HORA, resultado, 1L, 0L);
+        PlanResponse respuesta = mapper.aResponse(ModoOperacion.DIA_A_DIA, HORA, resultado, 1L, 0L, 1_500L);
 
         assertFalse(respuesta.factible());
         assertEquals(List.of(
@@ -208,7 +210,7 @@ class PlanResponseMapperTest {
         ResultadoPlanificacion resultado = new ResultadoPlanificacion(OperationalPlan.empty(),
                 evaluacion(Map.of(), List.of(), 0.0), List.of(a, b));
 
-        PlanResponse respuesta = mapper.aResponse(ModoOperacion.DIA_A_DIA, HORA, resultado, 1L, 0L);
+        PlanResponse respuesta = mapper.aResponse(ModoOperacion.DIA_A_DIA, HORA, resultado, 1L, 0L, 1_500L);
 
         assertTrue(respuesta.colapso());
         assertEquals(List.of(
@@ -223,7 +225,7 @@ class PlanResponseMapperTest {
                 evaluacion(Map.of(), List.of(new PlanViolation(PlanViolationType.NO_ROAD_PATH, "R-TA01", "sin camino")), 0.0),
                 List.of());
 
-        PlanResponse respuesta = mapper.aResponse(ModoOperacion.DIA_A_DIA, HORA, resultado, 1L, 0L);
+        PlanResponse respuesta = mapper.aResponse(ModoOperacion.DIA_A_DIA, HORA, resultado, 1L, 0L, 1_500L);
         RutaResponse ruta = respuesta.rutas().getFirst();
 
         assertNull(ruta.llegadaFinal());
@@ -246,7 +248,7 @@ class PlanResponseMapperTest {
         ResultadoPlanificacion resultado =
                 new ResultadoPlanificacion(OperationalPlan.empty(), evaluacion(Map.of(), List.of(), 0.0), List.of());
 
-        PlanResponse respuesta = mapper.aResponse(ModoOperacion.SIMULACION_5D, HORA, resultado, 5L, 1L);
+        PlanResponse respuesta = mapper.aResponse(ModoOperacion.SIMULACION_5D, HORA, resultado, 5L, 1L, 1_500L);
 
         assertTrue(respuesta.rutas().isEmpty());
         assertTrue(respuesta.violaciones().isEmpty());
@@ -254,5 +256,15 @@ class PlanResponseMapperTest {
         assertEquals(0.0, respuesta.distanciaTotalKm());
         assertTrue(respuesta.factible());
         assertFalse(respuesta.colapso());
+    }
+
+    @Test
+    void marcaElPresupuestoComoAgotadoSoloCuandoLaDuracionLlegaAlTope() {
+        ResultadoPlanificacion resultado =
+                new ResultadoPlanificacion(OperationalPlan.empty(), evaluacion(Map.of(), List.of(), 0.0), List.of());
+
+        assertFalse(mapper.aResponse(ModoOperacion.DIA_A_DIA, HORA, resultado, 1L, 1_499L, 1_500L).presupuestoAgotado());
+        assertTrue(mapper.aResponse(ModoOperacion.DIA_A_DIA, HORA, resultado, 1L, 1_500L, 1_500L).presupuestoAgotado());
+        assertTrue(mapper.aResponse(ModoOperacion.DIA_A_DIA, HORA, resultado, 1L, 2_000L, 1_500L).presupuestoAgotado());
     }
 }

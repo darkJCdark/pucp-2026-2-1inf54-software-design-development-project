@@ -62,6 +62,9 @@ class PlanificadorSaServiceTest {
     /** Configuración ligera para que las pruebas sean rápidas; la de producción está en PlanificadorSaService. */
     private static final AnnealingConfig CONFIG_PRUEBA = new AnnealingConfig(100.0, 1.0, 0.90, 5, 30, 30);
 
+    /** Tope holgado para que las comparaciones con el SA original no dependan de la velocidad de la máquina. */
+    private static final Long PRESUPUESTO_AMPLIO = 600_000L;
+
     private final PlanificadorService servicio =
             new PlanificadorSaService(new FuenteDatosOperativosMock(), CONFIG_PRUEBA);
 
@@ -159,7 +162,7 @@ class PlanificadorSaServiceTest {
     @Test
     void planificaTodosLosPedidosConDatosMock() {
         PlanResponse plan = servicio.planificar(
-                new SolicitudPlanificacion(ModoOperacion.DIA_A_DIA, HORA, pedidos(), List.of(), 7L));
+                new SolicitudPlanificacion(ModoOperacion.DIA_A_DIA, HORA, pedidos(), List.of(), 7L, PRESUPUESTO_AMPLIO));
 
         assertEquals(ModoOperacion.DIA_A_DIA, plan.modo());
         assertEquals(HORA, plan.planificadoEn());
@@ -187,7 +190,7 @@ class PlanificadorSaServiceTest {
     @Test
     void mismaSemillaProduceElMismoPlan() {
         SolicitudPlanificacion solicitud =
-                new SolicitudPlanificacion(ModoOperacion.SIMULACION_5D, HORA, pedidos(), List.of(), 42L);
+                new SolicitudPlanificacion(ModoOperacion.SIMULACION_5D, HORA, pedidos(), List.of(), 42L, PRESUPUESTO_AMPLIO);
 
         PlanResponse primero = servicio.planificar(solicitud);
         PlanResponse segundo = servicio.planificar(solicitud);
@@ -204,7 +207,7 @@ class PlanificadorSaServiceTest {
         assertTrue(plan.factible());
 
         PlanResponse repetido = servicio.planificar(
-                new SolicitudPlanificacion(ModoOperacion.COLAPSO, HORA, pedidos(), List.of(), plan.semilla()));
+                new SolicitudPlanificacion(ModoOperacion.COLAPSO, HORA, pedidos(), List.of(), plan.semilla(), PRESUPUESTO_AMPLIO));
         assertEquals(plan.rutas(), repetido.rutas());
     }
 
@@ -235,7 +238,7 @@ class PlanificadorSaServiceTest {
         ResultadoPlanificacion esperado = directo(pedidos(), List.of(), 7L, List.of());
 
         PlanResponse real = servicio.planificar(
-                new SolicitudPlanificacion(ModoOperacion.DIA_A_DIA, HORA, pedidos(), List.of(), 7L));
+                new SolicitudPlanificacion(ModoOperacion.DIA_A_DIA, HORA, pedidos(), List.of(), 7L, PRESUPUESTO_AMPLIO));
 
         assertEquivalente(esperado, real);
     }
@@ -250,7 +253,7 @@ class PlanificadorSaServiceTest {
 
         ResultadoPlanificacion esperado = directo(muchos, List.of(), 2026L, List.of());
         PlanResponse real = servicio.planificar(
-                new SolicitudPlanificacion(ModoOperacion.SIMULACION_5D, HORA, muchos, List.of(), 2026L));
+                new SolicitudPlanificacion(ModoOperacion.SIMULACION_5D, HORA, muchos, List.of(), 2026L, PRESUPUESTO_AMPLIO));
 
         assertEquivalente(esperado, real);
     }
@@ -262,7 +265,7 @@ class PlanificadorSaServiceTest {
         ResultadoPlanificacion conBloqueo = directo(pedidos(), bloqueos, 7L, List.of());
 
         PlanResponse real = servicio.planificar(
-                new SolicitudPlanificacion(ModoOperacion.DIA_A_DIA, HORA, pedidos(), bloqueos, 7L));
+                new SolicitudPlanificacion(ModoOperacion.DIA_A_DIA, HORA, pedidos(), bloqueos, 7L, PRESUPUESTO_AMPLIO));
 
         assertEquivalente(conBloqueo, real);
         assertTrue(conBloqueo.costoTotal() != sinBloqueo.costoTotal(),
@@ -283,7 +286,7 @@ class PlanificadorSaServiceTest {
 
         ResultadoPlanificacion esperado = directo(pedidos(), List.of(), 7L, List.of(averia));
         PlanResponse real = conAveriaServicio.planificar(
-                new SolicitudPlanificacion(ModoOperacion.DIA_A_DIA, HORA, pedidos(), List.of(), 7L));
+                new SolicitudPlanificacion(ModoOperacion.DIA_A_DIA, HORA, pedidos(), List.of(), 7L, PRESUPUESTO_AMPLIO));
 
         assertEquivalente(esperado, real);
         assertTrue(real.rutas().stream().noneMatch(r -> r.vehiculoId().equals("TA01")));
@@ -306,7 +309,7 @@ class PlanificadorSaServiceTest {
 
         ResultadoPlanificacion esperado = directo(imposible, List.of(), 7L, List.of());
         PlanResponse real = servicio.planificar(
-                new SolicitudPlanificacion(ModoOperacion.COLAPSO, HORA, imposible, List.of(), 7L));
+                new SolicitudPlanificacion(ModoOperacion.COLAPSO, HORA, imposible, List.of(), 7L, PRESUPUESTO_AMPLIO));
 
         assertEquivalente(esperado, real);
         assertTrue(real.colapso());
@@ -326,7 +329,7 @@ class PlanificadorSaServiceTest {
 
         espia.planificar(ModoOperacion.SIMULACION_5D, HORA, pedidos(), bloqueos);
 
-        assertEquals(new SolicitudPlanificacion(ModoOperacion.SIMULACION_5D, HORA, pedidos(), bloqueos, null),
+        assertEquals(new SolicitudPlanificacion(ModoOperacion.SIMULACION_5D, HORA, pedidos(), bloqueos, null, null),
                 recibida.get());
     }
 
@@ -350,17 +353,18 @@ class PlanificadorSaServiceTest {
         assertThrows(NullPointerException.class, () -> new PlanificadorSaService(new FuenteDatosOperativosMock(), null));
     }
 
-    /** Los parámetros por defecto los propuse yo; esta prueba solo exige que sean válidos y estén fijos. */
+    /** Valores de config/formal-aprobado.properties (rama feature/expnumerica) y tope de smoke/readiness. */
     @Test
     void laConfiguracionPorDefectoEsValidaYEstable() {
         AnnealingConfig config = PlanificadorSaService.CONFIG_POR_DEFECTO;
 
         assertEquals(1000.0, config.initialTemperature());
-        assertEquals(0.1, config.minimumTemperature());
+        assertEquals(1.0, config.minimumTemperature());
         assertEquals(0.95, config.coolingFactor());
         assertEquals(50, config.iterationsPerTemperature());
-        assertEquals(5000, config.maximumIterations());
-        assertEquals(500, config.maximumIterationsWithoutImprovement());
+        assertEquals(1_000_000, config.maximumIterations());
+        assertEquals(1_000_000, config.maximumIterationsWithoutImprovement());
+        assertEquals(1_500L, PlanificadorSaService.PRESUPUESTO_POR_DEFECTO_MS);
         assertTrue(config.minimumTemperature() < config.initialTemperature());
     }
 
@@ -371,5 +375,47 @@ class PlanificadorSaServiceTest {
         PlanResponse plan = conDefecto.planificar(ModoOperacion.DIA_A_DIA, HORA, List.of(), List.of());
 
         assertTrue(plan.rutas().isEmpty());
+    }
+
+    // ---------------------------------------------------------------- presupuesto de tiempo
+
+    @Test
+    void sinPresupuestoEnLaSolicitudSeAplicaElPorDefecto() {
+        PlanResponse plan = servicio.planificar(ModoOperacion.DIA_A_DIA, HORA, pedidos(), List.of());
+
+        assertEquals(PlanificadorSaService.PRESUPUESTO_POR_DEFECTO_MS, plan.presupuestoMs());
+    }
+
+    @Test
+    void elPresupuestoDeLaSolicitudSeDevuelveYNoSeMarcaAgotadoSiSobraTiempo() {
+        PlanResponse plan = servicio.planificar(
+                new SolicitudPlanificacion(ModoOperacion.DIA_A_DIA, HORA, pedidos(), List.of(), 7L, PRESUPUESTO_AMPLIO));
+
+        assertEquals(PRESUPUESTO_AMPLIO.longValue(), plan.presupuestoMs());
+        assertFalse(plan.presupuestoAgotado());
+        assertTrue(plan.duracionMs() < plan.presupuestoMs());
+    }
+
+    /**
+     * Con los parámetros del experimento el SA original tarda varios segundos aun con pocos pedidos
+     * (6 750 iteraciones hasta llegar a Tmin). Con un tope de 300 ms el ciclo debe cortarse mucho antes
+     * y devolver un plan factible.
+     */
+    @Test
+    void conLaConfiguracionDelExperimentoElTopeCortaElCiclo() {
+        PlanificadorService conExperimento = new PlanificadorSaService(new FuenteDatosOperativosMock());
+        List<Order> muchos = new ArrayList<>(pedidos());
+        Instant plazo = HORA.plusSeconds(10 * 3600);
+        muchos.add(new Order("P04", new Location(35, 20), 6, HORA, plazo));
+        muchos.add(new Order("P05", new Location(22, 10), 10, HORA, plazo));
+        muchos.add(new Order("P06", new Location(30, 9), 2, HORA, plazo));
+
+        PlanResponse plan = conExperimento.planificar(
+                new SolicitudPlanificacion(ModoOperacion.SIMULACION_5D, HORA, muchos, List.of(), 42L, 300L));
+
+        assertTrue(plan.presupuestoAgotado());
+        assertTrue(plan.duracionMs() < 3_000, "duración: " + plan.duracionMs() + " ms");
+        assertTrue(plan.factible(), "violaciones: " + plan.violaciones());
+        assertTrue(plan.noAtendidos().isEmpty());
     }
 }

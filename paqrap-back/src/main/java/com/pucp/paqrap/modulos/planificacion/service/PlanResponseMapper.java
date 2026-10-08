@@ -26,7 +26,7 @@ import java.util.List;
 final class PlanResponseMapper {
 
     PlanResponse aResponse(ModoOperacion modo, Instant planificadoEn, ResultadoPlanificacion resultado,
-                           long semilla, long duracionMs) {
+                           long semilla, long duracionMs, long presupuestoMs) {
         PlanEvaluation evaluacion = resultado.evaluacion();
         List<DeliveryRoute> rutasOrdenadas = resultado.plan().routes().stream()
                 .sorted(Comparator.comparing(ruta -> ruta.vehicle().id()))
@@ -50,7 +50,8 @@ final class PlanResponseMapper {
                 .toList();
 
         return new PlanResponse(modo, planificadoEn, resultado.esFactible(), resultado.esColapso(),
-                resultado.costoTotal(), distanciaTotal, semilla, duracionMs, rutas, violaciones, noAtendidos);
+                resultado.costoTotal(), distanciaTotal, semilla, duracionMs, presupuestoMs, duracionMs >= presupuestoMs,
+                rutas, violaciones, noAtendidos);
     }
 
     private RutaResponse aRuta(DeliveryRoute ruta, ScheduledDeliveryRoute programada) {

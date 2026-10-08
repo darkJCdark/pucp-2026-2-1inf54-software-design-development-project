@@ -14,9 +14,9 @@ public interface PlanificadorService {
 
     PlanResponse planificar(SolicitudPlanificacion solicitud);
 
-    /** Atajo con semilla generada por el servicio. */
+    /** Atajo con semilla generada por el servicio y el presupuesto de tiempo por defecto. */
     default PlanResponse planificar(ModoOperacion modo, Instant ahora,
                                     List<Order> pedidosPendientes, List<RoadBlock> bloqueosActivos) {
-        return planificar(new SolicitudPlanificacion(modo, ahora, pedidosPendientes, bloqueosActivos, null));
+        return planificar(new SolicitudPlanificacion(modo, ahora, pedidosPendientes, bloqueosActivos, null, null));
     }
 }

@@ -12,6 +12,8 @@ import java.util.List;
  * @param distanciaTotalKm suma de la distancia de todas las rutas
  * @param semilla         semilla usada (permite repetir la ejecución)
  * @param duracionMs      tiempo de cómputo del planificador
+ * @param presupuestoMs   tope de tiempo aplicado al ciclo
+ * @param presupuestoAgotado true si el cómputo llegó al tope (la búsqueda se cortó o la construcción inicial lo excedió)
  */
 public record PlanResponse(
         ModoOperacion modo,
@@ -22,6 +24,8 @@ public record PlanResponse(
         double distanciaTotalKm,
         long semilla,
         long duracionMs,
+        long presupuestoMs,
+        boolean presupuestoAgotado,
         List<RutaResponse> rutas,
         List<ViolacionResponse> violaciones,
         List<NoAtendidoResponse> noAtendidos

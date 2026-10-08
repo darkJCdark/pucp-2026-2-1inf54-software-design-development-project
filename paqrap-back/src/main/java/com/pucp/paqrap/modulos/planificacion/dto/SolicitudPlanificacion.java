@@ -1,6 +1,7 @@
 package com.pucp.paqrap.modulos.planificacion.dto;
 
 import com.pucp.paqrap.modulos.pedidos.entity.Order;
+import com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.OperationalSimulatedAnnealingPlanner;
 import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 
 import java.time.Instant;
@@ -16,18 +17,25 @@ import java.util.Objects;
  * @param pedidosPendientes  pedidos que deben planificarse
  * @param bloqueosActivos    bloqueos viales a considerar
  * @param semilla            semilla del SA; si es null el servicio genera una y la devuelve
+ * @param presupuestoMs      tope de tiempo del ciclo en milisegundos; si es null se usa el del servicio
  */
 public record SolicitudPlanificacion(
         ModoOperacion modo,
         Instant horaPlanificacion,
         List<Order> pedidosPendientes,
         List<RoadBlock> bloqueosActivos,
-        Long semilla
+        Long semilla,
+        Long presupuestoMs
 ) {
     public SolicitudPlanificacion {
         Objects.requireNonNull(modo, "modo es requerido");
         Objects.requireNonNull(horaPlanificacion, "horaPlanificacion es requerida");
         pedidosPendientes = pedidosPendientes == null ? List.of() : List.copyOf(pedidosPendientes);
         bloqueosActivos = bloqueosActivos == null ? List.of() : List.copyOf(bloqueosActivos);
+        if (presupuestoMs != null
+                && (presupuestoMs <= 0 || presupuestoMs > OperationalSimulatedAnnealingPlanner.PRESUPUESTO_MAXIMO_MS)) {
+            throw new IllegalArgumentException("presupuestoMs debe estar entre 1 y "
+                    + OperationalSimulatedAnnealingPlanner.PRESUPUESTO_MAXIMO_MS);
+        }
     }
 }

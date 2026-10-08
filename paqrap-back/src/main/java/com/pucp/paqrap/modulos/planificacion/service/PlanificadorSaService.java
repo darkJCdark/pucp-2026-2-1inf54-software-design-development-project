@@ -32,8 +32,14 @@ import java.util.concurrent.ThreadLocalRandom;
 @Service
 public class PlanificadorSaService implements PlanificadorService {
 
-    /** Parámetros por defecto del servicio. Son valores propuestos, no los de la experimentación. */
-    static final AnnealingConfig CONFIG_POR_DEFECTO = new AnnealingConfig(1000.0, 0.1, 0.95, 50, 5000, 500);
+    /** Parámetros del SA de la experimentación numérica (config/formal-aprobado.properties, rama feature/expnumerica). */
+    static final AnnealingConfig CONFIG_POR_DEFECTO = new AnnealingConfig(1000.0, 1.0, 0.95, 50, 1_000_000, 1_000_000);
+
+    /**
+     * Tope por ciclo cuando la solicitud no trae uno: el presupuesto de las corridas smoke/readiness del
+     * experimento. El valor definitivo para la Simulación 5D lo envía quien controla el reloj.
+     */
+    static final long PRESUPUESTO_POR_DEFECTO_MS = 1_500L;
 
     private final FuenteDatosOperativos fuente;
     private final AnnealingConfig config;
@@ -57,13 +63,15 @@ public class PlanificadorSaService implements PlanificadorService {
         Objects.requireNonNull(solicitud, "solicitud es requerida");
         OperationalSnapshot snapshot = construirSnapshot(solicitud.horaPlanificacion());
         long semilla = solicitud.semilla() != null ? solicitud.semilla() : ThreadLocalRandom.current().nextLong();
+        long presupuestoMs = solicitud.presupuestoMs() != null ? solicitud.presupuestoMs() : PRESUPUESTO_POR_DEFECTO_MS;
 
         long inicio = System.nanoTime();
         ResultadoPlanificacion resultado = planificador.planificar(snapshot, solicitud.pedidosPendientes(),
-                solicitud.bloqueosActivos(), config, new Random(semilla));
+                solicitud.bloqueosActivos(), config, new Random(semilla), presupuestoMs);
         long duracionMs = (System.nanoTime() - inicio) / 1_000_000;
 
-        return mapper.aResponse(solicitud.modo(), solicitud.horaPlanificacion(), resultado, semilla, duracionMs);
+        return mapper.aResponse(solicitud.modo(), solicitud.horaPlanificacion(), resultado, semilla, duracionMs,
+                presupuestoMs);
     }
 
     /** Todos los vehículos parten disponibles desde el almacén central a la hora de planificación. */
