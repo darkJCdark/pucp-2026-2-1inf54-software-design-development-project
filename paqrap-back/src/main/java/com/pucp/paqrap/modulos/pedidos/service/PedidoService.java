@@ -125,6 +125,17 @@ public class PedidoService {
         return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(orden));
     }
 
+    /** Situación de los pedidos de una simulación iniciada en {@code desde}, vista en {@code instante}. */
+    public record ResumenPedidos(long llegados, long pendientes, long vencidosSinEntregar) {
+    }
+
+    public ResumenPedidos resumen(Instant desde, Instant instante) {
+        return new ResumenPedidos(
+                pedidoRepository.countByRegisteredAtGreaterThanEqualAndRegisteredAtLessThanEqual(desde, instante),
+                pedidoRepository.contarPendientesEn(instante),
+                pedidoRepository.contarVencidosSinEntregar(desde, instante));
+    }
+
     public PedidoDetalleResponse obtener(String id) {
         OrderEntity pedido = pedidoRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Pedido", id));
