@@ -537,6 +537,36 @@
           }
         },
         {
+          "name": "Monitorear escenario",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 con pedidos, flota y almacenes', () => {",
+            "  pm.response.to.have.status(200);",
+            "  const m = pm.response.json();",
+            "  pm.expect(m).to.have.property('pedidos');",
+            "  pm.expect(m.vehiculos).to.be.an('array');",
+            "  pm.expect(m.almacenes).to.be.an('array');",
+            "});"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/monitoreo/{{escenarioId}}",
+            "description": "Estado en el instante simulado: pedidos (llegados, pendientes, vencidos sin entregar), vehículos (posición, estado, avería en curso), stock de almacenes, bloqueos vigentes y averías activas. Envíala varias veces mientras corre el escenario."
+          }
+        },
+        {
+          "name": "Registrar avería en el escenario (replanifica)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"vehiculoId\": \"TM05\",\n  \"tipo\": \"INTERMEDIATE\",\n  \"ocurridaEn\": \"2026-01-01T06:00:00Z\",\n  \"ejecucionId\": {{escenarioId}}\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/incidencias/averias",
+            "description": "Con ejecucionId de un escenario activo, el motor pide una replanificación (INCIDENCIA) en el siguiente segundo. Usa como ocurridaEn un instante cercano al instanteSimulado del escenario."
+          }
+        },
+        {
           "name": "Pausar escenario",
           "event": [{ "listen": "test", "script": { "exec": [
             "pm.test('PAUSED', () => pm.expect(pm.response.json().estado).to.eql('PAUSED'));"
