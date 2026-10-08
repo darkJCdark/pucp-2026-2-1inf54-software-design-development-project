@@ -16,6 +16,11 @@ spring:
       hibernate:
         jdbc:
           time_zone: UTC
+  servlet:
+    multipart:
+      # Los archivos mensuales del curso (ventas, bloqueos) pesan menos de 200 KB.
+      max-file-size: 5MB
+      max-request-size: 5MB
   jackson:
     time-zone: UTC
     serialization:
