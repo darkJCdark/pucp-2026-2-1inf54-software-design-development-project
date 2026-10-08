@@ -35,6 +35,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -141,6 +142,17 @@ public class ReplanificacionSaService implements ReplanificacionService {
     /** Solo para pruebas: rutas del plan vigente con sus snapshots de origen. */
     synchronized List<RutaVigente> rutasVigentes(long ejecucionId) {
         return List.copyOf(obtener(ejecucionId).rutas);
+    }
+
+    /** Copia de solo lectura del estado de una ejecución, usada por la auditoría del plan. */
+    record VistaEjecucion(Instant ultimaHora, Map<String, Order> pedidos, Map<String, Integer> entregados,
+                          List<RoadBlock> bloqueos, List<RutaVigente> rutas) {
+    }
+
+    synchronized VistaEjecucion vista(long ejecucionId) {
+        EstadoEjecucion estado = obtener(ejecucionId);
+        return new VistaEjecucion(estado.ultimaHora, Collections.unmodifiableMap(new LinkedHashMap<>(estado.pedidos)),
+                Map.copyOf(estado.entregados), List.copyOf(estado.bloqueos), List.copyOf(estado.rutas));
     }
 
     // ------------------------------------------------------------------ replanificación
