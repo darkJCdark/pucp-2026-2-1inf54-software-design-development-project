@@ -17,7 +17,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 
-/** Builds a deterministic, evaluator-validated seed without depending on GRASP. */
+/** Builds a deterministic, evaluator-validated seed plan for the annealing search. */
 final class InitialPlanBuilder {
     private final OperationalPlanEvaluator evaluator;
 
