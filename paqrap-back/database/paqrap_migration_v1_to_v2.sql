@@ -1,20 +1,33 @@
 -- ============================================================
 -- PaqRap
 -- Migración de Base de Datos V1 -> V2
--- MySQL
+-- Versión final
+--
+-- Producto operativo:
+--   - Simulated Annealing como único algoritmo de planificación.
+--   - La configuración interna de SA no se persiste en MySQL.
 -- ============================================================
 
 USE paqrap;
+
 
 -- ============================================================
 -- 1. EXTENSIÓN DE ORDERS
 -- ============================================================
 
 ALTER TABLE orders
-    ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'REGISTERED',
-    ADD COLUMN delivery_type VARCHAR(20) NOT NULL DEFAULT 'REGULAR',
-    ADD COLUMN promised_hours SMALLINT UNSIGNED NOT NULL DEFAULT 36,
-    ADD COLUMN delivered_at TIMESTAMP(6) NULL;
+    ADD COLUMN status VARCHAR(20)
+        NOT NULL DEFAULT 'REGISTERED',
+
+    ADD COLUMN delivery_type VARCHAR(20)
+        NOT NULL DEFAULT 'REGULAR',
+
+    ADD COLUMN promised_hours SMALLINT UNSIGNED
+        NOT NULL DEFAULT 36,
+
+    ADD COLUMN delivered_at TIMESTAMP(6)
+        NULL;
+
 
 ALTER TABLE orders
     ADD CONSTRAINT chk_orders_status
@@ -52,20 +65,90 @@ ALTER TABLE orders
         CHECK (
             delivered_at IS NULL
             OR delivered_at >= registered_at
+        ),
+
+    ADD CONSTRAINT chk_orders_deadline_consistency
+        CHECK (
+            deadline = TIMESTAMPADD(
+                HOUR,
+                promised_hours,
+                registered_at
+            )
         );
 
 
 -- ============================================================
--- 2. HISTORIAL DE ESTADOS DEL PEDIDO
+-- 2. ESTADO OPERATIVO DE VEHÍCULOS
+-- ============================================================
+
+ALTER TABLE vehicles
+    ADD COLUMN operational_status VARCHAR(20)
+        NOT NULL DEFAULT 'AVAILABLE'
+        AFTER vehicle_type,
+
+    ADD COLUMN current_x SMALLINT UNSIGNED
+        NOT NULL DEFAULT 27,
+
+    ADD COLUMN current_y SMALLINT UNSIGNED
+        NOT NULL DEFAULT 14,
+
+    ADD COLUMN current_load SMALLINT UNSIGNED
+        NOT NULL DEFAULT 0,
+
+    ADD COLUMN available_at TIMESTAMP(6)
+        NULL;
+
+
+-- Traslada el estado disponible de V1 al nuevo modelo.
+UPDATE vehicles
+SET operational_status =
+    CASE
+        WHEN available = TRUE THEN 'AVAILABLE'
+        ELSE 'UNAVAILABLE'
+    END;
+
+
+ALTER TABLE vehicles
+    DROP COLUMN available,
+
+    ADD CONSTRAINT chk_vehicles_operational_status
+        CHECK (
+            operational_status IN (
+                'AVAILABLE',
+                'IN_ROUTE',
+                'UNAVAILABLE'
+            )
+        ),
+
+    ADD CONSTRAINT chk_vehicles_current_x
+        CHECK (current_x BETWEEN 0 AND 70),
+
+    ADD CONSTRAINT chk_vehicles_current_y
+        CHECK (current_y BETWEEN 0 AND 50);
+
+
+-- ============================================================
+-- 3. HISTORIAL DE ESTADOS DEL PEDIDO
 -- ============================================================
 
 CREATE TABLE order_status_history (
-    status_history_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    order_id VARCHAR(64) NOT NULL,
-    status VARCHAR(20) NOT NULL,
-    changed_at TIMESTAMP(6) NOT NULL,
-    vehicle_id VARCHAR(8) NULL,
-    warehouse_id VARCHAR(32) NULL,
+    status_history_id BIGINT UNSIGNED
+        NOT NULL AUTO_INCREMENT,
+
+    order_id VARCHAR(64)
+        NOT NULL,
+
+    status VARCHAR(20)
+        NOT NULL,
+
+    changed_at TIMESTAMP(6)
+        NOT NULL,
+
+    vehicle_id VARCHAR(8)
+        NULL,
+
+    warehouse_id VARCHAR(32)
+        NULL,
 
     PRIMARY KEY (status_history_id),
 
@@ -106,22 +189,37 @@ CREATE TABLE order_status_history (
 
 
 -- ============================================================
--- 3. EJECUCIONES DE ESCENARIOS
+-- 4. EJECUCIONES DE ESCENARIOS
+--
+-- No se guarda algoritmo porque el producto utiliza únicamente SA.
+-- La semilla y los parámetros internos del algoritmo pertenecen
+-- a la configuración del backend.
 -- ============================================================
 
 CREATE TABLE scenario_executions (
-    execution_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    scenario_type VARCHAR(20) NOT NULL,
-    algorithm_mode VARCHAR(20) NOT NULL,
-    status VARCHAR(20) NOT NULL DEFAULT 'CREATED',
+    execution_id BIGINT UNSIGNED
+        NOT NULL AUTO_INCREMENT,
 
-    started_at TIMESTAMP(6) NULL,
-    finished_at TIMESTAMP(6) NULL,
+    scenario_type VARCHAR(20)
+        NOT NULL,
 
-    simulation_started_at TIMESTAMP(6) NOT NULL,
-    simulation_finished_at TIMESTAMP(6) NULL,
+    status VARCHAR(20)
+        NOT NULL DEFAULT 'CREATED',
 
-    collapse_at TIMESTAMP(6) NULL,
+    started_at TIMESTAMP(6)
+        NULL,
+
+    finished_at TIMESTAMP(6)
+        NULL,
+
+    simulation_started_at TIMESTAMP(6)
+        NOT NULL,
+
+    simulation_finished_at TIMESTAMP(6)
+        NULL,
+
+    collapse_at TIMESTAMP(6)
+        NULL,
 
     PRIMARY KEY (execution_id),
 
@@ -138,20 +236,13 @@ CREATE TABLE scenario_executions (
             )
         ),
 
-    CONSTRAINT chk_scenario_execution_algorithm
-        CHECK (
-            algorithm_mode IN (
-                'GRASP',
-                'SA',
-                'BOTH'
-            )
-        ),
-
     CONSTRAINT chk_scenario_execution_status
         CHECK (
             status IN (
                 'CREATED',
                 'RUNNING',
+                'PAUSED',
+                'STOPPED',
                 'COMPLETED',
                 'COLLAPSED',
                 'FAILED'
@@ -175,43 +266,73 @@ CREATE TABLE scenario_executions (
 
 
 -- ============================================================
--- 4. RESULTADOS DE EJECUCIONES
+-- 5. AVERÍAS ASOCIADAS A UNA EJECUCIÓN
+-- ============================================================
+
+ALTER TABLE breakdown_events
+    ADD COLUMN execution_id BIGINT UNSIGNED
+        NULL AFTER breakdown_id,
+
+    ADD KEY idx_breakdown_execution (execution_id),
+
+    ADD CONSTRAINT fk_breakdown_execution
+        FOREIGN KEY (execution_id)
+        REFERENCES scenario_executions (execution_id)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL;
+
+
+-- ============================================================
+-- 6. RESULTADOS DE EJECUCIÓN
+--
+-- Un resultado por ejecución.
+-- No existe columna algorithm porque el producto usa SA.
 -- ============================================================
 
 CREATE TABLE scenario_results (
-    execution_id BIGINT UNSIGNED NOT NULL,
-    algorithm VARCHAR(20) NOT NULL,
+    execution_id BIGINT UNSIGNED
+        NOT NULL,
 
-    total_orders INT UNSIGNED NOT NULL DEFAULT 0,
-    delivered_orders INT UNSIGNED NOT NULL DEFAULT 0,
-    on_time_orders INT UNSIGNED NOT NULL DEFAULT 0,
-    undelivered_orders INT UNSIGNED NOT NULL DEFAULT 0,
+    total_orders INT UNSIGNED
+        NOT NULL DEFAULT 0,
 
-    total_distance_km DECIMAL(14,2) NOT NULL DEFAULT 0,
-    total_cost DECIMAL(14,2) NOT NULL DEFAULT 0,
-    computation_time_ms BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    delivered_orders INT UNSIGNED
+        NOT NULL DEFAULT 0,
 
-    breakdown_count INT UNSIGNED NOT NULL DEFAULT 0,
-    road_block_count INT UNSIGNED NOT NULL DEFAULT 0,
-    replanning_count INT UNSIGNED NOT NULL DEFAULT 0,
+    on_time_orders INT UNSIGNED
+        NOT NULL DEFAULT 0,
 
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    undelivered_orders INT UNSIGNED
+        NOT NULL DEFAULT 0,
 
-    PRIMARY KEY (execution_id, algorithm),
+    total_distance_km DECIMAL(14,2)
+        NOT NULL DEFAULT 0,
+
+    total_cost DECIMAL(14,2)
+        NOT NULL DEFAULT 0,
+
+    computation_time_ms BIGINT UNSIGNED
+        NOT NULL DEFAULT 0,
+
+    breakdown_count INT UNSIGNED
+        NOT NULL DEFAULT 0,
+
+    road_block_count INT UNSIGNED
+        NOT NULL DEFAULT 0,
+
+    replanning_count INT UNSIGNED
+        NOT NULL DEFAULT 0,
+
+    created_at TIMESTAMP(6)
+        NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+
+    PRIMARY KEY (execution_id),
 
     CONSTRAINT fk_scenario_results_execution
         FOREIGN KEY (execution_id)
         REFERENCES scenario_executions (execution_id)
         ON UPDATE CASCADE
         ON DELETE CASCADE,
-
-    CONSTRAINT chk_scenario_results_algorithm
-        CHECK (
-            algorithm IN (
-                'GRASP',
-                'SA'
-            )
-        ),
 
     CONSTRAINT chk_scenario_results_orders
         CHECK (
@@ -231,22 +352,33 @@ CREATE TABLE scenario_results (
 
 
 -- ============================================================
--- 5. PLANES
+-- 7. PLANES
+--
+-- No se guarda algoritmo; todos los planes productivos
+-- corresponden a Simulated Annealing.
 -- ============================================================
 
 CREATE TABLE plans (
-    plan_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    execution_id BIGINT UNSIGNED NOT NULL,
+    plan_id BIGINT UNSIGNED
+        NOT NULL AUTO_INCREMENT,
 
-    algorithm VARCHAR(20) NOT NULL,
-    plan_type VARCHAR(20) NOT NULL,
+    execution_id BIGINT UNSIGNED
+        NOT NULL,
 
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    plan_type VARCHAR(20)
+        NOT NULL,
 
-    feasible BOOLEAN NOT NULL,
+    created_at TIMESTAMP(6)
+        NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
 
-    total_distance_km DECIMAL(14,2) NOT NULL DEFAULT 0,
-    total_cost DECIMAL(14,2) NOT NULL DEFAULT 0,
+    feasible BOOLEAN
+        NOT NULL,
+
+    total_distance_km DECIMAL(14,2)
+        NOT NULL DEFAULT 0,
+
+    total_cost DECIMAL(14,2)
+        NOT NULL DEFAULT 0,
 
     PRIMARY KEY (plan_id),
 
@@ -258,14 +390,6 @@ CREATE TABLE plans (
         REFERENCES scenario_executions (execution_id)
         ON UPDATE CASCADE
         ON DELETE CASCADE,
-
-    CONSTRAINT chk_plans_algorithm
-        CHECK (
-            algorithm IN (
-                'GRASP',
-                'SA'
-            )
-        ),
 
     CONSTRAINT chk_plans_type
         CHECK (
@@ -285,23 +409,42 @@ CREATE TABLE plans (
 
 
 -- ============================================================
--- 6. RUTAS
+-- 8. RUTAS
 -- ============================================================
 
 CREATE TABLE routes (
-    route_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    plan_id BIGINT UNSIGNED NOT NULL,
-    vehicle_id VARCHAR(8) NOT NULL,
+    route_id BIGINT UNSIGNED
+        NOT NULL AUTO_INCREMENT,
 
-    start_warehouse_id VARCHAR(32) NULL,
+    plan_id BIGINT UNSIGNED
+        NOT NULL,
 
-    origin_x SMALLINT UNSIGNED NOT NULL,
-    origin_y SMALLINT UNSIGNED NOT NULL,
+    vehicle_id VARCHAR(8)
+        NOT NULL,
 
-    departure_at TIMESTAMP(6) NOT NULL,
+    start_warehouse_id VARCHAR(32)
+        NULL,
 
-    total_distance_km DECIMAL(14,2) NOT NULL DEFAULT 0,
-    total_cost DECIMAL(14,2) NOT NULL DEFAULT 0,
+    origin_x SMALLINT UNSIGNED
+        NOT NULL,
+
+    origin_y SMALLINT UNSIGNED
+        NOT NULL,
+
+    departure_at TIMESTAMP(6)
+        NOT NULL,
+
+    status VARCHAR(20)
+        NOT NULL DEFAULT 'PLANNED',
+
+    completed_at TIMESTAMP(6)
+        NULL,
+
+    total_distance_km DECIMAL(14,2)
+        NOT NULL DEFAULT 0,
+
+    total_cost DECIMAL(14,2)
+        NOT NULL DEFAULT 0,
 
     PRIMARY KEY (route_id),
 
@@ -333,6 +476,22 @@ CREATE TABLE routes (
     CONSTRAINT chk_routes_origin_y
         CHECK (origin_y BETWEEN 0 AND 50),
 
+    CONSTRAINT chk_routes_status
+        CHECK (
+            status IN (
+                'PLANNED',
+                'IN_PROGRESS',
+                'COMPLETED',
+                'CANCELLED'
+            )
+        ),
+
+    CONSTRAINT chk_routes_completed_at
+        CHECK (
+            completed_at IS NULL
+            OR completed_at >= departure_at
+        ),
+
     CONSTRAINT chk_routes_distance
         CHECK (total_distance_km >= 0),
 
@@ -343,26 +502,39 @@ CREATE TABLE routes (
 
 
 -- ============================================================
--- 7. PARADAS DE RUTA
+-- 9. PARADAS DE RUTA
 -- ============================================================
 
 CREATE TABLE route_stops (
-    route_stop_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    route_id BIGINT UNSIGNED NOT NULL,
+    route_stop_id BIGINT UNSIGNED
+        NOT NULL AUTO_INCREMENT,
 
-    sequence_no SMALLINT UNSIGNED NOT NULL,
+    route_id BIGINT UNSIGNED
+        NOT NULL,
 
-    stop_type VARCHAR(20) NOT NULL,
+    sequence_no SMALLINT UNSIGNED
+        NOT NULL,
 
-    order_id VARCHAR(64) NULL,
-    warehouse_id VARCHAR(32) NULL,
+    stop_type VARCHAR(20)
+        NOT NULL,
 
-    delivered_packages INT UNSIGNED NULL,
+    order_id VARCHAR(64)
+        NULL,
 
-    x SMALLINT UNSIGNED NOT NULL,
-    y SMALLINT UNSIGNED NOT NULL,
+    warehouse_id VARCHAR(32)
+        NULL,
 
-    planned_arrival_at TIMESTAMP(6) NULL,
+    delivered_packages INT UNSIGNED
+        NULL,
+
+    x SMALLINT UNSIGNED
+        NOT NULL,
+
+    y SMALLINT UNSIGNED
+        NOT NULL,
+
+    planned_arrival_at TIMESTAMP(6)
+        NULL,
 
     PRIMARY KEY (route_stop_id),
 
@@ -380,8 +552,8 @@ CREATE TABLE route_stops (
         ON UPDATE CASCADE
         ON DELETE CASCADE,
 
-    -- En route_stops:
-
+    -- RESTRICT se usa deliberadamente para mantener compatibilidad
+    -- con el CHECK chk_route_stops_delivery en MySQL 9.x.
     CONSTRAINT fk_route_stops_order
         FOREIGN KEY (order_id)
         REFERENCES orders (order_id)
@@ -433,21 +605,30 @@ CREATE TABLE route_stops (
 
 
 -- ============================================================
--- 8. MOVIMIENTOS DE INVENTARIO
+-- 10. MOVIMIENTOS DE INVENTARIO
 -- ============================================================
 
 CREATE TABLE inventory_movements (
-    movement_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    movement_id BIGINT UNSIGNED
+        NOT NULL AUTO_INCREMENT,
 
-    warehouse_id VARCHAR(32) NOT NULL,
-    execution_id BIGINT UNSIGNED NULL,
-    order_id VARCHAR(64) NULL,
+    warehouse_id VARCHAR(32)
+        NOT NULL,
 
-    movement_type VARCHAR(20) NOT NULL,
+    execution_id BIGINT UNSIGNED
+        NULL,
 
-    quantity INT UNSIGNED NOT NULL,
+    order_id VARCHAR(64)
+        NULL,
 
-    occurred_at TIMESTAMP(6) NOT NULL,
+    movement_type VARCHAR(20)
+        NOT NULL,
+
+    quantity INT UNSIGNED
+        NOT NULL,
+
+    occurred_at TIMESTAMP(6)
+        NOT NULL,
 
     PRIMARY KEY (movement_id),
 
@@ -468,6 +649,8 @@ CREATE TABLE inventory_movements (
         ON UPDATE CASCADE
         ON DELETE CASCADE,
 
+    -- RESTRICT evita el conflicto entre acciones referenciales
+    -- y el CHECK que utiliza order_id.
     CONSTRAINT fk_inventory_movements_order
         FOREIGN KEY (order_id)
         REFERENCES orders (order_id)
@@ -502,7 +685,7 @@ CREATE TABLE inventory_movements (
 
 
 -- ============================================================
--- 9. CONTROL FINAL DE MIGRACIÓN
+-- 11. CONTROL FINAL
 -- ============================================================
 
 SELECT
@@ -510,7 +693,7 @@ SELECT
 FROM information_schema.tables
 WHERE table_schema = 'paqrap';
 
--- Esperado después de V2:
+-- Esperado:
 -- total_tables = 15
 
 
