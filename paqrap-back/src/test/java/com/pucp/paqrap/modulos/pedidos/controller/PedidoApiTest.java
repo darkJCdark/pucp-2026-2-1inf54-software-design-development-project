@@ -1,6 +1,9 @@
 package com.pucp.paqrap.modulos.pedidos.controller;
 
+import com.pucp.paqrap.modulos.pedidos.persistence.OrderEntity;
+import com.pucp.paqrap.modulos.pedidos.repository.OrderRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -12,7 +15,10 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
@@ -37,6 +43,8 @@ class PedidoApiTest {
 
     @Autowired
     private MockMvc mvc;
+    @Autowired
+    private OrderRepository pedidoRepository;
 
     private ResultActions cargar(String nombre, String contenido) throws Exception {
         return mvc.perform(multipart("/api/pedidos/carga").file(
@@ -172,6 +180,26 @@ class PedidoApiTest {
         mvc.perform(get("/api/pedidos").param("sort", "deadline"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.mensaje").value(containsString("vence")));
+    }
+
+    @Test
+    void pendientesEnDevuelveLosPedidosPorPlanificarDelMasUrgenteAlMenos() throws Exception {
+        cargar("ventas.202601.txt", VENTAS);
+
+        // A las 14:00Z del 01-ene ya llegaron los tres; el 00003 (vence 17:52Z) es el más urgente.
+        assertEquals(List.of("202601-00003", "202601-00002", "202601-00001"),
+                ids(Instant.parse("2026-01-01T14:00:00Z"), 10));
+        // A las 08:00Z solo llegó el 00001; a las 18:00Z el 00003 ya venció.
+        assertEquals(List.of("202601-00001"), ids(Instant.parse("2026-01-01T08:00:00Z"), 10));
+        assertEquals(List.of("202601-00002", "202601-00001"), ids(Instant.parse("2026-01-01T18:00:00Z"), 10));
+        // El límite se queda con los más urgentes.
+        assertEquals(List.of("202601-00003"), ids(Instant.parse("2026-01-01T14:00:00Z"), 1));
+    }
+
+    private List<String> ids(Instant instante, int limite) {
+        return pedidoRepository.pendientesEn(instante, PageRequest.of(0, limite)).stream()
+                .map(OrderEntity::getOrderId)
+                .toList();
     }
 
     @Test
