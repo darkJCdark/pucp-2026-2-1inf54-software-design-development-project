@@ -47,7 +47,7 @@ public final class RouteScheduler {
         // Refrigerio: una vez por turno, con >=1h de margen respecto a
         // cualquier cambio de turno (regla confirmada por el curso). Se
         // registra el INICIO del turno en el que ya se tomo, para detectar
-        // el cambio de turno igual que ManejadorAverias/GraspPlanificador.
+        // el cambio de turno.
         Instant turnoConRefrigerioTomado = null;
 
         for (RouteStop stop : route.stops()) {

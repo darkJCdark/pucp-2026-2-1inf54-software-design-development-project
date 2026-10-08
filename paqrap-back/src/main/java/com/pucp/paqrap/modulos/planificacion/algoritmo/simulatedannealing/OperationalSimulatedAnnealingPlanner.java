@@ -30,7 +30,7 @@ public final class OperationalSimulatedAnnealingPlanner {
         this.initialPlanBuilder = new InitialPlanBuilder(evaluator);
     }
 
-    /** Public backend result: the same type returned by GRASP. */
+    /** Public backend result consumed by the planning service. */
     public ResultadoPlanificacion planificar(OperationalSnapshot snapshot, Collection<Order> orders,
                                              List<RoadBlock> blocks, AnnealingConfig config,
                                              RandomGenerator random) {

@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: paqrap-back
+  datasource:
+    # forceConnectionTimeZoneToSession fija la sesión de MySQL en UTC; sin él, los TIMESTAMP se leen desfasados
+    # según la zona horaria del servidor. rewriteBatchedStatements agrupa los INSERT en lote (carga de archivos).
+    url: ${PAQRAP_DB_URL:jdbc:mysql://localhost:3306/paqrap?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&rewriteBatchedStatements=true}
+    username: ${PAQRAP_DB_USER:root}
+    password: ${PAQRAP_DB_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      # El esquema lo administran los scripts de paqrap-back/database; Hibernate solo lo valida.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+          batch_size: 500
+        order_inserts: true
+  data:
+    web:
+      pageable:
+        max-page-size: 500
+  servlet:
+    multipart:
+      # Los archivos mensuales del curso (ventas, bloqueos) pesan menos de 200 KB.
+      max-file-size: 5MB
+      max-request-size: 5MB
+  jackson:
+    time-zone: UTC
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: ${PAQRAP_PORT:8080}

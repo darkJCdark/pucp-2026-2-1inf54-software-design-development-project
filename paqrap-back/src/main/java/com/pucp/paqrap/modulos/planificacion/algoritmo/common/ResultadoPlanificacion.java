@@ -18,8 +18,8 @@ import java.util.List;
 
 /**
  * Envuelve un OperationalPlan + PlanEvaluation del dominio compartido.
- * noAtendidos es un concepto propio de GRASP: pedidos que ninguna unidad
- * pudo atender en esta iteración, nunca enviados al evaluador para que no
+ * noAtendidos: pedidos que ninguna unidad pudo atender en esta iteración
+ * (el plan inicial de SA los deja fuera), nunca enviados al evaluador para que no
  * vuelvan infactible el plan completo (decisión confirmada por el docente).
  */
 public record ResultadoPlanificacion(OperationalPlan plan, PlanEvaluation evaluacion, List<Order> noAtendidos) {
@@ -32,9 +32,8 @@ public record ResultadoPlanificacion(OperationalPlan plan, PlanEvaluation evalua
     }
 
     /** Senal explicita de colapso logistico: quedo al menos un pedido sin
-     *  atender en el MEJOR resultado que GraspPlanificador.planificar()
-     *  encontro tras todas sus iteraciones (construccion + busqueda local +
-     *  reparacion de pendientes). No es lo mismo que esFactible()==false --
+     *  atender en el MEJOR resultado que el planificador encontro tras
+     *  todas sus iteraciones. No es lo mismo que esFactible()==false --
      *  un plan puede ser factible (sus rutas cumplen todas las reglas) y
      *  aun asi haber colapsado porque no le alcanzo la flota/tiempo para
      *  cubrir toda la demanda. Se calcula sobre el resultado FINAL ya
