@@ -1,0 +1,222 @@
+{
+  "info": {
+    "name": "PaqRap API",
+    "description": "Endpoints REST del backend de PaqRap. Requiere la BD cargada con paqrap_schema_v1.sql y paqrap_seed_v1.sql. Cambia la variable baseUrl si el backend no corre en localhost:8080.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "vehiculoId", "value": "TA01" },
+    { "key": "fechaMantenimiento", "value": "2026-01-10" }
+  ],
+  "item": [
+    {
+      "name": "Flota",
+      "item": [
+        {
+          "name": "Listar tipos de vehículo",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 y 3 tipos', () => {",
+            "  pm.response.to.have.status(200);",
+            "  pm.expect(pm.response.json()).to.have.lengthOf(3);",
+            "});"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/flota/tipos" }
+        },
+        {
+          "name": "Obtener tipo CAR",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/flota/tipos/CAR" }
+        },
+        {
+          "name": "Actualizar parámetros de CAR",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"capacidadPaquetes\": 24,\n  \"velocidadKmh\": 40,\n  \"costoPorKm\": 8\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/flota/tipos/CAR",
+            "description": "Restaura los valores del seed. Cambia los números para probar otra configuración."
+          }
+        },
+        {
+          "name": "Actualizar tipo con datos inválidos (400)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('400 con detalle por campo', () => {",
+            "  pm.response.to.have.status(400);",
+            "  pm.expect(pm.response.json().detalles).to.not.be.empty;",
+            "});"
+          ] } }],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"capacidadPaquetes\": 0,\n  \"velocidadKmh\": -1\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/flota/tipos/CAR"
+          }
+        },
+        {
+          "name": "Listar vehículos",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 y 37 vehículos', () => {",
+            "  pm.response.to.have.status(200);",
+            "  pm.expect(pm.response.json()).to.have.lengthOf(37);",
+            "});"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/flota/vehiculos" }
+        },
+        {
+          "name": "Listar autos disponibles",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/flota/vehiculos?tipo=CAR&disponible=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "flota", "vehiculos"],
+              "query": [
+                { "key": "tipo", "value": "CAR", "description": "CAR, MOTORCYCLE o BICYCLE (opcional)" },
+                { "key": "disponible", "value": "true", "description": "true o false (opcional)" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Obtener vehículo",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/flota/vehiculos/{{vehiculoId}}" }
+        },
+        {
+          "name": "Obtener vehículo inexistente (404)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('404', () => pm.response.to.have.status(404));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/flota/vehiculos/TA99" }
+        },
+        {
+          "name": "Marcar vehículo no disponible",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 y no disponible', () => {",
+            "  pm.response.to.have.status(200);",
+            "  pm.expect(pm.response.json().disponible).to.eql(false);",
+            "});"
+          ] } }],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"disponible\": false\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/flota/vehiculos/{{vehiculoId}}/disponibilidad"
+          }
+        },
+        {
+          "name": "Marcar vehículo disponible",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 y disponible', () => {",
+            "  pm.response.to.have.status(200);",
+            "  pm.expect(pm.response.json().disponible).to.eql(true);",
+            "});"
+          ] } }],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"disponible\": true\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/flota/vehiculos/{{vehiculoId}}/disponibilidad",
+            "description": "Deja el vehículo como estaba en el seed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Mantenimientos",
+      "description": "Ejecutar en orden: programar, listar, programar duplicado, cancelar.",
+      "item": [
+        {
+          "name": "Programar mantenimiento",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"vehiculoId\": \"{{vehiculoId}}\",\n  \"fecha\": \"{{fechaMantenimiento}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/flota/mantenimientos"
+          }
+        },
+        {
+          "name": "Listar mantenimientos",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/flota/mantenimientos?vehiculoId={{vehiculoId}}&desde=2026-01-01&hasta=2026-01-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "flota", "mantenimientos"],
+              "query": [
+                { "key": "vehiculoId", "value": "{{vehiculoId}}", "description": "Opcional" },
+                { "key": "desde", "value": "2026-01-01", "description": "Opcional, yyyy-MM-dd" },
+                { "key": "hasta", "value": "2026-01-31", "description": "Opcional, yyyy-MM-dd" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Programar mantenimiento duplicado (409)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('409', () => pm.response.to.have.status(409));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"vehiculoId\": \"{{vehiculoId}}\",\n  \"fecha\": \"{{fechaMantenimiento}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/flota/mantenimientos"
+          }
+        },
+        {
+          "name": "Cancelar mantenimiento",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('204', () => pm.response.to.have.status(204));"
+          ] } }],
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/flota/mantenimientos/{{vehiculoId}}/{{fechaMantenimiento}}" }
+        }
+      ]
+    },
+    {
+      "name": "Almacenes",
+      "item": [
+        {
+          "name": "Listar almacenes",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 y 3 almacenes', () => {",
+            "  pm.response.to.have.status(200);",
+            "  pm.expect(pm.response.json()).to.have.lengthOf(3);",
+            "});"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/almacenes" }
+        },
+        {
+          "name": "Obtener almacén EAST",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/almacenes/EAST" }
+        },
+        {
+          "name": "Obtener almacén inexistente (404)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('404', () => pm.response.to.have.status(404));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/almacenes/SUR" }
+        }
+      ]
+    }
+  ]
+}
