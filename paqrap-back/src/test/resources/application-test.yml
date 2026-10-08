@@ -6,3 +6,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
+
+paqrap:
+  escenarios:
+    # Sin avance automático: los tests mueven un reloj falso y llaman al motor a mano.
+    tick: 0s

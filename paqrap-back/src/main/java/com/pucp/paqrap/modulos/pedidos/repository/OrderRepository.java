@@ -31,6 +31,36 @@ public interface OrderRepository extends JpaRepository<OrderEntity, String> {
                              @Param("venceHasta") Instant venceHasta,
                              Pageable pageable);
 
+    /** Pedidos por planificar en {@code instante}: ya registrados, sin entregar y aún en plazo; los más urgentes primero. */
+    @Query("""
+            select o from OrderEntity o
+            where o.registeredAt <= :instante
+              and o.deadline > :instante
+              and o.status <> com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.DELIVERED
+            order by o.deadline, o.orderId
+            """)
+    List<OrderEntity> pendientesEn(@Param("instante") Instant instante, Pageable limite);
+
+    @Query("""
+            select count(o) from OrderEntity o
+            where o.registeredAt <= :instante
+              and o.deadline > :instante
+              and o.status <> com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.DELIVERED
+            """)
+    long contarPendientesEn(@Param("instante") Instant instante);
+
+    /** Pedidos registrados en [desde, hasta]. */
+    long countByRegisteredAtGreaterThanEqualAndRegisteredAtLessThanEqual(Instant desde, Instant hasta);
+
+    /** Pedidos registrados desde {@code desde} cuyo plazo ya venció en {@code instante} sin ser entregados. */
+    @Query("""
+            select count(o) from OrderEntity o
+            where o.registeredAt >= :desde
+              and o.deadline <= :instante
+              and o.status <> com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.DELIVERED
+            """)
+    long contarVencidosSinEntregar(@Param("desde") Instant desde, @Param("instante") Instant instante);
+
     /** Ids ya registrados de un archivo mensual (prefijo AAAAMM-). */
     @Query("select o.orderId from OrderEntity o where o.orderId like :prefijo")
     List<String> idsConPrefijo(@Param("prefijo") String prefijo);

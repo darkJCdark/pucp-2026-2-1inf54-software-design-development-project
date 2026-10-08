@@ -10,7 +10,8 @@
     { "key": "fechaMantenimiento", "value": "2026-01-10" },
     { "key": "vigenteEn", "value": "2026-01-01T10:00:00Z" },
     { "key": "averiaId", "value": "1" },
-    { "key": "pedidoId", "value": "202601-00001" }
+    { "key": "pedidoId", "value": "202601-00001" },
+    { "key": "escenarioId", "value": "1" }
   ],
   "item": [
     {
@@ -490,6 +491,127 @@
             "pm.test('404', () => pm.response.to.have.status(404));"
           ] } }],
           "request": { "method": "GET", "url": "{{baseUrl}}/api/pedidos/202601-99999" }
+        }
+      ]
+    },
+    {
+      "name": "Escenarios",
+      "description": "Ejecutar en orden. Solo puede haber un escenario activo (RUNNING o PAUSED) a la vez. Factores: DAY_TO_DAY x1, FIVE_DAY x160 (5 días en ~45 min), COLLAPSE x1440. Mientras SA no esté integrado, el motor avanza el reloj pero no planifica.",
+      "item": [
+        {
+          "name": "Crear escenario 5D",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201 y CREATED', () => {",
+            "  pm.response.to.have.status(201);",
+            "  pm.expect(pm.response.json().estado).to.eql('CREATED');",
+            "});",
+            "pm.collectionVariables.set('escenarioId', pm.response.json().id);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"tipo\": \"FIVE_DAY\",\n  \"inicioSimulado\": \"2026-01-01T05:00:00Z\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/escenarios",
+            "description": "tipo: DAY_TO_DAY (sin inicioSimulado: parte de la hora actual), FIVE_DAY o COLLAPSE (inicioSimulado obligatorio)."
+          }
+        },
+        {
+          "name": "Iniciar escenario",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 y RUNNING', () => {",
+            "  pm.response.to.have.status(200);",
+            "  pm.expect(pm.response.json().estado).to.eql('RUNNING');",
+            "});"
+          ] } }],
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/escenarios/{{escenarioId}}/iniciar" }
+        },
+        {
+          "name": "Consultar escenario",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/escenarios/{{escenarioId}}",
+            "description": "Envíala varias veces: 'instanteSimulado' avanza 160 veces más rápido que el tiempo real."
+          }
+        },
+        {
+          "name": "Monitorear escenario",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 con pedidos, flota y almacenes', () => {",
+            "  pm.response.to.have.status(200);",
+            "  const m = pm.response.json();",
+            "  pm.expect(m).to.have.property('pedidos');",
+            "  pm.expect(m.vehiculos).to.be.an('array');",
+            "  pm.expect(m.almacenes).to.be.an('array');",
+            "});"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/monitoreo/{{escenarioId}}",
+            "description": "Estado en el instante simulado: pedidos (llegados, pendientes, vencidos sin entregar), vehículos (posición, estado, avería en curso), stock de almacenes, bloqueos vigentes y averías activas. Envíala varias veces mientras corre el escenario."
+          }
+        },
+        {
+          "name": "Registrar avería en el escenario (replanifica)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"vehiculoId\": \"TM05\",\n  \"tipo\": \"INTERMEDIATE\",\n  \"ocurridaEn\": \"2026-01-01T06:00:00Z\",\n  \"ejecucionId\": {{escenarioId}}\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/incidencias/averias",
+            "description": "Con ejecucionId de un escenario activo, el motor pide una replanificación (INCIDENCIA) en el siguiente segundo. Usa como ocurridaEn un instante cercano al instanteSimulado del escenario."
+          }
+        },
+        {
+          "name": "Pausar escenario",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('PAUSED', () => pm.expect(pm.response.json().estado).to.eql('PAUSED'));"
+          ] } }],
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/escenarios/{{escenarioId}}/pausar" }
+        },
+        {
+          "name": "Reanudar escenario",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('RUNNING', () => pm.expect(pm.response.json().estado).to.eql('RUNNING'));"
+          ] } }],
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/escenarios/{{escenarioId}}/reanudar" }
+        },
+        {
+          "name": "Detener escenario",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('STOPPED', () => pm.expect(pm.response.json().estado).to.eql('STOPPED'));"
+          ] } }],
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/escenarios/{{escenarioId}}/detener" }
+        },
+        {
+          "name": "Pausar un escenario detenido (409)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('409', () => pm.response.to.have.status(409));"
+          ] } }],
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/escenarios/{{escenarioId}}/pausar" }
+        },
+        {
+          "name": "Listar escenarios",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/escenarios?page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "escenarios"],
+              "query": [
+                { "key": "page", "value": "0", "description": "Desde 0" },
+                { "key": "size", "value": "20", "description": "Máximo 100" }
+              ]
+            },
+            "description": "De la ejecución más reciente a la más antigua."
+          }
         }
       ]
     }

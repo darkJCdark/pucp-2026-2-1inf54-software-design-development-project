@@ -34,3 +34,12 @@ spring:
 
 server:
   port: ${PAQRAP_PORT:8080}
+
+paqrap:
+  escenarios:
+    tick: 1s
+    # 5D: 5 días simulados en ~45 minutos reales.
+    factor-cinco-dias: 160
+    # Colapso: 1 día simulado por minuto real. Ajustable según lo que tarde cada ciclo del planificador.
+    factor-colapso: 1440
+    intervalo-planificacion: 1h

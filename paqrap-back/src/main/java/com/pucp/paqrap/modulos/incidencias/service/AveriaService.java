@@ -6,6 +6,7 @@ import com.pucp.paqrap.modulos.flota.dto.VehiculoResponse;
 import com.pucp.paqrap.modulos.flota.service.FlotaService;
 import com.pucp.paqrap.modulos.incidencias.dto.AveriaResponse;
 import com.pucp.paqrap.modulos.incidencias.dto.RegistrarAveriaRequest;
+import com.pucp.paqrap.modulos.incidencias.entity.AveriaRegistrada;
 import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
 import com.pucp.paqrap.modulos.incidencias.entity.BreakdownResolution;
 import com.pucp.paqrap.modulos.incidencias.entity.BreakdownType;
@@ -13,6 +14,7 @@ import com.pucp.paqrap.modulos.incidencias.persistence.BreakdownEventEntity;
 import com.pucp.paqrap.modulos.incidencias.repository.BreakdownEventRepository;
 import com.pucp.paqrap.modulos.planificacion.entity.ShiftSchedule;
 import com.pucp.paqrap.modulos.redvial.entity.Location;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,12 +31,15 @@ public class AveriaService {
 
     private final BreakdownEventRepository averiaRepository;
     private final FlotaService flotaService;
+    private final ApplicationEventPublisher eventos;
     private final BreakdownAvailabilityCalculator calculadora =
             new BreakdownAvailabilityCalculator(ShiftSchedule.defaultSchedule());
 
-    public AveriaService(BreakdownEventRepository averiaRepository, FlotaService flotaService) {
+    public AveriaService(BreakdownEventRepository averiaRepository, FlotaService flotaService,
+                         ApplicationEventPublisher eventos) {
         this.averiaRepository = averiaRepository;
         this.flotaService = flotaService;
+        this.eventos = eventos;
     }
 
     @Transactional
@@ -52,6 +57,10 @@ public class AveriaService {
 
         BreakdownEvent evento = new BreakdownEvent(vehiculo.id(), request.tipo(), ocurridaEn, ubicacion);
         BreakdownEventEntity guardado = averiaRepository.save(new BreakdownEventEntity(request.ejecucionId(), evento));
+        if (request.ejecucionId() != null) {
+            // El motor de escenarios replanifica (CU-07) cuando esta transacción se confirma.
+            eventos.publishEvent(new AveriaRegistrada(request.ejecucionId(), vehiculo.id(), ocurridaEn));
+        }
         return AveriaResponse.de(guardado, calculadora.resolve(evento));
     }
 
