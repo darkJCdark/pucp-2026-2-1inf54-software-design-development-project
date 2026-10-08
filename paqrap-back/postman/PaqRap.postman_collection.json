@@ -1,0 +1,497 @@
+{
+  "info": {
+    "name": "PaqRap API",
+    "description": "Endpoints REST del backend de PaqRap. Requiere la BD cargada con paqrap_schema_v1.sql y paqrap_seed_v1.sql. Cambia la variable baseUrl si el backend no corre en localhost:8080.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "vehiculoId", "value": "TA01" },
+    { "key": "fechaMantenimiento", "value": "2026-01-10" },
+    { "key": "vigenteEn", "value": "2026-01-01T10:00:00Z" },
+    { "key": "averiaId", "value": "1" },
+    { "key": "pedidoId", "value": "202601-00001" }
+  ],
+  "item": [
+    {
+      "name": "Flota",
+      "item": [
+        {
+          "name": "Listar tipos de vehículo",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 y 3 tipos', () => {",
+            "  pm.response.to.have.status(200);",
+            "  pm.expect(pm.response.json()).to.have.lengthOf(3);",
+            "});"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/flota/tipos" }
+        },
+        {
+          "name": "Obtener tipo CAR",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/flota/tipos/CAR" }
+        },
+        {
+          "name": "Actualizar parámetros de CAR",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"capacidadPaquetes\": 24,\n  \"velocidadKmh\": 40,\n  \"costoPorKm\": 8\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/flota/tipos/CAR",
+            "description": "Restaura los valores del seed. Cambia los números para probar otra configuración."
+          }
+        },
+        {
+          "name": "Actualizar tipo con datos inválidos (400)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('400 con detalle por campo', () => {",
+            "  pm.response.to.have.status(400);",
+            "  pm.expect(pm.response.json().detalles).to.not.be.empty;",
+            "});"
+          ] } }],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"capacidadPaquetes\": 0,\n  \"velocidadKmh\": -1\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/flota/tipos/CAR"
+          }
+        },
+        {
+          "name": "Listar vehículos",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 y 37 vehículos', () => {",
+            "  pm.response.to.have.status(200);",
+            "  pm.expect(pm.response.json()).to.have.lengthOf(37);",
+            "});"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/flota/vehiculos" }
+        },
+        {
+          "name": "Listar autos disponibles",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/flota/vehiculos?tipo=CAR&estado=AVAILABLE",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "flota", "vehiculos"],
+              "query": [
+                { "key": "tipo", "value": "CAR", "description": "CAR, MOTORCYCLE o BICYCLE (opcional)" },
+                { "key": "estado", "value": "AVAILABLE", "description": "AVAILABLE, IN_ROUTE o UNAVAILABLE (opcional)" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Obtener vehículo",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/flota/vehiculos/{{vehiculoId}}" }
+        },
+        {
+          "name": "Obtener vehículo inexistente (404)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('404', () => pm.response.to.have.status(404));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/flota/vehiculos/TA99" }
+        },
+        {
+          "name": "Marcar vehículo no disponible",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 y UNAVAILABLE', () => {",
+            "  pm.response.to.have.status(200);",
+            "  pm.expect(pm.response.json().estado).to.eql('UNAVAILABLE');",
+            "});"
+          ] } }],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"estado\": \"UNAVAILABLE\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/flota/vehiculos/{{vehiculoId}}/estado"
+          }
+        },
+        {
+          "name": "Marcar vehículo disponible",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 y AVAILABLE', () => {",
+            "  pm.response.to.have.status(200);",
+            "  pm.expect(pm.response.json().estado).to.eql('AVAILABLE');",
+            "});"
+          ] } }],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"estado\": \"AVAILABLE\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/flota/vehiculos/{{vehiculoId}}/estado",
+            "description": "Deja el vehículo como estaba en el seed."
+          }
+        },
+        {
+          "name": "Asignar IN_ROUTE manualmente (409)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('409', () => pm.response.to.have.status(409));"
+          ] } }],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"estado\": \"IN_ROUTE\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/flota/vehiculos/{{vehiculoId}}/estado",
+            "description": "IN_ROUTE solo lo asigna la simulación."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Mantenimientos",
+      "description": "Ejecutar en orden: programar, listar, programar duplicado, cancelar.",
+      "item": [
+        {
+          "name": "Programar mantenimiento",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"vehiculoId\": \"{{vehiculoId}}\",\n  \"fecha\": \"{{fechaMantenimiento}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/flota/mantenimientos"
+          }
+        },
+        {
+          "name": "Listar mantenimientos",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/flota/mantenimientos?vehiculoId={{vehiculoId}}&desde=2026-01-01&hasta=2026-01-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "flota", "mantenimientos"],
+              "query": [
+                { "key": "vehiculoId", "value": "{{vehiculoId}}", "description": "Opcional" },
+                { "key": "desde", "value": "2026-01-01", "description": "Opcional, yyyy-MM-dd" },
+                { "key": "hasta", "value": "2026-01-31", "description": "Opcional, yyyy-MM-dd" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Programar mantenimiento duplicado (409)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('409', () => pm.response.to.have.status(409));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"vehiculoId\": \"{{vehiculoId}}\",\n  \"fecha\": \"{{fechaMantenimiento}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/flota/mantenimientos"
+          }
+        },
+        {
+          "name": "Cancelar mantenimiento",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('204', () => pm.response.to.have.status(204));"
+          ] } }],
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/flota/mantenimientos/{{vehiculoId}}/{{fechaMantenimiento}}" }
+        }
+      ]
+    },
+    {
+      "name": "Almacenes",
+      "item": [
+        {
+          "name": "Listar almacenes",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 y 3 almacenes', () => {",
+            "  pm.response.to.have.status(200);",
+            "  pm.expect(pm.response.json()).to.have.lengthOf(3);",
+            "});"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/almacenes" }
+        },
+        {
+          "name": "Obtener almacén EAST",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/almacenes/EAST" }
+        },
+        {
+          "name": "Obtener almacén inexistente (404)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('404', () => pm.response.to.have.status(404));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/almacenes/SUR" }
+        }
+      ]
+    },
+    {
+      "name": "Red vial - Bloqueos",
+      "description": "Antes de 'Cargar archivo de bloqueos', en la pestaña Body elige el archivo bloqueo.AAMM.txt en el campo 'archivo'. Las horas del archivo se interpretan en hora de Lima y se devuelven en UTC.",
+      "item": [
+        {
+          "name": "Cargar archivo de bloqueos",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));",
+            "const cuerpo = pm.response.json();",
+            "if (cuerpo.periodo) {",
+            "  const [anio, mes] = cuerpo.periodo.split('-');",
+            "  pm.collectionVariables.set('vigenteEn', `${anio}-${mes}-01T10:00:00Z`);",
+            "}"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "archivo", "type": "file", "src": [], "description": "Archivo bloqueo.AAMM.txt (p. ej. bloqueo.2601.txt)" },
+                { "key": "periodo", "value": "2026-01", "type": "text", "disabled": true, "description": "Solo si el nombre del archivo no es bloqueo.AAMM.txt" }
+              ]
+            },
+            "url": "{{baseUrl}}/api/red-vial/bloqueos/carga",
+            "description": "Reemplaza los bloqueos que ya empezaban en ese mes, así que se puede cargar dos veces sin duplicar."
+          }
+        },
+        {
+          "name": "Listar bloqueos vigentes en un instante",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/red-vial/bloqueos?vigenteEn={{vigenteEn}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "red-vial", "bloqueos"],
+              "query": [
+                { "key": "vigenteEn", "value": "{{vigenteEn}}", "description": "Instante ISO en UTC, p. ej. 2026-01-01T10:00:00Z" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Listar bloqueos de un rango",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/red-vial/bloqueos?desde=2026-01-01T05:00:00Z&hasta=2026-01-02T05:00:00Z",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "red-vial", "bloqueos"],
+              "query": [
+                { "key": "desde", "value": "2026-01-01T05:00:00Z", "description": "Opcional. 2026-01-01T05:00Z = medianoche en Lima" },
+                { "key": "hasta", "value": "2026-01-02T05:00:00Z", "description": "Opcional" }
+              ]
+            },
+            "description": "Devuelve los bloqueos cuyo intervalo se cruza con [desde, hasta). Sin parámetros devuelve todos."
+          }
+        },
+        {
+          "name": "Obtener bloqueo inexistente (404)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('404', () => pm.response.to.have.status(404));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/red-vial/bloqueos/999999" }
+        }
+      ]
+    },
+    {
+      "name": "Incidencias - Averías",
+      "description": "Ejecutar en orden. Registrar una avería solo guarda el evento: el estado del vehículo no cambia, el planificador lo excluye mientras dure la avería. Horas en UTC (15:00Z = 10:00 en Lima).",
+      "item": [
+        {
+          "name": "Registrar avería menor",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201 y 2 h de indisponibilidad', () => {",
+            "  pm.response.to.have.status(201);",
+            "  pm.expect(pm.response.json().indisponibleHasta).to.eql('2026-01-05T17:00:00Z');",
+            "});",
+            "pm.collectionVariables.set('averiaId', pm.response.json().id);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"vehiculoId\": \"{{vehiculoId}}\",\n  \"tipo\": \"MINOR\",\n  \"ocurridaEn\": \"2026-01-05T15:00:00Z\",\n  \"x\": 30,\n  \"y\": 20\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/incidencias/averias",
+            "description": "tipo: MINOR, INTERMEDIATE o MAJOR. Opcionales: ocurridaEn (por defecto ahora), x e y (por defecto la posición del vehículo), ejecucionId."
+          }
+        },
+        {
+          "name": "Registrar avería con el vehículo aún inhabilitado (409)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('409', () => pm.response.to.have.status(409));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"vehiculoId\": \"{{vehiculoId}}\",\n  \"tipo\": \"MAJOR\",\n  \"ocurridaEn\": \"2026-01-05T16:00:00Z\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/incidencias/averias"
+          }
+        },
+        {
+          "name": "Listar averías",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/incidencias/averias?vehiculoId={{vehiculoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "incidencias", "averias"],
+              "query": [
+                { "key": "vehiculoId", "value": "{{vehiculoId}}", "description": "Opcional" },
+                { "key": "tipo", "value": "MINOR", "description": "Opcional: MINOR, INTERMEDIATE o MAJOR", "disabled": true },
+                { "key": "ejecucionId", "value": "1", "description": "Opcional", "disabled": true },
+                { "key": "desde", "value": "2026-01-01T05:00:00Z", "description": "Opcional, instante UTC", "disabled": true },
+                { "key": "hasta", "value": "2026-02-01T05:00:00Z", "description": "Opcional, instante UTC", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Obtener avería",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/incidencias/averias/{{averiaId}}" }
+        },
+        {
+          "name": "Registrar avería con datos inválidos (400)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('400', () => pm.response.to.have.status(400));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"vehiculoId\": \"{{vehiculoId}}\",\n  \"tipo\": \"MINOR\",\n  \"x\": 10\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/incidencias/averias",
+            "description": "Falta 'y': hay que indicar ambas coordenadas o ninguna."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pedidos",
+      "description": "El deadline ('vence') nunca se envía: se calcula como registradoEn + horasPrometidas. Antes de 'Cargar archivo de ventas', elige el archivo ventas.AAAAMM.txt en el campo 'archivo' del Body.",
+      "item": [
+        {
+          "name": "Registrar pedido priorizado",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201 y vence 8 h después', () => {",
+            "  pm.response.to.have.status(201);",
+            "  pm.expect(pm.response.json().vence).to.eql('2026-01-10T20:00:00Z');",
+            "});",
+            "pm.collectionVariables.set('pedidoId', pm.response.json().id);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"clienteId\": \"c123\",\n  \"x\": 10,\n  \"y\": 20,\n  \"paquetes\": 5,\n  \"tipoEntrega\": \"PRIORITY\",\n  \"horasPrometidas\": 8,\n  \"registradoEn\": \"2026-01-10T12:00:00Z\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/pedidos",
+            "description": "PRIORITY exige horasPrometidas 4, 8, 12 o 18. registradoEn es opcional (por defecto, ahora)."
+          }
+        },
+        {
+          "name": "Registrar pedido regular",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201 y 36 h', () => {",
+            "  pm.response.to.have.status(201);",
+            "  pm.expect(pm.response.json().horasPrometidas).to.eql(36);",
+            "});"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"clienteId\": \"c123\",\n  \"x\": 40,\n  \"y\": 30,\n  \"paquetes\": 2,\n  \"tipoEntrega\": \"REGULAR\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/pedidos",
+            "description": "REGULAR siempre tiene 36 h; horasPrometidas puede omitirse."
+          }
+        },
+        {
+          "name": "Registrar priorizado sin plazo (400)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('400', () => pm.response.to.have.status(400));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"clienteId\": \"c123\",\n  \"x\": 10,\n  \"y\": 20,\n  \"paquetes\": 5,\n  \"tipoEntrega\": \"PRIORITY\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/pedidos"
+          }
+        },
+        {
+          "name": "Obtener pedido con historial",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 con historial', () => {",
+            "  pm.response.to.have.status(200);",
+            "  pm.expect(pm.response.json().historial).to.not.be.empty;",
+            "});"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/pedidos/{{pedidoId}}" }
+        },
+        {
+          "name": "Cargar archivo de ventas",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "archivo", "type": "file", "src": [], "description": "Archivo ventas.AAAAMM.txt (p. ej. ventas.202601.txt)" },
+                { "key": "periodo", "value": "2026-01", "type": "text", "disabled": true, "description": "Solo si el nombre del archivo no es ventas.AAAAMM.txt" }
+              ]
+            },
+            "url": "{{baseUrl}}/api/pedidos/carga",
+            "description": "Los pedidos se identifican como AAAAMM-NNNNN (mes y línea). Recargar el archivo omite los que ya existen."
+          }
+        },
+        {
+          "name": "Listar pedidos priorizados por vencimiento",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/pedidos?tipoEntrega=PRIORITY&sort=vence,asc&page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "pedidos"],
+              "query": [
+                { "key": "tipoEntrega", "value": "PRIORITY", "description": "Opcional: REGULAR o PRIORITY" },
+                { "key": "estado", "value": "REGISTERED", "description": "Opcional: REGISTERED, ASSIGNED, IN_TRANSIT o DELIVERED", "disabled": true },
+                { "key": "clienteId", "value": "c4910", "description": "Opcional", "disabled": true },
+                { "key": "registradoDesde", "value": "2026-01-01T05:00:00Z", "description": "Opcional, instante UTC", "disabled": true },
+                { "key": "registradoHasta", "value": "2026-01-02T05:00:00Z", "description": "Opcional, instante UTC", "disabled": true },
+                { "key": "venceHasta", "value": "2026-01-02T05:00:00Z", "description": "Opcional: pedidos que vencen hasta ese instante", "disabled": true },
+                { "key": "sort", "value": "vence,asc", "description": "id, clienteId, paquetes, registradoEn, vence o estado" },
+                { "key": "page", "value": "0", "description": "Desde 0" },
+                { "key": "size", "value": "20", "description": "Máximo 500" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Obtener pedido inexistente (404)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('404', () => pm.response.to.have.status(404));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/pedidos/202601-99999" }
+        }
+      ]
+    }
+  ]
+}

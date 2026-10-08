@@ -18,10 +18,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Cubre un hueco reportado en una revision anterior: el evaluador/scheduler
- * del algoritmo 2 (SA) no implementaba el refrigerio (hora de alimentacion
- * por turno), aunque el enunciado lo exige y GraspPlanificador si lo tenia
- * en su version previa (antes de compartir este modulo). Ahora vive en
- * RouteScheduler, compartido por ambos algoritmos.
+ * de SA no implementaba el refrigerio (hora de alimentacion por turno),
+ * aunque el enunciado lo exige. Ahora vive en RouteScheduler.
  */
 class RouteSchedulerRefrigerioTest {
 
