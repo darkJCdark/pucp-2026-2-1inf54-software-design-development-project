@@ -45,7 +45,6 @@ ALTER TABLE orders
 -- artificialmente. El CHECK posterior impedirá completar una
 -- migración inconsistente y ese registro deberá revisarse.
 -- ============================================================
-
 UPDATE orders
 SET
     promised_hours = CASE
@@ -68,7 +67,8 @@ SET
             THEN 'PRIORITY'
 
         ELSE delivery_type
-    END;
+    END
+WHERE order_id IS NOT NULL;
 
 
 -- Control informativo de pedidos históricos que no coinciden
@@ -168,12 +168,11 @@ ALTER TABLE vehicles
 
 -- Traslada el estado disponible de V1 al nuevo modelo.
 UPDATE vehicles
-SET operational_status =
-    CASE
-        WHEN available = TRUE THEN 'AVAILABLE'
-        ELSE 'UNAVAILABLE'
-    END;
-
+SET operational_status = CASE
+    WHEN available = TRUE THEN 'AVAILABLE'
+    ELSE 'UNAVAILABLE'
+END
+WHERE vehicle_id IS NOT NULL;
 
 ALTER TABLE vehicles
     DROP COLUMN available,
