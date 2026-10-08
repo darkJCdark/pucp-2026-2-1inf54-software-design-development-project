@@ -25,11 +25,14 @@ export interface VehiculoMapa {
 export interface AlmacenMapa {
   id: string;
   nombre: string;
+
   tipo:
     | "CENTRAL"
     | "INTERMEDIO";
+
   x: number;
   y: number;
+
   stock?: number;
 }
 
