@@ -8,7 +8,8 @@
     { "key": "baseUrl", "value": "http://localhost:8080" },
     { "key": "vehiculoId", "value": "TA01" },
     { "key": "fechaMantenimiento", "value": "2026-01-10" },
-    { "key": "vigenteEn", "value": "2026-01-01T10:00:00Z" }
+    { "key": "vigenteEn", "value": "2026-01-01T10:00:00Z" },
+    { "key": "averiaId", "value": "1" }
   ],
   "item": [
     {
@@ -301,6 +302,82 @@
             "pm.test('404', () => pm.response.to.have.status(404));"
           ] } }],
           "request": { "method": "GET", "url": "{{baseUrl}}/api/red-vial/bloqueos/999999" }
+        }
+      ]
+    },
+    {
+      "name": "Incidencias - Averías",
+      "description": "Ejecutar en orden. Registrar una avería solo guarda el evento: el estado del vehículo no cambia, el planificador lo excluye mientras dure la avería. Horas en UTC (15:00Z = 10:00 en Lima).",
+      "item": [
+        {
+          "name": "Registrar avería menor",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201 y 2 h de indisponibilidad', () => {",
+            "  pm.response.to.have.status(201);",
+            "  pm.expect(pm.response.json().indisponibleHasta).to.eql('2026-01-05T17:00:00Z');",
+            "});",
+            "pm.collectionVariables.set('averiaId', pm.response.json().id);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"vehiculoId\": \"{{vehiculoId}}\",\n  \"tipo\": \"MINOR\",\n  \"ocurridaEn\": \"2026-01-05T15:00:00Z\",\n  \"x\": 30,\n  \"y\": 20\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/incidencias/averias",
+            "description": "tipo: MINOR, INTERMEDIATE o MAJOR. Opcionales: ocurridaEn (por defecto ahora), x e y (por defecto la posición del vehículo), ejecucionId."
+          }
+        },
+        {
+          "name": "Registrar avería con el vehículo aún inhabilitado (409)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('409', () => pm.response.to.have.status(409));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"vehiculoId\": \"{{vehiculoId}}\",\n  \"tipo\": \"MAJOR\",\n  \"ocurridaEn\": \"2026-01-05T16:00:00Z\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/incidencias/averias"
+          }
+        },
+        {
+          "name": "Listar averías",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/incidencias/averias?vehiculoId={{vehiculoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "incidencias", "averias"],
+              "query": [
+                { "key": "vehiculoId", "value": "{{vehiculoId}}", "description": "Opcional" },
+                { "key": "tipo", "value": "MINOR", "description": "Opcional: MINOR, INTERMEDIATE o MAJOR", "disabled": true },
+                { "key": "ejecucionId", "value": "1", "description": "Opcional", "disabled": true },
+                { "key": "desde", "value": "2026-01-01T05:00:00Z", "description": "Opcional, instante UTC", "disabled": true },
+                { "key": "hasta", "value": "2026-02-01T05:00:00Z", "description": "Opcional, instante UTC", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Obtener avería",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/incidencias/averias/{{averiaId}}" }
+        },
+        {
+          "name": "Registrar avería con datos inválidos (400)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('400', () => pm.response.to.have.status(400));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"vehiculoId\": \"{{vehiculoId}}\",\n  \"tipo\": \"MINOR\",\n  \"x\": 10\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/incidencias/averias",
+            "description": "Falta 'y': hay que indicar ambas coordenadas o ninguna."
+          }
         }
       ]
     }
