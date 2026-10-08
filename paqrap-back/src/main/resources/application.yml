@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: paqrap-back
+  datasource:
+    url: ${PAQRAP_DB_URL:jdbc:mysql://localhost:3306/paqrap?serverTimezone=UTC}
+    username: ${PAQRAP_DB_USER:root}
+    password: ${PAQRAP_DB_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      # El esquema lo administran los scripts de paqrap-back/database; Hibernate solo lo valida.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  jackson:
+    time-zone: UTC
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: ${PAQRAP_PORT:8080}
