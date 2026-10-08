@@ -7,6 +7,7 @@ import com.pucp.paqrap.modulos.escenarios.entity.ScenarioStatus;
 import com.pucp.paqrap.modulos.escenarios.entity.ScenarioType;
 import com.pucp.paqrap.modulos.escenarios.persistence.ScenarioExecutionEntity;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
+import com.pucp.paqrap.modulos.incidencias.entity.AveriaRegistrada;
 import com.pucp.paqrap.modulos.planificacion.service.PlanificadorPort;
 import com.pucp.paqrap.modulos.planificacion.service.PlanificadorSinOperacion;
 import jakarta.annotation.PostConstruct;
@@ -18,6 +19,7 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
@@ -51,6 +53,7 @@ public class MotorEscenarios {
     private final Clock relojReal;
     private final EscenariosProperties propiedades;
     private final ObjectProvider<PlanificadorPort> planificadores;
+    private final EventosSimulacion eventos;
     /** Escenarios activos por id de ejecución; protegido por el monitor de esta instancia. */
     private final Map<Long, EscenarioActivo> activos = new HashMap<>();
     private ScheduledExecutorService ejecutor;
@@ -59,21 +62,36 @@ public class MotorEscenarios {
         private final ScenarioType tipo;
         private final SimulationClock reloj;
         private Instant proximaPlanificacion;
+        /** Los eventos de la simulación ya se procesaron hasta este instante simulado. */
+        private Instant procesadoHasta;
+        /** Una avería o un bloqueo exige replanificar en el próximo tick. */
+        private boolean incidenciaPendiente;
 
         private EscenarioActivo(ScenarioType tipo, SimulationClock reloj) {
             this.tipo = tipo;
             this.reloj = reloj;
+            this.procesadoHasta = reloj.inicioSimulado();
         }
     }
 
     public MotorEscenarios(ScenarioExecutionRepository ejecucionRepository, PlatformTransactionManager transacciones,
                            Clock relojReal, EscenariosProperties propiedades,
-                           ObjectProvider<PlanificadorPort> planificadores) {
+                           ObjectProvider<PlanificadorPort> planificadores, EventosSimulacion eventos) {
         this.ejecucionRepository = ejecucionRepository;
         this.transaccion = new TransactionTemplate(transacciones);
         this.relojReal = relojReal;
         this.propiedades = propiedades;
         this.planificadores = planificadores;
+        this.eventos = eventos;
+    }
+
+    /** Una avería registrada en una ejecución activa la hace replanificar en el próximo tick (CU-07). */
+    @TransactionalEventListener(fallbackExecution = true)
+    public synchronized void alRegistrarAveria(AveriaRegistrada averia) {
+        EscenarioActivo activo = activos.get(averia.ejecucionId());
+        if (activo != null) {
+            activo.incidenciaPendiente = true;
+        }
     }
 
     /** Un tick de duración cero desactiva el avance automático (los tests llaman a {@link #tick()} a mano). */
@@ -165,11 +183,22 @@ public class MotorEscenarios {
     private void avanzar(long ejecucionId, EscenarioActivo activo) {
         Instant ahora = activo.reloj.ahora();
         Optional<Instant> fin = activo.tipo.duracionSimulada().map(activo.reloj.inicioSimulado()::plus);
+        Instant hasta = fin.filter(ahora::isAfter).orElse(ahora);
+
+        if (hasta.isAfter(activo.procesadoHasta)) {
+            EventosSimulacion.Resumen resumen = eventos.procesar(ejecucionId, activo.procesadoHasta, hasta);
+            activo.procesadoHasta = hasta;
+            if (resumen.bloqueosIniciados() > 0) {
+                activo.incidenciaPendiente = true;
+            }
+        }
         if (fin.isPresent() && !ahora.isBefore(fin.get())) {
             finalizar(ejecucionId, ScenarioStatus.COMPLETED, fin.get());
             return;
         }
-        if (!ahora.isBefore(activo.proximaPlanificacion)) {
+        if (activo.incidenciaPendiente) {
+            planificar(ejecucionId, activo, PlanificadorPort.Motivo.INCIDENCIA);
+        } else if (!ahora.isBefore(activo.proximaPlanificacion)) {
             planificar(ejecucionId, activo, PlanificadorPort.Motivo.PERIODICO);
         }
     }
@@ -179,6 +208,7 @@ public class MotorEscenarios {
         PlanificadorPort.ResultadoCiclo resultado = planificadores.getIfAvailable(PlanificadorSinOperacion::new)
                 .planificar(new PlanificadorPort.SolicitudCiclo(ejecucionId, ahora, motivo));
         activo.proximaPlanificacion = ahora.plus(propiedades.intervaloPlanificacion());
+        activo.incidenciaPendiente = false;
         if (resultado.colapso() && activo.tipo == ScenarioType.COLLAPSE) {
             finalizar(ejecucionId, ScenarioStatus.COLLAPSED, ahora);
         }
