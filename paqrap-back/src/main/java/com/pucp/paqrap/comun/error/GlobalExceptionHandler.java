@@ -7,6 +7,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -38,7 +39,10 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiError> cuerpoIlegible(HttpMessageNotReadableException ex, HttpServletRequest request) {
-        return responder(HttpStatus.BAD_REQUEST, "El cuerpo de la solicitud no es un JSON válido", request, List.of());
+        String causa = ex.getMostSpecificCause().getMessage();
+        String mensaje = "El cuerpo de la solicitud no es un JSON válido"
+                + (causa == null ? "" : ": " + causa.lines().findFirst().orElse(""));
+        return responder(HttpStatus.BAD_REQUEST, mensaje, request, List.of());
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
@@ -64,8 +68,17 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> inesperado(Exception ex, HttpServletRequest request) {
+        // Errores propios de Spring MVC (405, 406, 415, parámetro faltante...): se respeta su código HTTP.
+        if (ex instanceof ErrorResponse errorSpring) {
+            return responderErrorSpring(errorSpring, ex.getMessage(), request);
+        }
         log.error("Error no controlado en {}", request.getRequestURI(), ex);
         return responder(HttpStatus.INTERNAL_SERVER_ERROR, "Error interno del servidor", request, List.of());
+    }
+
+    private ResponseEntity<ApiError> responderErrorSpring(ErrorResponse ex, String mensaje, HttpServletRequest request) {
+        HttpStatus status = HttpStatus.resolve(ex.getStatusCode().value());
+        return responder(status == null ? HttpStatus.BAD_REQUEST : status, mensaje, request, List.of());
     }
 
     private ResponseEntity<ApiError> responder(HttpStatus status, String mensaje, HttpServletRequest request,
