@@ -7,7 +7,8 @@
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:8080" },
     { "key": "vehiculoId", "value": "TA01" },
-    { "key": "fechaMantenimiento", "value": "2026-01-10" }
+    { "key": "fechaMantenimiento", "value": "2026-01-10" },
+    { "key": "vigenteEn", "value": "2026-01-01T10:00:00Z" }
   ],
   "item": [
     {
@@ -215,6 +216,78 @@
             "pm.test('404', () => pm.response.to.have.status(404));"
           ] } }],
           "request": { "method": "GET", "url": "{{baseUrl}}/api/almacenes/SUR" }
+        }
+      ]
+    },
+    {
+      "name": "Red vial - Bloqueos",
+      "description": "Antes de 'Cargar archivo de bloqueos', en la pestaña Body elige el archivo bloqueo.AAMM.txt en el campo 'archivo'. Las horas del archivo se interpretan en hora de Lima y se devuelven en UTC.",
+      "item": [
+        {
+          "name": "Cargar archivo de bloqueos",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));",
+            "const cuerpo = pm.response.json();",
+            "if (cuerpo.periodo) {",
+            "  const [anio, mes] = cuerpo.periodo.split('-');",
+            "  pm.collectionVariables.set('vigenteEn', `${anio}-${mes}-01T10:00:00Z`);",
+            "}"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "archivo", "type": "file", "src": [], "description": "Archivo bloqueo.AAMM.txt (p. ej. bloqueo.2601.txt)" },
+                { "key": "periodo", "value": "2026-01", "type": "text", "disabled": true, "description": "Solo si el nombre del archivo no es bloqueo.AAMM.txt" }
+              ]
+            },
+            "url": "{{baseUrl}}/api/red-vial/bloqueos/carga",
+            "description": "Reemplaza los bloqueos que ya empezaban en ese mes, así que se puede cargar dos veces sin duplicar."
+          }
+        },
+        {
+          "name": "Listar bloqueos vigentes en un instante",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/red-vial/bloqueos?vigenteEn={{vigenteEn}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "red-vial", "bloqueos"],
+              "query": [
+                { "key": "vigenteEn", "value": "{{vigenteEn}}", "description": "Instante ISO en UTC, p. ej. 2026-01-01T10:00:00Z" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Listar bloqueos de un rango",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/red-vial/bloqueos?desde=2026-01-01T05:00:00Z&hasta=2026-01-02T05:00:00Z",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "red-vial", "bloqueos"],
+              "query": [
+                { "key": "desde", "value": "2026-01-01T05:00:00Z", "description": "Opcional. 2026-01-01T05:00Z = medianoche en Lima" },
+                { "key": "hasta", "value": "2026-01-02T05:00:00Z", "description": "Opcional" }
+              ]
+            },
+            "description": "Devuelve los bloqueos cuyo intervalo se cruza con [desde, hasta). Sin parámetros devuelve todos."
+          }
+        },
+        {
+          "name": "Obtener bloqueo inexistente (404)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('404', () => pm.response.to.have.status(404));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/red-vial/bloqueos/999999" }
         }
       ]
     }
