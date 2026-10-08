@@ -10,7 +10,6 @@
 
 USE paqrap;
 
-
 -- ============================================================
 -- 1. EXTENSIÓN DE ORDERS
 -- ============================================================
@@ -28,6 +27,72 @@ ALTER TABLE orders
     ADD COLUMN delivered_at TIMESTAMP(6)
         NULL;
 
+
+-- ============================================================
+-- 1.1 NORMALIZACIÓN DE PEDIDOS EXISTENTES DE V1
+--
+-- Si la V1 contiene pedidos, se infiere el tipo de entrega y
+-- el plazo a partir del deadline histórico antes de agregar
+-- las restricciones de consistencia de V2.
+--
+-- No se modifica el deadline original.
+--
+-- Plazos reconocidos:
+--   REGULAR  -> 36 horas
+--   PRIORITY -> 4, 8, 12 o 18 horas
+--
+-- Si existe un pedido con un plazo diferente, no se corrige
+-- artificialmente. El CHECK posterior impedirá completar una
+-- migración inconsistente y ese registro deberá revisarse.
+-- ============================================================
+
+UPDATE orders
+SET
+    promised_hours = CASE
+        WHEN deadline = TIMESTAMPADD(HOUR, 4, registered_at) THEN 4
+        WHEN deadline = TIMESTAMPADD(HOUR, 8, registered_at) THEN 8
+        WHEN deadline = TIMESTAMPADD(HOUR, 12, registered_at) THEN 12
+        WHEN deadline = TIMESTAMPADD(HOUR, 18, registered_at) THEN 18
+        WHEN deadline = TIMESTAMPADD(HOUR, 36, registered_at) THEN 36
+        ELSE promised_hours
+    END,
+
+    delivery_type = CASE
+        WHEN deadline = TIMESTAMPADD(HOUR, 36, registered_at)
+            THEN 'REGULAR'
+
+        WHEN deadline = TIMESTAMPADD(HOUR, 4, registered_at)
+          OR deadline = TIMESTAMPADD(HOUR, 8, registered_at)
+          OR deadline = TIMESTAMPADD(HOUR, 12, registered_at)
+          OR deadline = TIMESTAMPADD(HOUR, 18, registered_at)
+            THEN 'PRIORITY'
+
+        ELSE delivery_type
+    END;
+
+
+-- Control informativo de pedidos históricos que no coinciden
+-- con ninguno de los plazos admitidos por la V2.
+--
+-- En una migración válida esta consulta debe devolver 0 filas.
+
+SELECT
+    order_id,
+    registered_at,
+    deadline
+FROM orders
+WHERE deadline NOT IN (
+    TIMESTAMPADD(HOUR, 4, registered_at),
+    TIMESTAMPADD(HOUR, 8, registered_at),
+    TIMESTAMPADD(HOUR, 12, registered_at),
+    TIMESTAMPADD(HOUR, 18, registered_at),
+    TIMESTAMPADD(HOUR, 36, registered_at)
+);
+
+
+-- ============================================================
+-- 1.2 RESTRICCIONES DE ORDERS
+-- ============================================================
 
 ALTER TABLE orders
     ADD CONSTRAINT chk_orders_status
@@ -75,6 +140,8 @@ ALTER TABLE orders
                 registered_at
             )
         );
+
+
 
 
 -- ============================================================
