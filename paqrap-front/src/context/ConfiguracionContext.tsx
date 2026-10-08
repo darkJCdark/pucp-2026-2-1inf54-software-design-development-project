@@ -5,9 +5,7 @@ import {
   type ReactNode,
 } from "react";
 
-import type {
-  ConfiguracionPlanificador,
-} from "@/features/configuracion/configuracion.types";
+import type { ConfiguracionPlanificador } from "@/features/configuracion/configuracion.types";
 
 interface ConfiguracionContextType {
   configuracion: ConfiguracionPlanificador;
@@ -18,37 +16,25 @@ interface ConfiguracionContextType {
 
   archivoPedidos: File | null;
 
-  setArchivoPedidos: (archivo: File | null) => void;
+  setArchivoPedidos: (
+    archivo: File | null,
+  ) => void;
 }
 
 const configuracionInicial: ConfiguracionPlanificador = {
   escenario: "SIMULACION_5D",
 
-  compararAlgoritmos: false,
-  algoritmo: "GRASP",
-  semilla: 42,
-
-  // GRASP
-  graspAlpha: 0.3,
-  graspMaxIter: 500,
-
-  // Simulated Annealing
-  saTemperaturaInicial: 1000,
-  saFactorEnfriamiento: 0.95,
-  saIteracionesNivel: 50,
-  saTemperaturaMinima: 1,
-
-  // Flota
-  autosCantidad: 12,
+  // Flota oficial
+  autosCantidad: 10,
   autosVelocidad: 40,
 
-  motosCantidad: 20,
+  motosCantidad: 15,
   motosVelocidad: 25,
 
-  bicicletasCantidad: 10,
+  bicicletasCantidad: 12,
   bicicletasVelocidad: 12,
 
-  // Semaforización
+  // Umbrales de visualización
   almacenVerdeHasta: 33,
   almacenAmbarHasta: 66,
 
@@ -79,8 +65,8 @@ export function ConfiguracionProvider({
   const actualizarConfiguracion = (
     cambios: Partial<ConfiguracionPlanificador>,
   ) => {
-    setConfiguracion((configuracionActual) => ({
-      ...configuracionActual,
+    setConfiguracion((actual) => ({
+      ...actual,
       ...cambios,
     }));
   };
@@ -100,7 +86,9 @@ export function ConfiguracionProvider({
 }
 
 export function useConfiguracion() {
-  const context = useContext(ConfiguracionContext);
+  const context = useContext(
+    ConfiguracionContext,
+  );
 
   if (!context) {
     throw new Error(
