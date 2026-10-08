@@ -5,6 +5,7 @@ import com.pucp.paqrap.modulos.almacenes.entity.Warehouse;
 import com.pucp.paqrap.modulos.flota.entity.Vehicle;
 import com.pucp.paqrap.modulos.flota.entity.VehicleOperationalState;
 import com.pucp.paqrap.modulos.flota.entity.VehicleStatus;
+import com.pucp.paqrap.modulos.pedidos.entity.Order;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.OperationalPlanEvaluator;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.ResultadoPlanificacion;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.RouteScheduler;
@@ -14,12 +15,14 @@ import com.pucp.paqrap.modulos.planificacion.dto.PlanResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.SolicitudPlanificacion;
 import com.pucp.paqrap.modulos.planificacion.entity.OperationalSnapshot;
 import com.pucp.paqrap.modulos.planificacion.entity.ShiftSchedule;
+import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 import com.pucp.paqrap.modulos.redvial.service.RoadNetwork;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
@@ -62,16 +65,34 @@ public class PlanificadorSaService implements PlanificadorService {
     public PlanResponse planificar(SolicitudPlanificacion solicitud) {
         Objects.requireNonNull(solicitud, "solicitud es requerida");
         OperationalSnapshot snapshot = construirSnapshot(solicitud.horaPlanificacion());
-        long semilla = solicitud.semilla() != null ? solicitud.semilla() : ThreadLocalRandom.current().nextLong();
-        long presupuestoMs = solicitud.presupuestoMs() != null ? solicitud.presupuestoMs() : PRESUPUESTO_POR_DEFECTO_MS;
+        long semilla = semillaDe(solicitud);
+        long presupuestoMs = presupuestoDe(solicitud);
 
+        EjecucionSa ejecucion = ejecutarSa(snapshot, solicitud.pedidosPendientes(), solicitud.bloqueosActivos(),
+                semilla, presupuestoMs);
+
+        return mapper.aResponse(solicitud.modo(), solicitud.horaPlanificacion(), ejecucion.resultado(), semilla,
+                ejecucion.duracionMs(), presupuestoMs);
+    }
+
+    /** Resultado del SA y su tiempo de cómputo; lo reutiliza la replanificación con su propio snapshot. */
+    record EjecucionSa(ResultadoPlanificacion resultado, long duracionMs) {
+    }
+
+    EjecucionSa ejecutarSa(OperationalSnapshot snapshot, List<Order> pedidos, List<RoadBlock> bloqueos,
+                           long semilla, long presupuestoMs) {
         long inicio = System.nanoTime();
-        ResultadoPlanificacion resultado = planificador.planificar(snapshot, solicitud.pedidosPendientes(),
-                solicitud.bloqueosActivos(), config, new Random(semilla), presupuestoMs);
-        long duracionMs = (System.nanoTime() - inicio) / 1_000_000;
+        ResultadoPlanificacion resultado = planificador.planificar(snapshot, pedidos, bloqueos, config,
+                new Random(semilla), presupuestoMs);
+        return new EjecucionSa(resultado, (System.nanoTime() - inicio) / 1_000_000);
+    }
 
-        return mapper.aResponse(solicitud.modo(), solicitud.horaPlanificacion(), resultado, semilla, duracionMs,
-                presupuestoMs);
+    static long semillaDe(SolicitudPlanificacion solicitud) {
+        return solicitud.semilla() != null ? solicitud.semilla() : ThreadLocalRandom.current().nextLong();
+    }
+
+    static long presupuestoDe(SolicitudPlanificacion solicitud) {
+        return solicitud.presupuestoMs() != null ? solicitud.presupuestoMs() : PRESUPUESTO_POR_DEFECTO_MS;
     }
 
     /** Todos los vehículos parten disponibles desde el almacén central a la hora de planificación. */
