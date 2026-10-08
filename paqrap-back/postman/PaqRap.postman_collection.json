@@ -9,7 +9,8 @@
     { "key": "vehiculoId", "value": "TA01" },
     { "key": "fechaMantenimiento", "value": "2026-01-10" },
     { "key": "vigenteEn", "value": "2026-01-01T10:00:00Z" },
-    { "key": "averiaId", "value": "1" }
+    { "key": "averiaId", "value": "1" },
+    { "key": "pedidoId", "value": "202601-00001" }
   ],
   "item": [
     {
@@ -378,6 +379,117 @@
             "url": "{{baseUrl}}/api/incidencias/averias",
             "description": "Falta 'y': hay que indicar ambas coordenadas o ninguna."
           }
+        }
+      ]
+    },
+    {
+      "name": "Pedidos",
+      "description": "El deadline ('vence') nunca se envía: se calcula como registradoEn + horasPrometidas. Antes de 'Cargar archivo de ventas', elige el archivo ventas.AAAAMM.txt en el campo 'archivo' del Body.",
+      "item": [
+        {
+          "name": "Registrar pedido priorizado",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201 y vence 8 h después', () => {",
+            "  pm.response.to.have.status(201);",
+            "  pm.expect(pm.response.json().vence).to.eql('2026-01-10T20:00:00Z');",
+            "});",
+            "pm.collectionVariables.set('pedidoId', pm.response.json().id);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"clienteId\": \"c123\",\n  \"x\": 10,\n  \"y\": 20,\n  \"paquetes\": 5,\n  \"tipoEntrega\": \"PRIORITY\",\n  \"horasPrometidas\": 8,\n  \"registradoEn\": \"2026-01-10T12:00:00Z\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/pedidos",
+            "description": "PRIORITY exige horasPrometidas 4, 8, 12 o 18. registradoEn es opcional (por defecto, ahora)."
+          }
+        },
+        {
+          "name": "Registrar pedido regular",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201 y 36 h', () => {",
+            "  pm.response.to.have.status(201);",
+            "  pm.expect(pm.response.json().horasPrometidas).to.eql(36);",
+            "});"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"clienteId\": \"c123\",\n  \"x\": 40,\n  \"y\": 30,\n  \"paquetes\": 2,\n  \"tipoEntrega\": \"REGULAR\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/pedidos",
+            "description": "REGULAR siempre tiene 36 h; horasPrometidas puede omitirse."
+          }
+        },
+        {
+          "name": "Registrar priorizado sin plazo (400)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('400', () => pm.response.to.have.status(400));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"clienteId\": \"c123\",\n  \"x\": 10,\n  \"y\": 20,\n  \"paquetes\": 5,\n  \"tipoEntrega\": \"PRIORITY\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/pedidos"
+          }
+        },
+        {
+          "name": "Obtener pedido con historial",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 con historial', () => {",
+            "  pm.response.to.have.status(200);",
+            "  pm.expect(pm.response.json().historial).to.not.be.empty;",
+            "});"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/pedidos/{{pedidoId}}" }
+        },
+        {
+          "name": "Cargar archivo de ventas",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "archivo", "type": "file", "src": [], "description": "Archivo ventas.AAAAMM.txt (p. ej. ventas.202601.txt)" },
+                { "key": "periodo", "value": "2026-01", "type": "text", "disabled": true, "description": "Solo si el nombre del archivo no es ventas.AAAAMM.txt" }
+              ]
+            },
+            "url": "{{baseUrl}}/api/pedidos/carga",
+            "description": "Los pedidos se identifican como AAAAMM-NNNNN (mes y línea). Recargar el archivo omite los que ya existen."
+          }
+        },
+        {
+          "name": "Listar pedidos priorizados por vencimiento",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/pedidos?tipoEntrega=PRIORITY&sort=vence,asc&page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "pedidos"],
+              "query": [
+                { "key": "tipoEntrega", "value": "PRIORITY", "description": "Opcional: REGULAR o PRIORITY" },
+                { "key": "estado", "value": "REGISTERED", "description": "Opcional: REGISTERED, ASSIGNED, IN_TRANSIT o DELIVERED", "disabled": true },
+                { "key": "clienteId", "value": "c4910", "description": "Opcional", "disabled": true },
+                { "key": "registradoDesde", "value": "2026-01-01T05:00:00Z", "description": "Opcional, instante UTC", "disabled": true },
+                { "key": "registradoHasta", "value": "2026-01-02T05:00:00Z", "description": "Opcional, instante UTC", "disabled": true },
+                { "key": "venceHasta", "value": "2026-01-02T05:00:00Z", "description": "Opcional: pedidos que vencen hasta ese instante", "disabled": true },
+                { "key": "sort", "value": "vence,asc", "description": "id, clienteId, paquetes, registradoEn, vence o estado" },
+                { "key": "page", "value": "0", "description": "Desde 0" },
+                { "key": "size", "value": "20", "description": "Máximo 500" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Obtener pedido inexistente (404)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('404', () => pm.response.to.have.status(404));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/pedidos/202601-99999" }
         }
       ]
     }
