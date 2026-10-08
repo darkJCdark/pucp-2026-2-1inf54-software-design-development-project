@@ -3,6 +3,7 @@ package com.pucp.paqrap.modulos.flota.controller;
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.flota.persistence.MaintenanceDayEntity;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleEntity;
+import com.pucp.paqrap.modulos.flota.persistence.VehicleOperationalStatus;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleTypeParametersEntity;
 import com.pucp.paqrap.modulos.flota.repository.MaintenanceDayRepository;
 import com.pucp.paqrap.modulos.flota.repository.VehicleRepository;
@@ -49,9 +50,10 @@ class FlotaApiTest {
         tipoRepository.save(new VehicleTypeParametersEntity(VehicleType.CAR, 24, new BigDecimal("40.00"), new BigDecimal("8.00")));
         tipoRepository.save(new VehicleTypeParametersEntity(VehicleType.MOTORCYCLE, 8, new BigDecimal("25.00"), new BigDecimal("6.00")));
         tipoRepository.save(new VehicleTypeParametersEntity(VehicleType.BICYCLE, 4, new BigDecimal("12.00"), new BigDecimal("3.00")));
-        vehiculoRepository.save(new VehicleEntity("TA01", VehicleType.CAR, true));
-        vehiculoRepository.save(new VehicleEntity("TA02", VehicleType.CAR, false));
-        vehiculoRepository.save(new VehicleEntity("TM01", VehicleType.MOTORCYCLE, true));
+        vehiculoRepository.save(new VehicleEntity("TA01", VehicleType.CAR, VehicleOperationalStatus.AVAILABLE));
+        vehiculoRepository.save(new VehicleEntity("TA02", VehicleType.CAR, VehicleOperationalStatus.UNAVAILABLE));
+        vehiculoRepository.save(new VehicleEntity("TA03", VehicleType.CAR, VehicleOperationalStatus.IN_ROUTE));
+        vehiculoRepository.save(new VehicleEntity("TM01", VehicleType.MOTORCYCLE, VehicleOperationalStatus.AVAILABLE));
         mantenimientoRepository.save(new MaintenanceDayEntity("TA01", LocalDate.of(2026, 1, 10)));
     }
 
@@ -88,9 +90,9 @@ class FlotaApiTest {
 
     @Test
     void explicaPorQueElJsonEsInvalido() throws Exception {
-        mvc.perform(patch("/api/flota/vehiculos/TA01/disponibilidad")
+        mvc.perform(patch("/api/flota/vehiculos/TA01/estado")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"disponible\": \"tal vez\"}"))
+                        .content("{\"estado\": \"tal vez\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.mensaje").value(org.hamcrest.Matchers.containsString("tal vez")));
     }
@@ -102,20 +104,38 @@ class FlotaApiTest {
     }
 
     @Test
-    void filtraVehiculosPorTipoYDisponibilidad() throws Exception {
-        mvc.perform(get("/api/flota/vehiculos").param("tipo", "CAR").param("disponible", "true"))
+    void filtraVehiculosPorTipoYEstado() throws Exception {
+        mvc.perform(get("/api/flota/vehiculos").param("tipo", "CAR").param("estado", "AVAILABLE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].id").value("TA01"));
+                .andExpect(jsonPath("$[0].id").value("TA01"))
+                .andExpect(jsonPath("$[0].x").value(27))
+                .andExpect(jsonPath("$[0].cargaActual").value(0));
     }
 
     @Test
-    void cambiaLaDisponibilidadDeUnVehiculo() throws Exception {
-        mvc.perform(patch("/api/flota/vehiculos/TA02/disponibilidad")
+    void cambiaElEstadoDeUnVehiculo() throws Exception {
+        mvc.perform(patch("/api/flota/vehiculos/TA02/estado")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"disponible\": true}"))
+                        .content("{\"estado\": \"AVAILABLE\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.disponible").value(true));
+                .andExpect(jsonPath("$.estado").value("AVAILABLE"));
+    }
+
+    @Test
+    void noPermiteAsignarEnRutaManualmente() throws Exception {
+        mvc.perform(patch("/api/flota/vehiculos/TA01/estado")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"estado\": \"IN_ROUTE\"}"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void noPermiteCambiarUnVehiculoEnRuta() throws Exception {
+        mvc.perform(patch("/api/flota/vehiculos/TA03/estado")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"estado\": \"UNAVAILABLE\"}"))
+                .andExpect(status().isConflict());
     }
 
     @Test

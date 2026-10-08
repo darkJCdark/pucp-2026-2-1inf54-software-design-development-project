@@ -1,10 +1,11 @@
 package com.pucp.paqrap.modulos.flota.controller;
 
 import com.pucp.paqrap.modulos.flota.dto.ActualizarTipoVehiculoRequest;
-import com.pucp.paqrap.modulos.flota.dto.CambiarDisponibilidadRequest;
+import com.pucp.paqrap.modulos.flota.dto.CambiarEstadoRequest;
 import com.pucp.paqrap.modulos.flota.dto.TipoVehiculoResponse;
 import com.pucp.paqrap.modulos.flota.dto.VehiculoResponse;
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
+import com.pucp.paqrap.modulos.flota.persistence.VehicleOperationalStatus;
 import com.pucp.paqrap.modulos.flota.service.FlotaService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -46,8 +47,8 @@ public class FlotaController {
 
     @GetMapping("/vehiculos")
     public List<VehiculoResponse> listarVehiculos(@RequestParam(required = false) VehicleType tipo,
-                                                  @RequestParam(required = false) Boolean disponible) {
-        return flotaService.listarVehiculos(tipo, disponible);
+                                                  @RequestParam(required = false) VehicleOperationalStatus estado) {
+        return flotaService.listarVehiculos(tipo, estado);
     }
 
     @GetMapping("/vehiculos/{id}")
@@ -55,9 +56,8 @@ public class FlotaController {
         return flotaService.obtenerVehiculo(id);
     }
 
-    @PatchMapping("/vehiculos/{id}/disponibilidad")
-    public VehiculoResponse cambiarDisponibilidad(@PathVariable String id,
-                                                  @Valid @RequestBody CambiarDisponibilidadRequest request) {
-        return flotaService.cambiarDisponibilidad(id, request.disponible());
+    @PatchMapping("/vehiculos/{id}/estado")
+    public VehiculoResponse cambiarEstado(@PathVariable String id, @Valid @RequestBody CambiarEstadoRequest request) {
+        return flotaService.cambiarEstado(id, request.estado());
     }
 }

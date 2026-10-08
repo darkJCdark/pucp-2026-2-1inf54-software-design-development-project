@@ -77,12 +77,12 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/flota/vehiculos?tipo=CAR&disponible=true",
+              "raw": "{{baseUrl}}/api/flota/vehiculos?tipo=CAR&estado=AVAILABLE",
               "host": ["{{baseUrl}}"],
               "path": ["api", "flota", "vehiculos"],
               "query": [
                 { "key": "tipo", "value": "CAR", "description": "CAR, MOTORCYCLE o BICYCLE (opcional)" },
-                { "key": "disponible", "value": "true", "description": "true o false (opcional)" }
+                { "key": "estado", "value": "AVAILABLE", "description": "AVAILABLE, IN_ROUTE o UNAVAILABLE (opcional)" }
               ]
             }
           }
@@ -104,32 +104,45 @@
         {
           "name": "Marcar vehículo no disponible",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('200 y no disponible', () => {",
+            "pm.test('200 y UNAVAILABLE', () => {",
             "  pm.response.to.have.status(200);",
-            "  pm.expect(pm.response.json().disponible).to.eql(false);",
+            "  pm.expect(pm.response.json().estado).to.eql('UNAVAILABLE');",
             "});"
           ] } }],
           "request": {
             "method": "PATCH",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"disponible\": false\n}", "options": { "raw": { "language": "json" } } },
-            "url": "{{baseUrl}}/api/flota/vehiculos/{{vehiculoId}}/disponibilidad"
+            "body": { "mode": "raw", "raw": "{\n  \"estado\": \"UNAVAILABLE\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/flota/vehiculos/{{vehiculoId}}/estado"
           }
         },
         {
           "name": "Marcar vehículo disponible",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('200 y disponible', () => {",
+            "pm.test('200 y AVAILABLE', () => {",
             "  pm.response.to.have.status(200);",
-            "  pm.expect(pm.response.json().disponible).to.eql(true);",
+            "  pm.expect(pm.response.json().estado).to.eql('AVAILABLE');",
             "});"
           ] } }],
           "request": {
             "method": "PATCH",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"disponible\": true\n}", "options": { "raw": { "language": "json" } } },
-            "url": "{{baseUrl}}/api/flota/vehiculos/{{vehiculoId}}/disponibilidad",
+            "body": { "mode": "raw", "raw": "{\n  \"estado\": \"AVAILABLE\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/flota/vehiculos/{{vehiculoId}}/estado",
             "description": "Deja el vehículo como estaba en el seed."
+          }
+        },
+        {
+          "name": "Asignar IN_ROUTE manualmente (409)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('409', () => pm.response.to.have.status(409));"
+          ] } }],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"estado\": \"IN_ROUTE\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/flota/vehiculos/{{vehiculoId}}/estado",
+            "description": "IN_ROUTE solo lo asigna la simulación."
           }
         }
       ]
