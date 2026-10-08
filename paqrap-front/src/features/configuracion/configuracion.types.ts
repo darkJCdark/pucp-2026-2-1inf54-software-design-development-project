@@ -6,7 +6,6 @@ export type Escenario =
 export interface ConfiguracionPlanificador {
   escenario: Escenario;
 
-  // Flota
   autosCantidad: number;
   autosVelocidad: number;
 
@@ -16,7 +15,6 @@ export interface ConfiguracionPlanificador {
   bicicletasCantidad: number;
   bicicletasVelocidad: number;
 
-  // Semaforización
   almacenVerdeHasta: number;
   almacenAmbarHasta: number;
 
