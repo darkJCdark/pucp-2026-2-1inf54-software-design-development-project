@@ -81,6 +81,13 @@ export default function ConfiguracionPage() {
   >(null);
 
   const [
+    mensaje,
+    setMensaje,
+  ] = useState<
+    string | null
+  >(null);
+
+  const [
     escenarioActivo,
     setEscenarioActivo,
   ] =
@@ -98,33 +105,9 @@ export default function ConfiguracionPage() {
     setDeteniendo,
   ] = useState(false);
 
-  const [
-    mensaje,
-    setMensaje,
-  ] = useState<
-    string | null
-  >(null);
-
   const necesitaArchivo =
     configuracion.escenario !==
     "DIA_A_DIA";
-
-  const necesitaInicio =
-    configuracion.escenario !==
-    "DIA_A_DIA";
-
-  const configuracionValida =
-    (!necesitaArchivo ||
-      archivoPedidos !== null) &&
-    (!necesitaInicio ||
-      configuracion.inicioSimulado !==
-        "");
-
-  const puedeIniciar =
-    configuracionValida &&
-    !escenarioActivo &&
-    !verificandoActivo &&
-    !iniciando;
 
   useEffect(() => {
     void cargarEscenarioActivo();
@@ -168,15 +151,6 @@ export default function ConfiguracionPage() {
         "No se pudo consultar el escenario activo:",
         error,
       );
-
-      /*
-       * No bloqueamos toda la pantalla
-       * si falla únicamente esta
-       * comprobación.
-       */
-      setEscenarioActivo(
-        null,
-      );
     } finally {
       setVerificandoActivo(
         false,
@@ -194,8 +168,11 @@ export default function ConfiguracionPage() {
       setError(null);
       setMensaje(null);
 
+      const id =
+        escenarioActivo.id;
+
       await escenariosService.detener(
-        escenarioActivo.id,
+        id,
       );
 
       setEscenarioActivo(
@@ -203,31 +180,13 @@ export default function ConfiguracionPage() {
       );
 
       setMensaje(
-        `La ejecución #${escenarioActivo.id} fue detenida correctamente. Ya puedes iniciar otra simulación.`,
+        `La ejecución #${id} fue detenida correctamente.`,
       );
     } catch (error) {
-      console.error(
-        "No se pudo detener el escenario:",
+      manejarError(
         error,
+        "No fue posible detener la simulación activa.",
       );
-
-      if (
-        error instanceof ApiError
-      ) {
-        setError(
-          error.message,
-        );
-      } else if (
-        error instanceof Error
-      ) {
-        setError(
-          error.message,
-        );
-      } else {
-        setError(
-          "No fue posible detener la simulación activa.",
-        );
-      }
     } finally {
       setDeteniendo(false);
     }
@@ -243,8 +202,125 @@ export default function ConfiguracionPage() {
     );
   }
 
+  function validarConfiguracion():
+    string | null {
+    /*
+     * Día a Día no requiere
+     * archivo ni fecha.
+     */
+    if (
+      configuracion.escenario ===
+      "DIA_A_DIA"
+    ) {
+      return null;
+    }
+
+    if (!archivoPedidos) {
+      return "Selecciona el archivo de pedidos antes de iniciar.";
+    }
+
+    const match =
+      /^ventas\.(\d{4})(\d{2})\.txt$/i.exec(
+        archivoPedidos.name,
+      );
+
+    if (!match) {
+      return "El archivo debe tener el nombre ventas.AAAAMM.txt.";
+    }
+
+    if (
+      !configuracion.inicioSimulado
+    ) {
+      return "Selecciona la fecha y hora inicial de la simulación.";
+    }
+
+    /*
+     * Evitamos el error más frecuente:
+     *
+     * archivo de enero
+     * +
+     * simulación iniciada en octubre.
+     */
+    const anioArchivo =
+      Number(match[1]);
+
+    const mesArchivo =
+      Number(match[2]);
+
+    const fecha =
+      new Date(
+        `${normalizarFechaLocal(
+          configuracion.inicioSimulado,
+        )}-05:00`,
+      );
+
+    if (
+      Number.isNaN(
+        fecha.getTime(),
+      )
+    ) {
+      return "La fecha inicial no es válida.";
+    }
+
+    /*
+     * Convertimos nuevamente a hora de
+     * Lima para verificar el periodo.
+     */
+    const partes =
+      new Intl.DateTimeFormat(
+        "en-CA",
+        {
+          timeZone:
+            "America/Lima",
+
+          year: "numeric",
+          month: "2-digit",
+        },
+      ).formatToParts(
+        fecha,
+      );
+
+    const anioInicio =
+      Number(
+        partes.find(
+          (parte) =>
+            parte.type ===
+            "year",
+        )?.value,
+      );
+
+    const mesInicio =
+      Number(
+        partes.find(
+          (parte) =>
+            parte.type ===
+            "month",
+        )?.value,
+      );
+
+    if (
+      anioInicio !==
+        anioArchivo ||
+      mesInicio !==
+        mesArchivo
+    ) {
+      return `La simulación debe comenzar dentro del periodo del archivo: ${anioArchivo}-${String(
+        mesArchivo,
+      ).padStart(2, "0")}.`;
+    }
+
+    return null;
+  }
+
   async function handleIniciarSimulacion() {
-    if (!configuracionValida) {
+    const errorConfiguracion =
+      validarConfiguracion();
+
+    if (errorConfiguracion) {
+      setError(
+        errorConfiguracion,
+      );
+
       return;
     }
 
@@ -254,9 +330,8 @@ export default function ConfiguracionPage() {
       setMensaje(null);
 
       /*
-       * Volvemos a comprobar justo antes
-       * de crear para evitar escenarios
-       * CREATED innecesarios.
+       * Revisión final para evitar
+       * escenarios CREATED huérfanos.
        */
       const activo =
         await buscarEscenarioActivo();
@@ -266,18 +341,33 @@ export default function ConfiguracionPage() {
           activo,
         );
 
+        setError(
+          "Ya existe una simulación activa.",
+        );
+
         return;
       }
 
       /*
-       * 5D y Colapso utilizan archivo.
+       * Para 5D y Colapso cargamos
+       * primero los datos históricos.
+       *
+       * El backend evita duplicarlos
+       * si el mismo archivo ya fue
+       * cargado anteriormente.
        */
       if (
         necesitaArchivo &&
         archivoPedidos
       ) {
-        await pedidosService.cargarArchivo(
-          archivoPedidos,
+        const carga =
+          await pedidosService.cargarArchivo(
+            archivoPedidos,
+          );
+
+        console.log(
+          "Carga de pedidos:",
+          carga,
         );
       }
 
@@ -294,10 +384,19 @@ export default function ConfiguracionPage() {
           : {
               tipo,
 
+              /*
+               * El archivo se interpreta
+               * en America/Lima.
+               *
+               * Forzamos -05:00 para que
+               * la simulación use la misma
+               * zona horaria independientemente
+               * del navegador.
+               */
               inicioSimulado:
-                new Date(
+                convertirHoraLimaAIso(
                   configuracion.inicioSimulado,
-                ).toISOString(),
+                ),
             };
 
       const creado =
@@ -319,13 +418,6 @@ export default function ConfiguracionPage() {
         error,
       );
 
-      /*
-       * Si alguien inició otra ejecución
-       * entre nuestra comprobación y el
-       * POST, refrescamos el escenario
-       * activo para mostrar los botones
-       * de recuperación.
-       */
       if (
         error instanceof ApiError &&
         error.status === 409
@@ -342,27 +434,50 @@ export default function ConfiguracionPage() {
         }
       }
 
-      if (
-        error instanceof ApiError
-      ) {
-        setError(
-          error.message,
-        );
-      } else if (
-        error instanceof Error
-      ) {
-        setError(
-          error.message,
-        );
-      } else {
-        setError(
-          "No fue posible iniciar la simulación.",
-        );
-      }
+      manejarError(
+        error,
+        "No fue posible iniciar la simulación.",
+      );
     } finally {
       setIniciando(false);
     }
   }
+
+  function manejarError(
+    error: unknown,
+    fallback: string,
+  ) {
+    if (
+      error instanceof ApiError
+    ) {
+      setError(
+        error.message,
+      );
+
+      return;
+    }
+
+    if (
+      error instanceof Error
+    ) {
+      setError(
+        error.message,
+      );
+
+      return;
+    }
+
+    setError(
+      fallback,
+    );
+  }
+
+  const puedeIniciar =
+    !iniciando &&
+    !verificandoActivo &&
+    !escenarioActivo &&
+    validarConfiguracion() ===
+      null;
 
   return (
     <div className="flex min-h-full flex-col">
@@ -380,7 +495,6 @@ export default function ConfiguracionPage() {
         <ResumenConfiguracion />
       </div>
 
-      {/* Comprobando escenario activo */}
       {verificandoActivo && (
         <div className="mx-4 mb-3 flex items-center gap-2 rounded-md border border-slate-700 bg-[#151b23] px-4 py-3 text-sm text-slate-300">
           <Loader2 className="size-4 animate-spin" />
@@ -389,11 +503,9 @@ export default function ConfiguracionPage() {
         </div>
       )}
 
-      {/* Escenario activo */}
       {escenarioActivo && (
         <div className="mx-4 mb-3 rounded-lg border border-amber-700/70 bg-amber-950/20 p-4">
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-
             <div className="flex items-start gap-3">
               <TriangleAlert className="mt-0.5 size-5 shrink-0 text-amber-400" />
 
@@ -404,7 +516,9 @@ export default function ConfiguracionPage() {
 
                 <p className="mt-1 text-sm text-slate-400">
                   Ejecución #
-                  {escenarioActivo.id}
+                  {
+                    escenarioActivo.id
+                  }
                   {" · "}
                   {nombreTipoEscenario(
                     escenarioActivo.tipo,
@@ -416,7 +530,10 @@ export default function ConfiguracionPage() {
                 </p>
 
                 <p className="mt-1 text-xs text-slate-500">
-                  Puedes volver a la ejecución actual o detenerla antes de iniciar una nueva.
+                  Puedes volver a la
+                  ejecución actual o
+                  detenerla antes de
+                  iniciar otra.
                 </p>
               </div>
             </div>
@@ -436,13 +553,13 @@ export default function ConfiguracionPage() {
 
               <button
                 type="button"
-                onClick={() =>
-                  void handleDetenerActivo()
-                }
                 disabled={
                   deteniendo
                 }
-                className="flex items-center gap-2 rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() =>
+                  void handleDetenerActivo()
+                }
+                className="flex items-center gap-2 rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600 disabled:opacity-50"
               >
                 {deteniendo ? (
                   <Loader2 className="size-4 animate-spin" />
@@ -459,27 +576,23 @@ export default function ConfiguracionPage() {
         </div>
       )}
 
-      {/* Mensaje de éxito */}
       {mensaje && (
         <div className="mx-4 mb-3 rounded-md border border-green-900 bg-green-950/30 px-4 py-3 text-sm text-green-400">
           {mensaje}
         </div>
       )}
 
-      {/* Error */}
       {error && (
         <div className="mx-4 mb-3 rounded-md border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-400">
           {error}
         </div>
       )}
 
-      {/* Barra inferior */}
       <div className="sticky bottom-0 flex items-center justify-between border-t border-slate-800 bg-[#0d1117] px-4 py-3">
-
         <div className="text-xs text-slate-500">
           {escenarioActivo
-            ? "Detén la ejecución activa para iniciar otra."
-            : "No hay simulaciones activas."}
+            ? "Existe una ejecución activa."
+            : "Listo para iniciar una ejecución."}
         </div>
 
         <Button
@@ -565,4 +678,51 @@ function nombreEstado(
     case "FAILED":
       return "Error";
   }
+}
+
+/**
+ * datetime-local normalmente tiene:
+ *
+ * YYYY-MM-DDTHH:mm
+ *
+ * Agregamos segundos si faltan.
+ */
+function normalizarFechaLocal(
+  valor: string,
+) {
+  return valor.length === 16
+    ? `${valor}:00`
+    : valor;
+}
+
+/**
+ * Los archivos históricos de PaqRap
+ * se interpretan en hora de Lima.
+ *
+ * Perú utiliza UTC-5 sin DST.
+ */
+function convertirHoraLimaAIso(
+  valor: string,
+) {
+  const normalizado =
+    normalizarFechaLocal(
+      valor,
+    );
+
+  const fecha =
+    new Date(
+      `${normalizado}-05:00`,
+    );
+
+  if (
+    Number.isNaN(
+      fecha.getTime(),
+    )
+  ) {
+    throw new Error(
+      "La fecha inicial de la simulación no es válida.",
+    );
+  }
+
+  return fecha.toISOString();
 }
