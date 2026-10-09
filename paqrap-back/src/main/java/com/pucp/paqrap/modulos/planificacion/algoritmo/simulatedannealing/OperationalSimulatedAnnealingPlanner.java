@@ -15,6 +15,10 @@ import java.util.random.RandomGenerator;
 
 /** Pure-Java simulated annealing over the common PaqRap operational model. */
 public final class OperationalSimulatedAnnealingPlanner {
+    /** Upper bound accepted for a wall-clock budget (one day), as in the numerical experiment. */
+    public static final long PRESUPUESTO_MAXIMO_MS = 86_400_000L;
+    private static final long SIN_LIMITE = -1L;
+
     private final OperationalPlanEvaluator evaluator;
     private final OperationalNeighborGenerator neighborGenerator;
     private final InitialPlanBuilder initialPlanBuilder;
@@ -37,9 +41,30 @@ public final class OperationalSimulatedAnnealingPlanner {
         return ejecutar(snapshot, orders, blocks, config, random).resultado();
     }
 
+    /**
+     * Same search bounded by a wall-clock budget measured from the start of the call (the initial plan
+     * is included, as in the numerical experiment). When the budget expires the search stops and the
+     * best plan found so far is returned. The initial plan construction itself cannot be interrupted.
+     */
+    public ResultadoPlanificacion planificar(OperationalSnapshot snapshot, Collection<Order> orders,
+                                             List<RoadBlock> blocks, AnnealingConfig config,
+                                             RandomGenerator random, long presupuestoMs) {
+        if (presupuestoMs <= 0 || presupuestoMs > PRESUPUESTO_MAXIMO_MS) {
+            throw new IllegalArgumentException("presupuestoMs must be within (0, " + PRESUPUESTO_MAXIMO_MS + "]");
+        }
+        return ejecutar(snapshot, orders, blocks, config, random, presupuestoMs).resultado();
+    }
+
     /** Package-private metrics support deterministic tests without exposing a second backend result. */
     Ejecucion ejecutar(OperationalSnapshot snapshot, Collection<Order> orders, List<RoadBlock> blocks,
                        AnnealingConfig config, RandomGenerator random) {
+        return ejecutar(snapshot, orders, blocks, config, random, SIN_LIMITE);
+    }
+
+    Ejecucion ejecutar(OperationalSnapshot snapshot, Collection<Order> orders, List<RoadBlock> blocks,
+                       AnnealingConfig config, RandomGenerator random, long presupuestoMs) {
+        long inicioNanos = System.nanoTime();
+        long limiteNanos = presupuestoMs == SIN_LIMITE ? SIN_LIMITE : presupuestoMs * 1_000_000L;
         Objects.requireNonNull(snapshot, "snapshot is required");
         Objects.requireNonNull(orders, "orders are required");
         Objects.requireNonNull(blocks, "blocks are required");
@@ -57,7 +82,8 @@ public final class OperationalSimulatedAnnealingPlanner {
         if (!initialEvaluation.isFeasible()) {
             throw new IllegalStateException("Initial SA plan must be feasible: " + initialEvaluation.violations());
         }
-        SearchResult search = optimize(seed.plan(), initialEvaluation, snapshot, seed.attended(), blocks, config, random);
+        SearchResult search = optimize(seed.plan(), initialEvaluation, snapshot, seed.attended(), blocks, config, random,
+                inicioNanos, limiteNanos);
         ResultadoPlanificacion result = new ResultadoPlanificacion(search.bestPlan(), search.bestEvaluation(), seed.unattended());
         return new Ejecucion(result, initialEvaluation.totalCost(), search.evaluatedNeighbors(),
                 search.acceptedNeighbors(), search.iterations(), search.finalTemperature());
@@ -65,7 +91,8 @@ public final class OperationalSimulatedAnnealingPlanner {
 
     private SearchResult optimize(OperationalPlan initial, PlanEvaluation initialEvaluation,
                                   OperationalSnapshot snapshot, Collection<Order> requiredOrders,
-                                  List<RoadBlock> blocks, AnnealingConfig config, RandomGenerator random) {
+                                  List<RoadBlock> blocks, AnnealingConfig config, RandomGenerator random,
+                                  long inicioNanos, long limiteNanos) {
         OperationalPlan current = initial;
         OperationalPlan best = initial;
         PlanEvaluation currentEvaluation = initialEvaluation;
@@ -78,9 +105,11 @@ public final class OperationalSimulatedAnnealingPlanner {
 
         while (temperature >= config.minimumTemperature()
                 && iterations < config.maximumIterations()
-                && withoutImprovement < config.maximumIterationsWithoutImprovement()) {
+                && withoutImprovement < config.maximumIterationsWithoutImprovement()
+                && !tiempoAgotado(inicioNanos, limiteNanos)) {
             for (int levelIteration = 0; levelIteration < config.iterationsPerTemperature()
-                    && iterations < config.maximumIterations(); levelIteration++) {
+                    && iterations < config.maximumIterations()
+                    && !tiempoAgotado(inicioNanos, limiteNanos); levelIteration++) {
                 iterations++;
                 var candidate = neighborGenerator.generate(current, snapshot, random);
                 if (candidate.isEmpty()) continue;
@@ -105,6 +134,10 @@ public final class OperationalSimulatedAnnealingPlanner {
             temperature *= config.coolingFactor();
         }
         return new SearchResult(best, bestEvaluation, evaluated, accepted, iterations, temperature);
+    }
+
+    private static boolean tiempoAgotado(long inicioNanos, long limiteNanos) {
+        return limiteNanos != SIN_LIMITE && System.nanoTime() - inicioNanos >= limiteNanos;
     }
 
     static boolean accept(double delta, double temperature, RandomGenerator random) {
