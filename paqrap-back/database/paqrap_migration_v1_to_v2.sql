@@ -10,6 +10,14 @@
 
 USE paqrap;
 
+-- Conserva la configuración actual de Safe Updates de la sesión.
+SET @OLD_SQL_SAFE_UPDATES = @@SESSION.SQL_SAFE_UPDATES;
+
+-- La migración necesita actualizar todos los registros existentes
+-- de orders y vehicles.
+SET SESSION SQL_SAFE_UPDATES = 0;
+
+
 -- ============================================================
 -- 1. EXTENSIÓN DE ORDERS
 -- ============================================================
@@ -45,7 +53,6 @@ ALTER TABLE orders
 -- artificialmente. El CHECK posterior impedirá completar una
 -- migración inconsistente y ese registro deberá revisarse.
 -- ============================================================
-
 UPDATE orders
 SET
     promised_hours = CASE
@@ -68,7 +75,7 @@ SET
             THEN 'PRIORITY'
 
         ELSE delivery_type
-    END;
+    END
 
 
 -- Control informativo de pedidos históricos que no coinciden
@@ -168,11 +175,10 @@ ALTER TABLE vehicles
 
 -- Traslada el estado disponible de V1 al nuevo modelo.
 UPDATE vehicles
-SET operational_status =
-    CASE
-        WHEN available = TRUE THEN 'AVAILABLE'
-        ELSE 'UNAVAILABLE'
-    END;
+SET operational_status = CASE
+    WHEN available = TRUE THEN 'AVAILABLE'
+    ELSE 'UNAVAILABLE'
+END
 
 
 ALTER TABLE vehicles
@@ -769,3 +775,7 @@ SELECT
 FROM information_schema.tables
 WHERE table_schema = 'paqrap'
 ORDER BY table_name;
+
+
+-- Restaura la configuración original de Safe Updates.
+SET SESSION SQL_SAFE_UPDATES = @OLD_SQL_SAFE_UPDATES;
