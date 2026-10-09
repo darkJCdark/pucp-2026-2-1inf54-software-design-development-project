@@ -51,6 +51,7 @@ class EscenarioApiTest {
         }
 
         @Bean
+        @Primary
         PlanificadorDePrueba planificadorDePrueba() {
             return new PlanificadorDePrueba();
         }
