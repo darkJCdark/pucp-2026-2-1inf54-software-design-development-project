@@ -29,8 +29,8 @@ public final class RoadNetwork {
         Objects.requireNonNull(destination, "destination is required");
         Objects.requireNonNull(departureAt, "departureAt is required");
         validateTravelTime(travelTimePerStreet);
-        List<RoadBlock> activeBlocks = List.copyOf(Objects.requireNonNull(blocks, "blocks are required"));
-        if (isNodeBlockedDuring(origin, departureAt, departureAt.plusNanos(1), activeBlocks)) {
+        BlockIndex activeBlocks = BlockIndex.of(Objects.requireNonNull(blocks, "blocks are required"));
+        if (activeBlocks.isNodeBlockedDuring(origin, departureAt, departureAt.plusNanos(1))) {
             return Optional.empty();
         }
         if (origin.equals(destination)) {
@@ -74,10 +74,10 @@ public final class RoadNetwork {
         Objects.requireNonNull(departsAt, "departsAt is required");
         validateTravelTime(travelTimePerStreet);
         new StreetSegment(from, to);
-        List<RoadBlock> activeBlocks = List.copyOf(Objects.requireNonNull(blocks, "blocks are required"));
+        BlockIndex activeBlocks = BlockIndex.of(Objects.requireNonNull(blocks, "blocks are required"));
         Instant firstArrival = departsAt.plus(travelTimePerStreet);
         RoadLeg outbound = new RoadLeg(from, to, departsAt, firstArrival);
-        if (!isTraversalBlockedDuring(from, to, departsAt, firstArrival, activeBlocks)) {
+        if (!activeBlocks.blocksTraversal(from, to, departsAt, firstArrival)) {
             return new TraversalOutcome(List.of(outbound), to, firstArrival, false);
         }
         Instant returnArrival = firstArrival.plus(travelTimePerStreet);
@@ -86,18 +86,10 @@ public final class RoadNetwork {
     }
 
     private Instant firstLegalDeparture(Location from, Location to, Instant candidateDeparture,
-                                        Duration travelTime, List<RoadBlock> blocks) {
+                                        Duration travelTime, BlockIndex blocks) {
         Instant departure = candidateDeparture;
         while (true) {
-            Instant arrival = departure.plus(travelTime);
-            Instant latestConflictEnd = null;
-            for (RoadBlock block : blocks) {
-                if (blocksTraversal(block, from, to, departure, arrival)) {
-                    if (latestConflictEnd == null || block.endsAt().isAfter(latestConflictEnd)) {
-                        latestConflictEnd = block.endsAt();
-                    }
-                }
-            }
+            Instant latestConflictEnd = blocks.latestConflictEnd(from, to, departure, departure.plus(travelTime));
             if (latestConflictEnd == null) {
                 return departure;
             }
@@ -105,22 +97,49 @@ public final class RoadNetwork {
         }
     }
 
-    private boolean isTraversalBlockedDuring(Location from, Location to, Instant departure, Instant arrival,
-                                             List<RoadBlock> blocks) {
-        return blocks.stream().anyMatch(block -> blocksTraversal(block, from, to, departure, arrival));
-    }
+    /**
+     * Blocks indexed by every node they close. A block can only affect the street (from, to) if it closes one of
+     * its ends (a blocked segment always has both ends blocked), so each step checks just those few blocks instead
+     * of expanding every block's polyline again.
+     */
+    private record BlockIndex(Map<Location, List<RoadBlock>> blocksByNode) {
 
-    private boolean blocksTraversal(RoadBlock block, Location from, Location to, Instant departure, Instant arrival) {
-        if (!block.overlaps(departure, arrival)) {
-            return false;
+        static BlockIndex of(List<RoadBlock> blocks) {
+            Map<Location, List<RoadBlock>> byNode = new HashMap<>();
+            for (RoadBlock block : blocks) {
+                for (Location node : block.blockedNodes()) {
+                    byNode.computeIfAbsent(node, ignored -> new ArrayList<>(2)).add(block);
+                }
+            }
+            return new BlockIndex(byNode);
         }
-        StreetSegment segment = new StreetSegment(from, to);
-        return block.blockedSegments().contains(segment) || block.blockedNodes().contains(to)
-                || block.blockedNodes().contains(from);
-    }
 
-    private boolean isNodeBlockedDuring(Location node, Instant from, Instant to, List<RoadBlock> blocks) {
-        return blocks.stream().anyMatch(block -> block.overlaps(from, to) && block.blockedNodes().contains(node));
+        boolean isNodeBlockedDuring(Location node, Instant from, Instant to) {
+            return blocksByNode.getOrDefault(node, List.of()).stream().anyMatch(block -> block.overlaps(from, to));
+        }
+
+        boolean blocksTraversal(Location from, Location to, Instant departure, Instant arrival) {
+            return latestConflictEnd(from, to, departure, arrival) != null;
+        }
+
+        /** End of the latest block closing either end of the street while it is traversed; null if none. */
+        Instant latestConflictEnd(Location from, Location to, Instant departure, Instant arrival) {
+            Instant latest = latestEnd(blocksByNode.get(from), departure, arrival, null);
+            return latestEnd(blocksByNode.get(to), departure, arrival, latest);
+        }
+
+        private static Instant latestEnd(List<RoadBlock> candidates, Instant departure, Instant arrival,
+                                         Instant latest) {
+            if (candidates == null) {
+                return latest;
+            }
+            for (RoadBlock block : candidates) {
+                if (block.overlaps(departure, arrival) && (latest == null || block.endsAt().isAfter(latest))) {
+                    latest = block.endsAt();
+                }
+            }
+            return latest;
+        }
     }
 
     private List<Location> neighboursOf(Location node) {
