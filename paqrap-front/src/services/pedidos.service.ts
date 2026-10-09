@@ -1,4 +1,5 @@
 import type {
+  CargaPedidosResponseDto,
   PaginaResponseDto,
   PedidoResponseDto,
   RegistrarPedidoRequestDto,
@@ -8,14 +9,42 @@ import {
   apiRequest,
 } from "@/services/api";
 
+interface ListarPedidosParams {
+  registradoHasta?: string;
+}
+
 export const pedidosService = {
-  listar(): Promise<
+  listar(
+    params: ListarPedidosParams = {},
+  ): Promise<
     PaginaResponseDto<PedidoResponseDto>
   > {
+    const query =
+      new URLSearchParams();
+
+    query.set(
+      "size",
+      "500",
+    );
+
+    query.append(
+      "sort",
+      "registradoEn,asc",
+    );
+
+    if (
+      params.registradoHasta
+    ) {
+      query.set(
+        "registradoHasta",
+        params.registradoHasta,
+      );
+    }
+
     return apiRequest<
       PaginaResponseDto<PedidoResponseDto>
     >(
-      "/api/pedidos?size=500&sort=registradoEn,asc",
+      `/api/pedidos?${query.toString()}`,
     );
   },
 
@@ -40,6 +69,26 @@ export const pedidosService = {
         body: JSON.stringify(
           request,
         ),
+      },
+    );
+  },
+
+  cargarArchivo(
+    archivo: File,
+  ): Promise<CargaPedidosResponseDto> {
+    const formData =
+      new FormData();
+
+    formData.append(
+      "archivo",
+      archivo,
+    );
+
+    return apiRequest<CargaPedidosResponseDto>(
+      "/api/pedidos/carga",
+      {
+        method: "POST",
+        body: formData,
       },
     );
   },

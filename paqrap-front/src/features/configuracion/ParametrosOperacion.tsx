@@ -1,16 +1,32 @@
 import {
   BrainCircuit,
+  CalendarClock,
   Clock3,
 } from "lucide-react";
 
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
+import {
+  Card,
+} from "@/components/ui/card";
 
-import { useConfiguracion } from "@/context/ConfiguracionContext";
+import {
+  Input,
+} from "@/components/ui/input";
 
-import type { Escenario } from "./configuracion.types";
-import { CampoConfiguracion } from "./CampoConfiguracion";
+import {
+  Separator,
+} from "@/components/ui/separator";
+
+import {
+  useConfiguracion,
+} from "@/context/ConfiguracionContext";
+
+import type {
+  Escenario,
+} from "./configuracion.types";
+
+import {
+  CampoConfiguracion,
+} from "./CampoConfiguracion";
 
 export function ParametrosOperacion() {
   const {
@@ -18,13 +34,17 @@ export function ParametrosOperacion() {
     actualizarConfiguracion,
   } = useConfiguracion();
 
-  const cambiarEscenario = (
+  function cambiarEscenario(
     escenario: Escenario,
-  ) => {
+  ) {
     actualizarConfiguracion({
       escenario,
     });
-  };
+  }
+
+  const necesitaInicio =
+    configuracion.escenario !==
+    "DIA_A_DIA";
 
   return (
     <Card className="border-slate-800 bg-[#151b23] p-4">
@@ -102,10 +122,44 @@ export function ParametrosOperacion() {
           </div>
 
           <p className="mt-1 text-[11px] text-slate-500">
-            Algoritmo seleccionado en la
-            experimentación numérica.
+            Algoritmo seleccionado
+            para el planificador.
           </p>
         </CampoConfiguracion>
+
+        {necesitaInicio && (
+          <CampoConfiguracion label="Inicio de la simulación">
+            <div className="relative">
+              <CalendarClock className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
+
+              <input
+                type="datetime-local"
+                value={
+                  configuracion.inicioSimulado
+                }
+                onChange={(
+                  event,
+                ) =>
+                  actualizarConfiguracion(
+                    {
+                      inicioSimulado:
+                        event
+                          .target
+                          .value,
+                    },
+                  )
+                }
+                className="h-10 w-full rounded-md border border-slate-700 bg-slate-800/70 pl-9 pr-3 text-sm text-slate-200 outline-none focus:border-orange-500"
+              />
+            </div>
+
+            <p className="mt-1 text-[11px] text-slate-500">
+              Fecha y hora desde la
+              que se consumirán los
+              datos simulados.
+            </p>
+          </CampoConfiguracion>
+        )}
       </div>
     </Card>
   );
@@ -114,6 +168,7 @@ export function ParametrosOperacion() {
 interface BotonEscenarioProps {
   label: string;
   active: boolean;
+
   onClick: () => void;
 }
 

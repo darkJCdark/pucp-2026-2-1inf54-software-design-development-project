@@ -63,3 +63,13 @@ export interface PaginaResponseDto<T> {
   totalElementos: number;
   totalPaginas: number;
 }
+
+export interface CargaPedidosResponseDto {
+  archivo: string;
+
+  periodo: string;
+
+  leidos: number;
+  registrados: number;
+  omitidos: number;
+}

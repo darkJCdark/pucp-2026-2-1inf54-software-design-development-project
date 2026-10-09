@@ -5,39 +5,45 @@ import {
 
 import {
   CheckCircle2,
+  CirclePause,
+  CirclePlay,
   Loader2,
+  OctagonX,
   ServerCrash,
 } from "lucide-react";
 
 import {
-  MOCK_INDICADORES,
-} from "./ejecucion.mock";
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 
 import type {
-  AlmacenMapa,
-  PedidoOperacion,
-  VehiculoMapa,
-} from "./ejecucion.types";
+  MonitoreoResponseDto,
+} from "@/api/monitoreo.dto";
 
 import type {
   RegistrarPedidoRequestDto,
 } from "@/api/pedidos.dto";
 
-import {
-  almacenesService,
-} from "@/services/almacenes.service";
+import type {
+  AlmacenMapa,
+  IndicadoresOperacion,
+  PedidoOperacion,
+  VehiculoMapa,
+} from "./ejecucion.types";
 
 import {
-  adaptarAlmacenes,
-} from "@/services/almacenes.adapter";
+  monitoreoService,
+} from "@/services/monitoreo.service";
 
 import {
-  flotaService,
-} from "@/services/flota.service";
+  escenariosService,
+} from "@/services/escenarios.service";
 
 import {
-  adaptarVehiculos,
-} from "@/services/flota.adapter";
+  adaptarAlmacenesMonitoreo,
+  adaptarVehiculosMonitoreo,
+} from "@/services/monitoreo.adapter";
 
 import {
   pedidosService,
@@ -65,6 +71,27 @@ import {
 } from "./RegistrarPedidoForm";
 
 export default function EjecucionPage() {
+  const {
+    ejecucionId:
+      ejecucionIdParam,
+  } = useParams();
+
+  const navigate =
+    useNavigate();
+
+  const ejecucionId =
+    Number(
+      ejecucionIdParam,
+    );
+
+  const [
+    monitoreo,
+    setMonitoreo,
+  ] =
+    useState<
+      MonitoreoResponseDto | null
+    >(null);
+
   const [
     pedidos,
     setPedidos,
@@ -90,152 +117,314 @@ export default function EjecucionPage() {
     >([]);
 
   const [
-    cargandoBackend,
-    setCargandoBackend,
+    cargando,
+    setCargando,
   ] = useState(true);
 
   const [
-    errorBackend,
-    setErrorBackend,
-  ] = useState<
-    string | null
-  >(null);
+    error,
+    setError,
+  ] =
+    useState<
+      string | null
+    >(null);
+
+  const [
+    accionando,
+    setAccionando,
+  ] = useState(false);
 
   const [
     mostrarFormulario,
     setMostrarFormulario,
   ] = useState(false);
 
-  const [
-    tiempoActualMin,
-    setTiempoActualMin,
-  ] = useState(0);
-
-  const [
-    mensaje,
-    setMensaje,
-  ] = useState(
-    "Esperando información del planificador.",
-  );
-
   useEffect(() => {
-    void cargarDatosBackend();
-  }, []);
+    if (
+      !Number.isInteger(
+        ejecucionId,
+      ) ||
+      ejecucionId <= 0
+    ) {
+      setError(
+        "Identificador de ejecución inválido.",
+      );
 
-  async function cargarDatosBackend() {
+      setCargando(false);
+
+      return;
+    }
+
+    void cargarEstado();
+
+    const interval =
+      window.setInterval(
+        () => {
+          void cargarEstado(
+            false,
+          );
+        },
+        1000,
+      );
+
+    return () => {
+      window.clearInterval(
+        interval,
+      );
+    };
+  }, [ejecucionId]);
+
+  async function cargarEstado(
+    mostrarCarga = true,
+  ) {
     try {
-      setCargandoBackend(
-        true,
+      if (mostrarCarga) {
+        setCargando(true);
+      }
+
+      setError(null);
+
+      const respuestaMonitoreo =
+        await monitoreoService.obtener(
+          ejecucionId,
+        );
+
+      setMonitoreo(
+        respuestaMonitoreo,
       );
-
-      setErrorBackend(
-        null,
-      );
-
-      const [
-        respuestaAlmacenes,
-        respuestaVehiculos,
-        respuestaPedidos,
-      ] = await Promise.all([
-        almacenesService.listar(),
-
-        flotaService.listarVehiculos(),
-
-        pedidosService.listar(),
-      ]);
 
       setAlmacenes(
-        adaptarAlmacenes(
-          respuestaAlmacenes,
+        adaptarAlmacenesMonitoreo(
+          respuestaMonitoreo.almacenes,
         ),
       );
 
       setVehiculos(
-        adaptarVehiculos(
-          respuestaVehiculos,
+        adaptarVehiculosMonitoreo(
+          respuestaMonitoreo.vehiculos,
         ),
       );
+
+      /*
+       * Monitoreo entrega el resumen
+       * de pedidos, pero no sus
+       * coordenadas individuales.
+       *
+       * Consultamos únicamente los
+       * pedidos que ya llegaron hasta
+       * el instante simulado actual.
+       */
+      const respuestaPedidos =
+        await pedidosService.listar(
+          {
+            registradoHasta:
+              respuestaMonitoreo.instante,
+          },
+        );
 
       setPedidos(
         adaptarPedidos(
           respuestaPedidos.contenido,
         ),
       );
-
-      console.log(
-        "Almacenes backend:",
-        respuestaAlmacenes,
-      );
-
-      console.log(
-        "Vehículos backend:",
-        respuestaVehiculos,
-      );
-
-      console.log(
-        "Pedidos backend:",
-        respuestaPedidos,
-      );
     } catch (error) {
       console.error(
-        "Error cargando datos del backend:",
+        "Error consultando monitoreo:",
         error,
       );
 
       if (
-        error instanceof
-        ApiError
+        error instanceof ApiError
       ) {
-        setErrorBackend(
+        setError(
           error.message,
         );
       } else if (
-        error instanceof
-        Error
+        error instanceof Error
       ) {
-        setErrorBackend(
+        setError(
           error.message,
         );
       } else {
-        setErrorBackend(
-          "No fue posible conectarse con el backend.",
+        setError(
+          "No fue posible consultar el estado del escenario.",
         );
       }
     } finally {
-      setCargandoBackend(
-        false,
-      );
+      if (mostrarCarga) {
+        setCargando(false);
+      }
     }
   }
 
   async function handleRegistrarPedido(
     request: RegistrarPedidoRequestDto,
   ) {
+    const requestConInstante: RegistrarPedidoRequestDto =
+      {
+        ...request,
+
+        /*
+         * Día a Día utiliza el instante
+         * actual de la simulación.
+         */
+        registradoEn:
+          monitoreo?.instante,
+      };
+
     const respuesta =
       await pedidosService.registrar(
-        request,
-      );
-
-    const nuevoPedido =
-      adaptarPedido(
-        respuesta,
+        requestConInstante,
       );
 
     setPedidos(
       (actuales) => [
         ...actuales,
-        nuevoPedido,
+        adaptarPedido(
+          respuesta,
+        ),
       ],
-    );
-
-    setMensaje(
-      `${respuesta.id} registrado correctamente.`,
     );
 
     setMostrarFormulario(
       false,
     );
+
+    await cargarEstado(
+      false,
+    );
   }
+
+  async function ejecutarAccion(
+    accion:
+      | "PAUSAR"
+      | "REANUDAR"
+      | "DETENER",
+  ) {
+    try {
+      setAccionando(true);
+      setError(null);
+
+      switch (accion) {
+        case "PAUSAR":
+          await escenariosService.pausar(
+            ejecucionId,
+          );
+          break;
+
+        case "REANUDAR":
+          await escenariosService.reanudar(
+            ejecucionId,
+          );
+          break;
+
+        case "DETENER":
+          await escenariosService.detener(
+            ejecucionId,
+          );
+          break;
+      }
+
+      await cargarEstado(
+        false,
+      );
+    } catch (error) {
+      if (
+        error instanceof ApiError
+      ) {
+        setError(
+          error.message,
+        );
+      } else if (
+        error instanceof Error
+      ) {
+        setError(
+          error.message,
+        );
+      } else {
+        setError(
+          "No fue posible cambiar el estado del escenario.",
+        );
+      }
+    } finally {
+      setAccionando(false);
+    }
+  }
+
+  if (cargando) {
+    return (
+      <div className="flex h-full min-h-[600px] items-center justify-center bg-[#0d1117] text-slate-300">
+        <Loader2 className="mr-3 size-5 animate-spin" />
+
+        Cargando escenario...
+      </div>
+    );
+  }
+
+  if (
+    error &&
+    !monitoreo
+  ) {
+    return (
+      <div className="flex h-full min-h-[600px] flex-col items-center justify-center bg-[#0d1117] text-white">
+        <ServerCrash className="mb-4 size-10 text-red-400" />
+
+        <p className="font-semibold">
+          No fue posible cargar el escenario
+        </p>
+
+        <p className="mt-2 max-w-md text-center text-sm text-slate-400">
+          {error}
+        </p>
+
+        <button
+          type="button"
+          onClick={() =>
+            navigate(
+              "/simulacion",
+            )
+          }
+          className="mt-5 rounded-md bg-orange-500 px-4 py-2 text-sm font-semibold"
+        >
+          Volver a configuración
+        </button>
+      </div>
+    );
+  }
+
+  const estado =
+    monitoreo?.escenario.estado;
+
+  const tipo =
+    monitoreo?.escenario.tipo;
+
+  const puedeRegistrarPedido =
+    tipo === "DAY_TO_DAY" &&
+    estado === "RUNNING";
+
+  const indicadores: IndicadoresOperacion =
+    {
+      /*
+       * Todavía no hay métricas de
+       * planificación en Monitoreo.
+       * Las integraremos cuando SA
+       * publique rutas/resultados.
+       */
+      costoAcumulado: 0,
+      distanciaRecorrida: 0,
+
+      entregasCompletadas:
+        pedidos.filter(
+          (pedido) =>
+            pedido.estado ===
+            "ENTREGADO",
+        ).length,
+
+      pedidosRiesgo:
+        monitoreo?.pedidos
+          .vencidosSinEntregar ??
+        0,
+    };
 
   return (
     <div className="grid h-screen grid-cols-[minmax(0,1fr)_330px] overflow-hidden bg-[#0d1117]">
@@ -253,144 +442,168 @@ export default function EjecucionPage() {
           }
         />
 
-        <EstadoBackend
-          cargando={
-            cargandoBackend
-          }
-          error={
-            errorBackend
-          }
-          cantidadAlmacenes={
-            almacenes.length
-          }
-          cantidadVehiculos={
-            vehiculos.length
-          }
-          cantidadPedidos={
-            pedidos.length
-          }
-          onReintentar={() =>
-            void cargarDatosBackend()
-          }
-        />
-
-        {/* RELOJ */}
-        <div className="absolute left-5 top-20 z-40 rounded-lg border border-slate-700 bg-[#11161d] p-4 text-white shadow-lg">
-          <p className="text-xs text-slate-400">
-            Tiempo simulado
-          </p>
-
-          <p className="text-xl font-semibold">
-            {formatearTiempo(
-              tiempoActualMin,
-            )}
-          </p>
-
-          <div className="mt-3 flex gap-2">
-            <BotonTiempo
-              label="+10 min"
-              onClick={() =>
-                setTiempoActualMin(
-                  (actual) =>
-                    actual +
-                    10,
-                )
-              }
-            />
-
-            <BotonTiempo
-              label="+30 min"
-              onClick={() =>
-                setTiempoActualMin(
-                  (actual) =>
-                    actual +
-                    30,
-                )
-              }
-            />
-
-            <BotonTiempo
-              label="+1 h"
-              onClick={() =>
-                setTiempoActualMin(
-                  (actual) =>
-                    actual +
-                    60,
-                )
-              }
-            />
-          </div>
-        </div>
-
-        {/* REGISTRAR PEDIDO */}
-        <button
-          type="button"
-          onClick={() =>
-            setMostrarFormulario(
-              true,
-            )
-          }
-          className="absolute right-5 top-5 z-40 rounded-md bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-orange-600"
-        >
-          + Registrar pedido
-        </button>
-
-        {mostrarFormulario && (
-          <RegistrarPedidoForm
-            onRegistrar={
-              handleRegistrarPedido
+        {/* Estado / reloj */}
+        {monitoreo && (
+          <PanelEscenario
+            monitoreo={
+              monitoreo
             }
-            onCerrar={() =>
-              setMostrarFormulario(
-                false,
+            accionando={
+              accionando
+            }
+            onPausar={() =>
+              void ejecutarAccion(
+                "PAUSAR",
+              )
+            }
+            onReanudar={() =>
+              void ejecutarAccion(
+                "REANUDAR",
+              )
+            }
+            onDetener={() =>
+              void ejecutarAccion(
+                "DETENER",
               )
             }
           />
         )}
 
-        {/* PLANIFICADOR */}
-        <div className="absolute bottom-5 left-5 z-40 w-96 rounded-lg border border-slate-700 bg-[#11161d]/95 p-4 text-white shadow-xl">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3 className="font-semibold">
-                Planificador
-              </h3>
+        {/* Error no fatal */}
+        {error &&
+          monitoreo && (
+            <div className="absolute left-5 top-40 z-50 max-w-sm rounded-md border border-red-900 bg-[#11161d] px-3 py-2 text-xs text-red-400 shadow">
+              {error}
+            </div>
+          )}
 
-              <p className="mt-1 text-xs text-slate-500">
-                Simulated Annealing
-              </p>
+        {/* Registrar pedido:
+            solo Día a Día */}
+        {puedeRegistrarPedido && (
+          <button
+            type="button"
+            onClick={() =>
+              setMostrarFormulario(
+                true,
+              )
+            }
+            className="absolute right-5 top-5 z-40 rounded-md bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-orange-600"
+          >
+            + Registrar pedido
+          </button>
+        )}
+
+        {mostrarFormulario &&
+          puedeRegistrarPedido && (
+            <RegistrarPedidoForm
+              onRegistrar={
+                handleRegistrarPedido
+              }
+              onCerrar={() =>
+                setMostrarFormulario(
+                  false,
+                )
+              }
+            />
+          )}
+
+        {/* Estado operativo */}
+        {monitoreo && (
+          <div className="absolute bottom-5 left-5 z-40 w-96 rounded-lg border border-slate-700 bg-[#11161d]/95 p-4 text-white shadow-xl">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="font-semibold">
+                  Estado operativo
+                </h3>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Ejecución #
+                  {
+                    monitoreo
+                      .escenario
+                      .id
+                  }
+                </p>
+              </div>
+
+              <span className="rounded-full bg-sky-500/15 px-2 py-1 text-[10px] font-semibold text-sky-400">
+                {
+                  monitoreo
+                    .escenario
+                    .factorAceleracion
+                }
+                ×
+              </span>
             </div>
 
-            <span className="rounded-full bg-sky-500/15 px-2 py-1 text-[10px] font-semibold text-sky-400">
-              SA
-            </span>
+            <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+              <Dato
+                label="Llegados"
+                value={String(
+                  monitoreo
+                    .pedidos
+                    .llegados,
+                )}
+              />
+
+              <Dato
+                label="Pendientes"
+                value={String(
+                  monitoreo
+                    .pedidos
+                    .pendientes,
+                )}
+              />
+
+              <Dato
+                label="Vencidos"
+                value={String(
+                  monitoreo
+                    .pedidos
+                    .vencidosSinEntregar,
+                )}
+              />
+
+              <Dato
+                label="Bloqueos"
+                value={String(
+                  monitoreo
+                    .bloqueosVigentes
+                    .length,
+                )}
+              />
+
+              <Dato
+                label="Averías"
+                value={String(
+                  monitoreo
+                    .averiasActivas
+                    .length,
+                )}
+              />
+
+              <Dato
+                label="Vehículos"
+                value={String(
+                  monitoreo
+                    .vehiculos
+                    .length,
+                )}
+              />
+            </div>
+
+            <p className="mt-3 rounded-md bg-slate-800 p-2 text-[11px] text-slate-400">
+              El reloj, inventario,
+              bloqueos y averías se
+              obtienen del backend.
+            </p>
           </div>
-
-          <p className="mt-3 rounded-md bg-slate-800 p-2 text-xs text-slate-300">
-            {mensaje}
-          </p>
-
-          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-            <Dato
-              label="Pedidos"
-              value={String(
-                pedidos.length,
-              )}
-            />
-
-            <Dato
-              label="Vehículos"
-              value={String(
-                vehiculos.length,
-              )}
-            />
-          </div>
-        </div>
+        )}
       </div>
 
       <PanelIndicadores
         indicadores={
-          MOCK_INDICADORES
+          indicadores
         }
         almacenes={
           almacenes
@@ -403,93 +616,142 @@ export default function EjecucionPage() {
   );
 }
 
-interface EstadoBackendProps {
-  cargando: boolean;
+interface PanelEscenarioProps {
+  monitoreo: MonitoreoResponseDto;
 
-  error: string | null;
+  accionando: boolean;
 
-  cantidadAlmacenes: number;
-  cantidadVehiculos: number;
-  cantidadPedidos: number;
-
-  onReintentar: () => void;
+  onPausar: () => void;
+  onReanudar: () => void;
+  onDetener: () => void;
 }
 
-function EstadoBackend({
-  cargando,
-  error,
-  cantidadAlmacenes,
-  cantidadVehiculos,
-  cantidadPedidos,
-  onReintentar,
-}: EstadoBackendProps) {
-  if (cargando) {
-    return (
-      <div className="absolute left-5 top-5 z-50 flex items-center gap-2 rounded-md border border-slate-700 bg-[#11161d] px-3 py-2 text-xs text-slate-300 shadow">
-        <Loader2 className="size-4 animate-spin" />
+function PanelEscenario({
+  monitoreo,
+  accionando,
+  onPausar,
+  onReanudar,
+  onDetener,
+}: PanelEscenarioProps) {
+  const estado =
+    monitoreo.escenario.estado;
 
-        Conectando con backend...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="absolute left-5 top-5 z-50 flex items-center gap-3 rounded-md border border-red-900 bg-[#11161d] px-3 py-2 text-xs shadow">
-        <ServerCrash className="size-4 text-red-400" />
-
+  return (
+    <div className="absolute left-5 top-5 z-50 min-w-72 rounded-lg border border-slate-700 bg-[#11161d] p-4 text-white shadow-xl">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-red-400">
-            Backend no disponible
+          <p className="text-[10px] uppercase text-slate-500">
+            {nombreTipoEscenario(
+              monitoreo
+                .escenario
+                .tipo,
+            )}
           </p>
 
-          <p className="mt-0.5 max-w-64 text-[10px] text-slate-500">
-            {error}
+          <p className="mt-1 text-lg font-semibold">
+            {formatearInstante(
+              monitoreo.instante,
+            )}
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={
-            onReintentar
+        <EstadoBadge
+          estado={
+            estado
           }
-          className="rounded bg-slate-700 px-2 py-1 text-[10px] text-white hover:bg-slate-600"
-        >
-          Reintentar
-        </button>
+        />
       </div>
-    );
-  }
 
-  return (
-    <div className="absolute left-5 top-5 z-50 flex items-center gap-2 rounded-md border border-green-900 bg-[#11161d] px-3 py-2 text-xs text-green-400 shadow">
-      <CheckCircle2 className="size-4" />
+      <p className="mt-1 text-[10px] text-slate-500">
+        Hora simulada · Lima
+      </p>
 
-      Backend conectado ·{" "}
-      {cantidadAlmacenes} almacenes ·{" "}
-      {cantidadVehiculos} vehículos ·{" "}
-      {cantidadPedidos} pedidos
+      <div className="mt-4 flex gap-2">
+        {estado ===
+          "RUNNING" && (
+          <button
+            type="button"
+            disabled={
+              accionando
+            }
+            onClick={
+              onPausar
+            }
+            className="flex items-center gap-1 rounded-md bg-slate-700 px-3 py-2 text-xs hover:bg-slate-600 disabled:opacity-50"
+          >
+            <CirclePause className="size-4" />
+
+            Pausar
+          </button>
+        )}
+
+        {estado ===
+          "PAUSED" && (
+          <button
+            type="button"
+            disabled={
+              accionando
+            }
+            onClick={
+              onReanudar
+            }
+            className="flex items-center gap-1 rounded-md bg-green-700 px-3 py-2 text-xs hover:bg-green-600 disabled:opacity-50"
+          >
+            <CirclePlay className="size-4" />
+
+            Reanudar
+          </button>
+        )}
+
+        {(estado ===
+          "RUNNING" ||
+          estado ===
+            "PAUSED") && (
+          <button
+            type="button"
+            disabled={
+              accionando
+            }
+            onClick={
+              onDetener
+            }
+            className="flex items-center gap-1 rounded-md bg-red-900 px-3 py-2 text-xs text-red-100 hover:bg-red-800 disabled:opacity-50"
+          >
+            <OctagonX className="size-4" />
+
+            Detener
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
-function BotonTiempo({
-  label,
-  onClick,
+function EstadoBadge({
+  estado,
 }: {
-  label: string;
-  onClick: () => void;
+  estado:
+    MonitoreoResponseDto["escenario"]["estado"];
 }) {
+  const estilos =
+    estado === "RUNNING"
+      ? "bg-green-500/15 text-green-400"
+      : estado === "PAUSED"
+        ? "bg-amber-500/15 text-amber-400"
+        : estado === "COLLAPSED" ||
+            estado ===
+              "FAILED"
+          ? "bg-red-500/15 text-red-400"
+          : "bg-slate-500/15 text-slate-300";
+
   return (
-    <button
-      type="button"
-      onClick={
-        onClick
-      }
-      className="rounded bg-slate-700 px-3 py-1 text-xs hover:bg-slate-600"
+    <span
+      className={`rounded-full px-2 py-1 text-[10px] font-semibold ${estilos}`}
     >
-      {label}
-    </button>
+      {nombreEstado(
+        estado,
+      )}
+    </span>
   );
 }
 
@@ -502,7 +764,7 @@ function Dato({
 }) {
   return (
     <div className="rounded-md bg-[#1b222c] p-2">
-      <p className="text-[10px] uppercase text-slate-500">
+      <p className="text-[9px] uppercase text-slate-500">
         {label}
       </p>
 
@@ -513,31 +775,70 @@ function Dato({
   );
 }
 
-function formatearTiempo(
-  minutosTotales: number,
+function nombreTipoEscenario(
+  tipo:
+    MonitoreoResponseDto["escenario"]["tipo"],
 ) {
-  const total =
-    Math.round(
-      minutosTotales,
-    );
+  switch (tipo) {
+    case "DAY_TO_DAY":
+      return "Día a Día";
 
-  const horas =
-    Math.floor(
-      total / 60,
-    );
+    case "FIVE_DAY":
+      return "Simulación 5D";
 
-  const minutos =
-    total % 60;
+    case "COLLAPSE":
+      return "Colapso";
+  }
+}
 
-  return `${String(
-    horas,
-  ).padStart(
-    2,
-    "0",
-  )}:${String(
-    minutos,
-  ).padStart(
-    2,
-    "0",
-  )}`;
+function nombreEstado(
+  estado:
+    MonitoreoResponseDto["escenario"]["estado"],
+) {
+  switch (estado) {
+    case "CREATED":
+      return "Creado";
+
+    case "RUNNING":
+      return "En ejecución";
+
+    case "PAUSED":
+      return "Pausado";
+
+    case "STOPPED":
+      return "Detenido";
+
+    case "COMPLETED":
+      return "Completado";
+
+    case "COLLAPSED":
+      return "Colapsado";
+
+    case "FAILED":
+      return "Error";
+  }
+}
+
+function formatearInstante(
+  instante: string,
+) {
+  return new Intl.DateTimeFormat(
+    "es-PE",
+    {
+      timeZone:
+        "America/Lima",
+
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+
+      hour12: false,
+    },
+  ).format(
+    new Date(instante),
+  );
 }

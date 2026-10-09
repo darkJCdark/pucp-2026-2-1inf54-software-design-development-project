@@ -6,6 +6,15 @@ export type Escenario =
 export interface ConfiguracionPlanificador {
   escenario: Escenario;
 
+  /**
+   * datetime-local del navegador.
+   *
+   * Solo se usa para:
+   * - SIMULACION_5D
+   * - COLAPSO
+   */
+  inicioSimulado: string;
+
   autosCantidad: number;
   autosVelocidad: number;
 

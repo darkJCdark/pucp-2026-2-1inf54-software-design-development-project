@@ -1,11 +1,24 @@
-import { useRef } from "react";
-import { FileUp } from "lucide-react";
+import {
+  useRef,
+} from "react";
 
-import { Card } from "@/components/ui/card";
-import { useConfiguracion } from "@/context/ConfiguracionContext";
+import {
+  FileUp,
+} from "lucide-react";
+
+import {
+  Card,
+} from "@/components/ui/card";
+
+import {
+  useConfiguracion,
+} from "@/context/ConfiguracionContext";
 
 export function OrigenDatos() {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef =
+    useRef<HTMLInputElement>(
+      null,
+    );
 
   const {
     configuracion,
@@ -14,15 +27,20 @@ export function OrigenDatos() {
   } = useConfiguracion();
 
   const necesitaArchivo =
-    configuracion.escenario !== "DIA_A_DIA";
+    configuracion.escenario !==
+    "DIA_A_DIA";
 
-  const handleArchivo = (
+  function handleArchivo(
     event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const archivo = event.target.files?.[0] ?? null;
+  ) {
+    const archivo =
+      event.target.files?.[0] ??
+      null;
 
-    setArchivoPedidos(archivo);
-  };
+    setArchivoPedidos(
+      archivo,
+    );
+  }
 
   return (
     <Card className="h-fit border-slate-800 bg-[#151b23] p-4">
@@ -32,8 +50,9 @@ export function OrigenDatos() {
 
       {!necesitaArchivo ? (
         <div className="rounded-md border border-slate-700 bg-[#11161d] p-4 text-sm text-slate-300">
-          Los pedidos se registrarán manualmente durante
-          la operación.
+          Los pedidos se registrarán
+          manualmente durante la
+          operación.
         </div>
       ) : (
         <>
@@ -44,14 +63,18 @@ export function OrigenDatos() {
           <input
             ref={inputRef}
             type="file"
-            accept=".csv"
+            accept=".txt"
             className="hidden"
-            onChange={handleArchivo}
+            onChange={
+              handleArchivo
+            }
           />
 
           <button
             type="button"
-            onClick={() => inputRef.current?.click()}
+            onClick={() =>
+              inputRef.current?.click()
+            }
             className="flex min-h-32 w-full flex-col items-center justify-center rounded-md border border-dashed border-slate-700 bg-[#11161d] px-4 transition hover:border-orange-500"
           >
             <FileUp className="mb-3 size-6 text-slate-400" />
@@ -59,17 +82,18 @@ export function OrigenDatos() {
             <span className="text-sm text-slate-300">
               {archivoPedidos
                 ? archivoPedidos.name
-                : "Arrastra un archivo .csv o haz clic"}
+                : "Selecciona ventas.AAAAMM.txt"}
             </span>
 
             <span className="mt-1 text-xs text-slate-500">
-              Conjunto de pedidos del periodo
+              Archivo mensual de pedidos
             </span>
           </button>
 
           {!archivoPedidos && (
             <p className="mt-3 text-xs text-red-500">
-              Carga el archivo de pedidos para continuar
+              Carga el archivo de
+              pedidos para continuar
             </p>
           )}
         </>

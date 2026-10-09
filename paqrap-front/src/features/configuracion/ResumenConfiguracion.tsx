@@ -1,9 +1,18 @@
-import { Card } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+import {
+  Card,
+} from "@/components/ui/card";
 
-import { useConfiguracion } from "@/context/ConfiguracionContext";
+import {
+  Separator,
+} from "@/components/ui/separator";
 
-import type { Escenario } from "./configuracion.types";
+import {
+  useConfiguracion,
+} from "@/context/ConfiguracionContext";
+
+import type {
+  Escenario,
+} from "./configuracion.types";
 
 export function ResumenConfiguracion() {
   const {
@@ -34,6 +43,17 @@ export function ResumenConfiguracion() {
               "—"
         }
       />
+
+      {configuracion.escenario !==
+        "DIA_A_DIA" && (
+        <Fila
+          label="Inicio"
+          value={
+            configuracion.inicioSimulado ||
+            "—"
+          }
+        />
+      )}
 
       <Fila
         label="Planificador"
