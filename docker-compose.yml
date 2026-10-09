@@ -1,0 +1,80 @@
+services:
+
+  # ==========================================
+  # MYSQL
+  # ==========================================
+
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+
+    environment:
+      MYSQL_DATABASE: ${PAQRAP_DB_NAME}
+      MYSQL_USER: ${PAQRAP_DB_USER}
+      MYSQL_PASSWORD: ${PAQRAP_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${PAQRAP_DB_ROOT_PASSWORD}
+
+    volumes:
+      - paqrap_mysql_data:/var/lib/mysql
+      - ./paqrap-back/database/paqrap_schema_v2.sql:/docker-entrypoint-initdb.d/01_schema_v2.sql:ro
+      - ./paqrap-back/database/paqrap_seed_v2.sql:/docker-entrypoint-initdb.d/02_seed_v2.sql:ro
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+
+  # ==========================================
+  # BACKEND SPRING BOOT
+  # ==========================================
+
+  backend:
+    build:
+      context: ./paqrap-back
+
+    restart: unless-stopped
+
+    environment:
+      PAQRAP_DB_URL: "jdbc:mysql://db:3306/${PAQRAP_DB_NAME}?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&rewriteBatchedStatements=true&useSSL=false&allowPublicKeyRetrieval=true"
+      PAQRAP_DB_USER: ${PAQRAP_DB_USER}
+      PAQRAP_DB_PASSWORD: ${PAQRAP_DB_PASSWORD}
+      PAQRAP_PORT: 8080
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    ports:
+      - "127.0.0.1:8081:8080"
+
+
+  # ==========================================
+  # FRONTEND REACT + NGINX
+  # ==========================================
+
+  frontend:
+    build:
+      context: ./paqrap-front
+
+    restart: unless-stopped
+
+    depends_on:
+      - backend
+
+    ports:
+      - "127.0.0.1:3000:80"
+
+
+# ============================================
+# VOLUMEN PERSISTENTE MYSQL
+# ============================================
+
+volumes:
+  paqrap_mysql_data:

@@ -1,1 +1,9 @@
 paqrap-back/target/
+paqrap-back/.env
+
+.env
+
+paqrap-front/node_modules/
+paqrap-front/dist/
+
+.idea/
