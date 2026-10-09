@@ -1,34 +1,39 @@
 spring:
   application:
     name: paqrap-back
+
   datasource:
-    # forceConnectionTimeZoneToSession fija la sesión de MySQL en UTC; sin él, los TIMESTAMP se leen desfasados
-    # según la zona horaria del servidor. rewriteBatchedStatements agrupa los INSERT en lote (carga de archivos).
     url: ${PAQRAP_DB_URL:jdbc:mysql://localhost:3306/paqrap?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&rewriteBatchedStatements=true}
     username: ${PAQRAP_DB_USER:root}
     password: ${PAQRAP_DB_PASSWORD:}
+
   jpa:
     open-in-view: false
+
     hibernate:
-      # El esquema lo administran los scripts de paqrap-back/database; Hibernate solo lo valida.
       ddl-auto: validate
+
     properties:
       hibernate:
         jdbc:
           time_zone: UTC
           batch_size: 500
+
         order_inserts: true
+
   data:
     web:
       pageable:
         max-page-size: 500
+
   servlet:
     multipart:
-      # Los archivos mensuales del curso (ventas, bloqueos) pesan menos de 200 KB.
       max-file-size: 5MB
       max-request-size: 5MB
+
   jackson:
     time-zone: UTC
+
     serialization:
       write-dates-as-timestamps: false
 
@@ -36,10 +41,39 @@ server:
   port: ${PAQRAP_PORT:8080}
 
 paqrap:
+
   escenarios:
-    tick: 1s
-    # 5D: 5 días simulados en ~45 minutos reales.
-    factor-cinco-dias: 160
-    # Colapso: 1 día simulado por minuto real. Ajustable según lo que tarde cada ciclo del planificador.
-    factor-colapso: 1440
-    intervalo-planificacion: 1h
+
+    # Cada cuánto tiempo REAL despierta el motor
+    # para revisar el escenario.
+    tick: ${PAQRAP_ESCENARIOS_TICK:1s}
+
+    # FIVE_DAY:
+    # 120 horas simuladas / 160
+    # = 0.75 horas reales
+    # = aproximadamente 45 minutos.
+    factor-cinco-dias: ${PAQRAP_FACTOR_CINCO_DIAS:160}
+
+    # COLLAPSE:
+    # 24 horas simuladas por minuto real.
+    factor-colapso: ${PAQRAP_FACTOR_COLAPSO:1440}
+
+    # Intervalo SIMULADO entre planificaciones.
+    #
+    # DAY_TO_DAY:
+    #   cada 1 hora real.
+    #
+    # FIVE_DAY:
+    #   cada 22.5 segundos reales aprox.
+    #
+    # COLLAPSE:
+    #   cada 2.5 segundos reales aprox.
+    intervalo-planificacion: ${PAQRAP_INTERVALO_PLANIFICACION:1h}
+
+  planificacion:
+
+    # Máximo de pedidos tomados por cada ciclo de SA.
+    max-pedidos: ${PAQRAP_PLAN_MAX_PEDIDOS:100}
+
+    # Tiempo máximo disponible para SA por ciclo.
+    presupuesto-ms: ${PAQRAP_PLAN_PRESUPUESTO_MS:1500}
