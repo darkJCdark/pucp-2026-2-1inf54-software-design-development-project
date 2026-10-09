@@ -5,7 +5,9 @@ import {
   type ReactNode,
 } from "react";
 
-import type { ConfiguracionPlanificador } from "@/features/configuracion/configuracion.types";
+import type {
+  ConfiguracionPlanificador,
+} from "@/features/configuracion/configuracion.types";
 
 interface ConfiguracionContextType {
   configuracion: ConfiguracionPlanificador;
@@ -21,31 +23,33 @@ interface ConfiguracionContextType {
   ) => void;
 }
 
-const configuracionInicial: ConfiguracionPlanificador = {
-  escenario: "SIMULACION_5D",
+const configuracionInicial: ConfiguracionPlanificador =
+  {
+    escenario:
+      "SIMULACION_5D",
 
-  // Flota oficial
-  autosCantidad: 10,
-  autosVelocidad: 40,
+    inicioSimulado: "",
 
-  motosCantidad: 15,
-  motosVelocidad: 25,
+    autosCantidad: 10,
+    autosVelocidad: 40,
 
-  bicicletasCantidad: 12,
-  bicicletasVelocidad: 12,
+    motosCantidad: 15,
+    motosVelocidad: 25,
 
-  // Umbrales de visualización
-  almacenVerdeHasta: 33,
-  almacenAmbarHasta: 66,
+    bicicletasCantidad: 12,
+    bicicletasVelocidad: 12,
 
-  pedidoVerdeHasta: 60,
-  pedidoAmbarHasta: 85,
-};
+    almacenVerdeHasta: 33,
+    almacenAmbarHasta: 66,
+
+    pedidoVerdeHasta: 60,
+    pedidoAmbarHasta: 85,
+  };
 
 const ConfiguracionContext =
-  createContext<ConfiguracionContextType | undefined>(
-    undefined,
-  );
+  createContext<
+    ConfiguracionContextType | undefined
+  >(undefined);
 
 interface ConfiguracionProviderProps {
   children: ReactNode;
@@ -54,22 +58,31 @@ interface ConfiguracionProviderProps {
 export function ConfiguracionProvider({
   children,
 }: ConfiguracionProviderProps) {
-  const [configuracion, setConfiguracion] =
+  const [
+    configuracion,
+    setConfiguracion,
+  ] =
     useState<ConfiguracionPlanificador>(
       configuracionInicial,
     );
 
-  const [archivoPedidos, setArchivoPedidos] =
-    useState<File | null>(null);
+  const [
+    archivoPedidos,
+    setArchivoPedidos,
+  ] = useState<File | null>(
+    null,
+  );
 
-  const actualizarConfiguracion = (
+  function actualizarConfiguracion(
     cambios: Partial<ConfiguracionPlanificador>,
-  ) => {
-    setConfiguracion((actual) => ({
-      ...actual,
-      ...cambios,
-    }));
-  };
+  ) {
+    setConfiguracion(
+      (actual) => ({
+        ...actual,
+        ...cambios,
+      }),
+    );
+  }
 
   return (
     <ConfiguracionContext.Provider
@@ -86,9 +99,10 @@ export function ConfiguracionProvider({
 }
 
 export function useConfiguracion() {
-  const context = useContext(
-    ConfiguracionContext,
-  );
+  const context =
+    useContext(
+      ConfiguracionContext,
+    );
 
   if (!context) {
     throw new Error(
