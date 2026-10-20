@@ -97,6 +97,24 @@ public class OrderEntity implements Persistable<String> {
         toDomain(); // aplica las invariantes del dominio (paquetes > 0, id no vacío)
     }
 
+    /** Cambio de estado durante la ejecución del plan (ASSIGNED, IN_TRANSIT o vuelta a REGISTERED). */
+    public void cambiarEstado(OrderStatus nuevoEstado) {
+        if (nuevoEstado == OrderStatus.DELIVERED) {
+            throw new IllegalArgumentException("Use entregar(...) para marcar un pedido como entregado");
+        }
+        this.status = nuevoEstado;
+    }
+
+    /** {@code llegada}: hora de llegada de la última entrega (el acondicionamiento no cuenta en el plazo). */
+    public void entregar(Instant llegada) {
+        this.status = OrderStatus.DELIVERED;
+        this.deliveredAt = llegada.truncatedTo(ChronoUnit.MICROS);
+    }
+
+    public boolean entregadoATiempo() {
+        return deliveredAt != null && !deliveredAt.isAfter(deadline);
+    }
+
     public Order toDomain() {
         return new Order(orderId, new Location(destinationX, destinationY), packages, registeredAt, deadline);
     }

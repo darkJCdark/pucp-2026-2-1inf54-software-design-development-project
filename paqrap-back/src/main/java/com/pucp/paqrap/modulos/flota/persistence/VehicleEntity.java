@@ -77,6 +77,20 @@ public class VehicleEntity {
         this.operationalStatus = operationalStatus;
     }
 
+    /** Posición y carga actuales mientras se ejecuta una ruta. */
+    public void moverA(int x, int y, int carga) {
+        this.currentX = x;
+        this.currentY = y;
+        this.currentLoad = carga;
+    }
+
+    /** Estado al inicio de un escenario: en el almacén central, vacío y disponible. */
+    public void reiniciarEn(int x, int y) {
+        moverA(x, y, 0);
+        this.operationalStatus = VehicleOperationalStatus.AVAILABLE;
+        this.availableAt = null;
+    }
+
     public String getVehicleId() { return vehicleId; }
     public VehicleType getVehicleType() { return vehicleType; }
     public VehicleOperationalStatus getOperationalStatus() { return operationalStatus; }

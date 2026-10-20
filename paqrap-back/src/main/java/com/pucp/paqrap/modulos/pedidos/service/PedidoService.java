@@ -132,7 +132,7 @@ public class PedidoService {
     public ResumenPedidos resumen(Instant desde, Instant instante) {
         return new ResumenPedidos(
                 pedidoRepository.countByRegisteredAtGreaterThanEqualAndRegisteredAtLessThanEqual(desde, instante),
-                pedidoRepository.contarPendientesEn(instante),
+                pedidoRepository.contarPendientesEnDesde(desde, instante),
                 pedidoRepository.contarVencidosSinEntregar(desde, instante));
     }
 
