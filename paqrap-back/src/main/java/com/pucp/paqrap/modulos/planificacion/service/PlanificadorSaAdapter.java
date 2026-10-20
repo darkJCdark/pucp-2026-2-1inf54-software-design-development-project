@@ -1,5 +1,6 @@
 package com.pucp.paqrap.modulos.planificacion.service;
 
+import com.pucp.paqrap.modulos.escenarios.persistence.ScenarioExecutionEntity;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
 import com.pucp.paqrap.modulos.pedidos.persistence.OrderEntity;
 import com.pucp.paqrap.modulos.pedidos.repository.OrderRepository;
@@ -25,7 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * horizonte, llama a {@link PlanificadorService} y guarda el último plan de cada ejecución (en memoria).
  */
 @Component
-public class PlanificadorSaAdapter implements PlanificadorPort {
+public class PlanificadorSaAdapter implements PlanificadorPort, PlanVigente {
 
     private static final Logger log = LoggerFactory.getLogger(PlanificadorSaAdapter.class);
     /** El plazo más largo de un pedido: los bloqueos posteriores no afectan al plan. */
@@ -54,13 +55,16 @@ public class PlanificadorSaAdapter implements PlanificadorPort {
     @Override
     public ResultadoCiclo planificar(SolicitudCiclo solicitud) {
         Instant instante = solicitud.instante();
-        var pedidos = pedidoRepository.pendientesEn(instante, PageRequest.of(0, maxPedidos)).stream()
+        ScenarioExecutionEntity ejecucion = ejecucionRepository.findById(solicitud.ejecucionId()).orElse(null);
+        // Cada escenario solo atiende los pedidos que llegan desde su inicio simulado.
+        Instant inicio = ejecucion != null ? ejecucion.getSimulationStartedAt() : Instant.EPOCH;
+        var pedidos = pedidoRepository.pendientesEnDesde(inicio, instante, PageRequest.of(0, maxPedidos)).stream()
                 .map(OrderEntity::toDomain).toList();
         var bloqueos = bloqueoRepository.buscarQueSeCruzan(instante, instante.plus(HORIZONTE)).stream()
                 .map(RoadBlockEntity::toDomain).toList();
 
-        PlanResponse plan = planificador.planificar(new SolicitudPlanificacion(modo(solicitud.ejecucionId()),
-                instante, pedidos, bloqueos, null, presupuestoMs));
+        PlanResponse plan = planificador.planificar(new SolicitudPlanificacion(modo(ejecucion), instante, pedidos,
+                bloqueos, null, presupuestoMs));
         ultimoPlan.put(solicitud.ejecucionId(), plan);
         log.info("Ejecución {} ({} en {}): {} pedidos, {} bloqueos -> {} rutas, {} no atendidos, {} ms",
                 solicitud.ejecucionId(), solicitud.motivo(), instante, pedidos.size(), bloqueos.size(),
@@ -68,17 +72,19 @@ public class PlanificadorSaAdapter implements PlanificadorPort {
         return new ResultadoCiclo(plan.colapso());
     }
 
+    @Override
     public Optional<PlanResponse> ultimoPlan(long ejecucionId) {
         return Optional.ofNullable(ultimoPlan.get(ejecucionId));
     }
 
-    private ModoOperacion modo(long ejecucionId) {
-        return ejecucionRepository.findById(ejecucionId)
-                .map(ejecucion -> switch (ejecucion.getScenarioType()) {
-                    case DAY_TO_DAY -> ModoOperacion.DIA_A_DIA;
-                    case FIVE_DAY -> ModoOperacion.SIMULACION_5D;
-                    case COLLAPSE -> ModoOperacion.COLAPSO;
-                })
-                .orElse(ModoOperacion.SIMULACION_5D);
+    private ModoOperacion modo(ScenarioExecutionEntity ejecucion) {
+        if (ejecucion == null) {
+            return ModoOperacion.SIMULACION_5D;
+        }
+        return switch (ejecucion.getScenarioType()) {
+            case DAY_TO_DAY -> ModoOperacion.DIA_A_DIA;
+            case FIVE_DAY -> ModoOperacion.SIMULACION_5D;
+            case COLLAPSE -> ModoOperacion.COLAPSO;
+        };
     }
 }
