@@ -4,6 +4,9 @@ import com.pucp.paqrap.modulos.almacenes.service.AlmacenService;
 import com.pucp.paqrap.modulos.almacenes.service.InventarioService;
 import com.pucp.paqrap.modulos.escenarios.dto.EscenarioResponse;
 import com.pucp.paqrap.modulos.escenarios.service.EscenarioService;
+import com.pucp.paqrap.modulos.escenarios.service.EjecutorPlanService;
+import com.pucp.paqrap.modulos.flota.entity.VehicleType;
+import com.pucp.paqrap.modulos.flota.persistence.VehicleOperationalStatus;
 import com.pucp.paqrap.modulos.flota.service.FlotaService;
 import com.pucp.paqrap.modulos.incidencias.dto.AveriaResponse;
 import com.pucp.paqrap.modulos.incidencias.service.AveriaService;
@@ -14,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -33,10 +37,12 @@ public class MonitoreoService {
     private final InventarioService inventarioService;
     private final BloqueoService bloqueoService;
     private final AveriaService averiaService;
+    private final EjecutorPlanService ejecutorPlan;
 
     public MonitoreoService(EscenarioService escenarioService, PedidoService pedidoService, FlotaService flotaService,
                             AlmacenService almacenService, InventarioService inventarioService,
-                            BloqueoService bloqueoService, AveriaService averiaService) {
+                            BloqueoService bloqueoService, AveriaService averiaService,
+                            EjecutorPlanService ejecutorPlan) {
         this.escenarioService = escenarioService;
         this.pedidoService = pedidoService;
         this.flotaService = flotaService;
@@ -44,6 +50,7 @@ public class MonitoreoService {
         this.inventarioService = inventarioService;
         this.bloqueoService = bloqueoService;
         this.averiaService = averiaService;
+        this.ejecutorPlan = ejecutorPlan;
     }
 
     public MonitoreoResponse estado(long ejecucionId) {
@@ -72,7 +79,19 @@ public class MonitoreoService {
                         stocks.getOrDefault(a.id(), Optional.empty()).orElse(null), a.capacidad()))
                 .toList();
 
+        Map<VehicleType, Long> enRuta = new EnumMap<>(VehicleType.class);
+        for (VehicleType tipo : VehicleType.values()) {
+            enRuta.put(tipo, vehiculos.stream()
+                    .filter(v -> v.tipo() == tipo && v.estado() == VehicleOperationalStatus.IN_ROUTE)
+                    .count());
+        }
+        EjecutorPlanService.Metricas metricas = ejecutorPlan.metricas(ejecucionId)
+                .orElse(new EjecutorPlanService.Metricas(0, 0, 0, 0, 0));
+        MonitoreoResponse.Ejecucion ejecucion = new MonitoreoResponse.Ejecucion(metricas.pedidosEntregados(),
+                metricas.entregadosATiempo(), metricas.paquetesEntregados(), metricas.distanciaKm(), metricas.costo(),
+                enRuta);
+
         return new MonitoreoResponse(escenario, instante, pedidoService.resumen(escenario.inicioSimulado(), instante),
-                vehiculos, almacenes, bloqueoService.listar(null, null, instante), averiasActivas);
+                vehiculos, almacenes, bloqueoService.listar(null, null, instante), averiasActivas, ejecucion);
     }
 }

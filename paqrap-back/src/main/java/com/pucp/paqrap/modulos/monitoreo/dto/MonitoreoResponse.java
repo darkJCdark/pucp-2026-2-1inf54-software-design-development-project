@@ -10,6 +10,7 @@ import com.pucp.paqrap.modulos.redvial.dto.BloqueoResponse;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Estado de la operación en el instante simulado de un escenario (CU-12): el instante actual si está activo, el
@@ -17,7 +18,15 @@ import java.util.List;
  */
 public record MonitoreoResponse(EscenarioResponse escenario, Instant instante, PedidoService.ResumenPedidos pedidos,
                                 List<Vehiculo> vehiculos, List<Almacen> almacenes, List<BloqueoResponse> bloqueosVigentes,
-                                List<AveriaResponse> averiasActivas) {
+                                List<AveriaResponse> averiasActivas, Ejecucion ejecucion) {
+
+    /**
+     * Resultados de ejecutar el plan hasta {@code instante}: pedidos completos, cuántos llegaron dentro del plazo,
+     * paquetes entregados (incluye parciales), distancia y costo recorridos, y vehículos en ruta por tipo.
+     */
+    public record Ejecucion(int pedidosEntregados, int entregadosATiempo, int paquetesEntregados, double distanciaKm,
+                            double costo, Map<VehicleType, Long> vehiculosEnRuta) {
+    }
 
     /** {@code averiadoHasta} es nulo si el vehículo no tiene una avería en curso. */
     public record Vehiculo(String id, VehicleType tipo, VehicleOperationalStatus estado, int x, int y, int cargaActual,
