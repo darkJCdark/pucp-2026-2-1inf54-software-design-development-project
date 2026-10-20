@@ -53,6 +53,11 @@ public class OrderStatusHistoryEntity {
         this.warehouseId = warehouseId;
     }
 
+    public static OrderStatusHistoryEntity cambio(OrderEntity pedido, OrderStatus estado, Instant ocurridoEn,
+                                                  String vehiculoId) {
+        return new OrderStatusHistoryEntity(pedido.getOrderId(), estado, ocurridoEn, vehiculoId, null);
+    }
+
     public static OrderStatusHistoryEntity registro(OrderEntity pedido) {
         return new OrderStatusHistoryEntity(pedido.getOrderId(), OrderStatus.REGISTERED, pedido.getRegisteredAt(),
                 null, null);

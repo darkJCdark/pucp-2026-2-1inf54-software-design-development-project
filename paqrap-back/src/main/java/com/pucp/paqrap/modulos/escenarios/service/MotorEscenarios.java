@@ -54,6 +54,7 @@ public class MotorEscenarios {
     private final EscenariosProperties propiedades;
     private final ObjectProvider<PlanificadorPort> planificadores;
     private final EventosSimulacion eventos;
+    private final EjecutorPlanService ejecutorPlan;
     /** Escenarios activos por id de ejecución; protegido por el monitor de esta instancia. */
     private final Map<Long, EscenarioActivo> activos = new HashMap<>();
     private ScheduledExecutorService ejecutor;
@@ -76,13 +77,15 @@ public class MotorEscenarios {
 
     public MotorEscenarios(ScenarioExecutionRepository ejecucionRepository, PlatformTransactionManager transacciones,
                            Clock relojReal, EscenariosProperties propiedades,
-                           ObjectProvider<PlanificadorPort> planificadores, EventosSimulacion eventos) {
+                           ObjectProvider<PlanificadorPort> planificadores, EventosSimulacion eventos,
+                           EjecutorPlanService ejecutorPlan) {
         this.ejecucionRepository = ejecucionRepository;
         this.transaccion = new TransactionTemplate(transacciones);
         this.relojReal = relojReal;
         this.propiedades = propiedades;
         this.planificadores = planificadores;
         this.eventos = eventos;
+        this.ejecutorPlan = ejecutorPlan;
     }
 
     /** Una avería registrada en una ejecución activa la hace replanificar en el próximo tick (CU-07). */
@@ -137,6 +140,7 @@ public class MotorEscenarios {
         reloj.reanudar();
         EscenarioActivo activo = new EscenarioActivo(ejecucion.getScenarioType(), reloj);
         activos.put(ejecucionId, activo);
+        ejecutorPlan.prepararInicio(ejecucionId, ejecucion.getSimulationStartedAt());
         planificar(ejecucionId, activo, PlanificadorPort.Motivo.INICIAL);
     }
 
@@ -187,6 +191,8 @@ public class MotorEscenarios {
 
         if (hasta.isAfter(activo.procesadoHasta)) {
             EventosSimulacion.Resumen resumen = eventos.procesar(ejecucionId, activo.procesadoHasta, hasta);
+            // El plan vigente se ejecuta hasta ahora antes de que un plan nuevo lo reemplace.
+            ejecutorPlan.avanzar(ejecucionId, activo.procesadoHasta, hasta);
             activo.procesadoHasta = hasta;
             if (resumen.bloqueosIniciados() > 0) {
                 activo.incidenciaPendiente = true;

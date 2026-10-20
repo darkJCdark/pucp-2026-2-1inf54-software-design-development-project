@@ -6,6 +6,7 @@ import com.pucp.paqrap.modulos.pedidos.persistence.OrderEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -41,13 +42,35 @@ public interface OrderRepository extends JpaRepository<OrderEntity, String> {
             """)
     List<OrderEntity> pendientesEn(@Param("instante") Instant instante, Pageable limite);
 
+    /** Como {@link #pendientesEn}, pero solo con los pedidos que llegaron desde el inicio del escenario. */
+    @Query("""
+            select o from OrderEntity o
+            where o.registeredAt >= :desde
+              and o.registeredAt <= :instante
+              and o.deadline > :instante
+              and o.status <> com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.DELIVERED
+            order by o.deadline, o.orderId
+            """)
+    List<OrderEntity> pendientesEnDesde(@Param("desde") Instant desde, @Param("instante") Instant instante,
+                                        Pageable limite);
+
+    /** Al iniciar un escenario, los pedidos de su periodo vuelven a REGISTERED para poder simularse de nuevo. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update OrderEntity o
+            set o.status = com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.REGISTERED, o.deliveredAt = null
+            where o.registeredAt >= :desde
+            """)
+    int reiniciarDesde(@Param("desde") Instant desde);
+
     @Query("""
             select count(o) from OrderEntity o
-            where o.registeredAt <= :instante
+            where o.registeredAt >= :desde
+              and o.registeredAt <= :instante
               and o.deadline > :instante
               and o.status <> com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.DELIVERED
             """)
-    long contarPendientesEn(@Param("instante") Instant instante);
+    long contarPendientesEnDesde(@Param("desde") Instant desde, @Param("instante") Instant instante);
 
     /** Pedidos registrados en [desde, hasta]. */
     long countByRegisteredAtGreaterThanEqualAndRegisteredAtLessThanEqual(Instant desde, Instant hasta);

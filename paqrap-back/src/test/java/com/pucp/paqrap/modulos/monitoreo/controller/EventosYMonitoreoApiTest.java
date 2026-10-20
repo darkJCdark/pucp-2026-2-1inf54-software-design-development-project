@@ -219,7 +219,8 @@ class EventosYMonitoreoApiTest {
         mvc.perform(get("/api/monitoreo/" + id))
                 .andExpect(jsonPath("$.escenario.estado").value("RUNNING"))
                 .andExpect(jsonPath("$.pedidos.llegados").value(1))
-                .andExpect(jsonPath("$.pedidos.pendientes").value(1))
+                // P-ANTES llegó antes del inicio del escenario: no es parte de esta simulación.
+                .andExpect(jsonPath("$.pedidos.pendientes").value(0))
                 .andExpect(jsonPath("$.pedidos.vencidosSinEntregar").value(1))
                 .andExpect(jsonPath("$.vehiculos", hasSize(2)))
                 .andExpect(jsonPath("$.vehiculos[?(@.id=='TA01')].averiadoHasta").exists())
