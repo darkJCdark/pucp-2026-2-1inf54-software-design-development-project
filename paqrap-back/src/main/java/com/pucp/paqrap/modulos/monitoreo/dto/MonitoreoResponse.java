@@ -2,6 +2,7 @@ package com.pucp.paqrap.modulos.monitoreo.dto;
 
 import com.pucp.paqrap.modulos.almacenes.persistence.WarehouseKind;
 import com.pucp.paqrap.modulos.escenarios.dto.EscenarioResponse;
+import com.pucp.paqrap.modulos.escenarios.service.DetectorColapso;
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleOperationalStatus;
 import com.pucp.paqrap.modulos.incidencias.dto.AveriaResponse;
@@ -14,11 +15,12 @@ import java.util.Map;
 
 /**
  * Estado de la operación en el instante simulado de un escenario (CU-12): el instante actual si está activo, el
- * final si terminó y el inicial si aún no empezó.
+ * final si terminó y el inicial si aún no empezó. {@code colapso} es nulo mientras no haya colapso logístico.
  */
 public record MonitoreoResponse(EscenarioResponse escenario, Instant instante, PedidoService.ResumenPedidos pedidos,
                                 List<Vehiculo> vehiculos, List<Almacen> almacenes, List<BloqueoResponse> bloqueosVigentes,
-                                List<AveriaResponse> averiasActivas, Ejecucion ejecucion) {
+                                List<AveriaResponse> averiasActivas, Ejecucion ejecucion,
+                                DetectorColapso.Colapso colapso) {
 
     /**
      * Resultados de ejecutar el plan hasta {@code instante}: pedidos completos, cuántos llegaron dentro del plazo,

@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -88,8 +87,8 @@ class CortePlanTest {
 
     @Test
     void unaRutaQueAunNoPartioOQuePartePrecisamenteAhoraSeLibera() {
-        CortePlan.Resultado enLaSalida = CortePlan.cortar(List.of(rutaTa01(0, TA01)), min(0), Set.of());
-        CortePlan.Resultado antes = CortePlan.cortar(List.of(rutaTa01(30, TA01)), min(10), Set.of());
+        CortePlan.Resultado enLaSalida = CortePlan.cortar(List.of(rutaTa01(0, TA01)), min(0), Map.of());
+        CortePlan.Resultado antes = CortePlan.cortar(List.of(rutaTa01(30, TA01)), min(10), Map.of());
 
         assertEquals(1, enLaSalida.liberadas().size());
         assertEquals(1, antes.liberadas().size());
@@ -101,7 +100,7 @@ class CortePlanTest {
         RutaVigente conProgramacion = rutaTa01(0, TA01);
         RutaVigente sinProgramacion = new RutaVigente(conProgramacion.ruta(), conProgramacion.snapshotOrigen(), null, List.of());
 
-        CortePlan.Resultado corte = CortePlan.cortar(List.of(sinProgramacion), min(100), Set.of());
+        CortePlan.Resultado corte = CortePlan.cortar(List.of(sinProgramacion), min(100), Map.of());
 
         assertEquals(List.of(sinProgramacion), corte.liberadas());
     }
@@ -110,7 +109,7 @@ class CortePlanTest {
     void unaRutaEnMarchaSeConservaSinAportarEntregasSalientes() {
         RutaVigente ruta = rutaTa01(0, TA01);
 
-        CortePlan.Resultado corte = CortePlan.cortar(List.of(ruta), min(150), Set.of());
+        CortePlan.Resultado corte = CortePlan.cortar(List.of(ruta), min(150), Map.of());
 
         assertEquals(List.of(ruta), corte.conservadas());
         assertTrue(corte.entregasSalientes().isEmpty());
@@ -119,22 +118,50 @@ class CortePlanTest {
 
     @Test
     void unaRutaQueTerminaJustoAhoraSeDaPorTerminadaConTodasSusEntregasYRetiros() {
-        CortePlan.Resultado corte = CortePlan.cortar(List.of(rutaTa01(0, TA01)), min(300), Set.of());
+        CortePlan.Resultado corte = CortePlan.cortar(List.of(rutaTa01(0, TA01)), min(300), Map.of());
 
         assertEquals(1, corte.terminadas().size());
         assertEquals(Map.of("P01", 6, "P02", 5), corte.entregasSalientes());
         assertEquals(Map.of("NOROESTE", 5), corte.retirosSalientes());
     }
 
+    /** Igual que el ejecutor del plan: una parada cuenta si el vehículo llegó antes de la avería, aunque no terminara. */
     @Test
-    void unaRutaInterrumpidaSoloAportaLasParadasYaCompletadas() {
-        CortePlan.Resultado enServicio = CortePlan.cortar(List.of(rutaTa01(0, TA01)), min(150), Set.of("TA01"));
-        CortePlan.Resultado justoAlTerminar = CortePlan.cortar(List.of(rutaTa01(0, TA01)), min(190), Set.of("TA01"));
+    void unaRutaInterrumpidaSoloAportaLasParadasAlcanzadasAntesDeLaAveria() {
+        CortePlan.Resultado antesDeP02 = CortePlan.cortar(List.of(rutaTa01(0, TA01)), min(150), Map.of("TA01", min(120)));
+        CortePlan.Resultado alLlegarAP02 = CortePlan.cortar(List.of(rutaTa01(0, TA01)), min(150), Map.of("TA01", min(130)));
+        CortePlan.Resultado enServicioDeP02 = CortePlan.cortar(List.of(rutaTa01(0, TA01)), min(150), Map.of("TA01", min(131)));
 
-        assertEquals(1, enServicio.interrumpidas().size());
-        assertEquals(Map.of("P01", 4), enServicio.entregasSalientes());
-        assertEquals(Map.of("NOROESTE", 5), enServicio.retirosSalientes());
-        assertEquals(Map.of("P01", 4, "P02", 5), justoAlTerminar.entregasSalientes());
+        assertEquals(1, antesDeP02.interrumpidas().size());
+        assertEquals(Map.of("P01", 4), antesDeP02.entregasSalientes());
+        assertEquals(Map.of("NOROESTE", 5), antesDeP02.retirosSalientes());
+        assertEquals(Map.of("P01", 4), alLlegarAP02.entregasSalientes());
+        assertEquals(Map.of("P01", 4, "P02", 5), enServicioDeP02.entregasSalientes());
+    }
+
+    /** El reloj avanza a saltos: la avería puede caer antes de {@code ahora} en una ruta que ya habría terminado. */
+    @Test
+    void laAveriaSeAplicaEnSuInstanteAunqueAhoraSeaPosterior() {
+        CortePlan.Resultado corte = CortePlan.cortar(List.of(rutaTa01(0, TA01)), min(400), Map.of("TA01", min(250)));
+
+        assertEquals(1, corte.interrumpidas().size());
+        assertEquals(Map.of("P01", 6, "P02", 5), corte.entregasSalientes());
+    }
+
+    @Test
+    void unaRutaQueSaliaDespuesDeLaAveriaSeLibera() {
+        CortePlan.Resultado corte = CortePlan.cortar(List.of(rutaTa01(30, TA01)), min(60), Map.of("TA01", min(20)));
+
+        assertEquals(1, corte.liberadas().size());
+        assertTrue(corte.entregasSalientes().isEmpty());
+    }
+
+    @Test
+    void unaAveriaPosteriorAlFinDeLaRutaNoLaInterrumpe() {
+        CortePlan.Resultado corte = CortePlan.cortar(List.of(rutaTa01(0, TA01)), min(320), Map.of("TA01", min(310)));
+
+        assertEquals(1, corte.terminadas().size());
+        assertTrue(corte.interrumpidas().isEmpty());
     }
 
     @Test
@@ -142,7 +169,7 @@ class CortePlanTest {
         RutaVigente ta01 = rutaTa01(0, TA01);
         RutaVigente ta02 = rutaTa01(0, TA02);
 
-        CortePlan.Resultado corte = CortePlan.cortar(List.of(ta01, ta02), min(150), Set.of("TA02"));
+        CortePlan.Resultado corte = CortePlan.cortar(List.of(ta01, ta02), min(150), Map.of("TA02", min(150)));
 
         assertEquals(List.of(ta01), corte.conservadas());
         assertEquals(List.of(ta02), corte.interrumpidas());
@@ -153,8 +180,8 @@ class CortePlanTest {
         RutaVigente ruta = rutaTa01(0, TA01);
 
         assertEquals(Map.of("P01", 6, "P02", 5), CortePlan.entregas(ruta, null));
-        assertEquals(Map.of("P01", 4), CortePlan.entregas(ruta, min(70)));
-        assertEquals(Map.of(), CortePlan.entregas(ruta, min(69)));
+        assertEquals(Map.of("P01", 4), CortePlan.entregas(ruta, min(11)));
+        assertEquals(Map.of(), CortePlan.entregas(ruta, min(10)));
         assertEquals(Map.of("NOROESTE", 5), CortePlan.retirosIntermedios(ruta, null));
     }
 

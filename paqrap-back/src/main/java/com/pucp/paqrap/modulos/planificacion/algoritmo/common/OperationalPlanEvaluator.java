@@ -29,17 +29,28 @@ import java.util.Objects;
 
 /** Validates all hard business rules and returns the operational cost only for feasible plans. */
 public final class OperationalPlanEvaluator {
-    /** Hoja "Flota": "Maxima distancia ida: 80 km". Interpretacion adoptada:
-     *  ningun tramo individual entre dos paradas consecutivas puede superar
-     *  esto -- no la distancia acumulada desde la ultima salida de almacen.
-     *  Es una lectura razonable pero no la unica posible; confirmar con el
-     *  docente si se requiere. */
-    private static final double MAX_LEG_DISTANCE_KM = 80.0;
+    /** Hoja "Flota": "Maxima distancia ida: 80 km". Valor historico del limite
+     *  por tramo individual (entre dos paradas consecutivas). Segun la regla
+     *  final del caso (21.dis.selec.algoritmos v04 y 22.dis.experim v03) no es
+     *  una restriccion universal: el experimento uso maxLegKm = 0, por eso el
+     *  evaluador por defecto no limita los tramos. */
+    public static final double HISTORICAL_MAX_LEG_DISTANCE_KM = 80.0;
 
     private final RouteScheduler scheduler;
+    /** Limite por tramo en km; 0 o menos deshabilita la restriccion. */
+    private final double maxLegDistanceKm;
 
+    /** Evaluador sin limite de distancia por tramo (maxLegKm = 0). */
     public OperationalPlanEvaluator(RouteScheduler scheduler) {
+        this(scheduler, 0);
+    }
+
+    public OperationalPlanEvaluator(RouteScheduler scheduler, double maxLegDistanceKm) {
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler is required");
+        if (Double.isNaN(maxLegDistanceKm)) {
+            throw new IllegalArgumentException("maxLegDistanceKm must be a number");
+        }
+        this.maxLegDistanceKm = maxLegDistanceKm;
     }
 
     public PlanEvaluation evaluate(OperationalPlan plan, OperationalSnapshot snapshot,
@@ -128,9 +139,9 @@ public final class OperationalPlanEvaluator {
                     "A maintenance or breakdown window intersects the route"));
         }
         for (ScheduledRouteStop stop : schedule.scheduledStops()) {
-            if (stop.approach().distanceKm() > MAX_LEG_DISTANCE_KM) {
+            if (maxLegDistanceKm > 0 && stop.approach().distanceKm() > maxLegDistanceKm) {
                 violations.add(violation(PlanViolationType.LEG_DISTANCE_EXCEEDED, route,
-                        "A single leg exceeds the fleet sheet's 80 km maximum: "
+                        "A single leg exceeds the configured " + maxLegDistanceKm + " km maximum: "
                                 + stop.approach().distanceKm() + " km"));
             }
             if (stop.loadBefore() > capacity || stop.loadAfter() > capacity) {

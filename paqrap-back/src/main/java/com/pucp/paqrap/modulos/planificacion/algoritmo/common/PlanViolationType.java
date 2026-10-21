@@ -25,9 +25,9 @@ public enum PlanViolationType {
     INSUFFICIENT_INVENTORY,
     RETURN_TO_EMPTY_WAREHOUSE,
     MAINTENANCE_OR_BREAKDOWN,
-    /** A single leg between two consecutive stops exceeds the fleet sheet's
-     *  "Maxima distancia ida: 80 km" limit. Interpretation adopted: applies
-     *  to each individual leg, not to cumulative distance since the last
-     *  warehouse departure -- see RouteScheduler / this type's usage. */
+    /** A single leg between two consecutive stops exceeds the configured
+     *  per-leg limit (historically the fleet sheet's 80 km). Only reported
+     *  when the evaluator is built with a positive limit; the default
+     *  evaluator does not limit legs (maxLegKm = 0). */
     LEG_DISTANCE_EXCEEDED
 }

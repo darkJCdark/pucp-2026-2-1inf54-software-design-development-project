@@ -4,7 +4,11 @@ import com.jayway.jsonpath.JsonPath;
 import com.pucp.paqrap.modulos.escenarios.entity.ScenarioStatus;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
 import com.pucp.paqrap.modulos.escenarios.service.MotorEscenarios;
+import com.pucp.paqrap.modulos.pedidos.entity.DeliveryType;
+import com.pucp.paqrap.modulos.pedidos.persistence.OrderEntity;
+import com.pucp.paqrap.modulos.pedidos.repository.OrderRepository;
 import com.pucp.paqrap.modulos.planificacion.service.PlanificadorPort;
+import com.pucp.paqrap.modulos.redvial.entity.Location;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -89,6 +93,8 @@ class EscenarioApiTest {
     private MotorEscenarios motor;
     @Autowired
     private ScenarioExecutionRepository ejecucionRepository;
+    @Autowired
+    private OrderRepository pedidoRepository;
 
     @BeforeEach
     void reiniciarPlanificador() {
@@ -101,6 +107,7 @@ class EscenarioApiTest {
     void limpiar() {
         ejecucionRepository.findByStatusIn(List.of(ScenarioStatus.RUNNING, ScenarioStatus.PAUSED))
                 .forEach(e -> motor.detener(e.getExecutionId()));
+        pedidoRepository.deleteAll();
         ejecucionRepository.deleteAll();
     }
 
@@ -207,20 +214,39 @@ class EscenarioApiTest {
         assertEquals(Instant.parse("2026-01-01T06:20:00Z"), planificador.solicitudes.get(1).instante());
     }
 
+    /** Un pedido priorizado de 4 h que nadie entrega: el colapso ocurre en su plazo (05:00Z + 4 h). */
     @Test
-    void elEscenarioDeColapsoTerminaCuandoElPlanificadorLoReporta() throws Exception {
+    void elEscenarioDeColapsoTerminaCuandoUnPedidoVenceSinEntregarse() throws Exception {
+        pedidoRepository.save(new OrderEntity("P1", "c1", new Location(30, 14), 2, Instant.parse(INICIO),
+                DeliveryType.PRIORITY, 4));
+        String respuesta = crear("{\"tipo\": \"COLLAPSE\", \"inicioSimulado\": \"" + INICIO + "\"}")
+                .andReturn().getResponse().getContentAsString();
+        long id = ((Number) JsonPath.read(respuesta, "$.id")).longValue();
+        accion(id, "iniciar");
+
+        reloj.avanzar(Duration.ofMinutes(1)); // x 1440 = 1 día simulado
+        motor.tick();
+
+        mvc.perform(get("/api/escenarios/" + id))
+                .andExpect(jsonPath("$.estado").value("COLLAPSED"))
+                .andExpect(jsonPath("$.colapsoEn").value("2026-01-01T09:00:00Z"));
+    }
+
+    /** Que SA deje pedidos sin asignar en un ciclo no es colapso: puede no hallar una solución que sí existe. */
+    @Test
+    void queElPlanificadorDejePedidosSinAsignarNoTerminaElEscenarioDeColapso() throws Exception {
         String respuesta = crear("{\"tipo\": \"COLLAPSE\", \"inicioSimulado\": \"" + INICIO + "\"}")
                 .andReturn().getResponse().getContentAsString();
         long id = ((Number) JsonPath.read(respuesta, "$.id")).longValue();
         accion(id, "iniciar");
 
         planificador.reportarColapso = true;
-        reloj.avanzar(Duration.ofMinutes(1)); // x 1440 = 1 día simulado
+        reloj.avanzar(Duration.ofMinutes(1));
         motor.tick();
 
         mvc.perform(get("/api/escenarios/" + id))
-                .andExpect(jsonPath("$.estado").value("COLLAPSED"))
-                .andExpect(jsonPath("$.colapsoEn").value("2026-01-02T05:00:00Z"));
+                .andExpect(jsonPath("$.estado").value("RUNNING"))
+                .andExpect(jsonPath("$.colapsoEn").doesNotExist());
     }
 
     @Test

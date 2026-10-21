@@ -39,6 +39,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -58,7 +59,8 @@ public class ReplanificacionSaService implements ReplanificacionService {
     private final FuenteDatosOperativos fuente;
     private final PlanificadorSaService planificador;
     private final RouteScheduler programador = new RouteScheduler(new RoadNetwork());
-    private final OperationalPlanEvaluator evaluador = new OperationalPlanEvaluator(programador);
+    /** El mismo evaluador del SA, para validar las rutas conservadas con las mismas reglas (incluido el límite por tramo). */
+    private final OperationalPlanEvaluator evaluador;
     private final PlanResponseMapper mapper = new PlanResponseMapper();
     private final Map<Long, EstadoEjecucion> ejecuciones = new ConcurrentHashMap<>();
 
@@ -66,6 +68,7 @@ public class ReplanificacionSaService implements ReplanificacionService {
     public ReplanificacionSaService(FuenteDatosOperativos fuente, PlanificadorSaService planificador) {
         this.fuente = Objects.requireNonNull(fuente, "fuente es requerida");
         this.planificador = Objects.requireNonNull(planificador, "planificador es requerido");
+        this.evaluador = planificador.evaluador();
     }
 
     // ------------------------------------------------------------------ disparadores
@@ -87,44 +90,70 @@ public class ReplanificacionSaService implements ReplanificacionService {
         }
         estado.pedidos = pedidos;
         estado.bloqueos = new ArrayList<>(solicitud.bloqueosActivos());
+        estado.bloqueosConocidos = new HashSet<>(solicitud.bloqueosActivos());
+        // Igual que el plan sin replanificación: las averías ya registradas cuentan desde el inicio.
+        estado.averias = new ArrayList<>(fuente.averias());
         ReplanificacionResponse respuesta = replanificar(estado, MotivoReplanificacion.INICIO,
-                solicitud.horaPlanificacion(), null, null, null);
+                solicitud.horaPlanificacion(), List.of(), List.of(), List.of());
         ejecuciones.put(ejecucionId, estado);
         return respuesta;
     }
 
     @Override
-    public synchronized ReplanificacionResponse registrarPedido(long ejecucionId, Order pedido, Instant ahora) {
-        Objects.requireNonNull(pedido, "pedido es requerido");
+    public synchronized ReplanificacionResponse replanificar(long ejecucionId, Eventos eventos, Instant ahora) {
+        Objects.requireNonNull(eventos, "eventos es requerido");
         EstadoEjecucion estado = obtener(ejecucionId);
         validarHora(estado, ahora);
-        if (estado.pedidos.containsKey(pedido.id())) {
-            throw new ReglaNegocioException("El pedido " + pedido.id() + " ya existe en la ejecución " + ejecucionId);
+        Map<String, Order> nuevos = new LinkedHashMap<>();
+        for (Order pedido : eventos.pedidos()) {
+            Objects.requireNonNull(pedido, "pedido es requerido");
+            if (estado.pedidos.containsKey(pedido.id()) || nuevos.put(pedido.id(), pedido) != null) {
+                throw new ReglaNegocioException("El pedido " + pedido.id() + " ya existe en la ejecución " + ejecucionId);
+            }
         }
-        return replanificar(estado, MotivoReplanificacion.NUEVO_PEDIDO, ahora, pedido, null, null);
+        // Cada bloqueo nuevo rige desde max(inicio, ahora); uno ya vencido o ya conocido no altera las rutas.
+        Set<RoadBlock> recibidos = new LinkedHashSet<>();
+        List<RoadBlock> bloqueos = new ArrayList<>();
+        for (RoadBlock bloqueo : eventos.bloqueos()) {
+            Objects.requireNonNull(bloqueo, "bloqueo es requerido");
+            if (estado.bloqueosConocidos.contains(bloqueo) || !recibidos.add(bloqueo)) {
+                continue;
+            }
+            Instant inicio = bloqueo.startsAt().isAfter(ahora) ? bloqueo.startsAt() : ahora;
+            if (bloqueo.endsAt().isAfter(inicio)) {
+                bloqueos.add(new RoadBlock(inicio, bloqueo.endsAt(), bloqueo.nodes()));
+            }
+        }
+        Set<String> flota = new HashSet<>(fuente.flota().stream().map(Vehicle::id).toList());
+        for (BreakdownEvent averia : eventos.averias()) {
+            Objects.requireNonNull(averia, "averia es requerida");
+            if (!flota.contains(averia.vehicleId())) {
+                throw new ReglaNegocioException("Vehículo desconocido: " + averia.vehicleId());
+            }
+        }
+        // Los bloqueos futuros del horizonte no son un evento: solo cuenta uno que empezó desde la replanificación
+        // anterior o uno nuevo que ya empezó.
+        boolean bloqueoIniciado = eventos.bloqueos().stream().anyMatch(bloqueo -> !bloqueo.startsAt().isAfter(ahora)
+                && (bloqueo.startsAt().isAfter(estado.ultimaHora) || recibidos.contains(bloqueo)));
+        MotivoReplanificacion motivo = !eventos.averias().isEmpty() ? MotivoReplanificacion.AVERIA
+                : bloqueoIniciado ? MotivoReplanificacion.BLOQUEO
+                : !eventos.pedidos().isEmpty() ? MotivoReplanificacion.NUEVO_PEDIDO
+                : MotivoReplanificacion.PERIODICO;
+        ReplanificacionResponse respuesta = replanificar(estado, motivo, ahora, List.copyOf(nuevos.values()),
+                bloqueos, eventos.averias());
+        estado.bloqueosConocidos.addAll(recibidos);
+        return respuesta;
     }
 
     @Override
-    public synchronized ReplanificacionResponse activarBloqueo(long ejecucionId, RoadBlock bloqueo, Instant ahora) {
-        Objects.requireNonNull(bloqueo, "bloqueo es requerido");
-        EstadoEjecucion estado = obtener(ejecucionId);
-        validarHora(estado, ahora);
-        Instant inicio = bloqueo.startsAt().isAfter(ahora) ? bloqueo.startsAt() : ahora;
-        RoadBlock efectivo = bloqueo.endsAt().isAfter(inicio)
-                ? new RoadBlock(inicio, bloqueo.endsAt(), bloqueo.nodes()) : null;
-        return replanificar(estado, MotivoReplanificacion.BLOQUEO, ahora, null, efectivo, null);
+    public boolean conocePedido(long ejecucionId, String pedidoId) {
+        EstadoEjecucion estado = ejecuciones.get(ejecucionId);
+        return estado != null && estado.pedidos.containsKey(pedidoId);
     }
 
     @Override
-    public synchronized ReplanificacionResponse registrarAveria(long ejecucionId, BreakdownEvent averia, Instant ahora) {
-        Objects.requireNonNull(averia, "averia es requerida");
-        EstadoEjecucion estado = obtener(ejecucionId);
-        validarHora(estado, ahora);
-        boolean existe = fuente.flota().stream().anyMatch(vehiculo -> vehiculo.id().equals(averia.vehicleId()));
-        if (!existe) {
-            throw new ReglaNegocioException("Vehículo desconocido: " + averia.vehicleId());
-        }
-        return replanificar(estado, MotivoReplanificacion.AVERIA, ahora, null, null, averia);
+    public boolean estaIniciada(long ejecucionId) {
+        return ejecuciones.containsKey(ejecucionId);
     }
 
     @Override
@@ -143,41 +172,46 @@ public class ReplanificacionSaService implements ReplanificacionService {
         return List.copyOf(obtener(ejecucionId).rutas);
     }
 
+    /** Solo para pruebas: bloqueos con los que planifica la ejecución. */
+    synchronized List<RoadBlock> bloqueosVigentes(long ejecucionId) {
+        return List.copyOf(obtener(ejecucionId).bloqueos);
+    }
+
     // ------------------------------------------------------------------ replanificación
 
     private ReplanificacionResponse replanificar(EstadoEjecucion estado, MotivoReplanificacion motivo, Instant ahora,
-                                                 Order nuevoPedido, RoadBlock nuevoBloqueo, BreakdownEvent nuevaAveria) {
-        // 1. Datos con el evento aplicado (el estado se confirma recién al final).
+                                                 List<Order> nuevosPedidos, List<RoadBlock> nuevosBloqueos,
+                                                 List<BreakdownEvent> nuevasAverias) {
+        // 1. Datos con los eventos aplicados (el estado se confirma recién al final).
         Map<String, Order> pedidos = new LinkedHashMap<>(estado.pedidos);
-        if (nuevoPedido != null) {
-            pedidos.put(nuevoPedido.id(), nuevoPedido);
-        }
+        nuevosPedidos.forEach(pedido -> pedidos.put(pedido.id(), pedido));
         List<RoadBlock> bloqueos = new ArrayList<>(estado.bloqueos);
-        if (nuevoBloqueo != null) {
-            bloqueos.add(nuevoBloqueo);
-        }
+        bloqueos.addAll(nuevosBloqueos);
         List<BreakdownEvent> averias = new ArrayList<>(estado.averias);
-        if (nuevaAveria != null) {
-            averias.add(nuevaAveria);
-        }
+        averias.addAll(nuevasAverias);
         Map<String, VehicleOperationalState> forzados = new HashMap<>(estado.estadosForzados);
         Collection<Warehouse> almacenes = fuente.almacenes();
         Warehouse central = almacenes.stream().filter(Warehouse::isCentral).findFirst()
                 .orElseThrow(() -> new IllegalStateException("La fuente de datos no define un almacén central"));
 
-        // 2. Corte del plan vigente en 'ahora'.
-        Set<String> interrumpidos = nuevaAveria == null ? Set.of() : Set.of(nuevaAveria.vehicleId());
+        // 2. Corte del plan vigente en 'ahora'; la ruta de un vehículo averiado se corta en el instante de la avería.
+        Map<String, BreakdownEvent> averiaPorVehiculo = new HashMap<>();
+        nuevasAverias.forEach(averia -> averiaPorVehiculo.merge(averia.vehicleId(), averia,
+                (a, b) -> a.occurredAt().isAfter(b.occurredAt()) ? b : a));
+        Map<String, Instant> interrumpidos = new HashMap<>();
+        averiaPorVehiculo.forEach((vehiculo, averia) -> interrumpidos.put(vehiculo, averia.occurredAt()));
         CortePlan.Resultado corte = CortePlan.cortar(estado.rutas, ahora, interrumpidos);
         Map<String, Integer> entregados = new HashMap<>(estado.entregados);
         CortePlan.sumar(entregados, corte.entregasSalientes());
         Map<String, Integer> retiros = new HashMap<>(estado.retiros);
         CortePlan.sumar(retiros, corte.retirosSalientes());
         for (RutaVigente interrumpida : corte.interrumpidas()) {
-            forzados.put(interrumpida.vehiculoId(), estadoTrasAveria(interrumpida.ruta().vehicle(), nuevaAveria, central));
+            forzados.put(interrumpida.vehiculoId(), estadoTrasAveria(interrumpida.ruta().vehicle(),
+                    averiaPorVehiculo.get(interrumpida.vehiculoId()), central));
         }
 
         // 3. Rutas conservadas; ante un bloqueo se vuelven a programar con el RouteScheduler original.
-        List<RutaVigente> conservadas = motivo == MotivoReplanificacion.BLOQUEO
+        List<RutaVigente> conservadas = !nuevosBloqueos.isEmpty()
                 ? corte.conservadas().stream().map(ruta -> reprogramar(ruta, bloqueos)).toList()
                 : corte.conservadas();
 

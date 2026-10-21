@@ -177,6 +177,19 @@ class ReplanificacionSaServiceTest {
         return total;
     }
 
+    /** Paquetes de las paradas a las que el vehículo llegó antes de {@code instante} (el ejecutor entrega al llegar). */
+    private static Map<String, Integer> entregasAntesDe(Collection<RutaResponse> rutas, Instant instante) {
+        Map<String, Integer> total = new HashMap<>();
+        for (RutaResponse ruta : rutas) {
+            for (ParadaResponse p : ruta.paradas()) {
+                if (ParadaResponse.ENTREGA.equals(p.tipo()) && p.llegada().isBefore(instante)) {
+                    total.merge(p.pedidoId(), p.paquetes(), Integer::sum);
+                }
+            }
+        }
+        return total;
+    }
+
     /** Pendientes calculados de forma independiente: pedido menos lo que entregan las rutas indicadas. */
     private static List<Order> pendientes(List<Order> pedidos, Map<String, Integer> cubiertos) {
         List<Order> resultado = new ArrayList<>();
@@ -497,6 +510,119 @@ class ReplanificacionSaServiceTest {
         assertEquals(huellas(inicio.plan().rutas()), huellas(r.plan().rutas()));
         assertEquals(List.of(libre), r.vehiculosNoDisponibles());
         assertFalse(luego.vehiculosNoDisponibles().contains(libre));
+    }
+
+    /**
+     * El ejecutor del plan entrega al llegar: una avería durante la atención de un cliente no deshace esa entrega,
+     * y la ruta se corta en el instante de la avería aunque la replanificación ocurra después.
+     */
+    @Test
+    void unaAveriaDuranteLaAtencionCuentaLaEntregaYCortaEnSuInstante() {
+        ReplanificacionResponse inicio = servicio.iniciar(EJECUCION, solicitud());
+        RutaResponse afectada = inicio.plan().rutas().stream()
+                .filter(x -> x.paradas().stream().filter(p -> ParadaResponse.ENTREGA.equals(p.tipo())).count() >= 2)
+                .findFirst().orElseThrow(() -> new AssertionError("el plan inicial no tiene una ruta con dos entregas"));
+        List<ParadaResponse> entregasRuta = afectada.paradas().stream()
+                .filter(p -> ParadaResponse.ENTREGA.equals(p.tipo())).toList();
+        Instant instanteAveria = entregasRuta.get(0).llegada().plusSeconds(60);
+        assertTrue(instanteAveria.isBefore(entregasRuta.get(0).fin()), "la avería debe caer durante la atención");
+        Instant ahora = instanteAveria.plusSeconds(120);
+
+        ReplanificacionResponse r = servicio.registrarAveria(EJECUCION,
+                new BreakdownEvent(afectada.vehiculoId(), BreakdownType.MINOR, instanteAveria, new Location(28, 14)), ahora);
+
+        Map<String, Integer> total = entregasAntesDe(List.of(afectada), instanteAveria);
+        assertEquals(Integer.valueOf(entregasRuta.get(0).paquetes()), total.get(entregasRuta.get(0).pedidoId()));
+        CortePlan.sumar(total, entregas(inicio.plan().rutas().stream()
+                .filter(x -> !x.id().equals(afectada.id())).toList(), null));
+        CortePlan.sumar(total, entregas(rutas(r, r.rutasNuevas()), null));
+        for (Order p : pedidos()) {
+            assertEquals(Integer.valueOf(p.packages()), total.get(p.id()), "paquetes de " + p.id());
+        }
+    }
+
+    // ---------------------------------------------------------------- ciclo periódico y eventos combinados
+
+    @Test
+    void elCicloPeriodicoSinEventosConservaLasRutasEnMarchaSinResetearLaFlota() {
+        ReplanificacionResponse inicio = servicio.iniciar(EJECUCION, solicitud());
+        Instant t = H.plusSeconds(30 * 60);
+
+        ReplanificacionResponse r = servicio.replanificar(EJECUCION, ReplanificacionService.Eventos.NINGUNO, t);
+
+        assertEquals(MotivoReplanificacion.PERIODICO, r.motivo());
+        assertEquals(1, r.numeroReplanificacion());
+        assertEquals(inicio.rutasNuevas(), r.rutasConservadas());
+        assertTrue(r.rutasNuevas().isEmpty(), "no queda nada pendiente: todo va en las rutas en marcha");
+        assertEquals(huellas(inicio.plan().rutas()), huellas(r.plan().rutas()));
+        assertTrue(r.plan().noAtendidos().isEmpty());
+    }
+
+    @Test
+    void elCicloPeriodicoReplanificaLoQueQuedoPendiente() {
+        servicio.iniciar(EJECUCION, solicitud());
+        Instant t = H.plusSeconds(30 * 60);
+        servicio.registrarPedido(EJECUCION, p04(t), t);
+
+        ReplanificacionResponse r = servicio.replanificar(EJECUCION, ReplanificacionService.Eventos.NINGUNO,
+                t.plusSeconds(60));
+
+        Map<String, Integer> total = entregas(r.plan().rutas(), null);
+        assertEquals(Integer.valueOf(6), total.get("P04"), "P04 sigue cubierto tras el ciclo periódico");
+        for (Order p : pedidos()) {
+            assertEquals(Integer.valueOf(p.packages()), total.get(p.id()), "paquetes de " + p.id());
+        }
+    }
+
+    @Test
+    void variosEventosDelMismoTickSeAplicanEnUnaSolaReplanificacion() {
+        ReplanificacionResponse inicio = servicio.iniciar(EJECUCION, solicitud());
+        RutaResponse afectada = rutaQueAunNoLlegaASuPrimeraEntrega(inicio);
+        Instant t = H.plusSeconds(60);
+        Order p05 = new Order("P05", new Location(22, 10), 2, t, t.plusSeconds(10 * 3600));
+        RoadBlock bloqueo = new RoadBlock(t, H.plusSeconds(3600), List.of(new Location(40, 40), new Location(41, 40)));
+        BreakdownEvent averia = new BreakdownEvent(afectada.vehiculoId(), BreakdownType.MINOR, t, new Location(28, 14));
+
+        ReplanificacionResponse r = servicio.replanificar(EJECUCION,
+                new ReplanificacionService.Eventos(List.of(p04(t), p05), List.of(bloqueo), List.of(averia)), t);
+
+        assertEquals(MotivoReplanificacion.AVERIA, r.motivo());
+        assertEquals(1, r.numeroReplanificacion());
+        assertTrue(servicio.conocePedido(EJECUCION, "P04") && servicio.conocePedido(EJECUCION, "P05"));
+        assertTrue(r.plan().rutas().stream().noneMatch(x -> x.vehiculoId().equals(afectada.vehiculoId())));
+        Map<String, Integer> total = entregas(r.plan().rutas(), null);
+        assertEquals(Integer.valueOf(6), total.get("P04"));
+        assertEquals(Integer.valueOf(2), total.get("P05"));
+        for (Order p : pedidos()) {
+            assertEquals(Integer.valueOf(p.packages()), total.get(p.id()), "paquetes de " + p.id());
+        }
+    }
+
+    /** El adapter pasa en cada ciclo los bloqueos del horizonte: uno que la ejecución ya conoce no se repite. */
+    @Test
+    void unBloqueoYaConocidoNoSeVuelveARegistrar() {
+        servicio.iniciar(EJECUCION, solicitud());
+        RoadBlock bloqueo = new RoadBlock(H, H.plusSeconds(8 * 3600), List.of(new Location(40, 40), new Location(41, 40)));
+        ReplanificacionResponse r1 = servicio.activarBloqueo(EJECUCION, bloqueo, H.plusSeconds(600));
+        List<RoadBlock> despuesDelPrimero = servicio.bloqueosVigentes(EJECUCION);
+
+        ReplanificacionResponse r2 = servicio.activarBloqueo(EJECUCION, bloqueo, H.plusSeconds(900));
+
+        assertEquals(despuesDelPrimero, servicio.bloqueosVigentes(EJECUCION));
+        assertEquals(huellas(r1.plan().rutas()), huellas(r2.plan().rutas()));
+    }
+
+    @Test
+    void unPedidoRepetidoEnElMismoTickSeRechazaSinAlterarElEstado() {
+        ReplanificacionResponse inicio = servicio.iniciar(EJECUCION, solicitud());
+        Instant t = H.plusSeconds(600);
+
+        assertThrows(ReglaNegocioException.class, () -> servicio.replanificar(EJECUCION,
+                new ReplanificacionService.Eventos(List.of(p04(t), p04(t)), List.of(), List.of()), t));
+        assertFalse(servicio.conocePedido(EJECUCION, "P04"));
+        assertEquals(inicio, servicio.planVigente(EJECUCION).orElseThrow());
+        assertTrue(servicio.estaIniciada(EJECUCION));
+        assertFalse(servicio.estaIniciada(9L));
     }
 
     // ---------------------------------------------------------------- estado y validaciones

@@ -39,7 +39,9 @@ public record ResultadoPlanificacion(OperationalPlan plan, PlanEvaluation evalua
      *  cubrir toda la demanda. Se calcula sobre el resultado FINAL ya
      *  elegido, no por iteracion intermedia -- evita tener que restar
      *  "49 de 50" a mano para notar que el escenario no se resolvio del
-     *  todo.
+     *  todo. Es una senal del ciclo de SA, no el colapso logistico del
+     *  escenario: ese lo declara DetectorColapso (plazo vencido o
+     *  inalcanzable), porque SA puede no hallar una solucion que existe.
      */
     public boolean esColapso() {
         return !noAtendidos.isEmpty();

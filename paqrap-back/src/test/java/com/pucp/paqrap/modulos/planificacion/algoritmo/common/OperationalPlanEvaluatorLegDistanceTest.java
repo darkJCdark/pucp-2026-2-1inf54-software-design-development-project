@@ -16,40 +16,49 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Hoja "Flota": "Maxima distancia ida: 80 km". Un tramo individual que
- *  supere ese limite debe marcar el plan como infactible. */
+/** El limite por tramo es configurable: el evaluador por defecto no limita (maxLegKm = 0, regla final del caso)
+ *  y con un limite positivo, como el historico de 80 km, un tramo que lo supere vuelve infactible el plan. */
 class OperationalPlanEvaluatorLegDistanceTest {
 
+    private static final Instant HORA_INICIO = Instant.parse("2026-09-09T12:00:00Z");
+    private static final Warehouse CENTRAL = Warehouse.central("CENTRAL", new Location(0, 0));
+    private static final Vehicle VEHICULO = new Vehicle("TA01", VehicleType.CAR, true);
+    // (0,0) -> (70,50) = 120 km en un solo tramo.
+    private static final Order PEDIDO_LEJANO = new Order("C-1", new Location(70, 50), 1, HORA_INICIO,
+            HORA_INICIO.plusSeconds(48 * 3600));
+
     @Test
-    void unTramoDeMasDe80KmEsRechazado() {
-        Instant horaInicio = Instant.parse("2026-09-09T12:00:00Z");
-        Warehouse central = Warehouse.central("CENTRAL", new Location(0, 0));
-        Vehicle vehiculo = new Vehicle("TA01", VehicleType.CAR, true);
+    void porDefectoUnTramoDeMasDe80KmEsAceptado() {
+        PlanEvaluation evaluacion = evaluar(new OperationalPlanEvaluator(new RouteScheduler(new RoadNetwork())));
 
-        Map<VehicleType, VehicleParameters> parametros = new EnumMap<>(VehicleType.class);
-        for (VehicleType t : VehicleType.values()) parametros.put(t, new VehicleParameters(24, 40.0, 1.0));
-        Map<String, VehicleOperationalState> estados = Map.of(vehiculo.id(),
-                new VehicleOperationalState(vehiculo, VehicleStatus.AVAILABLE, central.location(), horaInicio));
-        OperationalSnapshot snapshot = new OperationalSnapshot(horaInicio, new FleetProfile(parametros),
-                InventorySnapshot.from(List.of(central)), estados,
-                new MaintenanceCalendar(ShiftSchedule.DEFAULT_ZONE, List.of()),
-                new ShiftSchedule(ShiftSchedule.DEFAULT_ZONE), List.of());
+        assertTrue(evaluacion.violations().stream().noneMatch(v -> v.type() == PlanViolationType.LEG_DISTANCE_EXCEEDED),
+                () -> "violaciones encontradas: " + evaluacion.violations());
+        assertTrue(evaluacion.isFeasible(), () -> "violaciones encontradas: " + evaluacion.violations());
+    }
 
-        // (0,0) -> (70,50) = 120 km en un solo tramo, supera el limite de 80.
-        Order pedidoLejano = new Order("C-1", new Location(70, 50), 1, horaInicio, horaInicio.plusSeconds(48 * 3600));
-        DeliveryRoute ruta = DeliveryRoute.startScenarioAtCentral("R1", vehiculo, central, 1, horaInicio)
-                .withAppendedStop(new DeliveryStop(pedidoLejano, 1))
-                .returningTo(central);
-
-        RoadNetwork roadNetwork = new RoadNetwork();
-        RouteScheduler scheduler = new RouteScheduler(roadNetwork);
-        OperationalPlanEvaluator evaluator = new OperationalPlanEvaluator(scheduler);
-
-        OperationalPlan plan = OperationalPlan.empty().withRoute(ruta);
-        PlanEvaluation evaluacion = evaluator.evaluate(plan, snapshot, List.of(pedidoLejano), List.of());
+    @Test
+    void conElLimiteHistoricoUnTramoDeMasDe80KmEsRechazado() {
+        PlanEvaluation evaluacion = evaluar(new OperationalPlanEvaluator(new RouteScheduler(new RoadNetwork()),
+                OperationalPlanEvaluator.HISTORICAL_MAX_LEG_DISTANCE_KM));
 
         assertFalse(evaluacion.isFeasible());
         assertTrue(evaluacion.violations().stream().anyMatch(v -> v.type() == PlanViolationType.LEG_DISTANCE_EXCEEDED),
                 () -> "violaciones encontradas: " + evaluacion.violations());
+    }
+
+    private static PlanEvaluation evaluar(OperationalPlanEvaluator evaluator) {
+        Map<VehicleType, VehicleParameters> parametros = new EnumMap<>(VehicleType.class);
+        for (VehicleType t : VehicleType.values()) parametros.put(t, new VehicleParameters(24, 40.0, 1.0));
+        Map<String, VehicleOperationalState> estados = Map.of(VEHICULO.id(),
+                new VehicleOperationalState(VEHICULO, VehicleStatus.AVAILABLE, CENTRAL.location(), HORA_INICIO));
+        OperationalSnapshot snapshot = new OperationalSnapshot(HORA_INICIO, new FleetProfile(parametros),
+                InventorySnapshot.from(List.of(CENTRAL)), estados,
+                new MaintenanceCalendar(ShiftSchedule.DEFAULT_ZONE, List.of()),
+                new ShiftSchedule(ShiftSchedule.DEFAULT_ZONE), List.of());
+
+        DeliveryRoute ruta = DeliveryRoute.startScenarioAtCentral("R1", VEHICULO, CENTRAL, 1, HORA_INICIO)
+                .withAppendedStop(new DeliveryStop(PEDIDO_LEJANO, 1))
+                .returningTo(CENTRAL);
+        return evaluator.evaluate(OperationalPlan.empty().withRoute(ruta), snapshot, List.of(PEDIDO_LEJANO), List.of());
     }
 }

@@ -32,11 +32,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -128,18 +131,37 @@ public class EjecutorPlanService {
         PlanResponse plan = vigente.get();
         Instant inicioVentana = desde;
         if (plan != estado.plan) {
-            // Plan nuevo: reemplaza al anterior desde su hora de planificación (incluida).
+            // Plan nuevo: reemplaza al anterior desde su hora de planificación (incluida). Las rutas en curso que la
+            // replanificación conservó siguen ejecutándose con su versión del plan nuevo.
             liberarVehiculosSinRuta(estado, plan);
+            Map<String, RutaEnCurso> continuadas = continuadas(estado, plan);
             estado.plan = plan;
             estado.rutas.clear();
+            estado.rutas.putAll(continuadas);
+            estado.continuadas.clear();
+            continuadas.values().forEach(enCurso -> estado.continuadas.add(enCurso.ruta));
             if (!plan.planificadoEn().isAfter(desde)) {
                 inicioVentana = plan.planificadoEn().minusNanos(1);
             }
         }
 
-        for (Evento evento : eventos(plan, inicioVentana, hasta)) {
+        for (Evento evento : eventos(plan, inicioVentana, desde, estado.continuadas, hasta)) {
             aplicar(ejecucionId, estado, evento, averias);
         }
+    }
+
+    /** Rutas en curso que siguen en el plan nuevo (mismo vehículo, id y salida), ya ligadas a su versión nueva. */
+    private Map<String, RutaEnCurso> continuadas(EstadoEjecucion estado, PlanResponse nuevo) {
+        Map<String, RutaEnCurso> continuadas = new HashMap<>();
+        for (RutaResponse ruta : nuevo.rutas()) {
+            RutaEnCurso enCurso = estado.rutas.get(ruta.vehiculoId());
+            if (enCurso != null && !enCurso.interrumpida && enCurso.ruta.id().equals(ruta.id())
+                    && enCurso.ruta.salida() != null && enCurso.ruta.salida().equals(ruta.salida())) {
+                enCurso.ruta = ruta;
+                continuadas.put(ruta.vehiculoId(), enCurso);
+            }
+        }
+        return continuadas;
     }
 
     /** Se conservan al terminar la ejecución, hasta que el backend se reinicie. */
@@ -168,13 +190,19 @@ public class EjecutorPlanService {
     private record Evento(Instant instante, TipoEvento tipo, RutaResponse ruta, int parada) {
     }
 
-    /** Eventos de todas las rutas programadas con instante en (desde, hasta], en orden cronológico. */
-    private List<Evento> eventos(PlanResponse plan, Instant desde, Instant hasta) {
+    /**
+     * Eventos de todas las rutas programadas con instante en (desde, hasta], en orden cronológico. Las rutas
+     * continuadas ya se ejecutaron hasta {@code ejecutadoHasta}: sus eventos se toman desde ahí.
+     */
+    private List<Evento> eventos(PlanResponse plan, Instant inicioVentana, Instant ejecutadoHasta,
+                                 Set<RutaResponse> continuadas, Instant hasta) {
         List<Evento> eventos = new ArrayList<>();
         for (RutaResponse ruta : plan.rutas()) {
             if (ruta.llegadaFinal() == null || ruta.salida() == null) {
                 continue; // ruta que SA no pudo programar
             }
+            Instant desde = continuadas.contains(ruta) && ejecutadoHasta.isAfter(inicioVentana)
+                    ? ejecutadoHasta : inicioVentana;
             agregar(eventos, ruta.salida(), TipoEvento.SALIDA, ruta, -1, desde, hasta);
             Instant partida = ruta.salida();
             for (int i = 0; i < ruta.paradas().size(); i++) {
@@ -367,6 +395,9 @@ public class EjecutorPlanService {
     private static final class EstadoEjecucion {
         private PlanResponse plan;
         private final Map<String, RutaEnCurso> rutas = new HashMap<>();
+        /** Rutas del plan vigente que ya venían en curso del plan anterior (por identidad). */
+        private final Set<RutaResponse> continuadas =
+                Collections.newSetFromMap(new IdentityHashMap<>());
         private final Map<String, Integer> paquetesPorPedido = new HashMap<>();
         private int pedidosEntregados;
         private int entregadosATiempo;
@@ -385,7 +416,8 @@ public class EjecutorPlanService {
      * cuadrícula escalada para que la suma coincida con la de la ruta (los bloqueos alargan algunos tramos).
      */
     private static final class RutaEnCurso {
-        private final RutaResponse ruta;
+        /** Se actualiza cuando la replanificación conserva la ruta en un plan nuevo. */
+        private RutaResponse ruta;
         private final double factorDistancia;
         private final double costoPorKm;
         private int x;
