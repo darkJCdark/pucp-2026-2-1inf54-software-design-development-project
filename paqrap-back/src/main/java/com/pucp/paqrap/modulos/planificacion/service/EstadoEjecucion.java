@@ -10,9 +10,11 @@ import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Estado en memoria de una ejecución (simulación o día a día). Solo lo modifica
@@ -31,7 +33,10 @@ final class EstadoEjecucion {
     Map<String, Integer> entregados = new HashMap<>();
     /** Paquetes ya retirados de almacenes intermedios por rutas que salieron del plan. */
     Map<String, Integer> retiros = new HashMap<>();
+    /** Bloqueos vigentes para el SA; los que ya regían al registrarse empiezan en la hora de su registro. */
     List<RoadBlock> bloqueos = new ArrayList<>();
+    /** Bloqueos tal como se recibieron, para no registrar dos veces el mismo. */
+    Set<RoadBlock> bloqueosConocidos = new HashSet<>();
     List<BreakdownEvent> averias = new ArrayList<>();
     /** Estado de vehículos cuya ruta se interrumpió por avería. */
     Map<String, VehicleOperationalState> estadosForzados = new HashMap<>();

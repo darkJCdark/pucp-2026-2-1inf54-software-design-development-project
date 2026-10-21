@@ -159,6 +159,8 @@ class EventosYMonitoreoApiTest {
         motor.tick();
 
         assertEquals(List.of(PlanificadorPort.Motivo.INICIAL, PlanificadorPort.Motivo.INCIDENCIA), planificador.motivos());
+        assertEquals(List.of(INICIO.plusSeconds(30 * 60)),
+                planificador.solicitudes.get(1).bloqueosIniciados().stream().map(RoadBlock::startsAt).toList());
 
         // Ya se atendió: el siguiente tick no vuelve a replanificar por el mismo bloqueo.
         reloj.avanzar(Duration.ofSeconds(1));
@@ -166,19 +168,71 @@ class EventosYMonitoreoApiTest {
         assertEquals(2, planificador.solicitudes.size());
     }
 
+    /** La avería replanifica cuando el reloj llega a su instante, con la avería en la solicitud. */
     @Test
-    void unaAveriaRegistradaEnLaEjecucionDisparaUnaReplanificacion() throws Exception {
+    void unaAveriaRegistradaEnLaEjecucionDisparaUnaReplanificacionAlOcurrir() throws Exception {
         long id = iniciarCincoDias();
 
         mvc.perform(post("/api/incidencias/averias").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"vehiculoId\": \"TA01\", \"tipo\": \"MINOR\", \"ocurridaEn\": \"2026-01-01T05:10:00Z\","
                                 + " \"ejecucionId\": " + id + "}"))
                 .andExpect(status().isCreated());
+        // 1 s real = 2 min 40 s simulados (05:02:40Z): la avería aún no ocurre.
+        reloj.avanzar(Duration.ofSeconds(1));
+        motor.tick();
+        assertEquals(List.of(PlanificadorPort.Motivo.INICIAL), planificador.motivos());
+
+        // +3 s reales = 05:10:40Z: ya ocurrió.
+        reloj.avanzar(Duration.ofSeconds(3));
+        motor.tick();
+
+        assertEquals(List.of(PlanificadorPort.Motivo.INICIAL, PlanificadorPort.Motivo.INCIDENCIA), planificador.motivos());
+        PlanificadorPort.SolicitudCiclo solicitud = planificador.solicitudes.get(1);
+        assertEquals(id, solicitud.ejecucionId());
+        assertEquals(List.of("TA01"), solicitud.averias().stream().map(a -> a.vehicleId()).toList());
+        assertEquals(Instant.parse("2026-01-01T05:10:00Z"), solicitud.averias().getFirst().occurredAt());
+
+        // Ya se atendió: el siguiente tick no vuelve a replanificar por la misma avería.
+        reloj.avanzar(Duration.ofSeconds(1));
+        motor.tick();
+        assertEquals(2, planificador.solicitudes.size());
+    }
+
+    /** Una avería registrada con un instante que el reloj ya pasó replanifica en el próximo tick. */
+    @Test
+    void unaAveriaRegistradaConUnInstanteYaPasadoReplanificaEnElProximoTick() throws Exception {
+        long id = iniciarCincoDias();
+        reloj.avanzar(Duration.ofSeconds(15));
+        motor.tick(); // 05:40Z
+
+        mvc.perform(post("/api/incidencias/averias").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"vehiculoId\": \"TA01\", \"tipo\": \"MINOR\", \"ocurridaEn\": \"2026-01-01T05:20:00Z\","
+                                + " \"ejecucionId\": " + id + "}"))
+                .andExpect(status().isCreated());
         reloj.avanzar(Duration.ofSeconds(1));
         motor.tick();
 
         assertEquals(List.of(PlanificadorPort.Motivo.INICIAL, PlanificadorPort.Motivo.INCIDENCIA), planificador.motivos());
-        assertEquals(id, planificador.solicitudes.get(1).ejecucionId());
+        assertEquals(List.of("TA01"), planificador.solicitudes.get(1).averias().stream().map(a -> a.vehicleId()).toList());
+    }
+
+    /** En 5D el colapso solo se informa: la ejecución sigue y el monitoreo muestra el momento y la causa. */
+    @Test
+    void enCincoDiasElColapsoSeInformaEnElMonitoreoSinTerminarLaEjecucion() throws Exception {
+        pedidoRepository.save(new OrderEntity("P1", "c1", new Location(30, 14), 2, INICIO, DeliveryType.PRIORITY, 4));
+        long id = iniciarCincoDias();
+        mvc.perform(get("/api/monitoreo/" + id)).andExpect(jsonPath("$.colapso").doesNotExist());
+
+        // 2 min reales = 5 h 20 min simulados: el plazo de las 09:00Z venció y el planificador de prueba no entrega.
+        reloj.avanzar(Duration.ofMinutes(2));
+        motor.tick();
+
+        mvc.perform(get("/api/monitoreo/" + id))
+                .andExpect(jsonPath("$.escenario.estado").value("RUNNING"))
+                .andExpect(jsonPath("$.colapso.causa").value("PLAZO_VENCIDO"))
+                .andExpect(jsonPath("$.colapso.instante").value("2026-01-01T09:00:00Z"))
+                .andExpect(jsonPath("$.colapso.pedidoId").value("P1"))
+                .andExpect(jsonPath("$.colapso.vencidosSinEntregar").value(1));
     }
 
     @Test

@@ -8,12 +8,14 @@ import com.pucp.paqrap.modulos.pedidos.dto.PedidoResponse;
 import com.pucp.paqrap.modulos.pedidos.dto.RegistrarPedidoRequest;
 import com.pucp.paqrap.modulos.pedidos.entity.DeliveryType;
 import com.pucp.paqrap.modulos.pedidos.entity.OrderStatus;
+import com.pucp.paqrap.modulos.pedidos.entity.PedidoRegistrado;
 import com.pucp.paqrap.modulos.pedidos.persistence.OrderEntity;
 import com.pucp.paqrap.modulos.pedidos.persistence.OrderStatusHistoryEntity;
 import com.pucp.paqrap.modulos.pedidos.repository.OrderRepository;
 import com.pucp.paqrap.modulos.pedidos.repository.OrderStatusHistoryRepository;
 import com.pucp.paqrap.modulos.planificacion.entity.ShiftSchedule;
 import com.pucp.paqrap.modulos.redvial.entity.Location;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -57,11 +59,14 @@ public class PedidoService {
 
     private final OrderRepository pedidoRepository;
     private final OrderStatusHistoryRepository historialRepository;
+    private final ApplicationEventPublisher eventos;
     private final CargadorPedidos cargador = new CargadorPedidos();
 
-    public PedidoService(OrderRepository pedidoRepository, OrderStatusHistoryRepository historialRepository) {
+    public PedidoService(OrderRepository pedidoRepository, OrderStatusHistoryRepository historialRepository,
+                         ApplicationEventPublisher eventos) {
         this.pedidoRepository = pedidoRepository;
         this.historialRepository = historialRepository;
+        this.eventos = eventos;
     }
 
     @Transactional
@@ -73,6 +78,8 @@ public class PedidoService {
 
         pedidoRepository.save(pedido);
         historialRepository.save(OrderStatusHistoryEntity.registro(pedido));
+        // El motor de escenarios replanifica cuando esta transacción se confirma.
+        eventos.publishEvent(new PedidoRegistrado(pedido.getOrderId(), registradoEn));
         return PedidoResponse.de(pedido);
     }
 

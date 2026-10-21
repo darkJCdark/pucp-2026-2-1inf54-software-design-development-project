@@ -8,8 +8,11 @@ import com.pucp.paqrap.modulos.escenarios.entity.ScenarioType;
 import com.pucp.paqrap.modulos.escenarios.persistence.ScenarioExecutionEntity;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
 import com.pucp.paqrap.modulos.incidencias.entity.AveriaRegistrada;
+import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
+import com.pucp.paqrap.modulos.pedidos.entity.PedidoRegistrado;
 import com.pucp.paqrap.modulos.planificacion.service.PlanificadorPort;
 import com.pucp.paqrap.modulos.planificacion.service.PlanificadorSinOperacion;
+import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -24,6 +27,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,8 +40,9 @@ import java.util.function.Consumer;
 
 /**
  * Ejecuta los escenarios: mantiene el reloj simulado de cada ejecución activa, pide un plan al
- * {@link PlanificadorPort} al iniciar y cada {@code intervaloPlanificacion} simulado, y cierra la ejecución
- * cuando termina (5D por tiempo, colapso cuando el planificador lo reporta) o la detiene el operario.
+ * {@link PlanificadorPort} al iniciar, cada {@code intervaloPlanificacion} simulado y en el tick siguiente a un
+ * pedido nuevo, una avería o el inicio de un bloqueo, y cierra la ejecución
+ * cuando termina (5D por tiempo, colapso cuando {@link DetectorColapso} lo declara) o la detiene el operario.
  *
  * <p>Los relojes viven en memoria: si el backend se reinicia, las ejecuciones que estaban activas se marcan como
  * FAILED al arrancar. Solo puede haber una ejecución activa a la vez, porque todas comparten la flota.
@@ -55,6 +60,7 @@ public class MotorEscenarios {
     private final ObjectProvider<PlanificadorPort> planificadores;
     private final EventosSimulacion eventos;
     private final EjecutorPlanService ejecutorPlan;
+    private final DetectorColapso detectorColapso;
     /** Escenarios activos por id de ejecución; protegido por el monitor de esta instancia. */
     private final Map<Long, EscenarioActivo> activos = new HashMap<>();
     private ScheduledExecutorService ejecutor;
@@ -65,8 +71,11 @@ public class MotorEscenarios {
         private Instant proximaPlanificacion;
         /** Los eventos de la simulación ya se procesaron hasta este instante simulado. */
         private Instant procesadoHasta;
-        /** Una avería o un bloqueo exige replanificar en el próximo tick. */
-        private boolean incidenciaPendiente;
+        /** Bloqueos que empezaron y averías ocurridas desde el último plan: exigen replanificar en el próximo tick. */
+        private final List<RoadBlock> bloqueosPendientes = new ArrayList<>();
+        private final List<BreakdownEvent> averiasPendientes = new ArrayList<>();
+        /** Llegaron pedidos desde el último plan: se replanifica en el próximo tick. */
+        private boolean pedidosPendientes;
 
         private EscenarioActivo(ScenarioType tipo, SimulationClock reloj) {
             this.tipo = tipo;
@@ -78,7 +87,7 @@ public class MotorEscenarios {
     public MotorEscenarios(ScenarioExecutionRepository ejecucionRepository, PlatformTransactionManager transacciones,
                            Clock relojReal, EscenariosProperties propiedades,
                            ObjectProvider<PlanificadorPort> planificadores, EventosSimulacion eventos,
-                           EjecutorPlanService ejecutorPlan) {
+                           EjecutorPlanService ejecutorPlan, DetectorColapso detectorColapso) {
         this.ejecucionRepository = ejecucionRepository;
         this.transaccion = new TransactionTemplate(transacciones);
         this.relojReal = relojReal;
@@ -86,14 +95,32 @@ public class MotorEscenarios {
         this.planificadores = planificadores;
         this.eventos = eventos;
         this.ejecutorPlan = ejecutorPlan;
+        this.detectorColapso = detectorColapso;
     }
 
-    /** Una avería registrada en una ejecución activa la hace replanificar en el próximo tick (CU-07). */
+    /**
+     * Una avería registrada en una ejecución activa la hace replanificar (CU-07) cuando el reloj llega a su
+     * instante; esos eventos los entrega {@link EventosSimulacion}. Si se registra con un instante que el reloj ya
+     * pasó, se replanifica en el próximo tick.
+     */
     @TransactionalEventListener(fallbackExecution = true)
     public synchronized void alRegistrarAveria(AveriaRegistrada averia) {
         EscenarioActivo activo = activos.get(averia.ejecucionId());
-        if (activo != null) {
-            activo.incidenciaPendiente = true;
+        if (activo != null && !averia.ocurridaEn().isAfter(activo.procesadoHasta)) {
+            activo.averiasPendientes.add(averia.averia());
+        }
+    }
+
+    /**
+     * Un pedido registrado a mano replanifica en el próximo tick. Si su hora de registro aún no llega, lo hará
+     * {@link EventosSimulacion} cuando el reloj la alcance.
+     */
+    @TransactionalEventListener(fallbackExecution = true)
+    public synchronized void alRegistrarPedido(PedidoRegistrado pedido) {
+        for (EscenarioActivo activo : activos.values()) {
+            if (!pedido.registradoEn().isAfter(activo.procesadoHasta)) {
+                activo.pedidosPendientes = true;
+            }
         }
     }
 
@@ -141,7 +168,9 @@ public class MotorEscenarios {
         EscenarioActivo activo = new EscenarioActivo(ejecucion.getScenarioType(), reloj);
         activos.put(ejecucionId, activo);
         ejecutorPlan.prepararInicio(ejecucionId, ejecucion.getSimulationStartedAt());
+        detectorColapso.reiniciar(ejecucionId);
         planificar(ejecucionId, activo, PlanificadorPort.Motivo.INICIAL);
+        revisarColapso(ejecucionId, activo);
     }
 
     public synchronized void pausar(long ejecucionId) {
@@ -160,6 +189,7 @@ public class MotorEscenarios {
         actualizar(ejecucionId, e -> e.terminar(ScenarioStatus.STOPPED, relojReal.instant(),
                 instanteSimulado != null ? instanteSimulado : e.getSimulationStartedAt()));
         activos.remove(ejecucionId);
+        planificador().finalizar(ejecucionId);
     }
 
     /** Instante simulado actual de una ejecución activa. */
@@ -194,35 +224,65 @@ public class MotorEscenarios {
             // El plan vigente se ejecuta hasta ahora antes de que un plan nuevo lo reemplace.
             ejecutorPlan.avanzar(ejecucionId, activo.procesadoHasta, hasta);
             activo.procesadoHasta = hasta;
-            if (resumen.bloqueosIniciados() > 0) {
-                activo.incidenciaPendiente = true;
+            activo.bloqueosPendientes.addAll(resumen.bloqueosIniciados());
+            activo.averiasPendientes.addAll(resumen.averias());
+            if (resumen.pedidosLlegados() > 0) {
+                activo.pedidosPendientes = true;
             }
+        }
+        if (revisarColapso(ejecucionId, activo)) {
+            return;
         }
         if (fin.isPresent() && !ahora.isBefore(fin.get())) {
             finalizar(ejecucionId, ScenarioStatus.COMPLETED, fin.get());
             return;
         }
-        if (activo.incidenciaPendiente) {
+        if (!activo.bloqueosPendientes.isEmpty() || !activo.averiasPendientes.isEmpty()) {
             planificar(ejecucionId, activo, PlanificadorPort.Motivo.INCIDENCIA);
+        } else if (activo.pedidosPendientes) {
+            planificar(ejecucionId, activo, PlanificadorPort.Motivo.NUEVO_PEDIDO);
         } else if (!ahora.isBefore(activo.proximaPlanificacion)) {
             planificar(ejecucionId, activo, PlanificadorPort.Motivo.PERIODICO);
         }
     }
 
+    /**
+     * El plan se pide para el instante hasta el que se ejecutó el plan vigente: así el corte de la replanificación
+     * coincide con lo que el ejecutor ya aplicó.
+     */
     private void planificar(long ejecucionId, EscenarioActivo activo, PlanificadorPort.Motivo motivo) {
-        Instant ahora = activo.reloj.ahora();
-        PlanificadorPort.ResultadoCiclo resultado = planificadores.getIfAvailable(PlanificadorSinOperacion::new)
-                .planificar(new PlanificadorPort.SolicitudCiclo(ejecucionId, ahora, motivo));
+        Instant ahora = activo.procesadoHasta;
+        // Que SA deje pedidos sin asignar en un ciclo no es colapso: lo decide DetectorColapso.
+        planificador().planificar(new PlanificadorPort.SolicitudCiclo(
+                ejecucionId, ahora, motivo, activo.bloqueosPendientes, activo.averiasPendientes));
         activo.proximaPlanificacion = ahora.plus(propiedades.intervaloPlanificacion());
-        activo.incidenciaPendiente = false;
-        if (resultado.colapso() && activo.tipo == ScenarioType.COLLAPSE) {
-            finalizar(ejecucionId, ScenarioStatus.COLLAPSED, ahora);
+        activo.bloqueosPendientes.clear();
+        activo.averiasPendientes.clear();
+        activo.pedidosPendientes = false;
+    }
+
+    /**
+     * Registra el primer colapso de la ejecución (en 5D y Día a Día solo se informa en el monitoreo); el escenario
+     * de colapso termina en el instante del colapso. Devuelve true si la ejecución terminó.
+     */
+    private boolean revisarColapso(long ejecucionId, EscenarioActivo activo) {
+        Optional<DetectorColapso.Colapso> colapso = detectorColapso.revisar(ejecucionId,
+                activo.reloj.inicioSimulado(), activo.procesadoHasta);
+        if (colapso.isPresent() && activo.tipo == ScenarioType.COLLAPSE) {
+            finalizar(ejecucionId, ScenarioStatus.COLLAPSED, colapso.get().instante());
+            return true;
         }
+        return false;
     }
 
     private void finalizar(long ejecucionId, ScenarioStatus estadoFinal, Instant instanteSimulado) {
         actualizar(ejecucionId, e -> e.terminar(estadoFinal, relojReal.instant(), instanteSimulado));
         activos.remove(ejecucionId);
+        planificador().finalizar(ejecucionId);
+    }
+
+    private PlanificadorPort planificador() {
+        return planificadores.getIfAvailable(PlanificadorSinOperacion::new);
     }
 
     private void tickSeguro() {

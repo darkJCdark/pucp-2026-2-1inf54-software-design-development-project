@@ -59,7 +59,7 @@ public class AveriaService {
         BreakdownEventEntity guardado = averiaRepository.save(new BreakdownEventEntity(request.ejecucionId(), evento));
         if (request.ejecucionId() != null) {
             // El motor de escenarios replanifica (CU-07) cuando esta transacción se confirma.
-            eventos.publishEvent(new AveriaRegistrada(request.ejecucionId(), vehiculo.id(), ocurridaEn));
+            eventos.publishEvent(new AveriaRegistrada(request.ejecucionId(), evento));
         }
         return AveriaResponse.de(guardado, calculadora.resolve(evento));
     }

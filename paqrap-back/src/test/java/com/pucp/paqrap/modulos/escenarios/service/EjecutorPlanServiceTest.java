@@ -191,6 +191,56 @@ class EjecutorPlanServiceTest {
         assertEquals(30, vehiculo("TA01").getCurrentX(), "se queda donde iba");
     }
 
+    /** La replanificación conserva la ruta en marcha: el plan nuevo trae la misma ruta (otro objeto) y sigue. */
+    @Test
+    void unaRutaConservadaEnUnPlanNuevoSigueEjecutandose() {
+        planes.planes.put(ejecucion, planConRutaTa01());
+        ejecutor.avanzar(ejecucion, SALIDA, hora("10:45"));
+
+        planes.planes.put(ejecucion, plan(hora("10:45"), planConRutaTa01().rutas()));
+        ejecutor.avanzar(ejecucion, hora("10:45"), hora("14:30"));
+
+        assertEquals(OrderStatus.IN_TRANSIT, pedido("P2").getStatus(), "P2 recibió 2 de 3 paquetes");
+        assertEquals(VehicleOperationalStatus.AVAILABLE, vehiculo("TA01").getOperationalStatus(), "volvió al central");
+        assertEquals(27, vehiculo("TA01").getCurrentX());
+        EjecutorPlanService.Metricas metricas = ejecutor.metricas(ejecucion).orElseThrow();
+        assertEquals(1, metricas.pedidosEntregados());
+        assertEquals(7, metricas.paquetesEntregados());
+        assertEquals(14.0, metricas.distanciaKm());
+    }
+
+    /** Un evento justo en la hora del plan nuevo ya se aplicó con el anterior: la ruta conservada no lo repite. */
+    @Test
+    void unaRutaConservadaNoRepiteElEventoDelInstanteDelCorte() {
+        planes.planes.put(ejecucion, planConRutaTa01());
+        ejecutor.avanzar(ejecucion, SALIDA, hora("10:30"));
+        assertEquals(3.0, ejecutor.metricas(ejecucion).orElseThrow().distanciaKm());
+
+        planes.planes.put(ejecucion, plan(hora("10:30"), planConRutaTa01().rutas()));
+        ejecutor.avanzar(ejecucion, hora("10:30"), hora("14:30"));
+
+        EjecutorPlanService.Metricas metricas = ejecutor.metricas(ejecucion).orElseThrow();
+        assertEquals(7, metricas.paquetesEntregados());
+        assertEquals(14.0, metricas.distanciaKm());
+        assertEquals(112.0, metricas.costo());
+    }
+
+    /** Una ruta del plan nuevo con el mismo vehículo pero otra salida es otra ruta: la anterior no continúa. */
+    @Test
+    void unaRutaConOtraSalidaNoContinuaLaRutaEnCurso() {
+        planes.planes.put(ejecucion, planConRutaTa01());
+        ejecutor.avanzar(ejecucion, SALIDA, hora("10:45"));
+        RutaResponse original = planConRutaTa01().rutas().getFirst();
+        RutaResponse otraSalida = new RutaResponse(original.id(), original.vehiculoId(), original.tipoVehiculo(),
+                hora("16:00"), hora("20:00"), original.distanciaKm(), original.costo(), List.of());
+
+        planes.planes.put(ejecucion, plan(hora("10:45"), List.of(otraSalida)));
+        ejecutor.avanzar(ejecucion, hora("10:45"), hora("14:30"));
+
+        assertEquals(OrderStatus.ASSIGNED, pedido("P2").getStatus(), "la ruta original ya no se ejecuta");
+        assertEquals(3.0, ejecutor.metricas(ejecucion).orElseThrow().distanciaKm());
+    }
+
     @Test
     void alIniciarReiniciaLaFlotaYLosPedidosDelPeriodo() {
         planes.planes.put(ejecucion, planConRutaTa01());

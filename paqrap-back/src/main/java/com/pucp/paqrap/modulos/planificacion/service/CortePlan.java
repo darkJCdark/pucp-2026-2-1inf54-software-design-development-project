@@ -11,15 +11,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Corta el plan vigente en un instante. Reglas:
  * <ul>
- *   <li>Liberada: no tiene programación o aún no partió ({@code salida >= ahora}); sus pedidos vuelven a planificarse.</li>
+ *   <li>Liberada: no tiene programación o aún no partió ({@code salida >= ahora}); sus pedidos vuelven a
+ *       planificarse. También la que iba a partir después de la avería de su vehículo: no llega a salir.</li>
+ *   <li>Interrumpida: partió y su vehículo se averió antes de que terminara; solo cuentan las paradas a las que
+ *       llegó antes de la avería ({@code llegada < avería}), igual que el ejecutor del plan, que entrega al llegar.</li>
  *   <li>Terminada: ya volvió ({@code fin <= ahora}); todas sus entregas quedan hechas.</li>
- *   <li>Interrumpida: partió, no terminó y su vehículo sufrió una avería; solo cuentan las paradas
- *       completadas ({@code fin de parada <= ahora}).</li>
  *   <li>Conservada: partió y no terminó; se mantiene completa (congelada).</li>
  * </ul>
  * Las entregas y retiros de las rutas que salen del plan (terminadas e interrumpidas) se devuelven para
@@ -35,7 +35,8 @@ final class CortePlan {
                      Map<String, Integer> retirosSalientes) {
     }
 
-    static Resultado cortar(Collection<RutaVigente> rutas, Instant ahora, Set<String> vehiculosInterrumpidos) {
+    /** @param averias instante de la avería de cada vehículo averiado en este corte */
+    static Resultado cortar(Collection<RutaVigente> rutas, Instant ahora, Map<String, Instant> averias) {
         Objects.requireNonNull(ahora, "ahora es requerido");
         List<RutaVigente> conservadas = new ArrayList<>();
         List<RutaVigente> liberadas = new ArrayList<>();
@@ -45,16 +46,18 @@ final class CortePlan {
         Map<String, Integer> retiros = new HashMap<>();
 
         for (RutaVigente ruta : rutas) {
-            if (ruta.programada() == null || !ruta.ruta().departureAt().isBefore(ahora)) {
+            Instant averia = averias.get(ruta.vehiculoId());
+            if (ruta.programada() == null || !ruta.ruta().departureAt().isBefore(ahora)
+                    || (averia != null && !averia.isAfter(ruta.ruta().departureAt()))) {
                 liberadas.add(ruta);
+            } else if (averia != null && averia.isBefore(ruta.programada().completedAt())) {
+                interrumpidas.add(ruta);
+                sumar(entregas, entregas(ruta, averia));
+                sumar(retiros, retirosIntermedios(ruta, averia));
             } else if (!ruta.programada().completedAt().isAfter(ahora)) {
                 terminadas.add(ruta);
                 sumar(entregas, entregas(ruta, null));
                 sumar(retiros, retirosIntermedios(ruta, null));
-            } else if (vehiculosInterrumpidos.contains(ruta.vehiculoId())) {
-                interrumpidas.add(ruta);
-                sumar(entregas, entregas(ruta, ahora));
-                sumar(retiros, retirosIntermedios(ruta, ahora));
             } else {
                 conservadas.add(ruta);
             }
@@ -62,23 +65,23 @@ final class CortePlan {
         return new Resultado(conservadas, liberadas, terminadas, interrumpidas, entregas, retiros);
     }
 
-    /** Paquetes entregados por pedido; con {@code hasta} null cuenta todas las paradas. */
-    static Map<String, Integer> entregas(RutaVigente ruta, Instant hasta) {
+    /** Paquetes entregados por pedido en las paradas a las que se llegó antes de {@code antes}; null cuenta todas. */
+    static Map<String, Integer> entregas(RutaVigente ruta, Instant antes) {
         Map<String, Integer> resultado = new HashMap<>();
         for (ScheduledRouteStop parada : ruta.programada().scheduledStops()) {
-            if (parada.stop() instanceof DeliveryStop entrega && completada(parada, hasta)) {
+            if (parada.stop() instanceof DeliveryStop entrega && alcanzada(parada, antes)) {
                 resultado.merge(entrega.order().id(), entrega.deliveredPackages(), Integer::sum);
             }
         }
         return resultado;
     }
 
-    /** Paquetes retirados de almacenes intermedios (el central no tiene límite); con {@code hasta} null cuenta todos. */
-    static Map<String, Integer> retirosIntermedios(RutaVigente ruta, Instant hasta) {
+    /** Paquetes retirados de almacenes intermedios (el central no tiene límite); con {@code antes} null cuenta todos. */
+    static Map<String, Integer> retirosIntermedios(RutaVigente ruta, Instant antes) {
         Map<String, Integer> resultado = new HashMap<>();
         for (ScheduledRouteStop parada : ruta.programada().scheduledStops()) {
             if (parada.stop() instanceof WarehouseVisit visita && !visita.warehouse().isCentral()
-                    && visita.pickupPackages() > 0 && completada(parada, hasta)) {
+                    && visita.pickupPackages() > 0 && alcanzada(parada, antes)) {
                 resultado.merge(visita.warehouse().id(), visita.pickupPackages(), Integer::sum);
             }
         }
@@ -89,7 +92,7 @@ final class CortePlan {
         origen.forEach((clave, valor) -> destino.merge(clave, valor, Integer::sum));
     }
 
-    private static boolean completada(ScheduledRouteStop parada, Instant hasta) {
-        return hasta == null || !parada.completedAt().isAfter(hasta);
+    private static boolean alcanzada(ScheduledRouteStop parada, Instant antes) {
+        return antes == null || parada.arrivedAt().isBefore(antes);
     }
 }

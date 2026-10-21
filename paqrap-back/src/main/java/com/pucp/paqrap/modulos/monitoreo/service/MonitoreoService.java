@@ -4,6 +4,7 @@ import com.pucp.paqrap.modulos.almacenes.service.AlmacenService;
 import com.pucp.paqrap.modulos.almacenes.service.InventarioService;
 import com.pucp.paqrap.modulos.escenarios.dto.EscenarioResponse;
 import com.pucp.paqrap.modulos.escenarios.service.EscenarioService;
+import com.pucp.paqrap.modulos.escenarios.service.DetectorColapso;
 import com.pucp.paqrap.modulos.escenarios.service.EjecutorPlanService;
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleOperationalStatus;
@@ -38,11 +39,12 @@ public class MonitoreoService {
     private final BloqueoService bloqueoService;
     private final AveriaService averiaService;
     private final EjecutorPlanService ejecutorPlan;
+    private final DetectorColapso detectorColapso;
 
     public MonitoreoService(EscenarioService escenarioService, PedidoService pedidoService, FlotaService flotaService,
                             AlmacenService almacenService, InventarioService inventarioService,
                             BloqueoService bloqueoService, AveriaService averiaService,
-                            EjecutorPlanService ejecutorPlan) {
+                            EjecutorPlanService ejecutorPlan, DetectorColapso detectorColapso) {
         this.escenarioService = escenarioService;
         this.pedidoService = pedidoService;
         this.flotaService = flotaService;
@@ -51,6 +53,7 @@ public class MonitoreoService {
         this.bloqueoService = bloqueoService;
         this.averiaService = averiaService;
         this.ejecutorPlan = ejecutorPlan;
+        this.detectorColapso = detectorColapso;
     }
 
     public MonitoreoResponse estado(long ejecucionId) {
@@ -92,6 +95,7 @@ public class MonitoreoService {
                 enRuta);
 
         return new MonitoreoResponse(escenario, instante, pedidoService.resumen(escenario.inicioSimulado(), instante),
-                vehiculos, almacenes, bloqueoService.listar(null, null, instante), averiasActivas, ejecucion);
+                vehiculos, almacenes, bloqueoService.listar(null, null, instante), averiasActivas, ejecucion,
+                detectorColapso.colapso(ejecucionId).orElse(null));
     }
 }

@@ -77,3 +77,8 @@ paqrap:
 
     # Tiempo máximo disponible para SA por ciclo.
     presupuesto-ms: ${PAQRAP_PLAN_PRESUPUESTO_MS:1500}
+
+    # Límite de distancia por tramo (km). 0 = sin límite: regla final del caso
+    # (21.dis.selec.algoritmos v04 / 22.dis.experim v03, maxLegKm = 0).
+    # El valor histórico de la hoja "Flota" era 80.
+    max-tramo-km: ${PAQRAP_PLAN_MAX_TRAMO_KM:0}

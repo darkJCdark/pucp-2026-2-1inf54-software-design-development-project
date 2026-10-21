@@ -18,6 +18,7 @@ import com.pucp.paqrap.modulos.planificacion.entity.ShiftSchedule;
 import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 import com.pucp.paqrap.modulos.redvial.service.RoadNetwork;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -46,19 +47,35 @@ public class PlanificadorSaService implements PlanificadorService {
 
     private final FuenteDatosOperativos fuente;
     private final AnnealingConfig config;
+    private final OperationalPlanEvaluator evaluador;
     private final OperationalSimulatedAnnealingPlanner planificador;
     private final PlanResponseMapper mapper = new PlanResponseMapper();
 
+    /** @param maxTramoKm límite de distancia por tramo; 0 lo deshabilita (regla final del caso, maxLegKm = 0). */
     @Autowired
-    public PlanificadorSaService(FuenteDatosOperativos fuente) {
-        this(fuente, CONFIG_POR_DEFECTO);
+    public PlanificadorSaService(FuenteDatosOperativos fuente,
+                                 @Value("${paqrap.planificacion.max-tramo-km:0}") double maxTramoKm) {
+        this(fuente, CONFIG_POR_DEFECTO, maxTramoKm);
+    }
+
+    PlanificadorSaService(FuenteDatosOperativos fuente) {
+        this(fuente, CONFIG_POR_DEFECTO, 0);
     }
 
     PlanificadorSaService(FuenteDatosOperativos fuente, AnnealingConfig config) {
+        this(fuente, config, 0);
+    }
+
+    PlanificadorSaService(FuenteDatosOperativos fuente, AnnealingConfig config, double maxTramoKm) {
         this.fuente = Objects.requireNonNull(fuente, "fuente es requerida");
         this.config = Objects.requireNonNull(config, "config es requerida");
-        this.planificador = new OperationalSimulatedAnnealingPlanner(
-                new OperationalPlanEvaluator(new RouteScheduler(new RoadNetwork())));
+        this.evaluador = new OperationalPlanEvaluator(new RouteScheduler(new RoadNetwork()), maxTramoKm);
+        this.planificador = new OperationalSimulatedAnnealingPlanner(evaluador);
+    }
+
+    /** Evaluador con el que se valida el SA; la replanificación lo reutiliza para las rutas conservadas. */
+    OperationalPlanEvaluator evaluador() {
+        return evaluador;
     }
 
     @Override

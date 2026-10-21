@@ -54,6 +54,21 @@ public interface OrderRepository extends JpaRepository<OrderEntity, String> {
     List<OrderEntity> pendientesEnDesde(@Param("desde") Instant desde, @Param("instante") Instant instante,
                                         Pageable limite);
 
+    /**
+     * Pedidos llegados desde el inicio del escenario que aún no salieron en una ruta (REGISTERED) y siguen en plazo,
+     * en orden de llegada. La replanificación toma de aquí los que todavía no conoce.
+     */
+    @Query("""
+            select o from OrderEntity o
+            where o.registeredAt >= :desde
+              and o.registeredAt <= :instante
+              and o.deadline > :instante
+              and o.status = com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.REGISTERED
+            order by o.registeredAt, o.orderId
+            """)
+    List<OrderEntity> registradosEnDesde(@Param("desde") Instant desde, @Param("instante") Instant instante,
+                                         Pageable pagina);
+
     /** Al iniciar un escenario, los pedidos de su periodo vuelven a REGISTERED para poder simularse de nuevo. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
@@ -83,6 +98,21 @@ public interface OrderRepository extends JpaRepository<OrderEntity, String> {
               and o.status <> com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.DELIVERED
             """)
     long contarVencidosSinEntregar(@Param("desde") Instant desde, @Param("instante") Instant instante);
+
+    /**
+     * Pedidos registrados desde {@code desde} cuyo plazo venció hasta {@code instante} sin cumplirse: sin entregar o
+     * entregados después del plazo. El de plazo más temprano primero.
+     */
+    @Query("""
+            select o from OrderEntity o
+            where o.registeredAt >= :desde
+              and o.deadline <= :instante
+              and (o.status <> com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.DELIVERED
+                   or o.deliveredAt > o.deadline)
+            order by o.deadline, o.orderId
+            """)
+    List<OrderEntity> incumplidosDesde(@Param("desde") Instant desde, @Param("instante") Instant instante,
+                                       Pageable pagina);
 
     /** Ids ya registrados de un archivo mensual (prefijo AAAAMM-). */
     @Query("select o.orderId from OrderEntity o where o.orderId like :prefijo")

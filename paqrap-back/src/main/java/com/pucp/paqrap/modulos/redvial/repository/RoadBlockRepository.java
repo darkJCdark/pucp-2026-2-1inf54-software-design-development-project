@@ -23,6 +23,14 @@ public interface RoadBlockRepository extends JpaRepository<RoadBlockEntity, Long
     /** Cantidad de bloqueos que empiezan en (desde, hasta]. */
     long countByStartsAtGreaterThanAndStartsAtLessThanEqual(Instant desde, Instant hasta);
 
+    /** Bloqueos que empiezan en (desde, hasta], con sus nodos. */
+    @Query("""
+            select distinct b from RoadBlockEntity b left join fetch b.nodes
+            where b.startsAt > :desde and b.startsAt <= :hasta
+            order by b.startsAt, b.roadBlockId
+            """)
+    List<RoadBlockEntity> queEmpiezanEntre(@Param("desde") Instant desde, @Param("hasta") Instant hasta);
+
     /** Borra los bloqueos que empiezan en [desde, hasta); Hibernate borra antes sus nodos. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("delete from RoadBlockEntity b where b.startsAt >= :desde and b.startsAt < :hasta")

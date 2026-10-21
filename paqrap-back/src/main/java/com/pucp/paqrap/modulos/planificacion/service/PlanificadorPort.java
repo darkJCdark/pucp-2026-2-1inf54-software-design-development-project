@@ -1,6 +1,10 @@
 package com.pucp.paqrap.modulos.planificacion.service;
 
+import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
+import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
+
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Punto de conexión entre el motor de escenarios y el planificador (SA). El motor lo invoca en cada ciclo de
@@ -13,26 +17,44 @@ public interface PlanificadorPort {
 
     ResultadoCiclo planificar(SolicitudCiclo solicitud);
 
+    /** La ejecución terminó (por tiempo, colapso, falla o detención): se libera su estado en memoria. */
+    default void finalizar(long ejecucionId) {
+    }
+
     /** Por qué se pide planificar en este momento. */
     enum Motivo {
         /** Primer plan al iniciar el escenario. */
         INICIAL,
         /** Ciclo periódico del escenario. */
         PERIODICO,
+        /** Llegaron pedidos nuevos (de archivo al pasar su hora de registro, o registrados a mano). */
+        NUEVO_PEDIDO,
         /** Una avería o un bloqueo afectó al plan vigente. */
         INCIDENCIA
     }
 
     /**
-     * @param ejecucionId   ejecución de {@code scenario_executions} a la que pertenece el plan
-     * @param instante      instante simulado para el que se planifica
+     * @param ejecucionId       ejecución de {@code scenario_executions} a la que pertenece el plan
+     * @param instante          instante simulado para el que se planifica
+     * @param bloqueosIniciados bloqueos que empezaron desde el ciclo anterior
+     * @param averias           averías de la ejecución ocurridas desde el ciclo anterior
      */
-    record SolicitudCiclo(long ejecucionId, Instant instante, Motivo motivo) {
+    record SolicitudCiclo(long ejecucionId, Instant instante, Motivo motivo, List<RoadBlock> bloqueosIniciados,
+                          List<BreakdownEvent> averias) {
+        public SolicitudCiclo {
+            bloqueosIniciados = bloqueosIniciados == null ? List.of() : List.copyOf(bloqueosIniciados);
+            averias = averias == null ? List.of() : List.copyOf(averias);
+        }
+
+        public SolicitudCiclo(long ejecucionId, Instant instante, Motivo motivo) {
+            this(ejecucionId, instante, motivo, List.of(), List.of());
+        }
     }
 
     /**
-     * @param colapso true si el planificador ya no puede cumplir los plazos de los pedidos pendientes; en el
-     *                escenario de colapso, termina la ejecución
+     * @param colapso true si SA dejó pedidos sin asignar en este ciclo. Es informativo: el motor no termina la
+     *                ejecución por esto, porque SA con presupuesto de tiempo puede no hallar una solución que sí
+     *                existe; el colapso lo declara {@code DetectorColapso} del módulo de escenarios
      */
     record ResultadoCiclo(boolean colapso) {
         public static final ResultadoCiclo SIN_COLAPSO = new ResultadoCiclo(false);
