@@ -30,3 +30,9 @@ export interface TipoVehiculoResponseDto {
 
   actualizadoEn: string;
 }
+
+export interface ActualizarTipoVehiculoRequestDto {
+  capacidadPaquetes: number;
+  velocidadKmh: number;
+  costoPorKm: number;
+}

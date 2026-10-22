@@ -6,16 +6,15 @@ import {
 import AppLayout from "@/components/layout/AppLayout";
 
 import ConfiguracionPage from "@/features/configuracion/ConfiguracionPage";
-
-import PedidosPage from "@/features/pedidos/PedidosPage";
-
 import EjecucionPage from "@/features/ejecucion/EjecucionPage";
+import EjecucionesPage from "@/features/ejecuciones/EjecucionesPage";
+import PedidosPage from "@/features/pedidos/PedidosPage";
+import MantenimientosPage from "@/features/mantenimientos/MantenimientosPage";
 
 export const router =
   createBrowserRouter([
     {
       element: <AppLayout />,
-
       children: [
         {
           path: "/",
@@ -26,34 +25,37 @@ export const router =
             />
           ),
         },
-
         {
           path: "/simulacion",
-          element: (
-            <ConfiguracionPage />
-          ),
+          element: <ConfiguracionPage />,
         },
-
+        {
+          path: "/ejecuciones",
+          element: <EjecucionesPage />,
+        },
         {
           path: "/pedidos",
-          element: (
-            <PedidosPage />
-          ),
+          element: <PedidosPage />,
         },
-
+        {
+          path: "/mantenimientos",
+          element: <MantenimientosPage />,
+        },
         {
           path: "/ejecucion/:ejecucionId",
-          element: (
-            <EjecucionPage />
-          ),
+          element: <EjecucionPage />,
         },
-
-        /*
-         * Evita abrir la ejecución
-         * sin un ID válido.
-         */
         {
           path: "/ejecucion",
+          element: (
+            <Navigate
+              to="/ejecuciones"
+              replace
+            />
+          ),
+        },
+        {
+          path: "*",
           element: (
             <Navigate
               to="/simulacion"

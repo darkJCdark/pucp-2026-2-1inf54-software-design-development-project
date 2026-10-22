@@ -31,26 +31,23 @@ export function adaptarPedido(
 ): PedidoOperacion {
   return {
     id: dto.id,
-
+    clienteId: dto.clienteId,
     x: dto.x,
     y: dto.y,
-
     cantidad: dto.paquetes,
-
-    plazoHoras:
-      dto.horasPrometidas,
-
-    estado:
-      adaptarEstadoPedido(
-        dto.estado,
-      ),
+    plazoHoras: dto.horasPrometidas,
+    tipoEntrega: dto.tipoEntrega,
+    estado: adaptarEstadoPedido(
+      dto.estado,
+    ),
+    registradoEn: dto.registradoEn,
+    vence: dto.vence,
+    entregadoEn: dto.entregadoEn,
   };
 }
 
 export function adaptarPedidos(
   dtos: PedidoResponseDto[],
 ): PedidoOperacion[] {
-  return dtos.map(
-    adaptarPedido,
-  );
+  return dtos.map(adaptarPedido);
 }

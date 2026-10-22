@@ -1,4 +1,6 @@
 import type {
+  ActualizarTipoVehiculoRequestDto,
+  TipoVehiculoBackend,
   TipoVehiculoResponseDto,
   VehiculoResponseDto,
 } from "@/api/flota.dto";
@@ -41,6 +43,19 @@ export const flotaService = {
       `/api/flota/tipos/${encodeURIComponent(
         tipo,
       )}`,
+    );
+  },
+
+  actualizarTipo(
+    tipo: TipoVehiculoBackend,
+    request: ActualizarTipoVehiculoRequestDto,
+  ): Promise<TipoVehiculoResponseDto> {
+    return apiRequest<TipoVehiculoResponseDto>(
+      `/api/flota/tipos/${tipo}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(request),
+      },
     );
   },
 };

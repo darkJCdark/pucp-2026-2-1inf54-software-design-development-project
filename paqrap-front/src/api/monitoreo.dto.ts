@@ -2,6 +2,10 @@ import type {
   EscenarioResponseDto,
 } from "@/api/escenarios.dto";
 
+import type {
+  AveriaResponseDto,
+} from "@/api/incidencias.dto";
+
 export type TipoVehiculoMonitoreoDto =
   | "CAR"
   | "MOTORCYCLE"
@@ -16,23 +20,9 @@ export type TipoAlmacenMonitoreoDto =
   | "CENTRAL"
   | "INTERMEDIATE";
 
-export type TipoAveriaBackend =
-  | "MINOR"
-  | "INTERMEDIATE"
-  | "MAJOR";
-
 export interface ResumenPedidosMonitoreoDto {
-  /**
-   * Pedidos registrados desde el inicio
-   * de esta ejecución hasta el instante actual.
-   */
   llegados: number;
-
-  /**
-   * Pedidos todavía atendibles y no entregados.
-   */
   pendientes: number;
-
   vencidosSinEntregar: number;
 }
 
@@ -46,26 +36,17 @@ export interface VehiculoMonitoreoDto {
   y: number;
 
   cargaActual: number;
-
   averiadoHasta: string | null;
 }
 
 export interface AlmacenMonitoreoDto {
   id: string;
-
   tipo: TipoAlmacenMonitoreoDto;
 
   x: number;
   y: number;
 
-  /**
-   * null para almacén central.
-   */
   stock: number | null;
-
-  /**
-   * null para almacén central.
-   */
   capacidad: number | null;
 }
 
@@ -76,44 +57,52 @@ export interface NodoBloqueoDto {
 
 export interface BloqueoMonitoreoDto {
   id: number;
-
   inicio: string;
   fin: string;
-
   nodos: NodoBloqueoDto[];
 }
 
-export interface AveriaMonitoreoDto {
-  id: number;
+export interface EjecucionMonitoreoDto {
+  pedidosEntregados: number;
+  entregadosATiempo: number;
+  paquetesEntregados: number;
+  distanciaKm: number;
+  costo: number;
 
-  ejecucionId: number | null;
+  vehiculosEnRuta: Partial<
+    Record<
+      TipoVehiculoMonitoreoDto,
+      number
+    >
+  >;
+}
 
-  vehiculoId: string;
+export type CausaColapsoBackend =
+  | "PLAZO_VENCIDO"
+  | "PLAZO_INALCANZABLE";
 
-  tipo: TipoAveriaBackend;
-
-  ocurridaEn: string;
-
-  x: number;
-  y: number;
-
-  indisponibleHasta: string;
-
-  regresaAlCentralEn: string | null;
+export interface ColapsoMonitoreoDto {
+  instante: string;
+  causa: CausaColapsoBackend;
+  pedidoId: string;
+  plazo: string;
+  llegadaMinima: string | null;
+  detectadoEn: string;
+  pedidosPendientes: number;
+  vencidosSinEntregar: number;
+  vehiculosHabilitados: number;
 }
 
 export interface MonitoreoResponseDto {
   escenario: EscenarioResponseDto;
-
   instante: string;
 
   pedidos: ResumenPedidosMonitoreoDto;
-
   vehiculos: VehiculoMonitoreoDto[];
-
   almacenes: AlmacenMonitoreoDto[];
-
   bloqueosVigentes: BloqueoMonitoreoDto[];
+  averiasActivas: AveriaResponseDto[];
 
-  averiasActivas: AveriaMonitoreoDto[];
+  ejecucion: EjecucionMonitoreoDto;
+  colapso: ColapsoMonitoreoDto | null;
 }

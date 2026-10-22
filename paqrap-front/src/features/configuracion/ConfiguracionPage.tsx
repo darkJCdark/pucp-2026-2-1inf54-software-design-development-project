@@ -36,6 +36,14 @@ import {
 } from "@/services/pedidos.service";
 
 import {
+  bloqueosService,
+} from "@/services/bloqueos.service";
+
+import {
+  flotaService,
+} from "@/services/flota.service";
+
+import {
   ApiError,
 } from "@/services/api";
 
@@ -65,7 +73,9 @@ export default function ConfiguracionPage() {
 
   const {
     configuracion,
+    actualizarConfiguracion,
     archivoPedidos,
+    archivoBloqueos,
   } = useConfiguracion();
 
   const [
@@ -111,7 +121,64 @@ export default function ConfiguracionPage() {
 
   useEffect(() => {
     void cargarEscenarioActivo();
+    void cargarFlotaDesdeBackend();
   }, []);
+
+  async function cargarFlotaDesdeBackend() {
+    try {
+      const [tipos, vehiculos] =
+        await Promise.all([
+          flotaService.listarTipos(),
+          flotaService.listarVehiculos(),
+        ]);
+
+      const porTipo = new Map(
+        tipos.map((tipo) => [
+          tipo.tipo,
+          tipo,
+        ]),
+      );
+
+      actualizarConfiguracion({
+        autosCantidad:
+          vehiculos.filter(
+            (vehiculo) =>
+              vehiculo.tipo === "CAR",
+          ).length,
+        autosVelocidad:
+          porTipo.get("CAR")
+            ?.velocidadKmh ??
+          configuracion.autosVelocidad,
+
+        motosCantidad:
+          vehiculos.filter(
+            (vehiculo) =>
+              vehiculo.tipo ===
+              "MOTORCYCLE",
+          ).length,
+        motosVelocidad:
+          porTipo.get("MOTORCYCLE")
+            ?.velocidadKmh ??
+          configuracion.motosVelocidad,
+
+        bicicletasCantidad:
+          vehiculos.filter(
+            (vehiculo) =>
+              vehiculo.tipo ===
+              "BICYCLE",
+          ).length,
+        bicicletasVelocidad:
+          porTipo.get("BICYCLE")
+            ?.velocidadKmh ??
+          configuracion.bicicletasVelocidad,
+      });
+    } catch (error) {
+      console.error(
+        "No se pudo cargar la flota desde el backend:",
+        error,
+      );
+    }
+  }
 
   async function buscarEscenarioActivo():
     Promise<
@@ -234,6 +301,30 @@ export default function ConfiguracionPage() {
       return "Selecciona la fecha y hora inicial de la simulación.";
     }
 
+    if (archivoBloqueos) {
+      const matchBloqueos =
+        /^bloqueo\.(\d{2})(\d{2})\.txt$/i.exec(
+          archivoBloqueos.name,
+        );
+
+      if (!matchBloqueos) {
+        return "El archivo de bloqueos debe llamarse bloqueo.AAMM.txt.";
+      }
+
+      const anioBloqueos =
+        2000 + Number(matchBloqueos[1]);
+
+      const mesBloqueos =
+        Number(matchBloqueos[2]);
+
+      if (
+        anioBloqueos !== Number(match[1]) ||
+        mesBloqueos !== Number(match[2])
+      ) {
+        return "Los archivos de pedidos y bloqueos deben corresponder al mismo periodo.";
+      }
+    }
+
     /*
      * Evitamos el error más frecuente:
      *
@@ -349,6 +440,41 @@ export default function ConfiguracionPage() {
       }
 
       /*
+       * Guardamos las velocidades configuradas
+       * antes de crear el escenario. La capacidad
+       * y el costo se conservan con los valores
+       * actuales del backend.
+       */
+      const tiposFlota =
+        await flotaService.listarTipos();
+
+      const velocidadPorTipo = {
+        CAR: configuracion.autosVelocidad,
+        MOTORCYCLE:
+          configuracion.motosVelocidad,
+        BICYCLE:
+          configuracion.bicicletasVelocidad,
+      } as const;
+
+      await Promise.all(
+        tiposFlota.map((tipo) =>
+          flotaService.actualizarTipo(
+            tipo.tipo,
+            {
+              capacidadPaquetes:
+                tipo.capacidadPaquetes,
+              velocidadKmh:
+                velocidadPorTipo[
+                  tipo.tipo
+                ],
+              costoPorKm:
+                tipo.costoPorKm,
+            },
+          ),
+        ),
+      );
+
+      /*
        * Para 5D y Colapso cargamos
        * primero los datos históricos.
        *
@@ -368,6 +494,21 @@ export default function ConfiguracionPage() {
         console.log(
           "Carga de pedidos:",
           carga,
+        );
+      }
+
+      if (
+        necesitaArchivo &&
+        archivoBloqueos
+      ) {
+        const cargaBloqueos =
+          await bloqueosService.cargarArchivo(
+            archivoBloqueos,
+          );
+
+        console.log(
+          "Carga de bloqueos:",
+          cargaBloqueos,
         );
       }
 

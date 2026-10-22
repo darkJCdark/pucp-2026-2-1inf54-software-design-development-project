@@ -1,15 +1,19 @@
 import {
   useEffect,
+  useMemo,
+  useRef,
   useState,
 } from "react";
 
 import {
-  CheckCircle2,
+  AlertTriangle,
   CirclePause,
   CirclePlay,
   Loader2,
   OctagonX,
+  PackagePlus,
   ServerCrash,
+  Wrench,
 } from "lucide-react";
 
 import {
@@ -17,13 +21,72 @@ import {
   useParams,
 } from "react-router-dom";
 
+import {
+  useEventosEjecucion,
+} from "@/hooks/useEventosEjecucion";
+
 import type {
   MonitoreoResponseDto,
 } from "@/api/monitoreo.dto";
 
 import type {
+  PlanResponseDto,
+  ReplanificacionResponseDto,
+} from "@/api/planificacion.dto";
+
+import type {
+  RegistrarAveriaRequestDto,
+} from "@/api/incidencias.dto";
+
+import type {
   RegistrarPedidoRequestDto,
 } from "@/api/pedidos.dto";
+
+import type {
+  TipoVehiculoResponseDto,
+} from "@/api/flota.dto";
+
+import {
+  ApiError,
+} from "@/services/api";
+
+import {
+  escenariosService,
+} from "@/services/escenarios.service";
+
+import {
+  flotaService,
+} from "@/services/flota.service";
+
+import {
+  incidenciasService,
+} from "@/services/incidencias.service";
+
+import {
+  adaptarAlmacenesMonitoreo,
+  adaptarVehiculosMonitoreo,
+} from "@/services/monitoreo.adapter";
+
+import {
+  monitoreoService,
+} from "@/services/monitoreo.service";
+
+import {
+  adaptarPedido,
+  adaptarPedidos,
+} from "@/services/pedidos.adapter";
+
+import {
+  pedidosService,
+} from "@/services/pedidos.service";
+
+import {
+  adaptarRutas,
+} from "@/services/planificacion.adapter";
+
+import {
+  planificacionService,
+} from "@/services/planificacion.service";
 
 import type {
   AlmacenMapa,
@@ -33,38 +96,20 @@ import type {
 } from "./ejecucion.types";
 
 import {
-  monitoreoService,
-} from "@/services/monitoreo.service";
-
-import {
-  escenariosService,
-} from "@/services/escenarios.service";
-
-import {
-  adaptarAlmacenesMonitoreo,
-  adaptarVehiculosMonitoreo,
-} from "@/services/monitoreo.adapter";
-
-import {
-  pedidosService,
-} from "@/services/pedidos.service";
-
-import {
-  adaptarPedido,
-  adaptarPedidos,
-} from "@/services/pedidos.adapter";
-
-import {
-  ApiError,
-} from "@/services/api";
-
-import {
   MapaOperacion,
 } from "./MapaOperacion";
 
 import {
+  FeedEventos,
+} from "./FeedEventos";
+
+import {
   PanelIndicadores,
 } from "./PanelIndicadores";
+
+import {
+  RegistrarAveriaForm,
+} from "./RegistrarAveriaForm";
 
 import {
   RegistrarPedidoForm,
@@ -74,7 +119,8 @@ export default function EjecucionPage() {
   const {
     ejecucionId:
       ejecucionIdParam,
-  } = useParams();
+  } =
+    useParams();
 
   const navigate =
     useNavigate();
@@ -117,9 +163,36 @@ export default function EjecucionPage() {
     >([]);
 
   const [
+    tiposFlota,
+    setTiposFlota,
+  ] =
+    useState<
+      TipoVehiculoResponseDto[]
+    >([]);
+
+  const [
+    plan,
+    setPlan,
+  ] =
+    useState<
+      PlanResponseDto | null
+    >(null);
+
+  const [
+    replanificacion,
+    setReplanificacion,
+  ] =
+    useState<
+      ReplanificacionResponseDto | null
+    >(null);
+
+  const [
     cargando,
     setCargando,
-  ] = useState(true);
+  ] =
+    useState(
+      true,
+    );
 
   const [
     error,
@@ -130,14 +203,51 @@ export default function EjecucionPage() {
     >(null);
 
   const [
-    accionando,
-    setAccionando,
-  ] = useState(false);
+    errorPlan,
+    setErrorPlan,
+  ] =
+    useState<
+      string | null
+    >(null);
 
   const [
-    mostrarFormulario,
-    setMostrarFormulario,
-  ] = useState(false);
+    accionando,
+    setAccionando,
+  ] =
+    useState(
+      false,
+    );
+
+  const [
+    mostrarFormularioPedido,
+    setMostrarFormularioPedido,
+  ] =
+    useState(
+      false,
+    );
+
+  const [
+    mostrarFormularioAveria,
+    setMostrarFormularioAveria,
+  ] =
+    useState(
+      false,
+    );
+
+  const estadoEnCursoRef =
+    useRef(false);
+
+  const planEnCursoRef =
+    useRef(false);
+
+  const ultimoRefrescoPedidosRef =
+    useRef(0);
+
+  /*
+   * =====================================================
+   * POLLING
+   * =====================================================
+   */
 
   useEffect(() => {
     if (
@@ -150,14 +260,21 @@ export default function EjecucionPage() {
         "Identificador de ejecución inválido.",
       );
 
-      setCargando(false);
+      setCargando(
+        false,
+      );
 
       return;
     }
 
-    void cargarEstado();
+    void cargarDatosIniciales();
 
-    const interval =
+    /*
+     * Monitoreo:
+     * reloj, vehículos, almacenes,
+     * métricas, incidencias.
+     */
+    const intervaloEstado =
       window.setInterval(
         () => {
           void cargarEstado(
@@ -167,133 +284,398 @@ export default function EjecucionPage() {
         1000,
       );
 
+    /*
+     * Plan SA y última
+     * replanificación.
+     */
+    const intervaloPlan =
+      window.setInterval(
+        () => {
+          void cargarPlan();
+        },
+        2000,
+      );
+
     return () => {
       window.clearInterval(
-        interval,
+        intervaloEstado,
+      );
+
+      window.clearInterval(
+        intervaloPlan,
       );
     };
-  }, [ejecucionId]);
+  }, [
+    ejecucionId,
+  ]);
+
+  async function cargarDatosIniciales() {
+    try {
+      setCargando(
+        true,
+      );
+
+      setError(
+        null,
+      );
+
+      const [
+        tipos,
+      ] =
+        await Promise.all([
+          flotaService.listarTipos(),
+
+          cargarEstado(
+            false,
+            true,
+          ),
+
+          cargarPlan(),
+        ]);
+
+      setTiposFlota(
+        tipos,
+      );
+    } catch (
+      error
+    ) {
+      manejarErrorEstado(
+        error,
+      );
+    } finally {
+      setCargando(
+        false,
+      );
+    }
+  }
 
   async function cargarEstado(
-    mostrarCarga = true,
+    mostrarCarga =
+      false,
+
+    forzarPedidos =
+      false,
   ) {
+    if (
+      estadoEnCursoRef
+        .current
+    ) {
+      return;
+    }
+
+    estadoEnCursoRef.current =
+      true;
+
     try {
-      if (mostrarCarga) {
-        setCargando(true);
+      if (
+        mostrarCarga
+      ) {
+        setCargando(
+          true,
+        );
       }
 
-      setError(null);
-
-      const respuestaMonitoreo =
+      const respuesta =
         await monitoreoService.obtener(
           ejecucionId,
         );
 
+      setError(
+        null,
+      );
+
       setMonitoreo(
-        respuestaMonitoreo,
+        respuesta,
       );
 
       setAlmacenes(
         adaptarAlmacenesMonitoreo(
-          respuestaMonitoreo.almacenes,
+          respuesta.almacenes,
         ),
       );
 
       setVehiculos(
         adaptarVehiculosMonitoreo(
-          respuestaMonitoreo.vehiculos,
+          respuesta.vehiculos,
         ),
       );
+
+      const ahora =
+        Date.now();
 
       /*
-       * Monitoreo entrega el resumen
-       * de pedidos, pero no sus
-       * coordenadas individuales.
-       *
-       * Consultamos únicamente los
-       * pedidos que ya llegaron hasta
-       * el instante simulado actual.
+       * Pedidos no necesitan
+       * polling cada segundo.
        */
-      const respuestaPedidos =
-        await pedidosService.listar(
-          {
-            registradoHasta:
-              respuestaMonitoreo.instante,
-          },
+      if (
+        forzarPedidos ||
+        ahora -
+          ultimoRefrescoPedidosRef.current >=
+          2000
+      ) {
+        const respuestaPedidos =
+          await pedidosService.listarTodos(
+            {
+              /*
+               * Evita mostrar pedidos
+               * históricos de otras
+               * simulaciones.
+               */
+              registradoDesde:
+                respuesta
+                  .escenario
+                  .inicioSimulado,
+
+              registradoHasta:
+                respuesta
+                  .instante,
+
+              sort:
+                "registradoEn,asc",
+            },
+          );
+
+        setPedidos(
+          adaptarPedidos(
+            respuestaPedidos,
+          ),
         );
 
-      setPedidos(
-        adaptarPedidos(
-          respuestaPedidos.contenido,
-        ),
+        ultimoRefrescoPedidosRef.current =
+          ahora;
+      }
+
+      setError(
+        null,
       );
-    } catch (error) {
-      console.error(
-        "Error consultando monitoreo:",
+    } catch (
+      error
+    ) {
+      manejarErrorEstado(
         error,
       );
+    } finally {
+      estadoEnCursoRef.current =
+        false;
 
       if (
-        error instanceof ApiError
+        mostrarCarga
       ) {
-        setError(
-          error.message,
+        setCargando(
+          false,
         );
-      } else if (
-        error instanceof Error
-      ) {
-        setError(
-          error.message,
-        );
-      } else {
-        setError(
-          "No fue posible consultar el estado del escenario.",
-        );
-      }
-    } finally {
-      if (mostrarCarga) {
-        setCargando(false);
       }
     }
   }
 
-  async function handleRegistrarPedido(
-    request: RegistrarPedidoRequestDto,
+  async function cargarPlan() {
+    if (
+      planEnCursoRef
+        .current
+    ) {
+      return;
+    }
+
+    planEnCursoRef.current =
+      true;
+
+    try {
+      const [
+        resultadoPlan,
+        resultadoReplanificacion,
+      ] =
+        await Promise.allSettled(
+          [
+            planificacionService.obtenerPlan(
+              ejecucionId,
+            ),
+
+            planificacionService.obtenerReplanificacion(
+              ejecucionId,
+            ),
+          ],
+        );
+
+      if (
+        resultadoPlan.status ===
+        "fulfilled"
+      ) {
+        setPlan(
+          resultadoPlan.value,
+        );
+
+        setErrorPlan(
+          null,
+        );
+      } else {
+        const motivo =
+          resultadoPlan.reason;
+
+        if (
+          motivo instanceof
+            ApiError &&
+          motivo.status ===
+            404
+        ) {
+          setPlan(
+            null,
+          );
+
+          setErrorPlan(
+            null,
+          );
+        } else {
+          setErrorPlan(
+            mensajeError(
+              motivo,
+
+              "No fue posible consultar el plan.",
+            ),
+          );
+        }
+      }
+
+      if (
+        resultadoReplanificacion.status ===
+        "fulfilled"
+      ) {
+        setReplanificacion(
+          resultadoReplanificacion.value,
+        );
+      } else {
+        const motivo =
+          resultadoReplanificacion.reason;
+
+        if (
+          motivo instanceof
+            ApiError &&
+          motivo.status ===
+            404
+        ) {
+          setReplanificacion(
+            null,
+          );
+        }
+      }
+    } finally {
+      planEnCursoRef.current =
+        false;
+    }
+  }
+
+  function manejarErrorEstado(
+    error:
+      unknown,
   ) {
-    const requestConInstante: RegistrarPedidoRequestDto =
-      {
-        ...request,
+    console.error(
+      "Error consultando ejecución:",
+      error,
+    );
 
-        /*
-         * Día a Día utiliza el instante
-         * actual de la simulación.
-         */
-        registradoEn:
-          monitoreo?.instante,
-      };
+    setError(
+      mensajeError(
+        error,
 
+        "No fue posible consultar el estado de la ejecución.",
+      ),
+    );
+  }
+
+  /*
+   * =====================================================
+   * PEDIDOS
+   * =====================================================
+   */
+
+  async function handleRegistrarPedido(
+    request:
+      RegistrarPedidoRequestDto,
+  ) {
     const respuesta =
       await pedidosService.registrar(
-        requestConInstante,
+        {
+          ...request,
+
+          registradoEn:
+            monitoreo
+              ?.instante,
+        },
       );
 
     setPedidos(
       (actuales) => [
         ...actuales,
+
         adaptarPedido(
           respuesta,
         ),
       ],
     );
 
-    setMostrarFormulario(
+    setMostrarFormularioPedido(
+      false,
+    );
+
+    ultimoRefrescoPedidosRef.current =
+      0;
+
+    await cargarEstado(
+      false,
+      true,
+    );
+
+    /*
+     * Backend dispara
+     * NUEVO_PEDIDO → SA.
+     *
+     * Esperamos un poco
+     * antes de refrescar
+     * el plan visual.
+     */
+    window.setTimeout(
+      () => {
+        void cargarPlan();
+      },
+      1200,
+    );
+  }
+
+  /*
+   * =====================================================
+   * AVERÍAS
+   * =====================================================
+   */
+
+  async function handleRegistrarAveria(
+    request:
+      RegistrarAveriaRequestDto,
+  ) {
+    await incidenciasService.registrarAveria(
+      request,
+    );
+
+    setMostrarFormularioAveria(
       false,
     );
 
     await cargarEstado(
       false,
+      true,
+    );
+
+    window.setTimeout(
+      () => {
+        void cargarPlan();
+      },
+      1200,
     );
   }
+
+  /*
+   * =====================================================
+   * CONTROLES DE ESCENARIO
+   * =====================================================
+   */
 
   async function ejecutarAccion(
     accion:
@@ -302,10 +684,17 @@ export default function EjecucionPage() {
       | "DETENER",
   ) {
     try {
-      setAccionando(true);
-      setError(null);
+      setAccionando(
+        true,
+      );
 
-      switch (accion) {
+      setError(
+        null,
+      );
+
+      switch (
+        accion
+      ) {
         case "PAUSAR":
           await escenariosService.pausar(
             ejecucionId,
@@ -327,33 +716,71 @@ export default function EjecucionPage() {
 
       await cargarEstado(
         false,
+        true,
       );
-    } catch (error) {
-      if (
-        error instanceof ApiError
-      ) {
-        setError(
-          error.message,
-        );
-      } else if (
-        error instanceof Error
-      ) {
-        setError(
-          error.message,
-        );
-      } else {
-        setError(
+
+      await cargarPlan();
+    } catch (
+      error
+    ) {
+      setError(
+        mensajeError(
+          error,
+
           "No fue posible cambiar el estado del escenario.",
-        );
-      }
+        ),
+      );
     } finally {
-      setAccionando(false);
+      setAccionando(
+        false,
+      );
     }
   }
 
-  if (cargando) {
+  /*
+   * =====================================================
+   * FEED DE EVENTOS
+   * =====================================================
+   */
+
+  const eventos =
+    useEventosEjecucion(
+      monitoreo,
+      pedidos,
+      vehiculos,
+      replanificacion,
+    );
+
+  /*
+   * El mapa necesita TODAS
+   * las paradas del plan,
+   * incluso las ya visitadas,
+   * para diferenciar:
+   *
+   * realizado / actual / futuro.
+   */
+  const rutas =
+    useMemo(
+      () =>
+        adaptarRutas(
+          plan,
+        ),
+
+      [plan],
+    );
+
+  /*
+   * =====================================================
+   * ESTADOS DE CARGA
+   * =====================================================
+   */
+
+  if (
+    cargando
+  ) {
     return (
       <div className="flex h-full min-h-[600px] items-center justify-center bg-[#0d1117] text-slate-300">
+
         <Loader2 className="mr-3 size-5 animate-spin" />
 
         Cargando escenario...
@@ -367,6 +794,7 @@ export default function EjecucionPage() {
   ) {
     return (
       <div className="flex h-full min-h-[600px] flex-col items-center justify-center bg-[#0d1117] text-white">
+
         <ServerCrash className="mb-4 size-10 text-red-400" />
 
         <p className="font-semibold">
@@ -392,44 +820,96 @@ export default function EjecucionPage() {
     );
   }
 
+  if (
+    !monitoreo
+  ) {
+    return null;
+  }
+
+  /*
+   * =====================================================
+   * PERMISOS POR ESCENARIO
+   * =====================================================
+   */
+
   const estado =
-    monitoreo?.escenario.estado;
+    monitoreo
+      .escenario
+      .estado;
 
   const tipo =
-    monitoreo?.escenario.tipo;
+    monitoreo
+      .escenario
+      .tipo;
 
   const puedeRegistrarPedido =
-    tipo === "DAY_TO_DAY" &&
-    estado === "RUNNING";
+    tipo ===
+      "DAY_TO_DAY" &&
+    estado ===
+      "RUNNING";
 
-  const indicadores: IndicadoresOperacion =
+  const puedeRegistrarAveria =
+    estado ===
+      "RUNNING" &&
+    (
+      tipo ===
+        "DAY_TO_DAY" ||
+      tipo ===
+        "FIVE_DAY"
+    );
+
+  /*
+   * =====================================================
+   * INDICADORES REALES DEL BACKEND
+   * =====================================================
+   */
+
+  const indicadores:
+    IndicadoresOperacion =
     {
-      /*
-       * Todavía no hay métricas de
-       * planificación en Monitoreo.
-       * Las integraremos cuando SA
-       * publique rutas/resultados.
-       */
-      costoAcumulado: 0,
-      distanciaRecorrida: 0,
+      costoAcumulado:
+        monitoreo
+          .ejecucion
+          .costo,
+
+      distanciaRecorrida:
+        monitoreo
+          .ejecucion
+          .distanciaKm,
 
       entregasCompletadas:
-        pedidos.filter(
-          (pedido) =>
-            pedido.estado ===
-            "ENTREGADO",
-        ).length,
+        monitoreo
+          .ejecucion
+          .pedidosEntregados,
+
+      entregasATiempo:
+        monitoreo
+          .ejecucion
+          .entregadosATiempo,
+
+      paquetesEntregados:
+        monitoreo
+          .ejecucion
+          .paquetesEntregados,
 
       pedidosRiesgo:
-        monitoreo?.pedidos
-          .vencidosSinEntregar ??
-        0,
+        monitoreo
+          .pedidos
+          .vencidosSinEntregar,
     };
 
+  /*
+   * =====================================================
+   * PANTALLA
+   * =====================================================
+   */
+
   return (
-    <div className="grid h-screen grid-cols-[minmax(0,1fr)_330px] overflow-hidden bg-[#0d1117]">
+    <div className="grid h-screen grid-cols-[minmax(0,1fr)_360px] overflow-hidden bg-[#0d1117]">
+
       <div className="relative min-w-0">
 
+        {/* MAPA KONVA */}
         <MapaOperacion
           pedidos={
             pedidos
@@ -440,167 +920,199 @@ export default function EjecucionPage() {
           vehiculos={
             vehiculos
           }
+          rutas={
+            rutas
+          }
+          bloqueos={
+            monitoreo
+              .bloqueosVigentes
+          }
+          averias={
+            monitoreo
+              .averiasActivas
+          }
+          instanteSimulado={
+            monitoreo
+              .instante
+          }
+          factorAceleracion={
+            monitoreo
+              .escenario
+              .factorAceleracion
+          }
+          estadoEscenario={
+            monitoreo
+              .escenario
+              .estado
+          }
         />
 
-        {/* Estado / reloj */}
-        {monitoreo && (
-          <PanelEscenario
-            monitoreo={
-              monitoreo
-            }
-            accionando={
-              accionando
-            }
-            onPausar={() =>
-              void ejecutarAccion(
-                "PAUSAR",
-              )
-            }
-            onReanudar={() =>
-              void ejecutarAccion(
-                "REANUDAR",
-              )
-            }
-            onDetener={() =>
-              void ejecutarAccion(
-                "DETENER",
-              )
-            }
-          />
-        )}
+        {/* RELOJ + CONTROLES */}
+        <PanelEscenario
+          monitoreo={
+            monitoreo
+          }
+          accionando={
+            accionando
+          }
+          onPausar={() =>
+            void ejecutarAccion(
+              "PAUSAR",
+            )
+          }
+          onReanudar={() =>
+            void ejecutarAccion(
+              "REANUDAR",
+            )
+          }
+          onDetener={() =>
+            void ejecutarAccion(
+              "DETENER",
+            )
+          }
+        />
 
-        {/* Error no fatal */}
-        {error &&
-          monitoreo && (
-            <div className="absolute left-5 top-40 z-50 max-w-sm rounded-md border border-red-900 bg-[#11161d] px-3 py-2 text-xs text-red-400 shadow">
-              {error}
-            </div>
+        {/* ACCIONES */}
+        <div className="absolute right-5 top-16 z-40 flex flex-col gap-2">
+
+          {puedeRegistrarPedido && (
+            <button
+              type="button"
+              onClick={() => {
+                setMostrarFormularioAveria(
+                  false,
+                );
+
+                setMostrarFormularioPedido(
+                  true,
+                );
+              }}
+              className="flex items-center justify-center gap-2 rounded-md bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-orange-600"
+            >
+              <PackagePlus className="size-4" />
+
+              Registrar pedido
+            </button>
           )}
 
-        {/* Registrar pedido:
-            solo Día a Día */}
-        {puedeRegistrarPedido && (
-          <button
-            type="button"
-            onClick={() =>
-              setMostrarFormulario(
-                true,
-              )
-            }
-            className="absolute right-5 top-5 z-40 rounded-md bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-orange-600"
-          >
-            + Registrar pedido
-          </button>
-        )}
+          {puedeRegistrarAveria && (
+            <button
+              type="button"
+              onClick={() => {
+                setMostrarFormularioPedido(
+                  false,
+                );
 
-        {mostrarFormulario &&
+                setMostrarFormularioAveria(
+                  true,
+                );
+              }}
+              className="flex items-center justify-center gap-2 rounded-md bg-red-800 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-red-700"
+            >
+              <Wrench className="size-4" />
+
+              Registrar avería
+            </button>
+          )}
+        </div>
+
+        {/* FORM PEDIDO */}
+        {mostrarFormularioPedido &&
           puedeRegistrarPedido && (
             <RegistrarPedidoForm
               onRegistrar={
                 handleRegistrarPedido
               }
               onCerrar={() =>
-                setMostrarFormulario(
+                setMostrarFormularioPedido(
                   false,
                 )
               }
             />
           )}
 
-        {/* Estado operativo */}
-        {monitoreo && (
-          <div className="absolute bottom-5 left-5 z-40 w-96 rounded-lg border border-slate-700 bg-[#11161d]/95 p-4 text-white shadow-xl">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h3 className="font-semibold">
-                  Estado operativo
-                </h3>
+        {/* FORM AVERÍA */}
+        {mostrarFormularioAveria &&
+          puedeRegistrarAveria && (
+            <RegistrarAveriaForm
+              vehiculos={
+                vehiculos
+              }
+              instante={
+                monitoreo
+                  .instante
+              }
+              ejecucionId={
+                ejecucionId
+              }
+              onRegistrar={
+                handleRegistrarAveria
+              }
+              onCerrar={() =>
+                setMostrarFormularioAveria(
+                  false,
+                )
+              }
+            />
+          )}
 
-                <p className="mt-1 text-xs text-slate-500">
-                  Ejecución #
-                  {
-                    monitoreo
-                      .escenario
-                      .id
-                  }
-                </p>
-              </div>
+        {/* ERROR */}
+        {error && (
+          <div className="absolute left-5 top-44 z-50 max-w-sm rounded-md border border-red-900 bg-[#11161d] px-3 py-2 text-xs text-red-400 shadow">
+            {error}
+          </div>
+        )}
 
-              <span className="rounded-full bg-sky-500/15 px-2 py-1 text-[10px] font-semibold text-sky-400">
-                {
-                  monitoreo
-                    .escenario
-                    .factorAceleracion
-                }
-                ×
-              </span>
+        {/* COLAPSO */}
+        {monitoreo
+          .colapso && (
+          <div className="absolute left-5 top-44 z-40 max-w-md rounded-md border border-red-700 bg-red-950/90 p-3 text-xs text-red-100 shadow-xl">
+
+            <div className="flex items-center gap-2 font-semibold">
+              <AlertTriangle className="size-4" />
+
+              Colapso detectado
             </div>
 
-            <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
-              <Dato
-                label="Llegados"
-                value={String(
-                  monitoreo
-                    .pedidos
-                    .llegados,
-                )}
-              />
-
-              <Dato
-                label="Pendientes"
-                value={String(
-                  monitoreo
-                    .pedidos
-                    .pendientes,
-                )}
-              />
-
-              <Dato
-                label="Vencidos"
-                value={String(
-                  monitoreo
-                    .pedidos
-                    .vencidosSinEntregar,
-                )}
-              />
-
-              <Dato
-                label="Bloqueos"
-                value={String(
-                  monitoreo
-                    .bloqueosVigentes
-                    .length,
-                )}
-              />
-
-              <Dato
-                label="Averías"
-                value={String(
-                  monitoreo
-                    .averiasActivas
-                    .length,
-                )}
-              />
-
-              <Dato
-                label="Vehículos"
-                value={String(
-                  monitoreo
-                    .vehiculos
-                    .length,
-                )}
-              />
-            </div>
-
-            <p className="mt-3 rounded-md bg-slate-800 p-2 text-[11px] text-slate-400">
-              El reloj, inventario,
-              bloqueos y averías se
-              obtienen del backend.
+            <p className="mt-1">
+              Pedido{" "}
+              {
+                monitoreo
+                  .colapso
+                  .pedidoId
+              }{" "}
+              ·{" "}
+              {nombreCausaColapso(
+                monitoreo
+                  .colapso
+                  .causa,
+              )}
             </p>
           </div>
         )}
+
+        {/* FEED DE EVENTOS */}
+        <FeedEventos
+          eventos={
+            eventos
+          }
+        />
+
+        {/* RESUMEN OPERATIVO */}
+        <EstadoOperativo
+          monitoreo={
+            monitoreo
+          }
+          rutas={
+            rutas.length
+          }
+          replanificacion={
+            replanificacion
+          }
+        />
       </div>
 
+      {/* PANEL DERECHO */}
       <PanelIndicadores
         indicadores={
           indicadores
@@ -611,20 +1123,28 @@ export default function EjecucionPage() {
         vehiculos={
           vehiculos
         }
+        tiposFlota={
+          tiposFlota
+        }
+        plan={
+          plan
+        }
+        replanificacion={
+          replanificacion
+        }
+        errorPlan={
+          errorPlan
+        }
       />
     </div>
   );
 }
 
-interface PanelEscenarioProps {
-  monitoreo: MonitoreoResponseDto;
-
-  accionando: boolean;
-
-  onPausar: () => void;
-  onReanudar: () => void;
-  onDetener: () => void;
-}
+/*
+ * =========================================================
+ * PANEL ESCENARIO
+ * =========================================================
+ */
 
 function PanelEscenario({
   monitoreo,
@@ -632,13 +1152,32 @@ function PanelEscenario({
   onPausar,
   onReanudar,
   onDetener,
-}: PanelEscenarioProps) {
+}: {
+  monitoreo:
+    MonitoreoResponseDto;
+
+  accionando:
+    boolean;
+
+  onPausar:
+    () => void;
+
+  onReanudar:
+    () => void;
+
+  onDetener:
+    () => void;
+}) {
   const estado =
-    monitoreo.escenario.estado;
+    monitoreo
+      .escenario
+      .estado;
 
   return (
-    <div className="absolute left-5 top-5 z-50 min-w-72 rounded-lg border border-slate-700 bg-[#11161d] p-4 text-white shadow-xl">
+    <div className="absolute left-5 top-5 z-50 min-w-80 rounded-lg border border-slate-700 bg-[#11161d]/95 p-4 text-white shadow-xl">
+
       <div className="flex items-start justify-between gap-4">
+
         <div>
           <p className="text-[10px] uppercase text-slate-500">
             {nombreTipoEscenario(
@@ -650,7 +1189,8 @@ function PanelEscenario({
 
           <p className="mt-1 text-lg font-semibold">
             {formatearInstante(
-              monitoreo.instante,
+              monitoreo
+                .instante,
             )}
           </p>
         </div>
@@ -663,10 +1203,17 @@ function PanelEscenario({
       </div>
 
       <p className="mt-1 text-[10px] text-slate-500">
-        Hora simulada · Lima
+        Hora simulada · Lima ·{" "}
+        {
+          monitoreo
+            .escenario
+            .factorAceleracion
+        }
+        ×
       </p>
 
       <div className="mt-4 flex gap-2">
+
         {estado ===
           "RUNNING" && (
           <button
@@ -704,7 +1251,7 @@ function PanelEscenario({
         )}
 
         {(estado ===
-          "RUNNING" ||
+            "RUNNING" ||
           estado ===
             "PAUSED") && (
           <button
@@ -727,21 +1274,170 @@ function PanelEscenario({
   );
 }
 
+/*
+ * =========================================================
+ * ESTADO OPERATIVO
+ * =========================================================
+ */
+
+function EstadoOperativo({
+  monitoreo,
+  rutas,
+  replanificacion,
+}: {
+  monitoreo:
+    MonitoreoResponseDto;
+
+  rutas:
+    number;
+
+  replanificacion:
+    ReplanificacionResponseDto | null;
+}) {
+  return (
+    <div className="absolute bottom-5 left-5 z-40 w-[410px] rounded-lg border border-slate-700 bg-[#11161d]/95 p-4 text-white shadow-xl">
+
+      <div className="flex items-center justify-between gap-3">
+
+        <div>
+          <h3 className="font-semibold">
+            Estado operativo
+          </h3>
+
+          <p className="mt-1 text-xs text-slate-500">
+            Ejecución #
+            {
+              monitoreo
+                .escenario
+                .id
+            }
+          </p>
+        </div>
+
+        <span className="rounded-full bg-sky-500/15 px-2 py-1 text-[10px] font-semibold text-sky-400">
+          {
+            monitoreo
+              .escenario
+              .factorAceleracion
+          }
+          ×
+        </span>
+      </div>
+
+      <div className="mt-4 grid grid-cols-4 gap-2 text-xs">
+
+        <Dato
+          label="Llegados"
+          value={String(
+            monitoreo
+              .pedidos
+              .llegados,
+          )}
+        />
+
+        <Dato
+          label="Pendientes"
+          value={String(
+            monitoreo
+              .pedidos
+              .pendientes,
+          )}
+        />
+
+        <Dato
+          label="Vencidos"
+          value={String(
+            monitoreo
+              .pedidos
+              .vencidosSinEntregar,
+          )}
+        />
+
+        <Dato
+          label="Entregados"
+          value={String(
+            monitoreo
+              .ejecucion
+              .pedidosEntregados,
+          )}
+        />
+
+        <Dato
+          label="Rutas"
+          value={String(
+            rutas,
+          )}
+        />
+
+        <Dato
+          label="Bloqueos"
+          value={String(
+            monitoreo
+              .bloqueosVigentes
+              .length,
+          )}
+        />
+
+        <Dato
+          label="Averías"
+          value={String(
+            monitoreo
+              .averiasActivas
+              .length,
+          )}
+        />
+
+        <Dato
+          label="Replanes"
+          value={String(
+            replanificacion
+              ?.numeroReplanificacion ??
+            0,
+          )}
+        />
+      </div>
+
+      <p className="mt-3 rounded-md bg-slate-800 p-2 text-[11px] text-slate-400">
+        El mapa combina
+        monitoreo, pedidos del
+        periodo y el último
+        plan vigente de SA.
+      </p>
+    </div>
+  );
+}
+
+/*
+ * =========================================================
+ * BADGE
+ * =========================================================
+ */
+
 function EstadoBadge({
   estado,
 }: {
   estado:
-    MonitoreoResponseDto["escenario"]["estado"];
+    MonitoreoResponseDto[
+      "escenario"
+    ][
+      "estado"
+    ];
 }) {
   const estilos =
-    estado === "RUNNING"
+    estado ===
+    "RUNNING"
       ? "bg-green-500/15 text-green-400"
-      : estado === "PAUSED"
+
+      : estado ===
+        "PAUSED"
         ? "bg-amber-500/15 text-amber-400"
-        : estado === "COLLAPSED" ||
-            estado ===
-              "FAILED"
+
+        : estado ===
+            "COLLAPSED" ||
+          estado ===
+            "FAILED"
           ? "bg-red-500/15 text-red-400"
+
           : "bg-slate-500/15 text-slate-300";
 
   return (
@@ -755,15 +1451,25 @@ function EstadoBadge({
   );
 }
 
+/*
+ * =========================================================
+ * DATO PEQUEÑO
+ * =========================================================
+ */
+
 function Dato({
   label,
   value,
 }: {
-  label: string;
-  value: string;
+  label:
+    string;
+
+  value:
+    string;
 }) {
   return (
     <div className="rounded-md bg-[#1b222c] p-2">
+
       <p className="text-[9px] uppercase text-slate-500">
         {label}
       </p>
@@ -775,11 +1481,23 @@ function Dato({
   );
 }
 
+/*
+ * =========================================================
+ * LABELS
+ * =========================================================
+ */
+
 function nombreTipoEscenario(
   tipo:
-    MonitoreoResponseDto["escenario"]["tipo"],
+    MonitoreoResponseDto[
+      "escenario"
+    ][
+      "tipo"
+    ],
 ) {
-  switch (tipo) {
+  switch (
+    tipo
+  ) {
     case "DAY_TO_DAY":
       return "Día a Día";
 
@@ -793,9 +1511,15 @@ function nombreTipoEscenario(
 
 function nombreEstado(
   estado:
-    MonitoreoResponseDto["escenario"]["estado"],
+    MonitoreoResponseDto[
+      "escenario"
+    ][
+      "estado"
+    ],
 ) {
-  switch (estado) {
+  switch (
+    estado
+  ) {
     case "CREATED":
       return "Creado";
 
@@ -819,8 +1543,36 @@ function nombreEstado(
   }
 }
 
+function nombreCausaColapso(
+  causa:
+    NonNullable<
+      MonitoreoResponseDto[
+        "colapso"
+      ]
+    >[
+      "causa"
+    ],
+) {
+  switch (
+    causa
+  ) {
+    case "PLAZO_VENCIDO":
+      return "plazo vencido";
+
+    case "PLAZO_INALCANZABLE":
+      return "plazo inalcanzable";
+  }
+}
+
+/*
+ * =========================================================
+ * FORMATOS
+ * =========================================================
+ */
+
 function formatearInstante(
-  instante: string,
+  instante:
+    string,
 ) {
   return new Intl.DateTimeFormat(
     "es-PE",
@@ -828,17 +1580,60 @@ function formatearInstante(
       timeZone:
         "America/Lima",
 
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
+      day:
+        "2-digit",
 
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
+      month:
+        "2-digit",
 
-      hour12: false,
+      year:
+        "numeric",
+
+      hour:
+        "2-digit",
+
+      minute:
+        "2-digit",
+
+      second:
+        "2-digit",
+
+      hour12:
+        false,
     },
   ).format(
-    new Date(instante),
+    new Date(
+      instante,
+    ),
   );
+}
+
+/*
+ * =========================================================
+ * ERROR
+ * =========================================================
+ */
+
+function mensajeError(
+  error:
+    unknown,
+
+  fallback:
+    string,
+) {
+  if (
+    error instanceof
+    ApiError
+  ) {
+    return error.message;
+  }
+
+  if (
+    error instanceof
+    Error
+  ) {
+    return error.message;
+  }
+
+  return fallback;
 }
