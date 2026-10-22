@@ -15,6 +15,18 @@ import java.util.List;
 
 public interface OrderRepository extends JpaRepository<OrderEntity, String> {
 
+    /** IDs de los pedidos registrados exactamente en un instante simulado. */
+    @Query("select o.orderId from OrderEntity o where o.registeredAt = :instante order by o.orderId")
+    List<String> idsRegistradosEn(@Param("instante") Instant instante);
+
+    /** IDs de los pedidos registrados en el intervalo simulado abierto a la izquierda y cerrado a la derecha. */
+    @Query("""
+            select o.orderId from OrderEntity o
+            where o.registeredAt > :desde and o.registeredAt <= :hasta
+            order by o.registeredAt, o.orderId
+            """)
+    List<String> idsRegistradosEntre(@Param("desde") Instant desde, @Param("hasta") Instant hasta);
+
     @Query("""
             select o from OrderEntity o
             where (:clienteId is null or o.clientId = :clienteId)

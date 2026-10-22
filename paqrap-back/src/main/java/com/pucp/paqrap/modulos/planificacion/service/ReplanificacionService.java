@@ -17,6 +17,10 @@ import java.util.Optional;
  */
 public interface ReplanificacionService {
 
+    /** Métricas acumuladas de los ciclos SA ya ejecutados para una ejecución viva. */
+    record MetricasPlanificacion(long totalComputationMs, int replanningCount) {
+    }
+
     /** Crea el plan inicial de la ejecución. */
     ReplanificacionResponse iniciar(long ejecucionId, SolicitudPlanificacion solicitud);
 
@@ -46,6 +50,8 @@ public interface ReplanificacionService {
     boolean estaIniciada(long ejecucionId);
 
     Optional<ReplanificacionResponse> planVigente(long ejecucionId);
+
+    Optional<MetricasPlanificacion> metricas(long ejecucionId);
 
     void finalizar(long ejecucionId);
 

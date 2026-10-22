@@ -8,6 +8,7 @@ import com.pucp.paqrap.modulos.almacenes.repository.WarehouseRepository;
 import com.pucp.paqrap.modulos.almacenes.service.InventarioService;
 import com.pucp.paqrap.modulos.escenarios.entity.ScenarioStatus;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
+import com.pucp.paqrap.modulos.escenarios.repository.ScenarioResultRepository;
 import com.pucp.paqrap.modulos.escenarios.service.MotorEscenarios;
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleEntity;
@@ -19,6 +20,7 @@ import com.pucp.paqrap.modulos.pedidos.persistence.OrderEntity;
 import com.pucp.paqrap.modulos.pedidos.repository.OrderRepository;
 import com.pucp.paqrap.modulos.pedidos.repository.OrderStatusHistoryRepository;
 import com.pucp.paqrap.modulos.planificacion.service.PlanificadorPort;
+import com.pucp.paqrap.modulos.planificacion.service.ReplanificacionService;
 import com.pucp.paqrap.modulos.redvial.entity.Location;
 import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 import com.pucp.paqrap.modulos.redvial.persistence.RoadBlockEntity;
@@ -42,6 +44,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.hamcrest.Matchers.hasSize;
@@ -99,6 +102,12 @@ class EventosYMonitoreoApiTest {
         List<Motivo> motivos() {
             return solicitudes.stream().map(SolicitudCiclo::motivo).toList();
         }
+
+        @Override
+        public Optional<ReplanificacionService.MetricasPlanificacion> metricas(long ejecucionId) {
+            return Optional.of(new ReplanificacionService.MetricasPlanificacion(0,
+                    Math.max(0, solicitudes.size() - 1)));
+        }
     }
 
     @Autowired private MockMvc mvc;
@@ -107,6 +116,7 @@ class EventosYMonitoreoApiTest {
     @Autowired private MotorEscenarios motor;
     @Autowired private InventarioService inventario;
     @Autowired private ScenarioExecutionRepository ejecucionRepository;
+    @Autowired private ScenarioResultRepository resultadoRepository;
     @Autowired private WarehouseRepository almacenRepository;
     @Autowired private InventoryMovementRepository movimientoRepository;
     @Autowired private VehicleRepository vehiculoRepository;
@@ -134,6 +144,7 @@ class EventosYMonitoreoApiTest {
         movimientoRepository.deleteAll();
         averiaRepository.deleteAll();
         bloqueoRepository.deleteAll();
+        resultadoRepository.deleteAll();
         ejecucionRepository.deleteAll();
         vehiculoRepository.deleteAll();
         almacenRepository.deleteAll();

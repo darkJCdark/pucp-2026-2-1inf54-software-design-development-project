@@ -99,6 +99,11 @@ public class PlanificadorSaAdapter implements PlanificadorPort, PlanVigente {
     }
 
     @Override
+    public Optional<ReplanificacionService.MetricasPlanificacion> metricas(long ejecucionId) {
+        return replanificacion.metricas(ejecucionId);
+    }
+
+    @Override
     public Optional<PlanResponse> ultimoPlan(long ejecucionId) {
         return ultimaReplanificacion(ejecucionId).map(ReplanificacionResponse::plan);
     }

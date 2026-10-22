@@ -28,6 +28,7 @@ final class EstadoEjecucion {
 
     Instant ultimaHora;
     int numeroReplanificacion = -1;
+    long totalComputationMs;
     Map<String, Order> pedidos = new LinkedHashMap<>();
     /** Paquetes ya entregados por rutas que salieron del plan (terminadas o interrumpidas). */
     Map<String, Integer> entregados = new HashMap<>();

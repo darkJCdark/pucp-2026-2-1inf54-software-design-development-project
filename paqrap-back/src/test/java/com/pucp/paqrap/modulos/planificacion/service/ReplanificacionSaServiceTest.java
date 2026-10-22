@@ -40,6 +40,7 @@ import com.pucp.paqrap.modulos.redvial.entity.RoadLeg;
 import com.pucp.paqrap.modulos.redvial.entity.StreetSegment;
 import com.pucp.paqrap.modulos.redvial.service.RoadNetwork;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -73,7 +74,7 @@ class ReplanificacionSaServiceTest {
 
     private final FuenteDatosOperativos fuente = new FuenteDatosOperativosMock();
     private final PlanificadorSaService planificador = new PlanificadorSaService(fuente, CONFIG_PRUEBA);
-    private final ReplanificacionSaService servicio = new ReplanificacionSaService(fuente, planificador);
+    private final ReplanificacionSaService servicio = new ReplanificacionSaService(fuente, planificador, Mockito.mock(PlanPersistenceService.class));
     private final OperationalSimulatedAnnealingPlanner original = new OperationalSimulatedAnnealingPlanner(
             new OperationalPlanEvaluator(new RouteScheduler(new RoadNetwork())));
 
@@ -637,6 +638,19 @@ class ReplanificacionSaServiceTest {
         assertEquals(List.of(0, 1, 2), List.of(r0.numeroReplanificacion(), r1.numeroReplanificacion(), r2.numeroReplanificacion()));
         assertEquals(List.of(SEMILLA, SEMILLA + 1, SEMILLA + 2), List.of(r0.plan().semilla(), r1.plan().semilla(), r2.plan().semilla()));
         assertEquals(r2, servicio.planVigente(EJECUCION).orElseThrow());
+    }
+
+    @Test
+    void acumulaElTiempoDeTodosLosCiclosSaExitosos() {
+        ReplanificacionResponse inicial = servicio.iniciar(EJECUCION, solicitud());
+        ReplanificacionResponse replanificado = servicio.registrarPedido(EJECUCION,
+                p04(H.plusSeconds(600)), H.plusSeconds(600));
+
+        ReplanificacionService.MetricasPlanificacion metricas = servicio.metricas(EJECUCION).orElseThrow();
+
+        assertEquals(inicial.plan().duracionMs() + replanificado.plan().duracionMs(),
+                metricas.totalComputationMs());
+        assertEquals(1, metricas.replanningCount());
     }
 
     @Test

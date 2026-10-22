@@ -3,11 +3,13 @@ package com.pucp.paqrap.modulos.escenarios.controller;
 import com.jayway.jsonpath.JsonPath;
 import com.pucp.paqrap.modulos.escenarios.entity.ScenarioStatus;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
+import com.pucp.paqrap.modulos.escenarios.repository.ScenarioResultRepository;
 import com.pucp.paqrap.modulos.escenarios.service.MotorEscenarios;
 import com.pucp.paqrap.modulos.pedidos.entity.DeliveryType;
 import com.pucp.paqrap.modulos.pedidos.persistence.OrderEntity;
 import com.pucp.paqrap.modulos.pedidos.repository.OrderRepository;
 import com.pucp.paqrap.modulos.planificacion.service.PlanificadorPort;
+import com.pucp.paqrap.modulos.planificacion.service.ReplanificacionService;
 import com.pucp.paqrap.modulos.redvial.entity.Location;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +31,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.hamcrest.Matchers.containsString;
@@ -81,6 +84,12 @@ class EscenarioApiTest {
             solicitudes.add(solicitud);
             return new ResultadoCiclo(reportarColapso);
         }
+
+        @Override
+        public Optional<ReplanificacionService.MetricasPlanificacion> metricas(long ejecucionId) {
+            return Optional.of(new ReplanificacionService.MetricasPlanificacion(0,
+                    Math.max(0, solicitudes.size() - 1)));
+        }
     }
 
     @Autowired
@@ -93,6 +102,7 @@ class EscenarioApiTest {
     private MotorEscenarios motor;
     @Autowired
     private ScenarioExecutionRepository ejecucionRepository;
+    @Autowired private ScenarioResultRepository resultadoRepository;
     @Autowired
     private OrderRepository pedidoRepository;
 
@@ -108,6 +118,7 @@ class EscenarioApiTest {
         ejecucionRepository.findByStatusIn(List.of(ScenarioStatus.RUNNING, ScenarioStatus.PAUSED))
                 .forEach(e -> motor.detener(e.getExecutionId()));
         pedidoRepository.deleteAll();
+        resultadoRepository.deleteAll();
         ejecucionRepository.deleteAll();
     }
 

@@ -492,6 +492,9 @@ CREATE TABLE routes (
     plan_id BIGINT UNSIGNED
         NOT NULL,
 
+    operational_route_id VARCHAR(64)
+        NOT NULL,
+
     vehicle_id VARCHAR(8)
         NOT NULL,
 
@@ -502,6 +505,9 @@ CREATE TABLE routes (
         NOT NULL,
 
     origin_y SMALLINT UNSIGNED
+        NOT NULL,
+
+    initial_load INT UNSIGNED
         NOT NULL,
 
     departure_at TIMESTAMP(6)
@@ -522,6 +528,9 @@ CREATE TABLE routes (
     PRIMARY KEY (route_id),
 
     KEY idx_routes_plan (plan_id),
+    CONSTRAINT uq_routes_plan_operational
+        UNIQUE (plan_id, operational_route_id),
+
     KEY idx_routes_vehicle (vehicle_id),
     KEY idx_routes_start_warehouse (start_warehouse_id),
 

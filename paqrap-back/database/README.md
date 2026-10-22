@@ -10,6 +10,7 @@ Este paquete permite levantar una base MySQL limpia para PaqRap sin depender de 
 - `docker-compose.db.yml`: levanta MySQL aislado en Docker.
 - `.env.example`: variables de desarrollo local.
 - `database/paqrap_migration_v1_to_v2.sql`: se conserva únicamente para una BD antigua que ya esté en V1; no se usa al crear una BD nueva con Docker.
+- `database/paqrap_migration_v2_plan_snapshots.sql`: actualiza una BD V2 ya creada con los campos necesarios para snapshots de planes.
 
 ## Qué NO carga el seed
 
@@ -87,3 +88,6 @@ docker compose -f docker-compose.db.yml up -d
 ## V1 -> V2
 
 `paqrap_migration_v1_to_v2.sql` sigue siendo útil si ya existe una BD V1 con datos. Para una instalación nueva no debe ejecutarse: se usa directamente `paqrap_schema_v2.sql` + `paqrap_seed_v2.sql`.
+
+Una instalación creada antes de incorporar snapshots de planes debe ejecutar después
+`paqrap_migration_v2_plan_snapshots.sql`.

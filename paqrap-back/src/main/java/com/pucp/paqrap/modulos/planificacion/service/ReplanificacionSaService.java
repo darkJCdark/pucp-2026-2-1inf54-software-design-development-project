@@ -62,13 +62,15 @@ public class ReplanificacionSaService implements ReplanificacionService {
     /** El mismo evaluador del SA, para validar las rutas conservadas con las mismas reglas (incluido el límite por tramo). */
     private final OperationalPlanEvaluator evaluador;
     private final PlanResponseMapper mapper = new PlanResponseMapper();
+    private final PlanPersistenceService persistenciaPlanes;
     private final Map<Long, EstadoEjecucion> ejecuciones = new ConcurrentHashMap<>();
 
     @Autowired
-    public ReplanificacionSaService(FuenteDatosOperativos fuente, PlanificadorSaService planificador) {
+    public ReplanificacionSaService(FuenteDatosOperativos fuente, PlanificadorSaService planificador, PlanPersistenceService persistenciaPlanes) {
         this.fuente = Objects.requireNonNull(fuente, "fuente es requerida");
         this.planificador = Objects.requireNonNull(planificador, "planificador es requerido");
         this.evaluador = planificador.evaluador();
+        this.persistenciaPlanes = Objects.requireNonNull(persistenciaPlanes, "persistenciaPlanes es requerida");
     }
 
     // ------------------------------------------------------------------ disparadores
@@ -163,6 +165,13 @@ public class ReplanificacionSaService implements ReplanificacionService {
     }
 
     @Override
+    public Optional<MetricasPlanificacion> metricas(long ejecucionId) {
+        EstadoEjecucion estado = ejecuciones.get(ejecucionId);
+        return estado == null ? Optional.empty()
+                : Optional.of(new MetricasPlanificacion(estado.totalComputationMs, estado.numeroReplanificacion));
+    }
+
+    @Override
     public synchronized void finalizar(long ejecucionId) {
         ejecuciones.remove(ejecucionId);
     }
@@ -238,6 +247,7 @@ public class ReplanificacionSaService implements ReplanificacionService {
         long semilla = estado.semillaBase + numero;
         PlanificadorSaService.EjecucionSa ejecucion =
                 planificador.ejecutarSa(snapshot, pendientes, bloqueos, semilla, estado.presupuestoMs);
+        estado.totalComputationMs += ejecucion.duracionMs();
         ResultadoPlanificacion sa = ejecucion.resultado();
 
         // 6. Plan vigente = conservadas + nuevas.
@@ -286,6 +296,8 @@ public class ReplanificacionSaService implements ReplanificacionService {
                 reasignados, noDisponibles);
 
         // 7. Confirmación del estado.
+        persistenciaPlanes.persistir(estado.ejecucionId, motivo, plan, programadas, planResponse);
+
         estado.pedidos = pedidos;
         estado.bloqueos = bloqueos;
         estado.averias = averias;
