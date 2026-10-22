@@ -17,71 +17,64 @@ interface ConfiguracionContextType {
   ) => void;
 
   archivoPedidos: File | null;
-
   setArchivoPedidos: (
+    archivo: File | null,
+  ) => void;
+
+  archivoBloqueos: File | null;
+  setArchivoBloqueos: (
     archivo: File | null,
   ) => void;
 }
 
-const configuracionInicial: ConfiguracionPlanificador =
-  {
-    escenario:
-      "SIMULACION_5D",
+const configuracionInicial: ConfiguracionPlanificador = {
+  escenario: "SIMULACION_5D",
+  inicioSimulado: "",
 
-    inicioSimulado: "",
+  autosCantidad: 10,
+  autosVelocidad: 40,
 
-    autosCantidad: 10,
-    autosVelocidad: 40,
+  motosCantidad: 15,
+  motosVelocidad: 25,
 
-    motosCantidad: 15,
-    motosVelocidad: 25,
+  bicicletasCantidad: 12,
+  bicicletasVelocidad: 12,
 
-    bicicletasCantidad: 12,
-    bicicletasVelocidad: 12,
+  almacenVerdeHasta: 33,
+  almacenAmbarHasta: 66,
 
-    almacenVerdeHasta: 33,
-    almacenAmbarHasta: 66,
-
-    pedidoVerdeHasta: 60,
-    pedidoAmbarHasta: 85,
-  };
+  pedidoVerdeHasta: 60,
+  pedidoAmbarHasta: 85,
+};
 
 const ConfiguracionContext =
   createContext<
     ConfiguracionContextType | undefined
   >(undefined);
 
-interface ConfiguracionProviderProps {
-  children: ReactNode;
-}
-
 export function ConfiguracionProvider({
   children,
-}: ConfiguracionProviderProps) {
-  const [
-    configuracion,
-    setConfiguracion,
-  ] =
+}: {
+  children: ReactNode;
+}) {
+  const [configuracion, setConfiguracion] =
     useState<ConfiguracionPlanificador>(
       configuracionInicial,
     );
 
-  const [
-    archivoPedidos,
-    setArchivoPedidos,
-  ] = useState<File | null>(
-    null,
-  );
+  const [archivoPedidos, setArchivoPedidos] =
+    useState<File | null>(null);
+
+  const [archivoBloqueos, setArchivoBloqueos] =
+    useState<File | null>(null);
 
   function actualizarConfiguracion(
     cambios: Partial<ConfiguracionPlanificador>,
   ) {
-    setConfiguracion(
-      (actual) => ({
-        ...actual,
-        ...cambios,
-      }),
-    );
+    setConfiguracion((actual) => ({
+      ...actual,
+      ...cambios,
+    }));
   }
 
   return (
@@ -91,6 +84,8 @@ export function ConfiguracionProvider({
         actualizarConfiguracion,
         archivoPedidos,
         setArchivoPedidos,
+        archivoBloqueos,
+        setArchivoBloqueos,
       }}
     >
       {children}
@@ -99,10 +94,9 @@ export function ConfiguracionProvider({
 }
 
 export function useConfiguracion() {
-  const context =
-    useContext(
-      ConfiguracionContext,
-    );
+  const context = useContext(
+    ConfiguracionContext,
+  );
 
   if (!context) {
     throw new Error(

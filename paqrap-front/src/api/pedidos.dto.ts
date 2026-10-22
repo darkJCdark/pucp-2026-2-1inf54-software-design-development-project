@@ -17,20 +17,7 @@ export interface RegistrarPedidoRequestDto {
   paquetes: number;
 
   tipoEntrega: TipoEntregaBackend;
-
-  /**
-   * REGULAR:
-   * puede omitirse; backend fija 36 h.
-   *
-   * PRIORITY:
-   * obligatorio: 4, 8, 12 o 18.
-   */
   horasPrometidas?: number;
-
-  /**
-   * Opcional.
-   * Si no se envía, backend utiliza Instant.now().
-   */
   registradoEn?: string;
 }
 
@@ -50,25 +37,32 @@ export interface PedidoResponseDto {
   vence: string;
 
   estado: EstadoPedidoBackend;
-
   entregadoEn: string | null;
+}
+
+export interface CambioEstadoPedidoDto {
+  estado: EstadoPedidoBackend;
+  ocurridoEn: string;
+  vehiculoId: string | null;
+  almacenId: string | null;
+}
+
+export interface PedidoDetalleResponseDto {
+  pedido: PedidoResponseDto;
+  historial: CambioEstadoPedidoDto[];
 }
 
 export interface PaginaResponseDto<T> {
   contenido: T[];
-
   pagina: number;
   tamanio: number;
-
   totalElementos: number;
   totalPaginas: number;
 }
 
 export interface CargaPedidosResponseDto {
   archivo: string;
-
   periodo: string;
-
   leidos: number;
   registrados: number;
   omitidos: number;

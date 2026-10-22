@@ -19,7 +19,7 @@ const NOMBRES_ALMACEN: Record<
   NORTHWEST: "Nor-Oeste",
 };
 
-function adaptarTipoVehiculo(
+export function adaptarTipoVehiculo(
   tipo: VehiculoMonitoreoDto["tipo"],
 ): TipoVehiculo {
   switch (tipo) {
@@ -54,17 +54,14 @@ export function adaptarVehiculoMonitoreo(
 ): VehiculoMapa {
   return {
     id: dto.id,
-
-    tipo: adaptarTipoVehiculo(
-      dto.tipo,
-    ),
-
+    tipo: adaptarTipoVehiculo(dto.tipo),
     estado: adaptarEstadoVehiculo(
       dto.estado,
     ),
-
     x: dto.x,
     y: dto.y,
+    cargaActual: dto.cargaActual,
+    averiadoHasta: dto.averiadoHasta,
   };
 }
 
@@ -81,22 +78,18 @@ export function adaptarAlmacenMonitoreo(
 ): AlmacenMapa {
   return {
     id: dto.id,
-
     nombre:
       NOMBRES_ALMACEN[dto.id] ??
       dto.id,
-
     tipo:
       dto.tipo === "CENTRAL"
         ? "CENTRAL"
         : "INTERMEDIO",
-
     x: dto.x,
     y: dto.y,
-
-    stock:
-      dto.stock ??
-      undefined,
+    stock: dto.stock ?? undefined,
+    capacidad:
+      dto.capacidad ?? undefined,
   };
 }
 

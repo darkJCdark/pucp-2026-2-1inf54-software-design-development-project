@@ -18,6 +18,7 @@ export function ResumenConfiguracion() {
   const {
     configuracion,
     archivoPedidos,
+    archivoBloqueos,
   } = useConfiguracion();
 
   return (
@@ -34,7 +35,7 @@ export function ResumenConfiguracion() {
       />
 
       <Fila
-        label="Archivo"
+        label="Pedidos"
         value={
           configuracion.escenario ===
           "DIA_A_DIA"
@@ -43,6 +44,17 @@ export function ResumenConfiguracion() {
               "—"
         }
       />
+
+      {configuracion.escenario !==
+        "DIA_A_DIA" && (
+        <Fila
+          label="Bloqueos"
+          value={
+            archivoBloqueos?.name ??
+            "Sin archivo"
+          }
+        />
+      )}
 
       {configuracion.escenario !==
         "DIA_A_DIA" && (

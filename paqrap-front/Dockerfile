@@ -8,7 +8,10 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm ci
+# npm install actualiza el lock al agregar Konva en esta primera integración.
+# Después de ejecutar npm install localmente y versionar package-lock.json,
+# puede volver a usarse npm ci para builds totalmente reproducibles.
+RUN npm install
 
 COPY . .
 

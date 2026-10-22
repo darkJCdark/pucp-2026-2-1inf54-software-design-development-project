@@ -14,9 +14,14 @@ export function FlotaConfiguracion() {
 
   return (
     <Card className="border-slate-800 bg-[#151b23] p-4">
-      <h2 className="mb-5 font-semibold">
-        Flota de transporte
-      </h2>
+      <div className="mb-5">
+        <h2 className="font-semibold">
+          Flota de transporte
+        </h2>
+        <p className="mt-1 text-xs text-slate-500">
+          La cantidad se obtiene de la base de datos. La velocidad se guarda en el backend al iniciar.
+        </p>
+      </div>
 
       <div className="grid gap-6 md:grid-cols-3">
         <ColumnaFlota
@@ -24,11 +29,6 @@ export function FlotaConfiguracion() {
           titulo="Autos"
           cantidad={configuracion.autosCantidad}
           velocidad={configuracion.autosVelocidad}
-          onCantidad={(cantidad) =>
-            actualizarConfiguracion({
-              autosCantidad: cantidad,
-            })
-          }
           onVelocidad={(velocidad) =>
             actualizarConfiguracion({
               autosVelocidad: velocidad,
@@ -41,11 +41,6 @@ export function FlotaConfiguracion() {
           titulo="Motos"
           cantidad={configuracion.motosCantidad}
           velocidad={configuracion.motosVelocidad}
-          onCantidad={(cantidad) =>
-            actualizarConfiguracion({
-              motosCantidad: cantidad,
-            })
-          }
           onVelocidad={(velocidad) =>
             actualizarConfiguracion({
               motosVelocidad: velocidad,
@@ -57,14 +52,7 @@ export function FlotaConfiguracion() {
           icon={<Bike className="size-4" />}
           titulo="Bicicletas"
           cantidad={configuracion.bicicletasCantidad}
-          velocidad={
-            configuracion.bicicletasVelocidad
-          }
-          onCantidad={(cantidad) =>
-            actualizarConfiguracion({
-              bicicletasCantidad: cantidad,
-            })
-          }
+          velocidad={configuracion.bicicletasVelocidad}
           onVelocidad={(velocidad) =>
             actualizarConfiguracion({
               bicicletasVelocidad: velocidad,
@@ -81,7 +69,6 @@ interface ColumnaFlotaProps {
   titulo: string;
   cantidad: number;
   velocidad: number;
-  onCantidad: (cantidad: number) => void;
   onVelocidad: (velocidad: number) => void;
 }
 
@@ -90,7 +77,6 @@ function ColumnaFlota({
   titulo,
   cantidad,
   velocidad,
-  onCantidad,
   onVelocidad,
 }: ColumnaFlotaProps) {
   return (
@@ -103,11 +89,9 @@ function ColumnaFlota({
       <CampoConfiguracion label="Cantidad de unidades">
         <Input
           type="number"
-          min="1"
           value={cantidad}
-          onChange={(event) =>
-            onCantidad(Number(event.target.value))
-          }
+          disabled
+          title="La cantidad de unidades proviene de la base de datos"
         />
       </CampoConfiguracion>
 
@@ -116,9 +100,12 @@ function ColumnaFlota({
           <Input
             type="number"
             min="1"
+            step="0.1"
             value={velocidad}
             onChange={(event) =>
-              onVelocidad(Number(event.target.value))
+              onVelocidad(
+                Number(event.target.value),
+              )
             }
           />
         </CampoConfiguracion>

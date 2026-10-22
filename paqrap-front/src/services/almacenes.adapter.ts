@@ -36,6 +36,10 @@ export function adaptarAlmacen(
     stock:
       dto.stockInicial ??
       undefined,
+
+    capacidad:
+      dto.capacidad ??
+      undefined,
   };
 }
 
