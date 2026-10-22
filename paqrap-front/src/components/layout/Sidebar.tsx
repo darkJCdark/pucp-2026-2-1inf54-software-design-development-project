@@ -1,5 +1,13 @@
-import { Package, Settings } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import {
+  CalendarDays,
+  History,
+  Package,
+  Settings,
+} from "lucide-react";
+
+import {
+  NavLink,
+} from "react-router-dom";
 
 const enlaces = [
   {
@@ -8,16 +16,25 @@ const enlaces = [
     icono: Settings,
   },
   {
+    nombre: "Ejecuciones",
+    ruta: "/ejecuciones",
+    icono: History,
+  },
+  {
     nombre: "Pedidos",
     ruta: "/pedidos",
     icono: Package,
+  },
+  {
+    nombre: "Mantenimientos",
+    ruta: "/mantenimientos",
+    icono: CalendarDays,
   },
 ];
 
 export default function Sidebar() {
   return (
-    <aside className="flex min-h-screen w-52 flex-col border-r border-slate-800 bg-[#11161d]">
-      {/* Logo */}
+    <aside className="flex min-h-screen w-52 shrink-0 flex-col border-r border-slate-800 bg-[#11161d]">
       <div className="flex h-16 items-center gap-3 border-b border-slate-800 px-5">
         <div className="flex size-8 items-center justify-center rounded-md bg-orange-500 font-bold text-white">
           P
@@ -28,7 +45,6 @@ export default function Sidebar() {
         </span>
       </div>
 
-      {/* Navegación */}
       <nav className="flex flex-col gap-1 p-2">
         {enlaces.map((enlace) => {
           const Icono = enlace.icono;
