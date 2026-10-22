@@ -10,7 +10,9 @@ import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository
 import com.pucp.paqrap.modulos.incidencias.entity.AveriaRegistrada;
 import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
 import com.pucp.paqrap.modulos.pedidos.entity.PedidoRegistrado;
+import com.pucp.paqrap.modulos.pedidos.repository.OrderRepository;
 import com.pucp.paqrap.modulos.planificacion.service.PlanificadorPort;
+import com.pucp.paqrap.modulos.planificacion.service.ReplanificacionService;
 import com.pucp.paqrap.modulos.planificacion.service.PlanificadorSinOperacion;
 import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 import jakarta.annotation.PostConstruct;
@@ -29,6 +31,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -61,6 +64,8 @@ public class MotorEscenarios {
     private final EventosSimulacion eventos;
     private final EjecutorPlanService ejecutorPlan;
     private final DetectorColapso detectorColapso;
+    private final OrderRepository pedidoRepository;
+    private final ScenarioResultService resultadoService;
     /** Escenarios activos por id de ejecución; protegido por el monitor de esta instancia. */
     private final Map<Long, EscenarioActivo> activos = new HashMap<>();
     private ScheduledExecutorService ejecutor;
@@ -76,6 +81,12 @@ public class MotorEscenarios {
         private final List<BreakdownEvent> averiasPendientes = new ArrayList<>();
         /** Llegaron pedidos desde el último plan: se replanifica en el próximo tick. */
         private boolean pedidosPendientes;
+        /** IDs de pedidos que pertenecen al intervalo simulado ya procesado. */
+        private final Set<String> pedidosProcesados = new HashSet<>();
+        /** Bloqueos cuyo inicio fue detectado en un intervalo ya procesado. */
+        private final Set<Long> bloqueosProcesados = new HashSet<>();
+        /** Averías de esta ejecución detectadas en un intervalo ya procesado. */
+        private final Set<Long> averiasProcesadas = new HashSet<>();
 
         private EscenarioActivo(ScenarioType tipo, SimulationClock reloj) {
             this.tipo = tipo;
@@ -87,7 +98,8 @@ public class MotorEscenarios {
     public MotorEscenarios(ScenarioExecutionRepository ejecucionRepository, PlatformTransactionManager transacciones,
                            Clock relojReal, EscenariosProperties propiedades,
                            ObjectProvider<PlanificadorPort> planificadores, EventosSimulacion eventos,
-                           EjecutorPlanService ejecutorPlan, DetectorColapso detectorColapso) {
+                           EjecutorPlanService ejecutorPlan, DetectorColapso detectorColapso,
+                           OrderRepository pedidoRepository, ScenarioResultService resultadoService) {
         this.ejecucionRepository = ejecucionRepository;
         this.transaccion = new TransactionTemplate(transacciones);
         this.relojReal = relojReal;
@@ -96,6 +108,8 @@ public class MotorEscenarios {
         this.eventos = eventos;
         this.ejecutorPlan = ejecutorPlan;
         this.detectorColapso = detectorColapso;
+        this.pedidoRepository = pedidoRepository;
+        this.resultadoService = resultadoService;
     }
 
     /**
@@ -118,7 +132,9 @@ public class MotorEscenarios {
     @TransactionalEventListener(fallbackExecution = true)
     public synchronized void alRegistrarPedido(PedidoRegistrado pedido) {
         for (EscenarioActivo activo : activos.values()) {
-            if (!pedido.registradoEn().isAfter(activo.procesadoHasta)) {
+            if (!pedido.registradoEn().isBefore(activo.reloj.inicioSimulado())
+                    && !pedido.registradoEn().isAfter(activo.procesadoHasta)) {
+                activo.pedidosProcesados.add(pedido.pedidoId());
                 activo.pedidosPendientes = true;
             }
         }
@@ -168,6 +184,7 @@ public class MotorEscenarios {
         EscenarioActivo activo = new EscenarioActivo(ejecucion.getScenarioType(), reloj);
         activos.put(ejecucionId, activo);
         ejecutorPlan.prepararInicio(ejecucionId, ejecucion.getSimulationStartedAt());
+        activo.pedidosProcesados.addAll(pedidoRepository.idsRegistradosEn(ejecucion.getSimulationStartedAt()));
         detectorColapso.reiniciar(ejecucionId);
         planificar(ejecucionId, activo, PlanificadorPort.Motivo.INICIAL);
         revisarColapso(ejecucionId, activo);
@@ -188,6 +205,7 @@ public class MotorEscenarios {
         Instant instanteSimulado = activo != null ? activo.reloj.ahora() : null;
         actualizar(ejecucionId, e -> e.terminar(ScenarioStatus.STOPPED, relojReal.instant(),
                 instanteSimulado != null ? instanteSimulado : e.getSimulationStartedAt()));
+        persistirResultado(ejecucionId, activo);
         activos.remove(ejecucionId);
         planificador().finalizar(ejecucionId);
     }
@@ -224,9 +242,12 @@ public class MotorEscenarios {
             // El plan vigente se ejecuta hasta ahora antes de que un plan nuevo lo reemplace.
             ejecutorPlan.avanzar(ejecucionId, activo.procesadoHasta, hasta);
             activo.procesadoHasta = hasta;
+            activo.pedidosProcesados.addAll(resumen.pedidosLlegadosIds());
+            activo.bloqueosProcesados.addAll(resumen.bloqueosIniciadosIds());
+            activo.averiasProcesadas.addAll(resumen.averiasIds());
             activo.bloqueosPendientes.addAll(resumen.bloqueosIniciados());
             activo.averiasPendientes.addAll(resumen.averias());
-            if (resumen.pedidosLlegados() > 0) {
+            if (!resumen.pedidosLlegadosIds().isEmpty()) {
                 activo.pedidosPendientes = true;
             }
         }
@@ -277,8 +298,24 @@ public class MotorEscenarios {
 
     private void finalizar(long ejecucionId, ScenarioStatus estadoFinal, Instant instanteSimulado) {
         actualizar(ejecucionId, e -> e.terminar(estadoFinal, relojReal.instant(), instanteSimulado));
+        EscenarioActivo activo = activos.get(ejecucionId);
+        persistirResultado(ejecucionId, activo);
         activos.remove(ejecucionId);
         planificador().finalizar(ejecucionId);
+    }
+
+    /** Construye el resultado mientras todavía existen los acumuladores del motor y del planificador. */
+    private void persistirResultado(long ejecucionId, EscenarioActivo activo) {
+        if (activo == null) {
+            throw new IllegalStateException("No hay estado activo para construir el resultado de " + ejecucionId);
+        }
+        EjecutorPlanService.Metricas metricas = ejecutorPlan.metricas(ejecucionId)
+                .orElseThrow(() -> new IllegalStateException("Faltan métricas ejecutadas para " + ejecucionId));
+        ReplanificacionService.MetricasPlanificacion planificacion = planificador().metricas(ejecucionId)
+                .orElseThrow(() -> new IllegalStateException("Faltan métricas de planificación para " + ejecucionId));
+        resultadoService.persistir(ejecucionId, activo.pedidosProcesados.size(), metricas,
+                planificacion.totalComputationMs(), planificacion.replanningCount(),
+                activo.averiasProcesadas.size(), activo.bloqueosProcesados.size());
     }
 
     private PlanificadorPort planificador() {

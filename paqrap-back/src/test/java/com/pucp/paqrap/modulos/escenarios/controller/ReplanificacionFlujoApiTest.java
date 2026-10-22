@@ -7,6 +7,8 @@ import com.pucp.paqrap.modulos.almacenes.repository.InventoryMovementRepository;
 import com.pucp.paqrap.modulos.almacenes.repository.WarehouseRepository;
 import com.pucp.paqrap.modulos.escenarios.entity.ScenarioStatus;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
+import com.pucp.paqrap.modulos.escenarios.repository.ScenarioResultRepository;
+import com.pucp.paqrap.modulos.escenarios.persistence.ScenarioResultEntity;
 import com.pucp.paqrap.modulos.escenarios.service.EjecutorPlanService;
 import com.pucp.paqrap.modulos.escenarios.service.MotorEscenarios;
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
@@ -22,6 +24,12 @@ import com.pucp.paqrap.modulos.pedidos.persistence.OrderEntity;
 import com.pucp.paqrap.modulos.pedidos.persistence.OrderStatusHistoryEntity;
 import com.pucp.paqrap.modulos.pedidos.repository.OrderRepository;
 import com.pucp.paqrap.modulos.pedidos.repository.OrderStatusHistoryRepository;
+import com.pucp.paqrap.modulos.planificacion.persistence.PlanEntity;
+import com.pucp.paqrap.modulos.planificacion.persistence.RouteEntity;
+import com.pucp.paqrap.modulos.planificacion.persistence.RouteStopEntity;
+import com.pucp.paqrap.modulos.planificacion.repository.PlanRepository;
+import com.pucp.paqrap.modulos.planificacion.repository.RouteRepository;
+import com.pucp.paqrap.modulos.planificacion.repository.RouteStopRepository;
 import com.pucp.paqrap.modulos.redvial.entity.Location;
 import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 import com.pucp.paqrap.modulos.redvial.persistence.RoadBlockEntity;
@@ -93,6 +101,7 @@ class ReplanificacionFlujoApiTest {
     @Autowired private MotorEscenarios motor;
     @Autowired private EjecutorPlanService ejecutor;
     @Autowired private ScenarioExecutionRepository ejecucionRepository;
+    @Autowired private ScenarioResultRepository resultadoRepository;
     @Autowired private WarehouseRepository almacenRepository;
     @Autowired private InventoryMovementRepository movimientoRepository;
     @Autowired private VehicleRepository vehiculoRepository;
@@ -101,6 +110,9 @@ class ReplanificacionFlujoApiTest {
     @Autowired private RoadBlockRepository bloqueoRepository;
     @Autowired private OrderRepository pedidoRepository;
     @Autowired private OrderStatusHistoryRepository historialRepository;
+    @Autowired private PlanRepository planRepository;
+    @Autowired private RouteRepository routeRepository;
+    @Autowired private RouteStopRepository routeStopRepository;
 
     @BeforeEach
     void cargarDatos() {
@@ -118,10 +130,14 @@ class ReplanificacionFlujoApiTest {
         ejecucionRepository.findByStatusIn(List.of(ScenarioStatus.RUNNING, ScenarioStatus.PAUSED))
                 .forEach(e -> motor.detener(e.getExecutionId()));
         historialRepository.deleteAll();
+        routeStopRepository.deleteAll();
+        routeRepository.deleteAll();
+        planRepository.deleteAll();
         pedidoRepository.deleteAll();
         movimientoRepository.deleteAll();
         averiaRepository.deleteAll();
         bloqueoRepository.deleteAll();
+        resultadoRepository.deleteAll();
         ejecucionRepository.deleteAll();
         vehiculoRepository.deleteAll();
         tipoRepository.deleteAll();
@@ -246,6 +262,77 @@ class ReplanificacionFlujoApiTest {
         assertEquals(Map.of("P1", 1L, "P2", 1L), entregas);
         mvc.perform(get("/api/monitoreo/" + id))
                 .andExpect(jsonPath("$.colapso").doesNotExist());
+    }
+
+    @Test
+    void persisteSnapshotsInmutablesYResultadoFinalDeUnaEjecucionSaReal() throws Exception {
+        pedido("P1", 30, 14, 5, INICIO);
+        pedido("P2", 24, 14, 3, INICIO.plusSeconds(20 * 60));
+        long id = iniciarCincoDias();
+
+        String inicialJson = replanificacion(id);
+        long duracionInicial = ((Number) leer(inicialJson, "$.plan.duracionMs")).longValue();
+        List<PlanEntity> planesIniciales = planRepository.findByExecutionExecutionIdOrderByPlanIdAsc(id);
+        assertEquals(1, planesIniciales.size());
+
+        PlanEntity inicial = planesIniciales.getFirst();
+        List<SnapshotRuta> rutasIniciales = snapshotRutas(inicial.getPlanId());
+        assertFalse(rutasIniciales.isEmpty(), "el snapshot inicial debe contener rutas");
+        assertTrue(rutasIniciales.stream().anyMatch(ruta -> !ruta.paradas().isEmpty()),
+                "el snapshot inicial debe contener route_stops");
+
+        // P2 llega al minuto 20; a los 26:40 simulados se procesa y provoca una replanificación real.
+        avanzar(Duration.ofSeconds(10));
+        String replanificadoJson = replanificacion(id);
+        long duracionReplanificacion = ((Number) leer(replanificadoJson, "$.plan.duracionMs")).longValue();
+        int replanificacionesObservadas = ((Number) leer(replanificadoJson, "$.numeroReplanificacion")).intValue();
+
+        List<PlanEntity> planesTrasReplanificacion = planRepository.findByExecutionExecutionIdOrderByPlanIdAsc(id);
+        assertTrue(planesTrasReplanificacion.size() >= 2);
+        assertEquals(inicial.getPlanId(), planesTrasReplanificacion.getFirst().getPlanId());
+        assertEquals(rutasIniciales, snapshotRutas(inicial.getPlanId()),
+                "la replanificación no puede sobrescribir rutas ni paradas del snapshot inicial");
+
+        // El salto final llega al límite de cinco días; no introduce un ciclo SA adicional.
+        avanzar(Duration.ofMinutes(45));
+
+        assertEquals(ScenarioStatus.COMPLETED, estado(id));
+        assertEquals(1, resultadoRepository.count());
+        ScenarioResultEntity resultado = resultadoRepository.findById(id).orElseThrow();
+
+        EjecutorPlanService.Metricas ejecutadas = ejecutor.metricas(id).orElseThrow();
+        assertEquals(2, resultado.getTotalOrders());
+        assertEquals(ejecutadas.pedidosEntregados(), resultado.getDeliveredOrders());
+        assertEquals(ejecutadas.entregadosATiempo(), resultado.getOnTimeOrders());
+        assertEquals(resultado.getTotalOrders() - ejecutadas.pedidosEntregados(), resultado.getUndeliveredOrders());
+        assertEquals(ejecutadas.distanciaKm(), resultado.getTotalDistanceKm().doubleValue(), 0.000001);
+        assertEquals(ejecutadas.costo(), resultado.getTotalCost().doubleValue(), 0.000001);
+        assertEquals(duracionInicial + duracionReplanificacion, resultado.getComputationTimeMs());
+        assertEquals(replanificacionesObservadas, resultado.getReplanningCount());
+        assertEquals(0, resultado.getBreakdownCount());
+        assertEquals(0, resultado.getRoadBlockCount());
+    }
+
+    private List<SnapshotRuta> snapshotRutas(long planId) {
+        return routeRepository.findByPlanPlanIdOrderByRouteIdAsc(planId).stream()
+                .map(ruta -> new SnapshotRuta(ruta.getRouteId(), ruta.getOperationalRouteId(), ruta.getOriginX(),
+                        ruta.getOriginY(), ruta.getInitialLoad(), ruta.getDepartureAt(), ruta.getTotalDistanceKm().doubleValue(),
+                        ruta.getTotalCost().doubleValue(), routeStopRepository.findByRouteRouteIdOrderBySequenceNoAsc(
+                                ruta.getRouteId()).stream().map(this::snapshotParada).toList()))
+                .toList();
+    }
+
+    private SnapshotParada snapshotParada(RouteStopEntity parada) {
+        return new SnapshotParada(parada.getRouteStopId(), parada.getSequenceNo(), parada.getStopType(),
+                parada.getDeliveredPackages(), parada.getX(), parada.getY(), parada.getPlannedArrivalAt());
+    }
+
+    private record SnapshotRuta(long id, String operationalId, int origenX, int origenY, int cargaInicial,
+                                Instant salida, double distancia, double costo, List<SnapshotParada> paradas) {
+    }
+
+    private record SnapshotParada(long id, int secuencia, String tipo, Integer paquetesEntregados, int x, int y,
+                                  Instant llegadaPlanificada) {
     }
 
     @Test

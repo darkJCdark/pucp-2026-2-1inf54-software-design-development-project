@@ -5,6 +5,7 @@ import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Punto de conexión entre el motor de escenarios y el planificador (SA). El motor lo invoca en cada ciclo de
@@ -19,6 +20,11 @@ public interface PlanificadorPort {
 
     /** La ejecución terminó (por tiempo, colapso, falla o detención): se libera su estado en memoria. */
     default void finalizar(long ejecucionId) {
+    }
+
+    /** Métricas de planificación disponibles mientras la ejecución sigue viva. */
+    default Optional<ReplanificacionService.MetricasPlanificacion> metricas(long ejecucionId) {
+        return Optional.empty();
     }
 
     /** Por qué se pide planificar en este momento. */
