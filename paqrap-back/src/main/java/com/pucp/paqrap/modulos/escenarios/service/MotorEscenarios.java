@@ -215,6 +215,11 @@ public class MotorEscenarios {
         return Optional.ofNullable(activos.get(ejecucionId)).map(activo -> activo.reloj.ahora());
     }
 
+    /** Instante simulado hasta el que ya se procesaron eventos y se ejecutó el plan de una ejecución activa. */
+    public synchronized Optional<Instant> ejecutadoHasta(long ejecucionId) {
+        return Optional.ofNullable(activos.get(ejecucionId)).map(activo -> activo.procesadoHasta);
+    }
+
     /** Avanza todos los escenarios en marcha: cierra los que terminaron y pide los planes que tocan. */
     public synchronized void tick() {
         for (Map.Entry<Long, EscenarioActivo> entrada : List.copyOf(activos.entrySet())) {

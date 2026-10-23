@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Registro y consulta de averías (CU-06, CU-08). Solo se guarda el evento: el planificador deja fuera a la unidad
@@ -32,14 +33,16 @@ public class AveriaService {
     private final BreakdownEventRepository averiaRepository;
     private final FlotaService flotaService;
     private final ApplicationEventPublisher eventos;
+    private final ContextoSimulacion contexto;
     private final BreakdownAvailabilityCalculator calculadora =
             new BreakdownAvailabilityCalculator(ShiftSchedule.defaultSchedule());
 
     public AveriaService(BreakdownEventRepository averiaRepository, FlotaService flotaService,
-                         ApplicationEventPublisher eventos) {
+                         ApplicationEventPublisher eventos, ContextoSimulacion contexto) {
         this.averiaRepository = averiaRepository;
         this.flotaService = flotaService;
         this.eventos = eventos;
+        this.contexto = contexto;
     }
 
     @Transactional
@@ -48,10 +51,10 @@ public class AveriaService {
             throw new IllegalArgumentException("Indique ambas coordenadas 'x' e 'y', o ninguna");
         }
         VehiculoResponse vehiculo = flotaService.obtenerVehiculo(request.vehiculoId());
-        Instant ocurridaEn = request.ocurridaEn() != null ? request.ocurridaEn() : Instant.now();
+        Instant ocurridaEn = horaDeLaAveria(request);
         Location ubicacion = request.x() != null
                 ? new Location(request.x(), request.y())
-                : new Location(vehiculo.x(), vehiculo.y());
+                : ubicacionPorDefecto(request.ejecucionId(), vehiculo, ocurridaEn);
 
         validarQueNoEsteAveriado(vehiculo.id(), ocurridaEn);
 
@@ -62,6 +65,31 @@ public class AveriaService {
             eventos.publishEvent(new AveriaRegistrada(request.ejecucionId(), evento));
         }
         return AveriaResponse.de(guardado, calculadora.resolve(evento));
+    }
+
+    /**
+     * En un escenario activo la hora por defecto es la simulada (no la real), y no puede ser anterior a lo que ya se
+     * ejecutó del plan: esas entregas y posiciones ya ocurrieron, así que la avería se registra en ese instante.
+     * Fuera de un escenario se usa la hora indicada o la actual.
+     */
+    private Instant horaDeLaAveria(RegistrarAveriaRequest request) {
+        if (request.ejecucionId() == null) {
+            return request.ocurridaEn() != null ? request.ocurridaEn() : Instant.now();
+        }
+        Instant hora = request.ocurridaEn() != null
+                ? request.ocurridaEn()
+                : contexto.instanteSimulado(request.ejecucionId()).orElse(Instant.now());
+        Optional<Instant> ejecutado = contexto.ejecutadoHasta(request.ejecucionId());
+        return ejecutado.filter(hora::isBefore).orElse(hora);
+    }
+
+    /** Sin coordenadas: si va en ruta en el escenario, donde lo dibuja el mapa; si no, su posición confirmada. */
+    private Location ubicacionPorDefecto(Long ejecucionId, VehiculoResponse vehiculo, Instant ocurridaEn) {
+        Location confirmada = new Location(vehiculo.x(), vehiculo.y());
+        if (ejecucionId == null) {
+            return confirmada;
+        }
+        return contexto.posicionEstimada(ejecucionId, vehiculo.id(), ocurridaEn).orElse(confirmada);
     }
 
     public List<AveriaResponse> listar(String vehiculoId, BreakdownType tipo, Long ejecucionId,
