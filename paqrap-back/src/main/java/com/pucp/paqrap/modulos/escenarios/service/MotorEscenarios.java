@@ -7,6 +7,7 @@ import com.pucp.paqrap.modulos.escenarios.entity.ScenarioStatus;
 import com.pucp.paqrap.modulos.escenarios.entity.ScenarioType;
 import com.pucp.paqrap.modulos.escenarios.persistence.ScenarioExecutionEntity;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
+import com.pucp.paqrap.modulos.flota.entity.ParametrosFlotaActualizados;
 import com.pucp.paqrap.modulos.incidencias.entity.AveriaRegistrada;
 import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
 import com.pucp.paqrap.modulos.pedidos.entity.PedidoRegistrado;
@@ -81,6 +82,8 @@ public class MotorEscenarios {
         private final List<BreakdownEvent> averiasPendientes = new ArrayList<>();
         /** Llegaron pedidos desde el último plan: se replanifica en el próximo tick. */
         private boolean pedidosPendientes;
+        /** Cambiaron los parámetros de un tipo de vehículo desde el último plan: se replanifica en el próximo tick. */
+        private boolean flotaCambiada;
         /** IDs de pedidos que pertenecen al intervalo simulado ya procesado. */
         private final Set<String> pedidosProcesados = new HashSet<>();
         /** Bloqueos cuyo inicio fue detectado en un intervalo ya procesado. */
@@ -122,6 +125,18 @@ public class MotorEscenarios {
         EscenarioActivo activo = activos.get(averia.ejecucionId());
         if (activo != null && !averia.ocurridaEn().isAfter(activo.procesadoHasta)) {
             activo.averiasPendientes.add(averia.averia());
+        }
+    }
+
+    /**
+     * Cambiar velocidad, capacidad o costo de un tipo de vehículo con un escenario en marcha lo hace replanificar en
+     * el próximo tick. Las rutas ya en marcha conservan sus horas; las que se planifiquen desde ahora usan los valores
+     * nuevos, que el planificador lee de la BD en cada ciclo.
+     */
+    @TransactionalEventListener(fallbackExecution = true)
+    public synchronized void alActualizarParametrosFlota(ParametrosFlotaActualizados cambio) {
+        for (EscenarioActivo activo : activos.values()) {
+            activo.flotaCambiada = true;
         }
     }
 
@@ -262,7 +277,7 @@ public class MotorEscenarios {
             planificar(ejecucionId, activo, PlanificadorPort.Motivo.INCIDENCIA);
         } else if (activo.pedidosPendientes) {
             planificar(ejecucionId, activo, PlanificadorPort.Motivo.NUEVO_PEDIDO);
-        } else if (!ahora.isBefore(activo.proximaPlanificacion)) {
+        } else if (activo.flotaCambiada || !ahora.isBefore(activo.proximaPlanificacion)) {
             planificar(ejecucionId, activo, PlanificadorPort.Motivo.PERIODICO);
         }
     }
@@ -280,6 +295,7 @@ public class MotorEscenarios {
         activo.bloqueosPendientes.clear();
         activo.averiasPendientes.clear();
         activo.pedidosPendientes = false;
+        activo.flotaCambiada = false;
     }
 
     /**

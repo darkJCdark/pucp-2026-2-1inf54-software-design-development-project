@@ -78,8 +78,10 @@ public class PedidoController {
                 pageable);
     }
 
+    /** {@code instante} (opcional, simulado) permite saber si un pedido aún no entregado ya incumplió su plazo. */
     @GetMapping("/{id}")
-    public PedidoDetalleResponse obtener(@PathVariable String id) {
-        return pedidoService.obtener(id);
+    public PedidoDetalleResponse obtener(@PathVariable String id,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant instante) {
+        return pedidoService.obtener(id, instante);
     }
 }
