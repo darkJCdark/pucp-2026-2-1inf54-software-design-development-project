@@ -2,6 +2,9 @@ package com.pucp.paqrap.modulos.pedidos.service;
 
 import com.pucp.paqrap.comun.api.PaginaResponse;
 import com.pucp.paqrap.comun.error.RecursoNoEncontradoException;
+import com.pucp.paqrap.comun.error.ReglaNegocioException;
+import com.pucp.paqrap.modulos.escenarios.entity.ScenarioStatus;
+import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
 import com.pucp.paqrap.modulos.pedidos.dto.CargaPedidosResponse;
 import com.pucp.paqrap.modulos.pedidos.dto.PedidoDetalleResponse;
 import com.pucp.paqrap.modulos.pedidos.dto.PedidoResponse;
@@ -23,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DateTimeException;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.YearMonth;
 import java.time.ZoneId;
@@ -44,6 +48,7 @@ public class PedidoService {
     private static final Pattern NOMBRE_ARCHIVO = Pattern.compile("^ventas\\.(\\d{4})(\\d{2})\\.txt$",
             Pattern.CASE_INSENSITIVE);
     private static final int PLAZO_REGULAR = 36;
+    private static final Set<ScenarioStatus> ESCENARIOS_ACTIVOS = Set.of(ScenarioStatus.RUNNING, ScenarioStatus.PAUSED);
     private static final ZoneId ZONA = ShiftSchedule.DEFAULT_ZONE;
     /** Campos de la API por los que se puede ordenar el listado, con su atributo en la entidad. */
     private static final Map<String, String> ATRIBUTOS_ORDENABLES = new LinkedHashMap<>();
@@ -60,19 +65,22 @@ public class PedidoService {
     private final OrderRepository pedidoRepository;
     private final OrderStatusHistoryRepository historialRepository;
     private final ApplicationEventPublisher eventos;
+    private final ScenarioExecutionRepository ejecucionRepository;
     private final CargadorPedidos cargador = new CargadorPedidos();
 
     public PedidoService(OrderRepository pedidoRepository, OrderStatusHistoryRepository historialRepository,
-                         ApplicationEventPublisher eventos) {
+                         ApplicationEventPublisher eventos, ScenarioExecutionRepository ejecucionRepository) {
         this.pedidoRepository = pedidoRepository;
         this.historialRepository = historialRepository;
         this.eventos = eventos;
+        this.ejecucionRepository = ejecucionRepository;
     }
 
     @Transactional
     public PedidoResponse registrar(RegistrarPedidoRequest request) {
         int horas = horasPrometidas(request.tipoEntrega(), request.horasPrometidas());
         Instant registradoEn = request.registradoEn() != null ? request.registradoEn() : Instant.now();
+        validarContraEscenarioActivo(registradoEn);
         OrderEntity pedido = new OrderEntity("M-" + UUID.randomUUID(), request.clienteId(),
                 new Location(request.x(), request.y()), request.paquetes(), registradoEn, request.tipoEntrega(), horas);
 
@@ -81,6 +89,18 @@ public class PedidoService {
         // El motor de escenarios replanifica cuando esta transacción se confirma.
         eventos.publishEvent(new PedidoRegistrado(pedido.getOrderId(), registradoEn));
         return PedidoResponse.de(pedido);
+    }
+
+    /** Regla de coherencia (d): un pedido manual no puede ser anterior al inicio del escenario activo. */
+    private void validarContraEscenarioActivo(Instant registradoEn) {
+        ejecucionRepository.findByStatusIn(ESCENARIOS_ACTIVOS).stream()
+                .map(ejecucion -> ejecucion.getSimulationStartedAt())
+                .filter(inicio -> registradoEn.isBefore(inicio))
+                .findFirst()
+                .ifPresent(inicio -> {
+                    throw new ReglaNegocioException("El pedido está registrado antes del inicio del escenario activo ("
+                            + inicio + "); use una fecha igual o posterior");
+                });
     }
 
     /**
@@ -144,13 +164,31 @@ public class PedidoService {
     }
 
     public PedidoDetalleResponse obtener(String id) {
+        return obtener(id, null);
+    }
+
+    /** Con {@code instante} (simulado) calcula además si un pedido aún no entregado ya incumplió su plazo. */
+    public PedidoDetalleResponse obtener(String id, Instant instante) {
         OrderEntity pedido = pedidoRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Pedido", id));
         List<PedidoDetalleResponse.CambioEstado> historial =
                 historialRepository.findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc(id).stream()
                         .map(PedidoDetalleResponse.CambioEstado::de)
                         .toList();
-        return new PedidoDetalleResponse(PedidoResponse.de(pedido), historial);
+        String unidadAsignada = historial.stream()
+                .map(PedidoDetalleResponse.CambioEstado::vehiculoId)
+                .filter(vehiculoId -> vehiculoId != null)
+                .reduce((anterior, ultimo) -> ultimo)
+                .orElse(null);
+        boolean entregado = pedido.getDeliveredAt() != null;
+        boolean incumplido = entregado
+                ? pedido.getDeliveredAt().isAfter(pedido.getDeadline())
+                : instante != null && instante.isAfter(pedido.getDeadline());
+        Long minutosRestantes = !entregado && instante != null
+                ? Duration.between(instante, pedido.getDeadline()).toMinutes()
+                : null;
+        return new PedidoDetalleResponse(PedidoResponse.de(pedido), historial, unidadAsignada, incumplido,
+                minutosRestantes);
     }
 
     /** REGULAR siempre es 36 h; PRIORITY exige 4, 8, 12 o 18 h. */

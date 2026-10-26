@@ -5,12 +5,14 @@ import com.pucp.paqrap.comun.error.ReglaNegocioException;
 import com.pucp.paqrap.modulos.flota.dto.ActualizarTipoVehiculoRequest;
 import com.pucp.paqrap.modulos.flota.dto.TipoVehiculoResponse;
 import com.pucp.paqrap.modulos.flota.dto.VehiculoResponse;
+import com.pucp.paqrap.modulos.flota.entity.ParametrosFlotaActualizados;
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleEntity;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleOperationalStatus;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleTypeParametersEntity;
 import com.pucp.paqrap.modulos.flota.repository.VehicleRepository;
 import com.pucp.paqrap.modulos.flota.repository.VehicleTypeParametersRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,10 +26,13 @@ public class FlotaService {
 
     private final VehicleTypeParametersRepository tipoRepository;
     private final VehicleRepository vehiculoRepository;
+    private final ApplicationEventPublisher eventos;
 
-    public FlotaService(VehicleTypeParametersRepository tipoRepository, VehicleRepository vehiculoRepository) {
+    public FlotaService(VehicleTypeParametersRepository tipoRepository, VehicleRepository vehiculoRepository,
+                        ApplicationEventPublisher eventos) {
         this.tipoRepository = tipoRepository;
         this.vehiculoRepository = vehiculoRepository;
+        this.eventos = eventos;
     }
 
     public List<TipoVehiculoResponse> listarTipos() {
@@ -40,10 +45,20 @@ public class FlotaService {
         return TipoVehiculoResponse.de(buscarTipo(tipo));
     }
 
+    /**
+     * Si cambia algún parámetro se avisa al motor de escenarios (cuando la transacción se confirma) para que
+     * replanifique: las rutas nuevas usan los valores nuevos y las que ya van en marcha conservan sus horas.
+     */
     @Transactional
     public TipoVehiculoResponse actualizarTipo(VehicleType tipo, ActualizarTipoVehiculoRequest request) {
         VehicleTypeParametersEntity entity = buscarTipo(tipo);
+        boolean cambio = !Integer.valueOf(request.capacidadPaquetes()).equals(entity.getCapacityPackages())
+                || request.velocidadKmh().compareTo(entity.getSpeedKmh()) != 0
+                || request.costoPorKm().compareTo(entity.getCostPerKm()) != 0;
         entity.actualizar(request.capacidadPaquetes(), request.velocidadKmh(), request.costoPorKm());
+        if (cambio) {
+            eventos.publishEvent(new ParametrosFlotaActualizados(tipo));
+        }
         return TipoVehiculoResponse.de(entity);
     }
 
