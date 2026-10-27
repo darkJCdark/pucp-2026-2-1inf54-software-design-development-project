@@ -83,6 +83,7 @@ public class ReplanificacionSaService implements ReplanificacionService {
         }
         EstadoEjecucion estado = new EstadoEjecucion(ejecucionId, solicitud.modo(),
                 PlanificadorSaService.semillaDe(solicitud), PlanificadorSaService.presupuestoDe(solicitud),
+                solicitud.configuracionSa() != null ? solicitud.configuracionSa() : PlanificadorSaService.configuracionPorDefecto(),
                 solicitud.horaPlanificacion());
         Map<String, Order> pedidos = new LinkedHashMap<>();
         for (Order pedido : solicitud.pedidosPendientes()) {
@@ -246,7 +247,7 @@ public class ReplanificacionSaService implements ReplanificacionService {
         int numero = estado.numeroReplanificacion + 1;
         long semilla = estado.semillaBase + numero;
         PlanificadorSaService.EjecucionSa ejecucion =
-                planificador.ejecutarSa(snapshot, pendientes, bloqueos, semilla, estado.presupuestoMs);
+                planificador.ejecutarSa(snapshot, pendientes, bloqueos, estado.configuracionSa, semilla, estado.presupuestoMs);
         estado.totalComputationMs += ejecucion.duracionMs();
         ResultadoPlanificacion sa = ejecucion.resultado();
 

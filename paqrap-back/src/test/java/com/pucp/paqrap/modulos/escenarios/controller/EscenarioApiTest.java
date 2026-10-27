@@ -5,6 +5,7 @@ import com.pucp.paqrap.modulos.escenarios.entity.ScenarioStatus;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioResultRepository;
 import com.pucp.paqrap.modulos.escenarios.service.MotorEscenarios;
+import com.pucp.paqrap.modulos.escenarios.persistence.ScenarioExecutionEntity;
 import com.pucp.paqrap.modulos.pedidos.entity.DeliveryType;
 import com.pucp.paqrap.modulos.pedidos.persistence.OrderEntity;
 import com.pucp.paqrap.modulos.pedidos.repository.OrderRepository;
@@ -294,4 +295,61 @@ class EscenarioApiTest {
                 .andExpect(jsonPath("$.contenido[0].id").value(segundo))
                 .andExpect(jsonPath("$.contenido[1].id").value(primero));
     }
-}
+
+    @Test
+    void creaConConfiguracionSaPorDefectoPersistida() throws Exception {
+        String respuesta = crear("{\"tipo\": \"FIVE_DAY\", \"inicioSimulado\": \"" + INICIO + "\"}")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.configuracionSa.temperaturaInicial").value(1000.0))
+                .andExpect(jsonPath("$.configuracionSa.temperaturaMinima").value(1.0))
+                .andExpect(jsonPath("$.configuracionSa.factorEnfriamiento").value(0.95))
+                .andExpect(jsonPath("$.configuracionSa.iteracionesPorTemperatura").value(50))
+                .andReturn().getResponse().getContentAsString();
+        long id = ((Number) JsonPath.read(respuesta, "$.id")).longValue();
+        ScenarioExecutionEntity entity = ejecucionRepository.findById(id).orElseThrow();
+        assertEquals(1000.0, entity.getSaInitialTemperature());
+        assertEquals(1.0, entity.getSaMinimumTemperature());
+        assertEquals(0.95, entity.getSaCoolingFactor());
+        assertEquals(50, entity.getSaIterationsPerTemperature());
+    }
+
+    @Test
+    void persisteYDevuelveConfiguracionSaExplicitaYParcial() throws Exception {
+        String json = "{\"tipo\": \"FIVE_DAY\", \"inicioSimulado\": \"" + INICIO + "\","
+                + "\"configuracionSa\":{\"semilla\":42,\"temperaturaInicial\":200.0,\"iteracionesPorTemperatura\":7}}";
+        String respuesta = crear(json).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.configuracionSa.semilla").value(42))
+                .andExpect(jsonPath("$.configuracionSa.temperaturaInicial").value(200.0))
+                .andExpect(jsonPath("$.configuracionSa.temperaturaMinima").value(1.0))
+                .andExpect(jsonPath("$.configuracionSa.iteracionesPorTemperatura").value(7))
+                .andReturn().getResponse().getContentAsString();
+        long id = ((Number) JsonPath.read(respuesta, "$.id")).longValue();
+        mvc.perform(get("/api/escenarios/" + id)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.configuracionSa.semilla").value(42));
+        ScenarioExecutionEntity entity = ejecucionRepository.findById(id).orElseThrow();
+        assertEquals(42L, entity.getSaSeed());
+        assertEquals(200.0, entity.getSaInitialTemperature());
+        assertEquals(7, entity.getSaIterationsPerTemperature());
+    }
+
+    @Test
+    void rechazaConfiguracionSaInvalida() throws Exception {
+        crear("{\"tipo\": \"FIVE_DAY\", \"inicioSimulado\": \"" + INICIO + "\","
+                + "\"configuracionSa\":{\"temperaturaInicial\":0.0}}")
+                .andExpect(status().isBadRequest());
+        crear("{\"tipo\": \"FIVE_DAY\", \"inicioSimulado\": \"" + INICIO + "\","
+                + "\"configuracionSa\":{\"temperaturaMinima\":0.0}}")
+                .andExpect(status().isBadRequest());
+        crear("{\"tipo\": \"FIVE_DAY\", \"inicioSimulado\": \"" + INICIO + "\","
+                + "\"configuracionSa\":{\"temperaturaInicial\":1.0,\"temperaturaMinima\":1.0}}")
+                .andExpect(status().isBadRequest());
+        crear("{\"tipo\": \"FIVE_DAY\", \"inicioSimulado\": \"" + INICIO + "\","
+                + "\"configuracionSa\":{\"factorEnfriamiento\":0.79}}")
+                .andExpect(status().isBadRequest());
+        crear("{\"tipo\": \"FIVE_DAY\", \"inicioSimulado\": \"" + INICIO + "\","
+                + "\"configuracionSa\":{\"factorEnfriamiento\":1.0}}")
+                .andExpect(status().isBadRequest());
+        crear("{\"tipo\": \"FIVE_DAY\", \"inicioSimulado\": \"" + INICIO + "\","
+                + "\"configuracionSa\":{\"iteracionesPorTemperatura\":0}}")
+                .andExpect(status().isBadRequest());
+    }}

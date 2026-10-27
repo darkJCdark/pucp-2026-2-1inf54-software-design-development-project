@@ -4,10 +4,13 @@ import com.pucp.paqrap.comun.api.PaginaResponse;
 import com.pucp.paqrap.comun.error.RecursoNoEncontradoException;
 import com.pucp.paqrap.config.EscenariosProperties;
 import com.pucp.paqrap.modulos.escenarios.dto.CrearEscenarioRequest;
+import com.pucp.paqrap.modulos.escenarios.dto.ConfiguracionSaRequest;
 import com.pucp.paqrap.modulos.escenarios.dto.EscenarioResponse;
 import com.pucp.paqrap.modulos.escenarios.entity.ScenarioType;
 import com.pucp.paqrap.modulos.escenarios.persistence.ScenarioExecutionEntity;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
+import com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.AnnealingConfig;
+import com.pucp.paqrap.modulos.planificacion.service.PlanificadorSaService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -15,6 +18,7 @@ import org.springframework.stereotype.Service;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.concurrent.ThreadLocalRandom;
 
 /** Configuración (CU-09), ejecución (CU-10) y consulta de escenarios. El ciclo de vida lo ejecuta el motor. */
 @Service
@@ -46,8 +50,23 @@ public class EscenarioService {
             }
             inicio = request.inicioSimulado();
         }
-        ScenarioExecutionEntity ejecucion = ejecucionRepository.save(
-                new ScenarioExecutionEntity(request.tipo(), inicio.truncatedTo(ChronoUnit.MICROS)));
+        ConfiguracionSaRequest solicitada = request.configuracionSa();
+        AnnealingConfig porDefecto = PlanificadorSaService.configuracionPorDefecto();
+        long semilla = solicitada != null && solicitada.semilla() != null
+                ? solicitada.semilla() : ThreadLocalRandom.current().nextLong();
+        double temperaturaInicial = solicitada != null && solicitada.temperaturaInicial() != null
+                ? solicitada.temperaturaInicial() : porDefecto.initialTemperature();
+        double temperaturaMinima = solicitada != null && solicitada.temperaturaMinima() != null
+                ? solicitada.temperaturaMinima() : porDefecto.minimumTemperature();
+        double factorEnfriamiento = solicitada != null && solicitada.factorEnfriamiento() != null
+                ? solicitada.factorEnfriamiento() : porDefecto.coolingFactor();
+        int iteracionesPorTemperatura = solicitada != null && solicitada.iteracionesPorTemperatura() != null
+                ? solicitada.iteracionesPorTemperatura() : porDefecto.iterationsPerTemperature();
+        PlanificadorSaService.configuracionConParametros(temperaturaInicial, temperaturaMinima,
+                factorEnfriamiento, iteracionesPorTemperatura);
+        ScenarioExecutionEntity ejecucion = ejecucionRepository.save(new ScenarioExecutionEntity(request.tipo(),
+                inicio.truncatedTo(ChronoUnit.MICROS), semilla, temperaturaInicial, temperaturaMinima,
+                factorEnfriamiento, iteracionesPorTemperatura));
         return respuesta(ejecucion);
     }
 

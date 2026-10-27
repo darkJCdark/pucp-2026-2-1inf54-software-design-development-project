@@ -12,11 +12,15 @@ import java.time.Instant;
  */
 public record EscenarioResponse(Long id, ScenarioType tipo, ScenarioStatus estado, double factorAceleracion,
                                 Instant inicioSimulado, Instant instanteSimulado, Instant finSimulado,
-                                Instant colapsoEn, Instant inicioReal, Instant finReal) {
+                                Instant colapsoEn, Instant inicioReal, Instant finReal,
+                                ConfiguracionSaResponse configuracionSa) {
 
     public static EscenarioResponse de(ScenarioExecutionEntity entity, double factor, Instant instanteSimulado) {
         return new EscenarioResponse(entity.getExecutionId(), entity.getScenarioType(), entity.getStatus(), factor,
                 entity.getSimulationStartedAt(), instanteSimulado, entity.getSimulationFinishedAt(),
-                entity.getCollapseAt(), entity.getStartedAt(), entity.getFinishedAt());
+                entity.getCollapseAt(), entity.getStartedAt(), entity.getFinishedAt(),
+                new ConfiguracionSaResponse(entity.getSaSeed(), entity.getSaInitialTemperature(),
+                        entity.getSaMinimumTemperature(), entity.getSaCoolingFactor(),
+                        entity.getSaIterationsPerTemperature()));
     }
 }

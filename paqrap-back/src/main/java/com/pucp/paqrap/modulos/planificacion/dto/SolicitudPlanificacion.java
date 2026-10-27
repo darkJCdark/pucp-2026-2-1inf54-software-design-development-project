@@ -1,6 +1,7 @@
 package com.pucp.paqrap.modulos.planificacion.dto;
 
 import com.pucp.paqrap.modulos.pedidos.entity.Order;
+import com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.AnnealingConfig;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.OperationalSimulatedAnnealingPlanner;
 import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 
@@ -25,7 +26,8 @@ public record SolicitudPlanificacion(
         List<Order> pedidosPendientes,
         List<RoadBlock> bloqueosActivos,
         Long semilla,
-        Long presupuestoMs
+        Long presupuestoMs,
+        AnnealingConfig configuracionSa
 ) {
     public SolicitudPlanificacion {
         Objects.requireNonNull(modo, "modo es requerido");
@@ -37,5 +39,10 @@ public record SolicitudPlanificacion(
             throw new IllegalArgumentException("presupuestoMs debe estar entre 1 y "
                     + OperationalSimulatedAnnealingPlanner.PRESUPUESTO_MAXIMO_MS);
         }
+    }
+
+    public SolicitudPlanificacion(ModoOperacion modo, Instant horaPlanificacion, List<Order> pedidosPendientes,
+                                  List<RoadBlock> bloqueosActivos, Long semilla, Long presupuestoMs) {
+        this(modo, horaPlanificacion, pedidosPendientes, bloqueosActivos, semilla, presupuestoMs, null);
     }
 }

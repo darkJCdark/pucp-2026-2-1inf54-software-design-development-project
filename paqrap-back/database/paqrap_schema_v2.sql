@@ -193,7 +193,7 @@ CREATE TABLE road_block_nodes (
 
 -- ============================================================
 -- 7. EJECUCIONES DE ESCENARIOS
--- No se persisten semilla ni parámetros internos de SA.
+-- Se persiste la configuración funcional de SA por ejecución; los límites internos permanecen en backend.
 -- ============================================================
 
 CREATE TABLE scenario_executions (
@@ -206,11 +206,23 @@ CREATE TABLE scenario_executions (
     simulation_finished_at TIMESTAMP(6) NULL,
     collapse_at TIMESTAMP(6) NULL,
 
+    sa_seed BIGINT NOT NULL DEFAULT 0,
+    sa_initial_temperature DOUBLE NOT NULL DEFAULT 1000.0,
+    sa_minimum_temperature DOUBLE NOT NULL DEFAULT 1.0,
+    sa_cooling_factor DOUBLE NOT NULL DEFAULT 0.95,
+    sa_iterations_per_temperature INT UNSIGNED NOT NULL DEFAULT 50,
+
     PRIMARY KEY (execution_id),
     KEY idx_scenario_executions_type (scenario_type),
     KEY idx_scenario_executions_status (status),
     KEY idx_scenario_executions_started_at (started_at),
 
+    CONSTRAINT chk_scenario_execution_sa CHECK (
+        sa_initial_temperature > 0 AND sa_minimum_temperature > 0
+        AND sa_minimum_temperature < sa_initial_temperature
+        AND sa_cooling_factor BETWEEN 0.80 AND 0.99
+        AND sa_iterations_per_temperature > 0
+    ),
     CONSTRAINT chk_scenario_execution_type
         CHECK (scenario_type IN ('DAY_TO_DAY', 'FIVE_DAY', 'COLLAPSE')),
     CONSTRAINT chk_scenario_execution_status

@@ -55,12 +55,38 @@ public class ScenarioExecutionEntity {
     @Column(name = "collapse_at")
     private Instant collapseAt;
 
+    @Column(name = "sa_seed", nullable = false, updatable = false)
+    private long saSeed;
+
+    @Column(name = "sa_initial_temperature", nullable = false, updatable = false)
+    private double saInitialTemperature;
+
+    @Column(name = "sa_minimum_temperature", nullable = false, updatable = false)
+    private double saMinimumTemperature;
+
+    @Column(name = "sa_cooling_factor", nullable = false, updatable = false)
+    private double saCoolingFactor;
+
+    @Column(name = "sa_iterations_per_temperature", nullable = false, updatable = false)
+    private int saIterationsPerTemperature;
+
     protected ScenarioExecutionEntity() {
     }
 
     public ScenarioExecutionEntity(ScenarioType scenarioType, Instant simulationStartedAt) {
+        this(scenarioType, simulationStartedAt, 0L, 1000.0, 1.0, 0.95, 50);
+    }
+
+    public ScenarioExecutionEntity(ScenarioType scenarioType, Instant simulationStartedAt, long saSeed,
+                                   double saInitialTemperature, double saMinimumTemperature,
+                                   double saCoolingFactor, int saIterationsPerTemperature) {
         this.scenarioType = scenarioType;
         this.simulationStartedAt = simulationStartedAt;
+        this.saSeed = saSeed;
+        this.saInitialTemperature = saInitialTemperature;
+        this.saMinimumTemperature = saMinimumTemperature;
+        this.saCoolingFactor = saCoolingFactor;
+        this.saIterationsPerTemperature = saIterationsPerTemperature;
         this.status = ScenarioStatus.CREATED;
     }
 
@@ -109,4 +135,9 @@ public class ScenarioExecutionEntity {
     public Instant getSimulationStartedAt() { return simulationStartedAt; }
     public Instant getSimulationFinishedAt() { return simulationFinishedAt; }
     public Instant getCollapseAt() { return collapseAt; }
+    public long getSaSeed() { return saSeed; }
+    public double getSaInitialTemperature() { return saInitialTemperature; }
+    public double getSaMinimumTemperature() { return saMinimumTemperature; }
+    public double getSaCoolingFactor() { return saCoolingFactor; }
+    public int getSaIterationsPerTemperature() { return saIterationsPerTemperature; }
 }

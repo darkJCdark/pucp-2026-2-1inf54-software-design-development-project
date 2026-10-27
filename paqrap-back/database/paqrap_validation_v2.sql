@@ -879,3 +879,6 @@ FROM information_schema.tables
 WHERE table_schema = 'paqrap';
 
 -- Esperado: 15
+-- R1: configuracion SA por ejecucion
+SELECT sa_seed, sa_initial_temperature, sa_minimum_temperature, sa_cooling_factor, sa_iterations_per_temperature
+FROM scenario_executions;
