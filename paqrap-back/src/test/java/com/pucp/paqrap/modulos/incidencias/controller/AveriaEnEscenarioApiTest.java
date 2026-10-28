@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -155,6 +156,7 @@ class AveriaEnEscenarioApiTest {
         registrar("{\"vehiculoId\": \"TM01\", \"tipo\": \"MINOR\"}")
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.mensaje").value(containsString("No hay un escenario en curso")));
+        assertEquals(0, averiaRepository.count(), "no queda una avería huérfana");
     }
 
     @Test

@@ -8,6 +8,7 @@ import com.pucp.paqrap.modulos.flota.entity.VehicleOperationalState;
 import com.pucp.paqrap.modulos.flota.entity.VehicleStatus;
 import com.pucp.paqrap.modulos.flota.service.InicializadorFlota;
 import com.pucp.paqrap.modulos.flota.service.MaintenanceCalendar;
+import com.pucp.paqrap.modulos.flota.service.MaintenanceDay;
 import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
 import com.pucp.paqrap.modulos.incidencias.entity.BreakdownType;
 import com.pucp.paqrap.modulos.pedidos.entity.Order;
@@ -289,6 +290,22 @@ class PlanificadorSaServiceTest {
                 new SolicitudPlanificacion(ModoOperacion.DIA_A_DIA, HORA, pedidos(), List.of(), 7L, PRESUPUESTO_AMPLIO));
 
         assertEquivalente(esperado, real);
+        assertTrue(real.rutas().stream().noneMatch(r -> r.vehiculoId().equals("TA01")));
+    }
+
+    @Test
+    void unVehiculoEnMantenimientoNoRecibeRutaEseDia() {
+        // CP-15: HORA es el 9 de setiembre en Lima.
+        FuenteDatosOperativos conMantenimiento = new FuenteDatosOperativosMock() {
+            @Override
+            public MaintenanceCalendar calendarioMantenimiento() {
+                return new MaintenanceCalendar(ShiftSchedule.DEFAULT_ZONE,
+                        List.of(new MaintenanceDay("TA01", java.time.LocalDate.of(2026, 9, 9))));
+            }
+        };
+        PlanResponse real = new PlanificadorSaService(conMantenimiento, CONFIG_PRUEBA).planificar(
+                new SolicitudPlanificacion(ModoOperacion.DIA_A_DIA, HORA, pedidos(), List.of(), 7L, PRESUPUESTO_AMPLIO));
+
         assertTrue(real.rutas().stream().noneMatch(r -> r.vehiculoId().equals("TA01")));
     }
 
