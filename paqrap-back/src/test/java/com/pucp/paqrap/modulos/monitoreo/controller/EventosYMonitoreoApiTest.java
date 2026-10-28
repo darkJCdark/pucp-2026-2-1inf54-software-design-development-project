@@ -8,6 +8,8 @@ import com.pucp.paqrap.modulos.almacenes.repository.WarehouseRepository;
 import com.pucp.paqrap.modulos.almacenes.service.InventarioService;
 import com.pucp.paqrap.modulos.escenarios.entity.ScenarioStatus;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
+import com.pucp.paqrap.modulos.escenarios.service.EjecutorPlanService;
+import com.pucp.paqrap.modulos.escenarios.service.ScenarioResultService;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioResultRepository;
 import com.pucp.paqrap.modulos.escenarios.service.MotorEscenarios;
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
@@ -120,6 +122,7 @@ class EventosYMonitoreoApiTest {
     @Autowired private InventarioService inventario;
     @Autowired private ScenarioExecutionRepository ejecucionRepository;
     @Autowired private ScenarioResultRepository resultadoRepository;
+    @Autowired private ScenarioResultService resultadoService;
     @Autowired private WarehouseRepository almacenRepository;
     @Autowired private InventoryMovementRepository movimientoRepository;
     @Autowired private VehicleRepository vehiculoRepository;
@@ -320,6 +323,23 @@ class EventosYMonitoreoApiTest {
         mvc.perform(get("/api/monitoreo/" + id))
                 .andExpect(jsonPath("$.vehiculos[?(@.id=='TA01')].motivoDetencion").value((Object) null))
                 .andExpect(jsonPath("$.vehiculos[?(@.id=='TA01')].detenidoHasta").value((Object) null));
+    }
+
+    @Test
+    void sinMetricasEnMemoriaMuestraElResultadoGuardado() throws Exception {
+        // Simula un reinicio del backend: la ejecución tiene su resultado guardado, pero el ejecutor no la conoce.
+        String respuesta = mvc.perform(post("/api/escenarios").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tipo\": \"FIVE_DAY\", \"inicioSimulado\": \"" + INICIO + "\"}"))
+                .andReturn().getResponse().getContentAsString();
+        long id = ((Number) JsonPath.read(respuesta, "$.id")).longValue();
+        resultadoService.persistir(id, 10, new EjecutorPlanService.Metricas(8, 7, 40, 123.5, 988.0), 1500, 3, 1, 2);
+
+        mvc.perform(get("/api/monitoreo/" + id))
+                .andExpect(jsonPath("$.ejecucion.pedidosEntregados").value(8))
+                .andExpect(jsonPath("$.ejecucion.entregadosATiempo").value(7))
+                .andExpect(jsonPath("$.ejecucion.paquetesEntregados").value((Object) null))
+                .andExpect(jsonPath("$.ejecucion.distanciaKm").value(123.5))
+                .andExpect(jsonPath("$.ejecucion.costo").value(988.0));
     }
 
     @Test

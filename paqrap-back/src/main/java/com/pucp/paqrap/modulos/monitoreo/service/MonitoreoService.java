@@ -3,6 +3,7 @@ package com.pucp.paqrap.modulos.monitoreo.service;
 import com.pucp.paqrap.modulos.almacenes.service.AlmacenService;
 import com.pucp.paqrap.modulos.almacenes.service.InventarioService;
 import com.pucp.paqrap.modulos.escenarios.dto.EscenarioResponse;
+import com.pucp.paqrap.modulos.escenarios.repository.ScenarioResultRepository;
 import com.pucp.paqrap.modulos.escenarios.service.EscenarioService;
 import com.pucp.paqrap.modulos.escenarios.service.DetectorColapso;
 import com.pucp.paqrap.modulos.escenarios.service.EjecutorPlanService;
@@ -48,13 +49,15 @@ public class MonitoreoService {
     private final EjecutorPlanService ejecutorPlan;
     private final DetectorColapso detectorColapso;
     private final MantenimientoService mantenimientoService;
+    private final ScenarioResultRepository resultadoRepository;
 
     public MonitoreoService(EscenarioService escenarioService, PedidoService pedidoService, FlotaService flotaService,
                             AlmacenService almacenService, InventarioService inventarioService,
                             BloqueoService bloqueoService, AveriaService averiaService,
                             EjecutorPlanService ejecutorPlan, DetectorColapso detectorColapso,
-                            MantenimientoService mantenimientoService) {
+                            MantenimientoService mantenimientoService, ScenarioResultRepository resultadoRepository) {
         this.mantenimientoService = mantenimientoService;
+        this.resultadoRepository = resultadoRepository;
         this.escenarioService = escenarioService;
         this.pedidoService = pedidoService;
         this.flotaService = flotaService;
@@ -120,11 +123,14 @@ public class MonitoreoService {
                     .filter(v -> v.tipo() == tipo && v.estado() == VehicleOperationalStatus.IN_ROUTE)
                     .count());
         }
-        EjecutorPlanService.Metricas metricas = ejecutorPlan.metricas(ejecucionId)
-                .orElse(new EjecutorPlanService.Metricas(0, 0, 0, 0, 0));
-        MonitoreoResponse.Ejecucion ejecucion = new MonitoreoResponse.Ejecucion(metricas.pedidosEntregados(),
-                metricas.entregadosATiempo(), metricas.paquetesEntregados(), metricas.distanciaKm(), metricas.costo(),
-                enRuta);
+        // Las métricas viven en memoria; tras un reinicio se leen del resultado guardado al terminar el escenario.
+        MonitoreoResponse.Ejecucion ejecucion = ejecutorPlan.metricas(ejecucionId)
+                .map(m -> new MonitoreoResponse.Ejecucion(m.pedidosEntregados(), m.entregadosATiempo(),
+                        m.paquetesEntregados(), m.distanciaKm(), m.costo(), enRuta))
+                .or(() -> resultadoRepository.findById(ejecucionId)
+                        .map(r -> new MonitoreoResponse.Ejecucion(r.getDeliveredOrders(), r.getOnTimeOrders(),
+                                null, r.getTotalDistanceKm().doubleValue(), r.getTotalCost().doubleValue(), enRuta)))
+                .orElse(new MonitoreoResponse.Ejecucion(0, 0, 0, 0, 0, enRuta));
 
         return new MonitoreoResponse(escenario, instante, pedidoService.resumen(escenario.inicioSimulado(), instante),
                 vehiculos, almacenes, bloqueoService.listar(null, null, instante), averiasActivas, ejecucion,
