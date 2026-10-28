@@ -23,6 +23,7 @@ import com.pucp.paqrap.modulos.planificacion.dto.PlanResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.ReplanificacionResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.SolicitudPlanificacion;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryRoute;
+import com.pucp.paqrap.modulos.planificacion.persistence.PlanEntity;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryStop;
 import com.pucp.paqrap.modulos.planificacion.entity.OperationalPlan;
 import com.pucp.paqrap.modulos.planificacion.entity.OperationalSnapshot;
@@ -290,6 +291,13 @@ public class ReplanificacionSaService implements ReplanificacionService {
         List<String> noDisponibles = fuente.flota().stream().map(Vehicle::id)
                 .filter(id -> !ocupados.contains(id) && !snapshot.isVehiclePlannableAt(id, ahora))
                 .sorted().toList();
+        PlanEntity snapshotPersistido = persistenciaPlanes.persistir(estado.ejecucionId, motivo, plan, programadas,
+                planResponse);
+        if (snapshotPersistido != null) { // Los dobles de prueba históricos no persisten snapshots.
+            planResponse = mapper.conIdentidadesPersistidas(planResponse,
+                    persistenciaPlanes.rutasPersistidasPorOperacion(snapshotPersistido.getPlanId()),
+                    snapshotPersistido.getPlanId());
+        }
         ReplanificacionResponse respuesta = new ReplanificacionResponse(estado.ejecucionId, numero, motivo, ahora,
                 planResponse,
                 conservadas.stream().map(ruta -> ruta.ruta().id()).sorted().toList(),
@@ -297,7 +305,7 @@ public class ReplanificacionSaService implements ReplanificacionService {
                 reasignados, noDisponibles);
 
         // 7. Confirmación del estado.
-        persistenciaPlanes.persistir(estado.ejecucionId, motivo, plan, programadas, planResponse);
+
 
         estado.pedidos = pedidos;
         estado.bloqueos = bloqueos;

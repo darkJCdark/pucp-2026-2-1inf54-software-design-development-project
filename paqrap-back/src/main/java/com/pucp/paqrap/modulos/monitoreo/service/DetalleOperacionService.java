@@ -1,6 +1,7 @@
 package com.pucp.paqrap.modulos.monitoreo.service;
 
 import com.pucp.paqrap.modulos.almacenes.dto.AlmacenResponse;
+import com.pucp.paqrap.modulos.almacenes.persistence.InventoryMovementEntity;
 import com.pucp.paqrap.modulos.almacenes.persistence.WarehouseKind;
 import com.pucp.paqrap.modulos.almacenes.repository.InventoryMovementRepository;
 import com.pucp.paqrap.modulos.almacenes.service.AlmacenService;
@@ -27,10 +28,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Detalle de una unidad (P-05) y de un almacén (P-07) en el instante simulado de una ejecución. Solo lee: junta la
- * flota, el último plan, los turnos y el kardex de inventario; no modifica nada.
- */
+/** Detalle de una unidad (P-05) y de un almacén (P-07) en el instante simulado de una ejecución. */
 @Service
 public class DetalleOperacionService {
 
@@ -102,12 +100,17 @@ public class DetalleOperacionService {
         EscenarioResponse escenario = escenarioService.obtener(ejecucionId);
         AlmacenResponse almacen = almacenService.obtener(id);
         Instant instante = instante(escenario);
-        long consumo = movimientoRepository.despachadoEntre(id, ejecucionId, instante.minus(Duration.ofHours(horas)),
+        Instant desde = instante.minus(Duration.ofHours(horas));
+        if (desde.isBefore(escenario.inicioSimulado())) {
+            desde = escenario.inicioSimulado();
+        }
+        long consumo = movimientoRepository.despachadoEntre(id, ejecucionId, desde, instante);
+        List<AlmacenDetalleResponse.MovimientoInventarioResponse> movimientos = movimientos(id, ejecucionId, desde,
                 instante);
 
         if (almacen.tipo() == WarehouseKind.CENTRAL) {
             return new AlmacenDetalleResponse(id, almacen.tipo(), almacen.x(), almacen.y(), instante, null, null, null,
-                    horas, consumo, null, null, List.of());
+                    horas, consumo, null, null, List.of(), false, AlmacenDetalleResponse.NivelAlerta.VERDE, movimientos);
         }
 
         int stock = stock(almacen, ejecucionId, instante);
@@ -120,8 +123,37 @@ public class DetalleOperacionService {
             }
         }
         Instant ultimaRecarga = movimientoRepository.ultimaRecarga(id, ejecucionId, instante).orElse(null);
+        AlmacenDetalleResponse.NivelAlerta nivel = nivelAlerta(stock, almacen.capacidad());
         return new AlmacenDetalleResponse(id, almacen.tipo(), almacen.x(), almacen.y(), instante, stock,
-                almacen.capacidad(), ocupacion, horas, consumo, ultimaRecarga, proximaRecarga(instante), historial);
+                almacen.capacidad(), ocupacion, horas, consumo, ultimaRecarga, proximaRecarga(instante), historial,
+                nivel == AlmacenDetalleResponse.NivelAlerta.ROJO, nivel, movimientos);
+    }
+
+    private List<AlmacenDetalleResponse.MovimientoInventarioResponse> movimientos(String almacenId, long ejecucionId,
+                                                                                    Instant desde, Instant hasta) {
+        return movimientoRepository
+                .findByWarehouseIdAndExecutionIdAndOccurredAtBetweenOrderByOccurredAtAscMovementIdAsc(almacenId,
+                        ejecucionId, desde, hasta)
+                .stream()
+                .map(this::aMovimiento)
+                .toList();
+    }
+
+    private AlmacenDetalleResponse.MovimientoInventarioResponse aMovimiento(InventoryMovementEntity movimiento) {
+        return new AlmacenDetalleResponse.MovimientoInventarioResponse(movimiento.getMovementId(),
+                movimiento.getOccurredAt(), movimiento.getMovementType(), movimiento.getQuantity(),
+                movimiento.getStockBefore(), movimiento.getStockAfter(), movimiento.getOrderId());
+    }
+
+    private static AlmacenDetalleResponse.NivelAlerta nivelAlerta(int stock, int capacidad) {
+        double disponibilidad = stock / (double) capacidad;
+        if (disponibilidad <= 0.33) {
+            return AlmacenDetalleResponse.NivelAlerta.ROJO;
+        }
+        if (disponibilidad <= 0.66) {
+            return AlmacenDetalleResponse.NivelAlerta.AMBAR;
+        }
+        return AlmacenDetalleResponse.NivelAlerta.VERDE;
     }
 
     /** Stock de un intermedio en {@code instante}; mismo cálculo que {@code InventarioService} sobre el kardex. */
@@ -142,7 +174,6 @@ public class DetalleOperacionService {
         return candidata.toInstant();
     }
 
-    /** Mismo criterio que {@code MonitoreoService}: el instante actual si está activa, el final si terminó. */
     private static Instant instante(EscenarioResponse escenario) {
         return Optional.ofNullable(escenario.instanteSimulado())
                 .or(() -> Optional.ofNullable(escenario.finSimulado()))

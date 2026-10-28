@@ -71,9 +71,23 @@ final class PlanResponseMapper {
         return new RutaResponse(ruta.id(), ruta.vehicle().id(), ruta.vehicle().type().name(), ruta.departureAt(),
                 programada == null ? null : programada.completedAt(),
                 programada == null ? 0 : programada.totalDistanceKm(),
-                programada == null ? 0 : programada.totalCost(), paradas);
+                programada == null ? 0 : programada.totalCost(), paradas,
+                ruta.initialWarehouse().map(almacen -> almacen.id()).orElse(null), null, null);
     }
 
+
+    PlanResponse conIdentidadesPersistidas(PlanResponse respuesta, java.util.Map<String, Long> routeIdsPorRutaOperacional,
+                                            long planPersistedId) {
+        List<RutaResponse> rutas = respuesta.rutas().stream()
+                .map(ruta -> new RutaResponse(ruta.id(), ruta.vehiculoId(), ruta.tipoVehiculo(), ruta.salida(),
+                        ruta.llegadaFinal(), ruta.distanciaKm(), ruta.costo(), ruta.paradas(), ruta.almacenInicialId(),
+                        planPersistedId, routeIdsPorRutaOperacional.get(ruta.id())))
+                .toList();
+        return new PlanResponse(respuesta.modo(), respuesta.planificadoEn(), respuesta.factible(), respuesta.colapso(),
+                respuesta.costoTotal(), respuesta.distanciaTotalKm(), respuesta.semilla(), respuesta.duracionMs(),
+                respuesta.presupuestoMs(), respuesta.presupuestoAgotado(), rutas, respuesta.violaciones(),
+                respuesta.noAtendidos());
+    }
     private ParadaResponse aParada(int orden, RouteStop parada, Instant llegada, Instant fin,
                                    Integer cargaAntes, Integer cargaDespues) {
         return switch (parada) {

@@ -6,9 +6,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 public interface InventoryMovementRepository extends JpaRepository<InventoryMovementEntity, Long> {
+
+    Optional<InventoryMovementEntity> findByExecutionIdAndEventKey(long executionId, String eventKey);
+
+    List<InventoryMovementEntity> findByWarehouseIdAndExecutionIdAndOccurredAtBetweenOrderByOccurredAtAscMovementIdAsc(
+            String warehouseId, long executionId, Instant desde, Instant hasta);
 
     /** Momento de la última recarga del almacén en la ejecución, hasta {@code instante} (incluido). */
     @Query("""

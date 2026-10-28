@@ -2,6 +2,7 @@ package com.pucp.paqrap.modulos.escenarios.service;
 
 import com.pucp.paqrap.modulos.almacenes.persistence.WarehouseEntity;
 import com.pucp.paqrap.modulos.almacenes.persistence.WarehouseKind;
+import com.pucp.paqrap.modulos.almacenes.repository.InventoryMovementRepository;
 import com.pucp.paqrap.modulos.almacenes.repository.WarehouseRepository;
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleEntity;
@@ -81,6 +82,7 @@ class EjecutorPlanServiceTest {
     @Autowired private OrderStatusHistoryRepository historialRepository;
     @Autowired private VehicleRepository vehiculoRepository;
     @Autowired private WarehouseRepository almacenRepository;
+    @Autowired private InventoryMovementRepository movimientoRepository;
     @Autowired private BreakdownEventRepository averiaRepository;
 
     private long ejecucion;
@@ -89,6 +91,7 @@ class EjecutorPlanServiceTest {
     void cargarDatos() {
         ejecucion = EJECUCIONES.incrementAndGet();
         almacenRepository.save(new WarehouseEntity("CENTRAL", WarehouseKind.CENTRAL, 27, 14, null));
+        almacenRepository.save(new WarehouseEntity("EAST", WarehouseKind.INTERMEDIATE, 57, 27, 10));
         vehiculoRepository.save(new VehicleEntity("TA01", VehicleType.CAR, VehicleOperationalStatus.AVAILABLE));
         vehiculoRepository.save(new VehicleEntity("TM01", VehicleType.MOTORCYCLE, VehicleOperationalStatus.AVAILABLE));
         for (OrderEntity pedido : List.of(
@@ -258,5 +261,113 @@ class EjecutorPlanServiceTest {
         assertEquals(VehicleOperationalStatus.UNAVAILABLE, vehiculo("TM01").getOperationalStatus(),
                 "el operario lo marcó no disponible");
         assertEquals(40, vehiculo("TM01").getCurrentX());
+    }
+    @Test
+    void laCargaInicialRegistraUnDespachoIdempotenteDesdeSuAlmacenDeOrigen() {
+        RutaResponse ruta = new RutaResponse("SA-INICIAL", "TA01", "CAR", SALIDA, hora("11:00"), 3.0, 24.0,
+                List.of(new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 5, hora("10:30"),
+                        hora("10:30"), 5, 0)), "CENTRAL", 501L, 601L);
+        planes.planes.put(ejecucion, plan(SALIDA, List.of(ruta)));
+
+        ejecutor.avanzar(ejecucion, SALIDA, SALIDA);
+        ejecutor.avanzar(ejecucion, SALIDA, SALIDA);
+
+        assertEquals(5, vehiculo("TA01").getCurrentLoad());
+        assertEquals(1, movimientoRepository.count());
+        var movimiento = movimientoRepository.findAll().getFirst();
+        assertEquals("CENTRAL", movimiento.getWarehouseId());
+        assertEquals("INITIAL:ROUTE:601", movimiento.getEventKey());
+        assertNull(movimiento.getStockBefore());
+        assertNull(movimiento.getStockAfter());
+    }
+
+    @Test
+    void unaCargaIntermediaSinStockNoAumentaLaCargaNiPersisteDespacho() {
+        RutaResponse ruta = new RutaResponse("SA-SIN-STOCK", "TA01", "CAR", SALIDA, hora("11:00"), 1.0, 8.0,
+                List.of(new ParadaResponse(1, ParadaResponse.ALMACEN, null, "EAST", 57, 27, 20, hora("10:30"),
+                        hora("10:30"), 0, 20)), null, 502L, 602L);
+        planes.planes.put(ejecucion, plan(SALIDA, List.of(ruta)));
+
+        ejecutor.avanzar(ejecucion, SALIDA, hora("10:45"));
+
+        assertEquals(0, vehiculo("TA01").getCurrentLoad());
+        assertEquals(0, movimientoRepository.count());
+    }
+
+    @Test
+    void unaEntregaParcialNoGeneraUnSegundoDespachoDeAlmacen() {
+        RutaResponse ruta = new RutaResponse("SA-PARCIAL", "TA01", "CAR", SALIDA, hora("14:00"), 14.0, 112.0,
+                planConRutaTa01().rutas().getFirst().paradas(), "CENTRAL", 503L, 603L);
+        planes.planes.put(ejecucion, plan(SALIDA, List.of(ruta)));
+
+        ejecutor.avanzar(ejecucion, SALIDA, hora("14:30"));
+
+        assertEquals(1, movimientoRepository.count());
+        assertEquals("INITIAL:ROUTE:603", movimientoRepository.findAll().getFirst().getEventKey());
+        assertEquals(7, ejecutor.metricas(ejecucion).orElseThrow().paquetesEntregados());
+    }
+
+    @Test
+    void snapshotsDistintosConLaMismaRutaOperacionalRegistranDosCargasInicialesYReintentoNoDuplica() {
+        RutaResponse rutaA = new RutaResponse("SA-TA01", "TA01", "CAR", SALIDA, hora("10:30"), 3.0, 24.0,
+                List.of(new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 5, hora("10:15"),
+                        hora("10:15"), 5, 0)), "CENTRAL", 101L, 1001L);
+        RutaResponse rutaB = new RutaResponse("SA-TA01", "TA01", "CAR", hora("11:00"), hora("11:30"), 3.0, 24.0,
+                List.of(new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 5, hora("11:15"),
+                        hora("11:15"), 5, 0)), "CENTRAL", 102L, 1002L);
+        planes.planes.put(ejecucion, plan(SALIDA, List.of(rutaA)));
+        ejecutor.avanzar(ejecucion, SALIDA, hora("10:30"));
+
+        planes.planes.put(ejecucion, plan(hora("10:30"), List.of(rutaB)));
+        ejecutor.avanzar(ejecucion, hora("10:30"), hora("11:30"));
+
+        assertEquals(2, movimientoRepository.count());
+        assertEquals(List.of("INITIAL:ROUTE:1001", "INITIAL:ROUTE:1002"), movimientoRepository.findAll().stream()
+                .map(movimiento -> movimiento.getEventKey()).sorted().toList());
+        assertEquals(0, vehiculo("TA01").getCurrentLoad());
+
+        ejecutor.avanzar(ejecucion, hora("10:30"), hora("11:30"));
+
+        assertEquals(2, movimientoRepository.count(), "el mismo evento del snapshot B no crea un tercer movimiento");
+        assertEquals(0, vehiculo("TA01").getCurrentLoad(), "un false idempotente no vuelve a cargar el vehículo");
+    }
+
+    @Test
+    void cargaIntermediaConMismaRutaYSecuenciaEnSnapshotsDistintosEsDurableEIdempotente() {
+        RutaResponse rutaA = rutaConCargaIntermedia("SA-TA01", SALIDA, hora("10:30"), 201L, 2001L);
+        RutaResponse rutaB = rutaConCargaIntermedia("SA-TA01", hora("11:00"), hora("11:30"), 202L, 2002L);
+        planes.planes.put(ejecucion, plan(SALIDA, List.of(rutaA)));
+        ejecutor.avanzar(ejecucion, SALIDA, hora("10:45"));
+        assertEquals(3, vehiculo("TA01").getCurrentLoad());
+
+        vehiculo("TA01").moverA(27, 14, 0);
+        planes.planes.put(ejecucion, plan(hora("10:45"), List.of(rutaB)));
+        ejecutor.avanzar(ejecucion, hora("10:45"), hora("11:45"));
+
+        assertEquals(2, movimientoRepository.count());
+        assertEquals(List.of("WAREHOUSE:ROUTE:2001:STOP:2", "WAREHOUSE:ROUTE:2002:STOP:2"),
+                movimientoRepository.findAll().stream().map(movimiento -> movimiento.getEventKey()).sorted().toList());
+        assertEquals(4, movimientoRepository.findAll().stream()
+                .filter(movimiento -> "WAREHOUSE:ROUTE:2002:STOP:2".equals(movimiento.getEventKey()))
+                .findFirst().orElseThrow().getStockAfter());
+        assertEquals(3, vehiculo("TA01").getCurrentLoad());
+
+        ejecutor.avanzar(ejecucion, hora("11:20"), hora("11:45"));
+
+        assertEquals(2, movimientoRepository.count(), "reprocesar la parada B no duplica kardex");
+        assertEquals(4, movimientoRepository.findAll().stream()
+                .filter(movimiento -> "WAREHOUSE:ROUTE:2002:STOP:2".equals(movimiento.getEventKey()))
+                .findFirst().orElseThrow().getStockAfter(), "el stock baja una sola vez");
+        assertEquals(3, vehiculo("TA01").getCurrentLoad(), "registrarDespacho=false no incrementa la carga");
+    }
+
+    private static RutaResponse rutaConCargaIntermedia(String id, Instant salida, Instant llegadaAlmacen,
+                                                        long planId, long routeId) {
+        return new RutaResponse(id, "TA01", "CAR", salida, llegadaAlmacen.plusSeconds(300), 3.0, 24.0,
+                List.of(
+                        new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 0,
+                                salida.plusSeconds(600), salida.plusSeconds(600), 0, 0),
+                        new ParadaResponse(2, ParadaResponse.ALMACEN, null, "EAST", 57, 27, 3,
+                                llegadaAlmacen, llegadaAlmacen, 0, 3)), null, planId, routeId);
     }
 }

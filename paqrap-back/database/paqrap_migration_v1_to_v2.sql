@@ -728,7 +728,9 @@ CREATE TABLE inventory_movements (
 
     quantity INT UNSIGNED
         NOT NULL,
-
+    stock_before INT UNSIGNED NULL,
+    stock_after INT UNSIGNED NULL,
+    event_key VARCHAR(160) NULL,
     occurred_at TIMESTAMP(6)
         NOT NULL,
 
@@ -738,7 +740,8 @@ CREATE TABLE inventory_movements (
     KEY idx_inventory_movements_execution (execution_id),
     KEY idx_inventory_movements_order (order_id),
     KEY idx_inventory_movements_occurred_at (occurred_at),
-
+    KEY idx_inventory_movements_execution_warehouse_time (execution_id, warehouse_id, occurred_at, movement_id),
+    UNIQUE KEY uq_inventory_movements_execution_event (execution_id, event_key),
     CONSTRAINT fk_inventory_movements_warehouse
         FOREIGN KEY (warehouse_id)
         REFERENCES warehouses (warehouse_id)
@@ -768,21 +771,7 @@ CREATE TABLE inventory_movements (
         ),
 
     CONSTRAINT chk_inventory_movements_quantity
-        CHECK (quantity > 0),
-
-    CONSTRAINT chk_inventory_movements_order
-        CHECK (
-            (
-                movement_type = 'DISPATCH'
-                AND order_id IS NOT NULL
-            )
-            OR
-            (
-                movement_type = 'RECHARGE'
-                AND order_id IS NULL
-            )
-        )
-
+        CHECK (quantity > 0)
 ) ENGINE = InnoDB;
 
 

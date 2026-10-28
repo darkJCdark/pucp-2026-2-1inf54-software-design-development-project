@@ -3,6 +3,7 @@ package com.pucp.paqrap.modulos.almacenes.service;
 import com.pucp.paqrap.comun.error.ReglaNegocioException;
 import com.pucp.paqrap.modulos.almacenes.persistence.WarehouseEntity;
 import com.pucp.paqrap.modulos.almacenes.persistence.WarehouseKind;
+import com.pucp.paqrap.modulos.almacenes.repository.InventoryMovementRepository;
 import com.pucp.paqrap.modulos.almacenes.repository.WarehouseRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,8 @@ class InventarioServiceTest {
     private InventarioService inventario;
     @Autowired
     private WarehouseRepository almacenRepository;
+    @Autowired
+    private InventoryMovementRepository movimientoRepository;
 
     @BeforeEach
     void cargarAlmacenes() {
@@ -41,10 +44,18 @@ class InventarioServiceTest {
         assertEquals(Optional.of(1000), inventario.stocks(EJECUCION, T0).get("EAST"));
 
         inventario.registrarDespacho(EJECUCION, "EAST", "P1", 300, T0.plusSeconds(60));
+        var despacho = movimientoRepository.findAll().getFirst();
+        assertEquals(1000, despacho.getStockBefore());
+        assertEquals(700, despacho.getStockAfter());
         assertEquals(Optional.of(1000), inventario.stocks(EJECUCION, T0).get("EAST"), "aún no ocurre el despacho");
         assertEquals(Optional.of(700), inventario.stocks(EJECUCION, T0.plusSeconds(3600)).get("EAST"));
 
         assertEquals(1, inventario.recargarIntermedios(EJECUCION, T0.plusSeconds(7200)));
+        var recarga = movimientoRepository.findAll().stream()
+                .filter(movimiento -> movimiento.getMovementType().name().equals("RECHARGE"))
+                .findFirst().orElseThrow();
+        assertEquals(700, recarga.getStockBefore());
+        assertEquals(1000, recarga.getStockAfter());
         assertEquals(Optional.of(1000), inventario.stocks(EJECUCION, T0.plusSeconds(7200)).get("EAST"));
 
         inventario.registrarDespacho(EJECUCION, "EAST", "P2", 50, T0.plusSeconds(9000));
@@ -71,5 +82,13 @@ class InventarioServiceTest {
 
         assertEquals(Optional.empty(), inventario.stocks(EJECUCION, T0).get("CENTRAL"));
         assertEquals(Optional.of(1000), inventario.stocks(2L, T0).get("EAST"));
+    }
+    @Test
+    void elDespachoConLaMismaClaveEsIdempotente() {
+        assertEquals(true, inventario.registrarDespacho(EJECUCION, "EAST", null, 300, T0, "RUTA-1-PARADA-2"));
+        assertEquals(false, inventario.registrarDespacho(EJECUCION, "EAST", null, 300, T0, "RUTA-1-PARADA-2"));
+
+        assertEquals(1, movimientoRepository.count());
+        assertEquals(Optional.of(700), inventario.stocks(EJECUCION, T0).get("EAST"));
     }
 }
