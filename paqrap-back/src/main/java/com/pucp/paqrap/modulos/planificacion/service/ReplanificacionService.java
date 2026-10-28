@@ -56,17 +56,23 @@ public interface ReplanificacionService {
     void finalizar(long ejecucionId);
 
     /** Eventos que se aplican juntos en una replanificación; cualquiera de las listas puede venir vacía. */
-    record Eventos(List<Order> pedidos, List<RoadBlock> bloqueos, List<BreakdownEvent> averias) {
-        public static final Eventos NINGUNO = new Eventos(List.of(), List.of(), List.of());
+    record Eventos(List<Order> pedidos, List<RoadBlock> bloqueos, List<RoadBlock> bloqueosTerminados,
+                   List<BreakdownEvent> averias) {
+        public static final Eventos NINGUNO = new Eventos(List.of(), List.of(), List.of(), List.of());
 
         public Eventos {
             pedidos = pedidos == null ? List.of() : List.copyOf(pedidos);
             bloqueos = bloqueos == null ? List.of() : List.copyOf(bloqueos);
+            bloqueosTerminados = bloqueosTerminados == null ? List.of() : List.copyOf(bloqueosTerminados);
             averias = averias == null ? List.of() : List.copyOf(averias);
         }
 
+        public Eventos(List<Order> pedidos, List<RoadBlock> bloqueos, List<BreakdownEvent> averias) {
+            this(pedidos, bloqueos, List.of(), averias);
+        }
+
         public boolean vacios() {
-            return pedidos.isEmpty() && bloqueos.isEmpty() && averias.isEmpty();
+            return pedidos.isEmpty() && bloqueos.isEmpty() && bloqueosTerminados.isEmpty() && averias.isEmpty();
         }
     }
 }

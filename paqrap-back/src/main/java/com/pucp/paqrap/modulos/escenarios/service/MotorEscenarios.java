@@ -79,6 +79,7 @@ public class MotorEscenarios {
         private Instant procesadoHasta;
         /** Bloqueos que empezaron y averías ocurridas desde el último plan: exigen replanificar en el próximo tick. */
         private final List<RoadBlock> bloqueosPendientes = new ArrayList<>();
+        private final List<RoadBlock> bloqueosTerminadosPendientes = new ArrayList<>();
         private final List<BreakdownEvent> averiasPendientes = new ArrayList<>();
         /** Llegaron pedidos desde el último plan: se replanifica en el próximo tick. */
         private boolean pedidosPendientes;
@@ -88,6 +89,7 @@ public class MotorEscenarios {
         private final Set<String> pedidosProcesados = new HashSet<>();
         /** Bloqueos cuyo inicio fue detectado en un intervalo ya procesado. */
         private final Set<Long> bloqueosProcesados = new HashSet<>();
+        private final Set<Long> bloqueosTerminadosProcesados = new HashSet<>();
         /** Averías de esta ejecución detectadas en un intervalo ya procesado. */
         private final Set<Long> averiasProcesadas = new HashSet<>();
 
@@ -259,6 +261,11 @@ public class MotorEscenarios {
             activo.procesadoHasta = hasta;
             activo.pedidosProcesados.addAll(resumen.pedidosLlegadosIds());
             activo.bloqueosProcesados.addAll(resumen.bloqueosIniciadosIds());
+            for (int indice = 0; indice < resumen.bloqueosTerminados().size(); indice++) {
+                if (activo.bloqueosTerminadosProcesados.add(resumen.bloqueosTerminadosIds().get(indice))) {
+                    activo.bloqueosTerminadosPendientes.add(resumen.bloqueosTerminados().get(indice));
+                }
+            }
             activo.averiasProcesadas.addAll(resumen.averiasIds());
             activo.bloqueosPendientes.addAll(resumen.bloqueosIniciados());
             activo.averiasPendientes.addAll(resumen.averias());
@@ -273,7 +280,8 @@ public class MotorEscenarios {
             finalizar(ejecucionId, ScenarioStatus.COMPLETED, fin.get());
             return;
         }
-        if (!activo.bloqueosPendientes.isEmpty() || !activo.averiasPendientes.isEmpty()) {
+        if (!activo.bloqueosPendientes.isEmpty() || !activo.bloqueosTerminadosPendientes.isEmpty()
+                || !activo.averiasPendientes.isEmpty()) {
             planificar(ejecucionId, activo, PlanificadorPort.Motivo.INCIDENCIA);
         } else if (activo.pedidosPendientes) {
             planificar(ejecucionId, activo, PlanificadorPort.Motivo.NUEVO_PEDIDO);
@@ -290,9 +298,11 @@ public class MotorEscenarios {
         Instant ahora = activo.procesadoHasta;
         // Que SA deje pedidos sin asignar en un ciclo no es colapso: lo decide DetectorColapso.
         planificador().planificar(new PlanificadorPort.SolicitudCiclo(
-                ejecucionId, ahora, motivo, activo.bloqueosPendientes, activo.averiasPendientes));
+                ejecucionId, ahora, motivo, activo.bloqueosPendientes, activo.bloqueosTerminadosPendientes,
+                activo.averiasPendientes));
         activo.proximaPlanificacion = ahora.plus(propiedades.intervaloPlanificacion());
         activo.bloqueosPendientes.clear();
+        activo.bloqueosTerminadosPendientes.clear();
         activo.averiasPendientes.clear();
         activo.pedidosPendientes = false;
         activo.flotaCambiada = false;

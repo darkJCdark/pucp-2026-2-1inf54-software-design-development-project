@@ -43,15 +43,21 @@ public class EventosSimulacion {
 
     /** Lo que pasó en el intervalo; un bloqueo, una avería o un pedido nuevo obligan a replanificar. */
     public record Resumen(int recargas, List<RoadBlock> bloqueosIniciados, List<Long> bloqueosIniciadosIds,
+                          List<RoadBlock> bloqueosTerminados, List<Long> bloqueosTerminadosIds,
                           List<BreakdownEvent> averias, List<Long> averiasIds, List<String> pedidosLlegadosIds) {
         public Resumen {
             bloqueosIniciados = List.copyOf(bloqueosIniciados);
             bloqueosIniciadosIds = List.copyOf(bloqueosIniciadosIds);
+            bloqueosTerminados = List.copyOf(bloqueosTerminados);
+            bloqueosTerminadosIds = List.copyOf(bloqueosTerminadosIds);
             averias = List.copyOf(averias);
             averiasIds = List.copyOf(averiasIds);
             pedidosLlegadosIds = List.copyOf(pedidosLlegadosIds);
             if (bloqueosIniciados.size() != bloqueosIniciadosIds.size()) {
                 throw new IllegalArgumentException("Cada bloqueo iniciado debe conservar su identificador");
+            }
+            if (bloqueosTerminados.size() != bloqueosTerminadosIds.size()) {
+                throw new IllegalArgumentException("Cada bloqueo terminado debe conservar su identificador");
             }
             if (averias.size() != averiasIds.size()) {
                 throw new IllegalArgumentException("Cada avería debe conservar su identificador");
@@ -75,6 +81,10 @@ public class EventosSimulacion {
         List<RoadBlock> bloqueos = bloqueosEntidades.stream()
                 .map(RoadBlockEntity::toDomain)
                 .toList();
+        List<RoadBlockEntity> bloqueosTerminadosEntidades = bloqueoRepository.queTerminanEntre(desde, hasta);
+        List<RoadBlock> bloqueosTerminados = bloqueosTerminadosEntidades.stream()
+                .map(RoadBlockEntity::toDomain)
+                .toList();
         // buscar filtra [desde, hasta): se corre un nanosegundo para tomar (desde, hasta].
         List<BreakdownEventEntity> averiasEntidades = averiaRepository
                 .buscar(null, null, ejecucionId, desde.plusNanos(1), hasta.plusNanos(1));
@@ -83,7 +93,8 @@ public class EventosSimulacion {
                 .toList();
         List<String> pedidos = pedidoRepository.idsRegistradosEntre(desde, hasta);
         return new Resumen(recargas, bloqueos,
-                bloqueosEntidades.stream().map(RoadBlockEntity::getRoadBlockId).toList(), averias,
+                bloqueosEntidades.stream().map(RoadBlockEntity::getRoadBlockId).toList(), bloqueosTerminados,
+                bloqueosTerminadosEntidades.stream().map(RoadBlockEntity::getRoadBlockId).toList(), averias,
                 averiasEntidades.stream().map(BreakdownEventEntity::getBreakdownId).toList(), pedidos);
     }
 }

@@ -82,7 +82,8 @@ public class PlanificadorSaAdapter implements PlanificadorPort, PlanVigente {
             List<RoadBlock> bloqueos = new ArrayList<>(horizonte);
             bloqueos.addAll(solicitud.bloqueosIniciados());
             respuesta = replanificacion.replanificar(ejecucionId, new ReplanificacionService.Eventos(
-                    pedidosNuevos(ejecucionId, inicio, instante), bloqueos, solicitud.averias()), instante);
+                    pedidosNuevos(ejecucionId, inicio, instante), bloqueos, solicitud.bloqueosTerminados(),
+                    solicitud.averias()), instante);
         }
         ultimaReplanificacion.put(ejecucionId, respuesta);
         PlanResponse plan = respuesta.plan();

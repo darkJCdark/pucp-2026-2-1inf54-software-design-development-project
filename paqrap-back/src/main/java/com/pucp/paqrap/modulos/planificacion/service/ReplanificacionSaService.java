@@ -98,7 +98,7 @@ public class ReplanificacionSaService implements ReplanificacionService {
         // Igual que el plan sin replanificación: las averías ya registradas cuentan desde el inicio.
         estado.averias = new ArrayList<>(fuente.averias());
         ReplanificacionResponse respuesta = replanificar(estado, MotivoReplanificacion.INICIO,
-                solicitud.horaPlanificacion(), List.of(), List.of(), List.of());
+                solicitud.horaPlanificacion(), List.of(), List.of(), List.of(), false);
         ejecuciones.put(ejecucionId, estado);
         return respuesta;
     }
@@ -139,12 +139,14 @@ public class ReplanificacionSaService implements ReplanificacionService {
         // anterior o uno nuevo que ya empezó.
         boolean bloqueoIniciado = eventos.bloqueos().stream().anyMatch(bloqueo -> !bloqueo.startsAt().isAfter(ahora)
                 && (bloqueo.startsAt().isAfter(estado.ultimaHora) || recibidos.contains(bloqueo)));
+        boolean bloqueoTerminado = eventos.bloqueosTerminados().stream().anyMatch(bloqueo ->
+                !bloqueo.endsAt().isAfter(ahora) && bloqueo.endsAt().isAfter(estado.ultimaHora));
         MotivoReplanificacion motivo = !eventos.averias().isEmpty() ? MotivoReplanificacion.AVERIA
-                : bloqueoIniciado ? MotivoReplanificacion.BLOQUEO
+                : bloqueoIniciado || bloqueoTerminado ? MotivoReplanificacion.BLOQUEO
                 : !eventos.pedidos().isEmpty() ? MotivoReplanificacion.NUEVO_PEDIDO
                 : MotivoReplanificacion.PERIODICO;
         ReplanificacionResponse respuesta = replanificar(estado, motivo, ahora, List.copyOf(nuevos.values()),
-                bloqueos, eventos.averias());
+                bloqueos, eventos.averias(), bloqueoIniciado || bloqueoTerminado);
         estado.bloqueosConocidos.addAll(recibidos);
         return respuesta;
     }
@@ -192,7 +194,7 @@ public class ReplanificacionSaService implements ReplanificacionService {
 
     private ReplanificacionResponse replanificar(EstadoEjecucion estado, MotivoReplanificacion motivo, Instant ahora,
                                                  List<Order> nuevosPedidos, List<RoadBlock> nuevosBloqueos,
-                                                 List<BreakdownEvent> nuevasAverias) {
+                                                 List<BreakdownEvent> nuevasAverias, boolean cambioBloqueo) {
         // 1. Datos con los eventos aplicados (el estado se confirma recién al final).
         Map<String, Order> pedidos = new LinkedHashMap<>(estado.pedidos);
         nuevosPedidos.forEach(pedido -> pedidos.put(pedido.id(), pedido));
@@ -222,7 +224,7 @@ public class ReplanificacionSaService implements ReplanificacionService {
         }
 
         // 3. Rutas conservadas; ante un bloqueo se vuelven a programar con el RouteScheduler original.
-        List<RutaVigente> conservadas = !nuevosBloqueos.isEmpty()
+        List<RutaVigente> conservadas = cambioBloqueo
                 ? corte.conservadas().stream().map(ruta -> reprogramar(ruta, bloqueos)).toList()
                 : corte.conservadas();
 

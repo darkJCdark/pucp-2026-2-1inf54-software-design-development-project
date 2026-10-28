@@ -46,14 +46,20 @@ public interface PlanificadorPort {
      * @param averias           averías de la ejecución ocurridas desde el ciclo anterior
      */
     record SolicitudCiclo(long ejecucionId, Instant instante, Motivo motivo, List<RoadBlock> bloqueosIniciados,
-                          List<BreakdownEvent> averias) {
+                          List<RoadBlock> bloqueosTerminados, List<BreakdownEvent> averias) {
         public SolicitudCiclo {
             bloqueosIniciados = bloqueosIniciados == null ? List.of() : List.copyOf(bloqueosIniciados);
+            bloqueosTerminados = bloqueosTerminados == null ? List.of() : List.copyOf(bloqueosTerminados);
             averias = averias == null ? List.of() : List.copyOf(averias);
         }
 
+        public SolicitudCiclo(long ejecucionId, Instant instante, Motivo motivo, List<RoadBlock> bloqueosIniciados,
+                              List<BreakdownEvent> averias) {
+            this(ejecucionId, instante, motivo, bloqueosIniciados, List.of(), averias);
+        }
+
         public SolicitudCiclo(long ejecucionId, Instant instante, Motivo motivo) {
-            this(ejecucionId, instante, motivo, List.of(), List.of());
+            this(ejecucionId, instante, motivo, List.of(), List.of(), List.of());
         }
     }
 

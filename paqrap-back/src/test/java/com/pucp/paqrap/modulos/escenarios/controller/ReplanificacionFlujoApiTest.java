@@ -56,6 +56,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.hasSize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -264,6 +265,49 @@ class ReplanificacionFlujoApiTest {
                 .andExpect(jsonPath("$.colapso").doesNotExist());
     }
 
+    @Test
+    void unBloqueoQueTerminaDuranteLaSimulacionGeneraUnaUnicaReplanificacionYConservaSnapshots() throws Exception {
+        RoadBlock bloqueo = new RoadBlock(INICIO.plusSeconds(10 * 60), INICIO.plusSeconds(30 * 60),
+                List.of(new Location(35, 14), new Location(38, 14)));
+        bloqueoRepository.save(RoadBlockEntity.desde(bloqueo));
+        long id = iniciarCincoDias();
+        assertEquals(ScenarioStatus.RUNNING, estado(id));
+
+        List<PlanEntity> iniciales = planRepository.findByExecutionExecutionIdOrderByPlanIdAsc(id);
+        assertEquals(1, iniciales.size());
+        long planInicialId = iniciales.getFirst().getPlanId();
+
+        // Cinco segundos reales equivalen a 13 min 20 s simulados: el bloqueo ya empezó y sigue vigente.
+        avanzar(Duration.ofSeconds(5));
+        String porInicio = replanificacion(id);
+        assertEquals("BLOQUEO", leer(porInicio, "$.motivo"));
+        assertEquals(1, (int) leer(porInicio, "$.numeroReplanificacion"));
+        mvc.perform(get("/api/monitoreo/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bloqueosVigentes", hasSize(1)));
+        List<PlanEntity> trasInicio = planRepository.findByExecutionExecutionIdOrderByPlanIdAsc(id);
+        assertEquals(2, trasInicio.size());
+        long planInicioId = trasInicio.getLast().getPlanId();
+        assertEquals(planInicialId, trasInicio.getFirst().getPlanId());
+
+        // Siete segundos más cruzan endsAt, pero no alcanzan el período de una hora simulada.
+        avanzar(Duration.ofSeconds(7));
+        String porFin = replanificacion(id);
+        assertEquals("BLOQUEO", leer(porFin, "$.motivo"));
+        assertEquals(2, (int) leer(porFin, "$.numeroReplanificacion"));
+        mvc.perform(get("/api/monitoreo/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bloqueosVigentes", hasSize(0)));
+        List<PlanEntity> trasFin = planRepository.findByExecutionExecutionIdOrderByPlanIdAsc(id);
+        assertEquals(3, trasFin.size());
+        assertEquals(List.of(planInicialId, planInicioId), trasFin.stream()
+                .limit(2).map(PlanEntity::getPlanId).toList());
+        assertNotEquals(planInicioId, trasFin.getLast().getPlanId());
+
+        avanzar(Duration.ofSeconds(1));
+        assertEquals(3, planRepository.findByExecutionExecutionIdOrderByPlanIdAsc(id).size());
+        assertEquals(2, (int) leer(replanificacion(id), "$.numeroReplanificacion"));
+    }
     @Test
     void persisteSnapshotsInmutablesYResultadoFinalDeUnaEjecucionSaReal() throws Exception {
         pedido("P1", 30, 14, 5, INICIO);
