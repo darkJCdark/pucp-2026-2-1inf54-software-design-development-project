@@ -59,13 +59,16 @@ final class PlanResponseMapper {
         if (programada != null) {
             int orden = 1;
             for (ScheduledRouteStop parada : programada.scheduledStops()) {
+                // RouteScheduler corre la llegada una hora cuando el conductor toma ahí su refrigerio.
+                Instant arriboReal = parada.approach().arrivesAt();
+                Instant inicioRefrigerio = parada.arrivedAt().isAfter(arriboReal) ? arriboReal : null;
                 paradas.add(aParada(orden++, parada.stop(), parada.arrivedAt(), parada.completedAt(),
-                        parada.loadBefore(), parada.loadAfter()));
+                        parada.loadBefore(), parada.loadAfter(), inicioRefrigerio));
             }
         } else {
             int orden = 1;
             for (RouteStop parada : ruta.stops()) {
-                paradas.add(aParada(orden++, parada, null, null, null, null));
+                paradas.add(aParada(orden++, parada, null, null, null, null, null));
             }
         }
         return new RutaResponse(ruta.id(), ruta.vehicle().id(), ruta.vehicle().type().name(), ruta.departureAt(),
@@ -75,14 +78,14 @@ final class PlanResponseMapper {
     }
 
     private ParadaResponse aParada(int orden, RouteStop parada, Instant llegada, Instant fin,
-                                   Integer cargaAntes, Integer cargaDespues) {
+                                   Integer cargaAntes, Integer cargaDespues, Instant inicioRefrigerio) {
         return switch (parada) {
             case DeliveryStop entrega -> new ParadaResponse(orden, ParadaResponse.ENTREGA,
                     entrega.order().id(), null, entrega.location().x(), entrega.location().y(),
-                    entrega.deliveredPackages(), llegada, fin, cargaAntes, cargaDespues);
+                    entrega.deliveredPackages(), llegada, fin, cargaAntes, cargaDespues, inicioRefrigerio);
             case WarehouseVisit almacen -> new ParadaResponse(orden, ParadaResponse.ALMACEN,
                     null, almacen.warehouse().id(), almacen.location().x(), almacen.location().y(),
-                    almacen.pickupPackages(), llegada, fin, cargaAntes, cargaDespues);
+                    almacen.pickupPackages(), llegada, fin, cargaAntes, cargaDespues, inicioRefrigerio);
         };
     }
 
