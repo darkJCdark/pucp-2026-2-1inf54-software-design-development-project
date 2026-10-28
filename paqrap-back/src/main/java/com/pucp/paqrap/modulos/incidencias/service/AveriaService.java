@@ -56,9 +56,9 @@ public class AveriaService {
                 ? new Location(request.x(), request.y())
                 : ubicacionPorDefecto(request.ejecucionId(), vehiculo, ocurridaEn);
 
-        validarQueNoEsteAveriado(vehiculo.id(), ocurridaEn);
-
         BreakdownEvent evento = new BreakdownEvent(vehiculo.id(), request.tipo(), ocurridaEn, ubicacion);
+        validarQueNoSeCruceConOtraAveria(request.ejecucionId(), evento);
+
         BreakdownEventEntity guardado = averiaRepository.save(new BreakdownEventEntity(request.ejecucionId(), evento));
         if (request.ejecucionId() != null) {
             // El motor de escenarios replanifica (CU-07) cuando esta transacción se confirma.
@@ -68,17 +68,19 @@ public class AveriaService {
     }
 
     /**
-     * En un escenario activo la hora por defecto es la simulada (no la real), y no puede ser anterior a lo que ya se
-     * ejecutó del plan: esas entregas y posiciones ya ocurrieron, así que la avería se registra en ese instante.
-     * Fuera de un escenario se usa la hora indicada o la actual.
+     * Solo se registran averías en un escenario en curso: en uno terminado o detenido ya no afectan a nada. Ahí la hora
+     * por defecto es la simulada (no la real), y no puede ser anterior a lo que ya se ejecutó del plan: esas entregas y
+     * posiciones ya ocurrieron, así que la avería se registra en ese instante. Fuera de un escenario se usa la hora
+     * indicada o la actual.
      */
     private Instant horaDeLaAveria(RegistrarAveriaRequest request) {
         if (request.ejecucionId() == null) {
             return request.ocurridaEn() != null ? request.ocurridaEn() : Instant.now();
         }
-        Instant hora = request.ocurridaEn() != null
-                ? request.ocurridaEn()
-                : contexto.instanteSimulado(request.ejecucionId()).orElse(Instant.now());
+        Instant simulado = contexto.instanteSimulado(request.ejecucionId())
+                .orElseThrow(() -> new ReglaNegocioException("La ejecución " + request.ejecucionId()
+                        + " no está en curso; solo se registran averías en un escenario activo"));
+        Instant hora = request.ocurridaEn() != null ? request.ocurridaEn() : simulado;
         Optional<Instant> ejecutado = contexto.ejecutadoHasta(request.ejecucionId());
         return ejecutado.filter(hora::isBefore).orElse(hora);
     }
@@ -108,16 +110,27 @@ public class AveriaService {
                 .orElseThrow(() -> new RecursoNoEncontradoException("Avería", id));
     }
 
-    /** Una unidad que sigue inhabilitada por una avería previa no puede volver a averiarse. */
-    private void validarQueNoEsteAveriado(String vehiculoId, Instant ocurridaEn) {
-        averiaRepository.findFirstByVehicleIdAndOccurredAtLessThanEqualOrderByOccurredAtDesc(vehiculoId, ocurridaEn)
-                .ifPresent(anterior -> {
-                    BreakdownResolution resolucion = calculadora.resolve(anterior.toDomain());
-                    if (ocurridaEn.isBefore(resolucion.unavailableUntil())) {
-                        throw new ReglaNegocioException("El vehículo " + vehiculoId + " sigue inhabilitado por la avería "
-                                + anterior.getBreakdownId() + " hasta " + resolucion.unavailableUntil());
-                    }
-                });
+    /**
+     * Un vehículo inhabilitado no puede volver a averiarse: la nueva avería no puede caer dentro de una ya registrada, ni
+     * dejarlo inhabilitado cuando ocurre otra posterior. Solo cuentan las de la misma ejecución (o las de fuera de los
+     * escenarios), porque cada escenario repite su periodo desde cero.
+     */
+    private void validarQueNoSeCruceConOtraAveria(Long ejecucionId, BreakdownEvent nueva) {
+        Instant nuevaHasta = calculadora.resolve(nueva).unavailableUntil();
+        for (BreakdownEventEntity registrada : averiaRepository.deLaEjecucion(nueva.vehicleId(), ejecucionId)) {
+            BreakdownEvent otra = registrada.toDomain();
+            BreakdownResolution resolucion = calculadora.resolve(otra);
+            if (!otra.occurredAt().isAfter(nueva.occurredAt())
+                    && nueva.occurredAt().isBefore(resolucion.unavailableUntil())) {
+                throw new ReglaNegocioException("El vehículo " + nueva.vehicleId() + " sigue inhabilitado por la avería "
+                        + registrada.getBreakdownId() + " hasta " + resolucion.unavailableUntil());
+            }
+            if (otra.occurredAt().isAfter(nueva.occurredAt()) && otra.occurredAt().isBefore(nuevaHasta)) {
+                throw new ReglaNegocioException("El vehículo " + nueva.vehicleId() + " ya tiene registrada la avería "
+                        + registrada.getBreakdownId() + " a las " + otra.occurredAt()
+                        + ", cuando seguiría inhabilitado por esta (hasta " + nuevaHasta + ")");
+            }
+        }
     }
 
     private AveriaResponse aRespuesta(BreakdownEventEntity entity) {

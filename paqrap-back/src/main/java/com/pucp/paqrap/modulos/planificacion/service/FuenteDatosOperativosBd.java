@@ -67,8 +67,8 @@ public class FuenteDatosOperativosBd implements FuenteDatosOperativos {
     }
 
     @Override
-    public List<BreakdownEvent> averias() {
-        return averiaRepository.findAll().stream().map(BreakdownEventEntity::toDomain).toList();
+    public List<BreakdownEvent> averias(Long ejecucionId) {
+        return averiaRepository.deLaEjecucion(null, ejecucionId).stream().map(BreakdownEventEntity::toDomain).toList();
     }
 
     /** Parámetros editables con PUT /api/flota/tipos/{tipo}. */

@@ -167,7 +167,7 @@ class EjecutorPlanServiceTest {
     @Test
     void unaAveriaDetieneLaRutaYDevuelveSusPedidosPendientes() {
         planes.planes.put(ejecucion, planConRutaTa01());
-        averiaRepository.save(new BreakdownEventEntity(null,
+        averiaRepository.save(new BreakdownEventEntity(ejecucion,
                 new BreakdownEvent("TA01", BreakdownType.MINOR, hora("10:40"), new Location(30, 15))));
 
         ejecutor.avanzar(ejecucion, SALIDA, hora("14:30"));
@@ -176,6 +176,20 @@ class EjecutorPlanServiceTest {
         assertEquals(OrderStatus.REGISTERED, pedido("P2").getStatus(), "P2 vuelve a planificarse");
         assertEquals(15, vehiculo("TA01").getCurrentY(), "queda en el lugar de la avería");
         assertEquals(VehicleOperationalStatus.AVAILABLE, vehiculo("TA01").getOperationalStatus());
+    }
+
+    @Test
+    void unaAveriaDeOtraEjecucionDelMismoPeriodoNoLaAfecta() {
+        // Una corrida anterior del mismo periodo averió a TA01 a las 10:40; en esta corrida no le pasó nada.
+        planes.planes.put(ejecucion, planConRutaTa01());
+        averiaRepository.save(new BreakdownEventEntity(ejecucion + 1000,
+                new BreakdownEvent("TA01", BreakdownType.MAJOR, hora("10:40"), new Location(30, 15))));
+
+        ejecutor.avanzar(ejecucion, SALIDA, hora("12:30"));
+
+        assertEquals(OrderStatus.DELIVERED, pedido("P1").getStatus());
+        assertEquals(OrderStatus.IN_TRANSIT, pedido("P2").getStatus(), "sigue su ruta hacia P2");
+        assertEquals(VehicleOperationalStatus.IN_ROUTE, vehiculo("TA01").getOperationalStatus());
     }
 
     @Test

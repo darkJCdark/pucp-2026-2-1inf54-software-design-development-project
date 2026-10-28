@@ -278,7 +278,7 @@ class PlanificadorSaServiceTest {
         BreakdownEvent averia = new BreakdownEvent("TA01", BreakdownType.MINOR, HORA, central);
         FuenteDatosOperativos conAveria = new FuenteDatosOperativosMock() {
             @Override
-            public List<BreakdownEvent> averias() {
+            public List<BreakdownEvent> averias(Long ejecucionId) {
                 return List.of(averia);
             }
         };

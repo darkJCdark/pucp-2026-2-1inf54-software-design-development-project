@@ -38,7 +38,7 @@ public class FuenteDatosOperativosMock implements FuenteDatosOperativos {
     }
 
     @Override
-    public List<BreakdownEvent> averias() {
+    public List<BreakdownEvent> averias(Long ejecucionId) {
         return List.of();
     }
 }

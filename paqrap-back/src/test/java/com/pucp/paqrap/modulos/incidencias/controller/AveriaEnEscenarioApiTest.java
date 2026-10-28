@@ -4,6 +4,10 @@ import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleEntity;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleOperationalStatus;
 import com.pucp.paqrap.modulos.flota.repository.VehicleRepository;
+import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
+import com.pucp.paqrap.modulos.incidencias.entity.BreakdownType;
+import com.pucp.paqrap.modulos.incidencias.persistence.BreakdownEventEntity;
+import com.pucp.paqrap.modulos.incidencias.repository.BreakdownEventRepository;
 import com.pucp.paqrap.modulos.incidencias.service.ContextoSimulacion;
 import com.pucp.paqrap.modulos.redvial.entity.Location;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.Optional;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -70,6 +75,8 @@ class AveriaEnEscenarioApiTest {
     private MockMvc mvc;
     @Autowired
     private VehicleRepository vehiculoRepository;
+    @Autowired
+    private BreakdownEventRepository averiaRepository;
 
     @BeforeEach
     void cargarDatos() {
@@ -103,6 +110,22 @@ class AveriaEnEscenarioApiTest {
         registrar("{\"vehiculoId\": \"TA01\", \"tipo\": \"MINOR\", \"ejecucionId\": 77, \"x\": 10, \"y\": 11}")
                 .andExpect(jsonPath("$.x").value(10))
                 .andExpect(jsonPath("$.y").value(11));
+    }
+
+    @Test
+    void rechazaAveriasDeUnEscenarioQueNoEstaEnCurso() throws Exception {
+        registrar("{\"vehiculoId\": \"TA01\", \"tipo\": \"MINOR\", \"ejecucionId\": 78}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value(containsString("no está en curso")));
+    }
+
+    @Test
+    void unaAveriaDeOtroEscenarioDelMismoPeriodoNoLoInhabilita() throws Exception {
+        averiaRepository.save(new BreakdownEventEntity(70L, new BreakdownEvent("TA01", BreakdownType.MAJOR,
+                Instant.parse("2026-01-01T11:00:00Z"), new Location(30, 14))));
+
+        registrar("{\"vehiculoId\": \"TA01\", \"tipo\": \"MINOR\", \"ejecucionId\": 77}")
+                .andExpect(status().isCreated());
     }
 
     @Test

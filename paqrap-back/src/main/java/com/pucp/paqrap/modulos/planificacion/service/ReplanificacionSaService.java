@@ -94,7 +94,7 @@ public class ReplanificacionSaService implements ReplanificacionService {
         estado.bloqueos = new ArrayList<>(solicitud.bloqueosActivos());
         estado.bloqueosConocidos = new HashSet<>(solicitud.bloqueosActivos());
         // Igual que el plan sin replanificación: las averías ya registradas cuentan desde el inicio.
-        estado.averias = new ArrayList<>(fuente.averias());
+        estado.averias = new ArrayList<>(fuente.averias(ejecucionId));
         ReplanificacionResponse respuesta = replanificar(estado, MotivoReplanificacion.INICIO,
                 solicitud.horaPlanificacion(), List.of(), List.of(), List.of());
         ejecuciones.put(ejecucionId, estado);

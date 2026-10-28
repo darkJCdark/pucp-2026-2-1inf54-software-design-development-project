@@ -119,7 +119,7 @@ public class EjecutorPlanService {
     public void avanzar(long ejecucionId, Instant desde, Instant hasta) {
         EstadoEjecucion estado = estados.computeIfAbsent(ejecucionId, id -> new EstadoEjecucion());
         List<BreakdownEvent> averias = averiaRepository
-                .buscar(null, null, null, hasta.minus(ALCANCE_AVERIAS), hasta.plusNanos(1)).stream()
+                .buscar(null, null, ejecucionId, hasta.minus(ALCANCE_AVERIAS), hasta.plusNanos(1)).stream()
                 .map(BreakdownEventEntity::toDomain)
                 .toList();
         trasladarAveriadosAlCentral(averias, desde, hasta);

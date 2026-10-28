@@ -72,10 +72,10 @@ public class MonitoreoService {
                 .or(() -> Optional.ofNullable(escenario.finSimulado()))
                 .orElse(escenario.inicioSimulado());
 
+        // Solo las averías de este escenario, igual que el ejecutor y el planificador.
         List<AveriaResponse> averiasActivas = averiaService
-                .listar(null, null, null, instante.minus(ALCANCE_AVERIAS), instante.plusNanos(1)).stream()
+                .listar(null, null, ejecucionId, instante.minus(ALCANCE_AVERIAS), instante.plusNanos(1)).stream()
                 .filter(averia -> averia.indisponibleHasta().isAfter(instante))
-                .filter(averia -> averia.ejecucionId() == null || averia.ejecucionId() == ejecucionId)
                 .toList();
         Map<String, Instant> averiadoHasta = averiasActivas.stream()
                 .collect(Collectors.toMap(AveriaResponse::vehiculoId, AveriaResponse::indisponibleHasta,
