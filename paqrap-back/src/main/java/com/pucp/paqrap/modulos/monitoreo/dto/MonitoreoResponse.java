@@ -32,7 +32,17 @@ public record MonitoreoResponse(EscenarioResponse escenario, Instant instante, P
 
     /** {@code averiadoHasta} es nulo si el vehículo no tiene una avería en curso. */
     public record Vehiculo(String id, VehicleType tipo, VehicleOperationalStatus estado, int x, int y, int cargaActual,
-                           Instant averiadoHasta) {
+                           Instant averiadoHasta, MotivoDetencion motivoDetencion, Instant detenidoHasta) {
+    }
+
+    /**
+     * Por qué un vehículo está detenido en {@code instante} (O3); si coinciden varios se informa el de mayor
+     * prioridad: avería, luego mantenimiento, luego refrigerio. {@code detenidoHasta} es cuándo vuelve a operar.
+     */
+    public enum MotivoDetencion {
+        AVERIA,
+        MANTENIMIENTO,
+        REFRIGERIO
     }
 
     /** {@code stock} y {@code capacidad} son nulos en el almacén central (ilimitado). */

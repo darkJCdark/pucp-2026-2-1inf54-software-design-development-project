@@ -8,7 +8,10 @@ import com.pucp.paqrap.modulos.escenarios.service.DetectorColapso;
 import com.pucp.paqrap.modulos.escenarios.service.EjecutorPlanService;
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleOperationalStatus;
+import com.pucp.paqrap.modulos.flota.dto.MantenimientoResponse;
 import com.pucp.paqrap.modulos.flota.service.FlotaService;
+import com.pucp.paqrap.modulos.flota.service.MantenimientoService;
+import com.pucp.paqrap.modulos.planificacion.entity.ShiftSchedule;
 import com.pucp.paqrap.modulos.incidencias.dto.AveriaResponse;
 import com.pucp.paqrap.modulos.incidencias.service.AveriaService;
 import com.pucp.paqrap.modulos.monitoreo.dto.MonitoreoResponse;
@@ -18,10 +21,13 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /** Junta, en el instante simulado de un escenario, la información de los demás módulos para el mapa (CU-12). */
@@ -30,6 +36,7 @@ public class MonitoreoService {
 
     /** Una avería mayor inhabilita como máximo unos 3 días; las anteriores ya no pueden estar en curso. */
     private static final Duration ALCANCE_AVERIAS = Duration.ofDays(4);
+    private static final ZoneId ZONA = ShiftSchedule.DEFAULT_ZONE;
 
     private final EscenarioService escenarioService;
     private final PedidoService pedidoService;
@@ -40,11 +47,14 @@ public class MonitoreoService {
     private final AveriaService averiaService;
     private final EjecutorPlanService ejecutorPlan;
     private final DetectorColapso detectorColapso;
+    private final MantenimientoService mantenimientoService;
 
     public MonitoreoService(EscenarioService escenarioService, PedidoService pedidoService, FlotaService flotaService,
                             AlmacenService almacenService, InventarioService inventarioService,
                             BloqueoService bloqueoService, AveriaService averiaService,
-                            EjecutorPlanService ejecutorPlan, DetectorColapso detectorColapso) {
+                            EjecutorPlanService ejecutorPlan, DetectorColapso detectorColapso,
+                            MantenimientoService mantenimientoService) {
+        this.mantenimientoService = mantenimientoService;
         this.escenarioService = escenarioService;
         this.pedidoService = pedidoService;
         this.flotaService = flotaService;
@@ -71,9 +81,31 @@ public class MonitoreoService {
                 .collect(Collectors.toMap(AveriaResponse::vehiculoId, AveriaResponse::indisponibleHasta,
                         (a, b) -> a.isAfter(b) ? a : b));
 
+        // Un mantenimiento inhabilita el día local completo (MaintenanceDay del dominio).
+        LocalDate hoy = instante.atZone(ZONA).toLocalDate();
+        Instant finMantenimiento = hoy.plusDays(1).atStartOfDay(ZONA).toInstant();
+        Set<String> enMantenimiento = mantenimientoService.listar(null, hoy, hoy).stream()
+                .map(MantenimientoResponse::vehiculoId)
+                .collect(Collectors.toSet());
+
         List<MonitoreoResponse.Vehiculo> vehiculos = flotaService.listarVehiculos(null, null).stream()
-                .map(v -> new MonitoreoResponse.Vehiculo(v.id(), v.tipo(), v.estado(), v.x(), v.y(), v.cargaActual(),
-                        averiadoHasta.get(v.id())))
+                .map(v -> {
+                    MonitoreoResponse.MotivoDetencion motivo = null;
+                    Instant hasta = null;
+                    Optional<Instant> refrigerio;
+                    if (averiadoHasta.containsKey(v.id())) {
+                        motivo = MonitoreoResponse.MotivoDetencion.AVERIA;
+                        hasta = averiadoHasta.get(v.id());
+                    } else if (enMantenimiento.contains(v.id())) {
+                        motivo = MonitoreoResponse.MotivoDetencion.MANTENIMIENTO;
+                        hasta = finMantenimiento;
+                    } else if ((refrigerio = ejecutorPlan.refrigerioHasta(ejecucionId, v.id(), instante)).isPresent()) {
+                        motivo = MonitoreoResponse.MotivoDetencion.REFRIGERIO;
+                        hasta = refrigerio.get();
+                    }
+                    return new MonitoreoResponse.Vehiculo(v.id(), v.tipo(), v.estado(), v.x(), v.y(),
+                            v.cargaActual(), averiadoHasta.get(v.id()), motivo, hasta);
+                })
                 .toList();
 
         Map<String, Optional<Integer>> stocks = inventarioService.stocks(ejecucionId, instante);

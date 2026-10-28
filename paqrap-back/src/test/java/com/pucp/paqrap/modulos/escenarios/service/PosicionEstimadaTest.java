@@ -72,6 +72,18 @@ class PosicionEstimadaTest {
     }
 
     @Test
+    void durantElRefrigerioYaEstaEnLaParada() {
+        // Llega a P1 a las 10:20, descansa hasta las 10:30 (llegada registrada) y atiende hasta las 11:30.
+        RutaResponse conRefrigerio = new RutaResponse("SA-TA01", "TA01", "CAR", hora("10:00"), hora("11:30"), 3.0, 24.0,
+                List.of(new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 5, hora("10:30"),
+                        hora("11:30"), 7, 2, hora("10:20"))));
+
+        assertEquals(new Location(30, 14), EjecutorPlanService.posicionEnRuta(conRefrigerio, 27, 14, hora("10:25")));
+        // 10:10 = mitad del viaje real (10:00-10:20): 1,5 de 3 km.
+        assertEquals(new Location(29, 14), EjecutorPlanService.posicionEnRuta(conRefrigerio, 27, 14, hora("10:10")));
+    }
+
+    @Test
     void despuesDeLaUltimaParadaUsaLaPosicionConfirmada() {
         assertEquals(new Location(30, 18), EjecutorPlanService.posicionEnRuta(ruta("TA01"), 30, 18, hora("13:30")));
     }

@@ -184,21 +184,41 @@ public class EjecutorPlanService {
                 .map(ruta -> posicionEnRuta(ruta, vehiculo.getCurrentX(), vehiculo.getCurrentY(), instante));
     }
 
-    /** Réplica de calcularPosicionVehiculoAnimada; (xActual, yActual) es la posición confirmada del vehículo. */
+    /** Si el conductor está en su refrigerio en {@code instante}, hasta cuándo (la llegada registrada a la parada). */
+    public Optional<Instant> refrigerioHasta(long ejecucionId, String vehiculoId, Instant instante) {
+        EstadoEjecucion estado = estados.get(ejecucionId);
+        if (estado == null || estado.plan == null) {
+            return Optional.empty();
+        }
+        return estado.plan.rutas().stream()
+                .filter(ruta -> ruta.vehiculoId().equals(vehiculoId))
+                .flatMap(ruta -> ruta.paradas().stream())
+                .filter(parada -> parada.inicioRefrigerio() != null && parada.llegada() != null
+                        && !instante.isBefore(parada.inicioRefrigerio()) && instante.isBefore(parada.llegada()))
+                .map(ParadaResponse::llegada)
+                .findFirst();
+    }
+
+    /**
+     * Réplica de calcularPosicionVehiculoAnimada; (xActual, yActual) es la posición confirmada del vehículo. Si en
+     * una parada hay refrigerio, el vehículo llega al lugar en {@code inicioRefrigerio} y queda ahí hasta {@code fin}.
+     */
     static Location posicionEnRuta(RutaResponse ruta, int xActual, int yActual, Instant instante) {
         Location actual = new Location(xActual, yActual);
         List<ParadaResponse> paradas = ruta.paradas().stream()
                 .sorted(Comparator.comparingInt(ParadaResponse::orden))
                 .toList();
         for (ParadaResponse parada : paradas) {
-            if (parada.llegada() != null && parada.fin() != null
-                    && !instante.isBefore(parada.llegada()) && instante.isBefore(parada.fin())) {
-                return new Location(parada.x(), parada.y()); // haciendo el servicio en la parada
+            Instant enElLugar = arriboAlLugar(parada);
+            if (enElLugar != null && parada.fin() != null
+                    && !instante.isBefore(enElLugar) && instante.isBefore(parada.fin())) {
+                return new Location(parada.x(), parada.y()); // en refrigerio o haciendo el servicio en la parada
             }
         }
         int indiceSiguiente = -1;
         for (int i = 0; i < paradas.size(); i++) {
-            if (paradas.get(i).llegada() != null && paradas.get(i).llegada().isAfter(instante)) {
+            Instant enElLugar = arriboAlLugar(paradas.get(i));
+            if (enElLugar != null && enElLugar.isAfter(instante)) {
                 indiceSiguiente = i;
                 break;
             }
@@ -211,7 +231,7 @@ public class EjecutorPlanService {
         Instant inicioTramo = anterior != null
                 ? (anterior.fin() != null ? anterior.fin() : anterior.llegada())
                 : ruta.salida();
-        Instant finTramo = siguiente.llegada();
+        Instant finTramo = arriboAlLugar(siguiente);
         Location origen = anterior != null ? new Location(anterior.x(), anterior.y()) : actual;
         if (inicioTramo == null || !finTramo.isAfter(inicioTramo)) {
             return actual;
@@ -223,6 +243,11 @@ public class EjecutorPlanService {
                 / Duration.between(inicioTramo, finTramo).toMillis());
         return interpolarOrtogonal(origen, new Location(siguiente.x(), siguiente.y()), progreso,
                 horizontalPrimero(ruta.vehiculoId()));
+    }
+
+    /** Cuándo el vehículo llega físicamente a la parada: antes del refrigerio, si lo toma ahí. */
+    private static Instant arriboAlLugar(ParadaResponse parada) {
+        return parada.inicioRefrigerio() != null ? parada.inicioRefrigerio() : parada.llegada();
     }
 
     /** Recorre {@code progreso} (0 a 1) del camino en L de origen a destino y redondea al nodo más cercano. */
