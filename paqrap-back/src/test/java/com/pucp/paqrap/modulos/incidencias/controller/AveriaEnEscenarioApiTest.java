@@ -117,8 +117,16 @@ class AveriaEnEscenarioApiTest {
     }
 
     @Test
-    void lasCoordenadasEnviadasTienenPrioridad() throws Exception {
-        registrar("{\"vehiculoId\": \"TA01\", \"tipo\": \"MINOR\", \"ejecucionId\": 77, \"x\": 10, \"y\": 11}")
+    void enRutaIgnoraLasCoordenadasEnviadasYUsaDondeVaElVehiculo() throws Exception {
+        // El front envía la posición confirmada (27,14); el vehículo ya va en (33,20).
+        registrar("{\"vehiculoId\": \"TA01\", \"tipo\": \"MINOR\", \"ejecucionId\": 77, \"x\": 27, \"y\": 14}")
+                .andExpect(jsonPath("$.x").value(33))
+                .andExpect(jsonPath("$.y").value(20));
+    }
+
+    @Test
+    void sinIrEnRutaUsaLasCoordenadasEnviadas() throws Exception {
+        registrar("{\"vehiculoId\": \"TM01\", \"tipo\": \"MINOR\", \"ejecucionId\": 77, \"x\": 10, \"y\": 11}")
                 .andExpect(jsonPath("$.x").value(10))
                 .andExpect(jsonPath("$.y").value(11));
     }

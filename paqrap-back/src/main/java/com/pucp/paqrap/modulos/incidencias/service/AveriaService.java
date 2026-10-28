@@ -58,9 +58,7 @@ public class AveriaService {
         }
         long ejecucionId = ejecucionDe(request);
         Instant ocurridaEn = horaDeLaAveria(ejecucionId, request.ocurridaEn());
-        Location ubicacion = request.x() != null
-                ? new Location(request.x(), request.y())
-                : ubicacionPorDefecto(ejecucionId, vehiculo, ocurridaEn);
+        Location ubicacion = ubicacionDeLaAveria(ejecucionId, vehiculo, ocurridaEn, request);
 
         BreakdownEvent evento = new BreakdownEvent(vehiculo.id(), request.tipo(), ocurridaEn, ubicacion);
         validarQueNoSeCruceConOtraAveria(ejecucionId, evento);
@@ -103,10 +101,17 @@ public class AveriaService {
         return ejecutado.filter(hora::isBefore).orElse(hora);
     }
 
-    /** Sin coordenadas: si va en ruta, donde lo dibuja el mapa; si no, su posición confirmada. */
-    private Location ubicacionPorDefecto(long ejecucionId, VehiculoResponse vehiculo, Instant ocurridaEn) {
+    /**
+     * Si va en ruta, donde lo dibuja el mapa en ese instante (CP-76), aunque se envíen coordenadas: quien registra solo
+     * conoce la posición confirmada (la última parada), que no es donde está. Si no va en ruta, las coordenadas
+     * enviadas o, sin ellas, su posición confirmada.
+     */
+    private Location ubicacionDeLaAveria(long ejecucionId, VehiculoResponse vehiculo, Instant ocurridaEn,
+                                         RegistrarAveriaRequest request) {
         return contexto.posicionEstimada(ejecucionId, vehiculo.id(), ocurridaEn)
-                .orElse(new Location(vehiculo.x(), vehiculo.y()));
+                .orElseGet(() -> request.x() != null
+                        ? new Location(request.x(), request.y())
+                        : new Location(vehiculo.x(), vehiculo.y()));
     }
 
     public List<AveriaResponse> listar(String vehiculoId, BreakdownType tipo, Long ejecucionId,
