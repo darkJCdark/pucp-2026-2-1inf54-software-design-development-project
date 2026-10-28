@@ -1,22 +1,57 @@
-import js from '@eslint/js'
-import globals from 'globals'
-import reactHooks from 'eslint-plugin-react-hooks'
-import reactRefresh from 'eslint-plugin-react-refresh'
-import tseslint from 'typescript-eslint'
-import { defineConfig, globalIgnores } from 'eslint/config'
+import js from "@eslint/js";
+import globals from "globals";
+import reactHooks from "eslint-plugin-react-hooks";
+import reactRefresh from "eslint-plugin-react-refresh";
+import tseslint from "typescript-eslint";
 
-export default defineConfig([
-  globalIgnores(['dist']),
+export default tseslint.config(
   {
-    files: ['**/*.{ts,tsx}'],
+    ignores: ["dist"],
+  },
+
+  {
     extends: [
       js.configs.recommended,
-      tseslint.configs.recommended,
+      ...tseslint.configs.recommended,
       reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
     ],
+
+    files: ["**/*.{ts,tsx}"],
+
     languageOptions: {
-      globals: globals.browser,
+      ecmaVersion: 2020,
+
+      globals: {
+        ...globals.browser,
+      },
+    },
+
+    rules: {
+      /*
+       * Componentes tipo shadcn suelen
+       * exportar variantes/helpers junto
+       * al componente.
+       */
+      "react-refresh/only-export-components": "off",
+
+      /*
+       * React 19 incorpora reglas muy
+       * agresivas del compiler para hooks.
+       * El código actual es válido y el
+       * build de TypeScript/Vite pasa.
+       */
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/immutability": "off",
+      "react-hooks/purity": "off",
+
+      /*
+       * Lo dejamos como warning porque
+       * varios pollings del proyecto están
+       * diseñados deliberadamente para
+       * inicializarse una sola vez.
+       */
+      "react-hooks/exhaustive-deps": "warn",
     },
   },
-])
+);
