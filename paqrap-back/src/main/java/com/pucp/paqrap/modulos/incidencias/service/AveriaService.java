@@ -3,6 +3,7 @@ package com.pucp.paqrap.modulos.incidencias.service;
 import com.pucp.paqrap.comun.error.RecursoNoEncontradoException;
 import com.pucp.paqrap.comun.error.ReglaNegocioException;
 import com.pucp.paqrap.modulos.flota.dto.VehiculoResponse;
+import com.pucp.paqrap.modulos.flota.persistence.VehicleOperationalStatus;
 import com.pucp.paqrap.modulos.flota.service.FlotaService;
 import com.pucp.paqrap.modulos.incidencias.dto.AveriaResponse;
 import com.pucp.paqrap.modulos.incidencias.dto.RegistrarAveriaRequest;
@@ -51,47 +52,61 @@ public class AveriaService {
             throw new IllegalArgumentException("Indique ambas coordenadas 'x' e 'y', o ninguna");
         }
         VehiculoResponse vehiculo = flotaService.obtenerVehiculo(request.vehiculoId());
-        Instant ocurridaEn = horaDeLaAveria(request);
+        if (vehiculo.estado() == VehicleOperationalStatus.UNAVAILABLE) {
+            throw new ReglaNegocioException("El vehículo " + vehiculo.id()
+                    + " está fuera de servicio (UNAVAILABLE); no puede registrarse una avería");
+        }
+        long ejecucionId = ejecucionDe(request);
+        Instant ocurridaEn = horaDeLaAveria(ejecucionId, request.ocurridaEn());
         Location ubicacion = request.x() != null
                 ? new Location(request.x(), request.y())
-                : ubicacionPorDefecto(request.ejecucionId(), vehiculo, ocurridaEn);
+                : ubicacionPorDefecto(ejecucionId, vehiculo, ocurridaEn);
 
         BreakdownEvent evento = new BreakdownEvent(vehiculo.id(), request.tipo(), ocurridaEn, ubicacion);
-        validarQueNoSeCruceConOtraAveria(request.ejecucionId(), evento);
+        validarQueNoSeCruceConOtraAveria(ejecucionId, evento);
 
-        BreakdownEventEntity guardado = averiaRepository.save(new BreakdownEventEntity(request.ejecucionId(), evento));
-        if (request.ejecucionId() != null) {
-            // El motor de escenarios replanifica (CU-07) cuando esta transacción se confirma.
-            eventos.publishEvent(new AveriaRegistrada(request.ejecucionId(), evento));
-        }
+        BreakdownEventEntity guardado = averiaRepository.save(new BreakdownEventEntity(ejecucionId, evento));
+        // El motor de escenarios replanifica (CU-07) cuando esta transacción se confirma.
+        eventos.publishEvent(new AveriaRegistrada(ejecucionId, evento));
         return AveriaResponse.de(guardado, calculadora.resolve(evento));
     }
 
     /**
-     * Solo se registran averías en un escenario en curso: en uno terminado o detenido ya no afectan a nada. Ahí la hora
-     * por defecto es la simulada (no la real), y no puede ser anterior a lo que ya se ejecutó del plan: esas entregas y
-     * posiciones ya ocurrieron, así que la avería se registra en ese instante. Fuera de un escenario se usa la hora
-     * indicada o la actual.
+     * Una avería solo afecta a un escenario en curso: sin {@code ejecucionId} se usa el único que está en curso, y si no
+     * hay ninguno, hay varios o el indicado ya terminó o se detuvo, se rechaza.
      */
-    private Instant horaDeLaAveria(RegistrarAveriaRequest request) {
-        if (request.ejecucionId() == null) {
-            return request.ocurridaEn() != null ? request.ocurridaEn() : Instant.now();
+    private long ejecucionDe(RegistrarAveriaRequest request) {
+        if (request.ejecucionId() != null) {
+            if (contexto.instanteSimulado(request.ejecucionId()).isEmpty()) {
+                throw new ReglaNegocioException("La ejecución " + request.ejecucionId()
+                        + " no está en curso; solo se registran averías en un escenario activo");
+            }
+            return request.ejecucionId();
         }
-        Instant simulado = contexto.instanteSimulado(request.ejecucionId())
-                .orElseThrow(() -> new ReglaNegocioException("La ejecución " + request.ejecucionId()
-                        + " no está en curso; solo se registran averías en un escenario activo"));
-        Instant hora = request.ocurridaEn() != null ? request.ocurridaEn() : simulado;
-        Optional<Instant> ejecutado = contexto.ejecutadoHasta(request.ejecucionId());
+        List<Long> activas = contexto.ejecucionesActivas();
+        if (activas.isEmpty()) {
+            throw new ReglaNegocioException("No hay un escenario en curso; solo se registran averías en un escenario activo");
+        }
+        if (activas.size() > 1) {
+            throw new ReglaNegocioException("Hay varios escenarios en curso " + activas + "; indique 'ejecucionId'");
+        }
+        return activas.getFirst();
+    }
+
+    /**
+     * La hora por defecto es la simulada (no la real), y no puede ser anterior a lo que ya se ejecutó del plan: esas
+     * entregas y posiciones ya ocurrieron, así que la avería se registra en ese instante.
+     */
+    private Instant horaDeLaAveria(long ejecucionId, Instant indicada) {
+        Instant hora = indicada != null ? indicada : contexto.instanteSimulado(ejecucionId).orElseThrow();
+        Optional<Instant> ejecutado = contexto.ejecutadoHasta(ejecucionId);
         return ejecutado.filter(hora::isBefore).orElse(hora);
     }
 
-    /** Sin coordenadas: si va en ruta en el escenario, donde lo dibuja el mapa; si no, su posición confirmada. */
-    private Location ubicacionPorDefecto(Long ejecucionId, VehiculoResponse vehiculo, Instant ocurridaEn) {
-        Location confirmada = new Location(vehiculo.x(), vehiculo.y());
-        if (ejecucionId == null) {
-            return confirmada;
-        }
-        return contexto.posicionEstimada(ejecucionId, vehiculo.id(), ocurridaEn).orElse(confirmada);
+    /** Sin coordenadas: si va en ruta, donde lo dibuja el mapa; si no, su posición confirmada. */
+    private Location ubicacionPorDefecto(long ejecucionId, VehiculoResponse vehiculo, Instant ocurridaEn) {
+        return contexto.posicionEstimada(ejecucionId, vehiculo.id(), ocurridaEn)
+                .orElse(new Location(vehiculo.x(), vehiculo.y()));
     }
 
     public List<AveriaResponse> listar(String vehiculoId, BreakdownType tipo, Long ejecucionId,
@@ -112,10 +127,10 @@ public class AveriaService {
 
     /**
      * Un vehículo inhabilitado no puede volver a averiarse: la nueva avería no puede caer dentro de una ya registrada, ni
-     * dejarlo inhabilitado cuando ocurre otra posterior. Solo cuentan las de la misma ejecución (o las de fuera de los
-     * escenarios), porque cada escenario repite su periodo desde cero.
+     * dejarlo inhabilitado cuando ocurre otra posterior. Solo cuentan las de la misma ejecución, porque cada escenario
+     * repite su periodo desde cero.
      */
-    private void validarQueNoSeCruceConOtraAveria(Long ejecucionId, BreakdownEvent nueva) {
+    private void validarQueNoSeCruceConOtraAveria(long ejecucionId, BreakdownEvent nueva) {
         Instant nuevaHasta = calculadora.resolve(nueva).unavailableUntil();
         for (BreakdownEventEntity registrada : averiaRepository.deLaEjecucion(nueva.vehicleId(), ejecucionId)) {
             BreakdownEvent otra = registrada.toDomain();

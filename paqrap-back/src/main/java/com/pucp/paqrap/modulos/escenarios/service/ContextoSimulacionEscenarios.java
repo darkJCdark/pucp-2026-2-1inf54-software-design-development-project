@@ -5,6 +5,7 @@ import com.pucp.paqrap.modulos.redvial.entity.Location;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 /** Expone al registro de averías el reloj y el plan en ejecución de los escenarios activos. */
@@ -17,6 +18,11 @@ public class ContextoSimulacionEscenarios implements ContextoSimulacion {
     public ContextoSimulacionEscenarios(MotorEscenarios motor, EjecutorPlanService ejecutorPlan) {
         this.motor = motor;
         this.ejecutorPlan = ejecutorPlan;
+    }
+
+    @Override
+    public List<Long> ejecucionesActivas() {
+        return motor.ejecucionesActivas();
     }
 
     @Override

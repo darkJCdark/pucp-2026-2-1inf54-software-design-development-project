@@ -25,6 +25,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
@@ -45,6 +46,8 @@ class AveriaEnEscenarioApiTest {
     private static final long EJECUCION = 77L;
     private static final Instant AHORA_SIMULADO = Instant.parse("2026-01-01T12:00:00Z");
     private static final Instant EJECUTADO_HASTA = Instant.parse("2026-01-01T11:50:00Z");
+    /** Ejecuciones en curso; cada prueba parte solo con la 77. */
+    private static volatile List<Long> activas = List.of(EJECUCION);
 
     @TestConfiguration
     static class Config {
@@ -53,13 +56,18 @@ class AveriaEnEscenarioApiTest {
         ContextoSimulacion contextoDePrueba() {
             return new ContextoSimulacion() {
                 @Override
+                public List<Long> ejecucionesActivas() {
+                    return activas;
+                }
+
+                @Override
                 public Optional<Instant> instanteSimulado(long ejecucionId) {
-                    return ejecucionId == EJECUCION ? Optional.of(AHORA_SIMULADO) : Optional.empty();
+                    return activas.contains(ejecucionId) ? Optional.of(AHORA_SIMULADO) : Optional.empty();
                 }
 
                 @Override
                 public Optional<Instant> ejecutadoHasta(long ejecucionId) {
-                    return ejecucionId == EJECUCION ? Optional.of(EJECUTADO_HASTA) : Optional.empty();
+                    return activas.contains(ejecucionId) ? Optional.of(EJECUTADO_HASTA) : Optional.empty();
                 }
 
                 @Override
@@ -80,8 +88,10 @@ class AveriaEnEscenarioApiTest {
 
     @BeforeEach
     void cargarDatos() {
+        activas = List.of(EJECUCION);
         vehiculoRepository.save(new VehicleEntity("TA01", VehicleType.CAR, VehicleOperationalStatus.IN_ROUTE));
         vehiculoRepository.save(new VehicleEntity("TM01", VehicleType.MOTORCYCLE, VehicleOperationalStatus.AVAILABLE));
+        vehiculoRepository.save(new VehicleEntity("TB01", VehicleType.BICYCLE, VehicleOperationalStatus.UNAVAILABLE));
     }
 
     private ResultActions registrar(String json) throws Exception {
@@ -129,11 +139,37 @@ class AveriaEnEscenarioApiTest {
     }
 
     @Test
-    void sinEscenarioUsaLaPosicionConfirmada() throws Exception {
-        registrar("{\"vehiculoId\": \"TM01\", \"tipo\": \"MINOR\", \"ocurridaEn\": \"2026-01-01T09:00:00Z\"}")
+    void sinEjecucionUsaElUnicoEscenarioEnCursoYSiNoVaEnRutaSuPosicionConfirmada() throws Exception {
+        registrar("{\"vehiculoId\": \"TM01\", \"tipo\": \"MINOR\"}")
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.ocurridaEn").value("2026-01-01T09:00:00Z"))
+                .andExpect(jsonPath("$.ejecucionId").value(77))
+                .andExpect(jsonPath("$.ocurridaEn").value("2026-01-01T12:00:00Z"))
                 .andExpect(jsonPath("$.x").value(27))
                 .andExpect(jsonPath("$.y").value(14));
+    }
+
+    @Test
+    void sinEjecucionRechazaSiNoHayEscenarioEnCurso() throws Exception {
+        activas = List.of();
+
+        registrar("{\"vehiculoId\": \"TM01\", \"tipo\": \"MINOR\"}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value(containsString("No hay un escenario en curso")));
+    }
+
+    @Test
+    void sinEjecucionRechazaSiHayVariosEscenariosEnCurso() throws Exception {
+        activas = List.of(EJECUCION, 78L);
+
+        registrar("{\"vehiculoId\": \"TM01\", \"tipo\": \"MINOR\"}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value(containsString("indique 'ejecucionId'")));
+    }
+
+    @Test
+    void rechazaLaAveriaDeUnVehiculoFueraDeServicio() throws Exception {
+        registrar("{\"vehiculoId\": \"TB01\", \"tipo\": \"MINOR\", \"ejecucionId\": 77}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value(containsString("fuera de servicio")));
     }
 }
