@@ -225,9 +225,19 @@ public class MotorEscenarios {
         planificador().finalizar(ejecucionId);
     }
 
+    /** Ids de las ejecuciones activas (en marcha o pausadas), en orden. */
+    public synchronized List<Long> ejecucionesActivas() {
+        return activos.keySet().stream().sorted().toList();
+    }
+
     /** Instante simulado actual de una ejecución activa. */
     public synchronized Optional<Instant> instanteSimulado(long ejecucionId) {
         return Optional.ofNullable(activos.get(ejecucionId)).map(activo -> activo.reloj.ahora());
+    }
+
+    /** Instante simulado hasta el que ya se procesaron eventos y se ejecutó el plan de una ejecución activa. */
+    public synchronized Optional<Instant> ejecutadoHasta(long ejecucionId) {
+        return Optional.ofNullable(activos.get(ejecucionId)).map(activo -> activo.procesadoHasta);
     }
 
     /** Avanza todos los escenarios en marcha: cierra los que terminaron y pide los planes que tocan. */

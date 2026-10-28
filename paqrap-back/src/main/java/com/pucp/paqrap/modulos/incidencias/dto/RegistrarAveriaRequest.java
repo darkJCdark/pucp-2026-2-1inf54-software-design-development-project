@@ -9,8 +9,9 @@ import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 
 /**
- * Avería de una unidad (CU-06). Opcionales: {@code ocurridaEn} (por defecto, ahora), {@code x}/{@code y} (por
- * defecto, la posición actual del vehículo) y {@code ejecucionId} (escenario en el que ocurrió).
+ * Avería de una unidad (CU-06) durante un escenario en curso. Opcionales: {@code ocurridaEn} (por defecto, el instante
+ * simulado), {@code x}/{@code y} (por defecto, donde está el vehículo) y {@code ejecucionId} (por defecto, el único
+ * escenario en curso).
  */
 public record RegistrarAveriaRequest(
         @NotBlank String vehiculoId,

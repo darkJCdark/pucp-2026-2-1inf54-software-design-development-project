@@ -8,11 +8,15 @@ import com.pucp.paqrap.modulos.almacenes.repository.WarehouseRepository;
 import com.pucp.paqrap.modulos.almacenes.service.InventarioService;
 import com.pucp.paqrap.modulos.escenarios.entity.ScenarioStatus;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
+import com.pucp.paqrap.modulos.escenarios.service.EjecutorPlanService;
+import com.pucp.paqrap.modulos.escenarios.service.ScenarioResultService;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioResultRepository;
 import com.pucp.paqrap.modulos.escenarios.service.MotorEscenarios;
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
+import com.pucp.paqrap.modulos.flota.persistence.MaintenanceDayEntity;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleEntity;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleOperationalStatus;
+import com.pucp.paqrap.modulos.flota.repository.MaintenanceDayRepository;
 import com.pucp.paqrap.modulos.flota.repository.VehicleRepository;
 import com.pucp.paqrap.modulos.incidencias.repository.BreakdownEventRepository;
 import com.pucp.paqrap.modulos.pedidos.entity.DeliveryType;
@@ -41,6 +45,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -117,6 +122,7 @@ class EventosYMonitoreoApiTest {
     @Autowired private InventarioService inventario;
     @Autowired private ScenarioExecutionRepository ejecucionRepository;
     @Autowired private ScenarioResultRepository resultadoRepository;
+    @Autowired private ScenarioResultService resultadoService;
     @Autowired private WarehouseRepository almacenRepository;
     @Autowired private InventoryMovementRepository movimientoRepository;
     @Autowired private VehicleRepository vehiculoRepository;
@@ -124,6 +130,7 @@ class EventosYMonitoreoApiTest {
     @Autowired private RoadBlockRepository bloqueoRepository;
     @Autowired private OrderRepository pedidoRepository;
     @Autowired private OrderStatusHistoryRepository historialRepository;
+    @Autowired private MaintenanceDayRepository mantenimientoRepository;
 
     @BeforeEach
     void cargarDatos() {
@@ -143,6 +150,7 @@ class EventosYMonitoreoApiTest {
         pedidoRepository.deleteAll();
         movimientoRepository.deleteAll();
         averiaRepository.deleteAll();
+        mantenimientoRepository.deleteAll();
         bloqueoRepository.deleteAll();
         resultadoRepository.deleteAll();
         ejecucionRepository.deleteAll();
@@ -291,6 +299,47 @@ class EventosYMonitoreoApiTest {
                 .andExpect(jsonPath("$.vehiculos[?(@.id=='TA01')].averiadoHasta").exists())
                 .andExpect(jsonPath("$.vehiculos[?(@.id=='TM01')].averiadoHasta").value((Object) null))
                 .andExpect(jsonPath("$.averiasActivas", hasSize(1)));
+    }
+
+    @Test
+    void informaElMotivoYLaHoraDeTerminoDeCadaVehiculoDetenido() throws Exception {
+        // TM01 tiene mantenimiento el 01-ene (día local de Lima): detenido hasta la medianoche, 02-ene 05:00Z.
+        mantenimientoRepository.save(new MaintenanceDayEntity("TM01", LocalDate.of(2026, 1, 1)));
+        long id = iniciarCincoDias();
+        mvc.perform(post("/api/incidencias/averias").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"vehiculoId\": \"TA01\", \"tipo\": \"MINOR\", \"ocurridaEn\": \"2026-01-01T05:30:00Z\","
+                        + " \"ejecucionId\": " + id + "}"));
+
+        // 15 s reales = 40 min simulados (05:40Z): la avería menor dura 2 h, hasta las 07:30Z.
+        reloj.avanzar(Duration.ofSeconds(15));
+        mvc.perform(get("/api/monitoreo/" + id))
+                .andExpect(jsonPath("$.vehiculos[?(@.id=='TA01')].motivoDetencion").value("AVERIA"))
+                .andExpect(jsonPath("$.vehiculos[?(@.id=='TA01')].detenidoHasta").value("2026-01-01T07:30:00Z"))
+                .andExpect(jsonPath("$.vehiculos[?(@.id=='TM01')].motivoDetencion").value("MANTENIMIENTO"))
+                .andExpect(jsonPath("$.vehiculos[?(@.id=='TM01')].detenidoHasta").value("2026-01-02T05:00:00Z"));
+
+        // +60 s reales = +160 min (08:20Z): la avería ya terminó; TA01 opera sin motivo de detención.
+        reloj.avanzar(Duration.ofSeconds(60));
+        mvc.perform(get("/api/monitoreo/" + id))
+                .andExpect(jsonPath("$.vehiculos[?(@.id=='TA01')].motivoDetencion").value((Object) null))
+                .andExpect(jsonPath("$.vehiculos[?(@.id=='TA01')].detenidoHasta").value((Object) null));
+    }
+
+    @Test
+    void sinMetricasEnMemoriaMuestraElResultadoGuardado() throws Exception {
+        // Simula un reinicio del backend: la ejecución tiene su resultado guardado, pero el ejecutor no la conoce.
+        String respuesta = mvc.perform(post("/api/escenarios").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tipo\": \"FIVE_DAY\", \"inicioSimulado\": \"" + INICIO + "\"}"))
+                .andReturn().getResponse().getContentAsString();
+        long id = ((Number) JsonPath.read(respuesta, "$.id")).longValue();
+        resultadoService.persistir(id, 10, new EjecutorPlanService.Metricas(8, 7, 40, 123.5, 988.0), 1500, 3, 1, 2);
+
+        mvc.perform(get("/api/monitoreo/" + id))
+                .andExpect(jsonPath("$.ejecucion.pedidosEntregados").value(8))
+                .andExpect(jsonPath("$.ejecucion.entregadosATiempo").value(7))
+                .andExpect(jsonPath("$.ejecucion.paquetesEntregados").value((Object) null))
+                .andExpect(jsonPath("$.ejecucion.distanciaKm").value(123.5))
+                .andExpect(jsonPath("$.ejecucion.costo").value(988.0));
     }
 
     @Test

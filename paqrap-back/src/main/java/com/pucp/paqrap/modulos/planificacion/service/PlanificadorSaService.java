@@ -124,6 +124,6 @@ public class PlanificadorSaService implements PlanificadorService {
                     new VehicleOperationalState(vehiculo, VehicleStatus.AVAILABLE, central.location(), hora));
         }
         return new OperationalSnapshot(hora, fuente.perfilFlota(), InventorySnapshot.from(fuente.almacenes()), estados,
-                fuente.calendarioMantenimiento(), new ShiftSchedule(ShiftSchedule.DEFAULT_ZONE), fuente.averias());
+                fuente.calendarioMantenimiento(), new ShiftSchedule(ShiftSchedule.DEFAULT_ZONE), fuente.averias(null));
     }
 }

@@ -4,16 +4,29 @@ import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleEntity;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleOperationalStatus;
 import com.pucp.paqrap.modulos.flota.repository.VehicleRepository;
+import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
+import com.pucp.paqrap.modulos.incidencias.entity.BreakdownType;
+import com.pucp.paqrap.modulos.incidencias.persistence.BreakdownEventEntity;
+import com.pucp.paqrap.modulos.incidencias.repository.BreakdownEventRepository;
+import com.pucp.paqrap.modulos.incidencias.service.ContextoSimulacion;
+import com.pucp.paqrap.modulos.redvial.entity.Location;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -22,17 +35,51 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Horas en UTC; 15:00Z = 10:00 en Lima, dentro del turno de 07:00 a 15:00. */
+/**
+ * Horas en UTC; 15:00Z = 10:00 en Lima, dentro del turno de 07:00 a 15:00. Las averías se registran en el escenario 5,
+ * en curso, sin plan ejecutado todavía (se respeta la hora indicada).
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
 class AveriaApiTest {
 
+    @TestConfiguration
+    static class Config {
+        @Bean
+        @Primary
+        ContextoSimulacion escenarioEnCurso() {
+            return new ContextoSimulacion() {
+                @Override
+                public List<Long> ejecucionesActivas() {
+                    return List.of(5L);
+                }
+
+                @Override
+                public Optional<Instant> instanteSimulado(long ejecucionId) {
+                    return ejecucionId == 5L ? Optional.of(Instant.parse("2026-01-05T15:00:00Z")) : Optional.empty();
+                }
+
+                @Override
+                public Optional<Instant> ejecutadoHasta(long ejecucionId) {
+                    return Optional.empty();
+                }
+
+                @Override
+                public Optional<Location> posicionEstimada(long ejecucionId, String vehiculoId, Instant instante) {
+                    return Optional.empty();
+                }
+            };
+        }
+    }
+
     @Autowired
     private MockMvc mvc;
     @Autowired
     private VehicleRepository vehiculoRepository;
+    @Autowired
+    private BreakdownEventRepository averiaRepository;
 
     @BeforeEach
     void cargarDatos() {
@@ -97,6 +144,26 @@ class AveriaApiTest {
     }
 
     @Test
+    void rechazaUnaAveriaQueLoDejariaInhabilitadoCuandoOcurreOtraYaRegistrada() throws Exception {
+        registrar("""
+                {"vehiculoId": "TA01", "tipo": "MINOR", "ocurridaEn": "2026-01-05T16:00:00Z"}
+                """);
+
+        // Una avería menor a las 15:00Z lo inhabilita hasta las 17:00Z, y a las 16:00Z ya hay otra.
+        registrar("""
+                {"vehiculoId": "TA01", "tipo": "MINOR", "ocurridaEn": "2026-01-05T15:00:00Z"}
+                """)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value(containsString("ya tiene registrada")));
+
+        // A las 13:00Z termina a las 15:00Z, antes de la siguiente.
+        registrar("""
+                {"vehiculoId": "TA01", "tipo": "MINOR", "ocurridaEn": "2026-01-05T13:00:00Z"}
+                """)
+                .andExpect(status().isCreated());
+    }
+
+    @Test
     void validaLosDatosDeLaAveria() throws Exception {
         registrar("""
                 {"vehiculoId": "", "tipo": "LEVE", "x": 99}
@@ -120,9 +187,9 @@ class AveriaApiTest {
         registrar("""
                 {"vehiculoId": "TA01", "tipo": "MINOR", "ocurridaEn": "2026-01-05T15:00:00Z"}
                 """);
-        registrar("""
-                {"vehiculoId": "TM01", "tipo": "INTERMEDIATE", "ocurridaEn": "2026-01-06T15:00:00Z", "ejecucionId": 7}
-                """);
+        // Registrada durante el escenario 7, que ya terminó.
+        averiaRepository.save(new BreakdownEventEntity(7L, new BreakdownEvent("TM01", BreakdownType.INTERMEDIATE,
+                Instant.parse("2026-01-06T15:00:00Z"), new Location(27, 14))));
 
         mvc.perform(get("/api/incidencias/averias"))
                 .andExpect(jsonPath("$", hasSize(2)));
