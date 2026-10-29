@@ -414,7 +414,8 @@ class ReplanificacionSaServiceTest {
         Map<String, VehicleOperationalState> forzados = new HashMap<>();
         otras.forEach(x -> forzados.put(x.vehiculoId(), enRuta(x.vehiculoId(), x.llegadaFinal())));
         forzados.put(afectada.vehiculoId(), new VehicleOperationalState(vehiculo(afectada.vehiculoId()),
-                VehicleStatus.OUT_OF_SERVICE, averia.location(), averia.occurredAt()));
+                VehicleStatus.AVAILABLE, averia.location(),
+                averia.occurredAt().plus(BreakdownType.MINOR.minimumUnavailable())));
         List<Order> pendientes = pendientes(pedidos(), entregas(otras, null));
         ResultadoPlanificacion esperado = directo(snapshotOriginal(t, forzados, List.of(averia)), pendientes, List.of(),
                 SEMILLA + 1);
@@ -457,7 +458,7 @@ class ReplanificacionSaServiceTest {
      * el vehículo cuya ruta se interrumpió queda en el lugar de la avería y no vuelve a recibir rutas.
      */
     @Test
-    void trasUnaAveriaMenorEnRutaElVehiculoNoVuelveAUsarseAunqueTermineSuIndisponibilidad() {
+    void trasUnaAveriaMenorEnRutaElVehiculoVuelveAEstarDisponibleAlTerminarLaIndisponibilidad() {
         ReplanificacionResponse inicio = servicio.iniciar(EJECUCION, solicitud());
         RutaResponse afectada = rutaQueAunNoLlegaASuPrimeraEntrega(inicio);
         Instant t = H.plusSeconds(60);

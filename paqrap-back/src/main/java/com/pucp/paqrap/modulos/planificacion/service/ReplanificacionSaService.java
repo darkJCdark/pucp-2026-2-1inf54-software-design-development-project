@@ -366,7 +366,7 @@ public class ReplanificacionSaService implements ReplanificacionService {
     /**
      * Estado del vehículo cuya ruta se interrumpió, según el cálculo original de la avería: si la avería
      * define regreso al central, queda disponible allí desde el mayor entre el fin de la indisponibilidad y
-     * ese regreso; si no lo define (MINOR), queda fuera de servicio en el lugar de la avería.
+     * ese regreso; si no lo define (MINOR), permanece en el lugar de la avería y vuelve a ser planificable al terminar la indisponibilidad.
      */
     private VehicleOperationalState estadoTrasAveria(Vehicle vehiculo, BreakdownEvent averia, Warehouse central) {
         BreakdownResolution resolucion =
