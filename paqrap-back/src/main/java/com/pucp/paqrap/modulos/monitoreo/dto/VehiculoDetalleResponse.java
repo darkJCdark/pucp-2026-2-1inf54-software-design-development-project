@@ -12,7 +12,9 @@ import java.util.List;
  * último plan: {@code rutaId} es nulo si la unidad no tiene entregas pendientes.
  */
 public record VehiculoDetalleResponse(String id, VehicleType tipo, VehicleOperationalStatus estado, int x, int y,
-                                      int cargaActual, int capacidad, Instant disponibleDesde, Instant instante,
+                                      int cargaActual, int capacidad, Instant disponibleDesde,
+                                      MonitoreoResponse.MotivoDetencion motivoDetencion, Instant detenidoHasta,
+                                      Instant instante,
                                       Turno turnoVigente, Turno ventanaAlimentacion, String rutaId,
                                       List<ProximaEntrega> proximasEntregas) {
 

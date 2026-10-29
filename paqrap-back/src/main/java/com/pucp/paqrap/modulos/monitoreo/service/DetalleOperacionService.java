@@ -6,10 +6,13 @@ import com.pucp.paqrap.modulos.almacenes.persistence.WarehouseKind;
 import com.pucp.paqrap.modulos.almacenes.repository.InventoryMovementRepository;
 import com.pucp.paqrap.modulos.almacenes.service.AlmacenService;
 import com.pucp.paqrap.modulos.escenarios.dto.EscenarioResponse;
+import com.pucp.paqrap.modulos.escenarios.service.EjecutorPlanService;
 import com.pucp.paqrap.modulos.escenarios.service.EscenarioService;
 import com.pucp.paqrap.modulos.flota.dto.VehiculoResponse;
+import com.pucp.paqrap.modulos.flota.persistence.VehicleOperationalStatus;
 import com.pucp.paqrap.modulos.flota.service.FlotaService;
 import com.pucp.paqrap.modulos.monitoreo.dto.AlmacenDetalleResponse;
+import com.pucp.paqrap.modulos.monitoreo.dto.MonitoreoResponse;
 import com.pucp.paqrap.modulos.monitoreo.dto.VehiculoDetalleResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.ParadaResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.PlanResponse;
@@ -38,16 +41,18 @@ public class DetalleOperacionService {
     private static final LocalTime HORA_RECARGA = LocalTime.of(23, 59, 59);
 
     private final EscenarioService escenarioService;
+    private final EjecutorPlanService ejecutorPlan;
     private final FlotaService flotaService;
     private final PlanVigente planVigente;
     private final AlmacenService almacenService;
     private final InventoryMovementRepository movimientoRepository;
     private final ShiftSchedule turnos = ShiftSchedule.defaultSchedule();
 
-    public DetalleOperacionService(EscenarioService escenarioService, FlotaService flotaService,
-                                   PlanVigente planVigente, AlmacenService almacenService,
+    public DetalleOperacionService(EscenarioService escenarioService, EjecutorPlanService ejecutorPlan,
+                                   FlotaService flotaService, PlanVigente planVigente, AlmacenService almacenService,
                                    InventoryMovementRepository movimientoRepository) {
         this.escenarioService = escenarioService;
+        this.ejecutorPlan = ejecutorPlan;
         this.flotaService = flotaService;
         this.planVigente = planVigente;
         this.almacenService = almacenService;
@@ -64,6 +69,9 @@ public class DetalleOperacionService {
         int capacidad = flotaService.obtenerTipo(vehiculo.tipo()).capacidadPaquetes();
 
         String rutaId = null;
+        Instant refrigerioHasta = vehiculo.estado() == VehicleOperationalStatus.IN_ROUTE
+                ? ejecutorPlan.refrigerioHasta(ejecucionId, id, instante).orElse(null)
+                : null;
         List<VehiculoDetalleResponse.ProximaEntrega> proximas = new ArrayList<>();
         Optional<PlanResponse> plan = planVigente.ultimoPlan(ejecucionId);
         if (plan.isPresent()) {
@@ -85,9 +93,10 @@ public class DetalleOperacionService {
         }
         proximas.sort(Comparator.comparing(VehiculoDetalleResponse.ProximaEntrega::llegadaPrevista)
                 .thenComparingInt(VehiculoDetalleResponse.ProximaEntrega::orden));
-
+        MonitoreoResponse.MotivoDetencion motivo = refrigerioHasta == null ? null
+                : MonitoreoResponse.MotivoDetencion.REFRIGERIO;
         return new VehiculoDetalleResponse(vehiculo.id(), vehiculo.tipo(), vehiculo.estado(), vehiculo.x(),
-                vehiculo.y(), vehiculo.cargaActual(), capacidad, vehiculo.disponibleDesde(), instante,
+                vehiculo.y(), vehiculo.cargaActual(), capacidad, vehiculo.disponibleDesde(), motivo, refrigerioHasta, instante,
                 new VehiculoDetalleResponse.Turno(turno.startsAt(), turno.endsAt()),
                 new VehiculoDetalleResponse.Turno(alimentacion.startsAt(), alimentacion.endsAt()),
                 rutaId, List.copyOf(proximas));

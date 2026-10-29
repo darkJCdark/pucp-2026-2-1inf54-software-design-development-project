@@ -9,6 +9,7 @@ import com.pucp.paqrap.modulos.almacenes.service.InventarioService;
 import com.pucp.paqrap.modulos.escenarios.entity.ScenarioStatus;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioResultRepository;
+import com.pucp.paqrap.modulos.escenarios.service.EjecutorPlanService;
 import com.pucp.paqrap.modulos.escenarios.service.MotorEscenarios;
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleEntity;
@@ -127,6 +128,7 @@ class DetalleApiTest {
     @Autowired private MockMvc mvc;
     @Autowired private RelojManual reloj;
     @Autowired private PlanesDePrueba planes;
+    @Autowired private EjecutorPlanService ejecutorPlan;
     @Autowired private MotorEscenarios motor;
     @Autowired private InventarioService inventario;
     @Autowired private ScenarioExecutionRepository ejecucionRepository;
@@ -210,6 +212,34 @@ class DetalleApiTest {
                 .andExpect(jsonPath("$.proximasEntregas", hasSize(0)));
     }
 
+    @Test
+    void elDetalleExponeElRefrigerioSoloMientrasDura() throws Exception {
+        long id = iniciarCincoDias();
+        VehicleEntity vehiculo = vehiculoRepository.findById("TA01").orElseThrow();
+        vehiculo.setOperationalStatus(VehicleOperationalStatus.IN_ROUTE);
+        vehiculoRepository.save(vehiculo);
+        planes.planes.put(id, plan(new RutaResponse("SA-TA01", "TA01", "CAR", hora("05:00"), hora("08:00"),
+                3.0, 24.0, List.of(new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 2,
+                hora("07:00"), hora("08:00"), 2, 0, hora("06:00"))))));
+        ejecutorPlan.avanzar(id, INICIO, INICIO);
+
+        mvc.perform(get("/api/flota/vehiculos/TA01/detalle").param("ejecucionId", String.valueOf(id)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.motivoDetencion").value((Object) null))
+                .andExpect(jsonPath("$.detenidoHasta").value((Object) null));
+
+        reloj.avanzar(Duration.ofSeconds(23)); // 06:01:20Z simulado: dentro de 06:00Z a 07:00Z.
+        mvc.perform(get("/api/flota/vehiculos/TA01/detalle").param("ejecucionId", String.valueOf(id)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.motivoDetencion").value("REFRIGERIO"))
+                .andExpect(jsonPath("$.detenidoHasta").value("2026-01-01T07:00:00Z"));
+
+        reloj.avanzar(Duration.ofSeconds(23)); // 07:02:40Z simulado: el refrigerio ya terminó.
+        mvc.perform(get("/api/flota/vehiculos/TA01/detalle").param("ejecucionId", String.valueOf(id)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.motivoDetencion").value((Object) null))
+                .andExpect(jsonPath("$.detenidoHasta").value((Object) null));
+    }
     @Test
     void unaUnidadConRutaListaSoloLasEntregasQueAunNoOcurrieron() throws Exception {
         long id = iniciarCincoDias();
