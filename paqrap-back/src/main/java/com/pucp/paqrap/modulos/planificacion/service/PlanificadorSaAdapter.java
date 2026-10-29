@@ -6,6 +6,7 @@ import com.pucp.paqrap.modulos.pedidos.entity.Order;
 import com.pucp.paqrap.modulos.pedidos.persistence.OrderEntity;
 import com.pucp.paqrap.modulos.pedidos.repository.OrderRepository;
 import com.pucp.paqrap.modulos.planificacion.dto.ModoOperacion;
+import com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.AnnealingConfig;
 import com.pucp.paqrap.modulos.planificacion.dto.PlanResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.ReplanificacionResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.SolicitudPlanificacion;
@@ -76,12 +77,13 @@ public class PlanificadorSaAdapter implements PlanificadorPort, PlanVigente {
             replanificacion.finalizar(ejecucionId);
             List<Order> pedidos = pedidosNuevos(ejecucionId, inicio, instante);
             respuesta = replanificacion.iniciar(ejecucionId, new SolicitudPlanificacion(modo(ejecucion), instante,
-                    pedidos, horizonte, null, presupuestoMs));
+                    pedidos, horizonte, ejecucion == null ? null : ejecucion.getSaSeed(), presupuestoMs, configuracionSa(ejecucion)));
         } else {
             List<RoadBlock> bloqueos = new ArrayList<>(horizonte);
             bloqueos.addAll(solicitud.bloqueosIniciados());
             respuesta = replanificacion.replanificar(ejecucionId, new ReplanificacionService.Eventos(
-                    pedidosNuevos(ejecucionId, inicio, instante), bloqueos, solicitud.averias()), instante);
+                    pedidosNuevos(ejecucionId, inicio, instante), bloqueos, solicitud.bloqueosTerminados(),
+                    solicitud.averias(), solicitud.tiposFlotaActualizados()), instante);
         }
         ultimaReplanificacion.put(ejecucionId, respuesta);
         PlanResponse plan = respuesta.plan();
@@ -131,6 +133,12 @@ public class PlanificadorSaAdapter implements PlanificadorPort, PlanVigente {
         return nuevos;
     }
 
+    private AnnealingConfig configuracionSa(ScenarioExecutionEntity ejecucion) {
+        return ejecucion == null ? PlanificadorSaService.configuracionPorDefecto()
+                : PlanificadorSaService.configuracionConParametros(ejecucion.getSaInitialTemperature(),
+                ejecucion.getSaMinimumTemperature(), ejecucion.getSaCoolingFactor(),
+                ejecucion.getSaIterationsPerTemperature());
+    }
     private ModoOperacion modo(ScenarioExecutionEntity ejecucion) {
         if (ejecucion == null) {
             return ModoOperacion.SIMULACION_5D;

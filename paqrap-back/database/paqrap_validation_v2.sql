@@ -405,12 +405,25 @@ WHERE order_id = 'TEST-V2-FINAL-ORDER';
 -- 2.10 Kardex
 -- ------------------------------------------------------------
 
+SELECT COUNT(*) AS inventory_event_key_unique
+FROM information_schema.table_constraints
+WHERE constraint_schema = 'paqrap'
+  AND table_name = 'inventory_movements'
+  AND constraint_name = 'uq_inventory_movements_execution_event'
+  AND constraint_type = 'UNIQUE';
+
+-- Esperado: 1
+
+
 INSERT INTO inventory_movements (
     warehouse_id,
     execution_id,
     order_id,
     movement_type,
     quantity,
+    stock_before,
+    stock_after,
+    event_key,
     occurred_at
 )
 VALUES (
@@ -419,6 +432,9 @@ VALUES (
     'TEST-V2-FINAL-ORDER',
     'DISPATCH',
     10,
+    NULL,
+    NULL,
+    'VALIDATION-CENTRAL-DISPATCH',
     '2026-10-08 08:05:00'
 );
 
@@ -879,3 +895,6 @@ FROM information_schema.tables
 WHERE table_schema = 'paqrap';
 
 -- Esperado: 15
+-- R1: configuracion SA por ejecucion
+SELECT sa_seed, sa_initial_temperature, sa_minimum_temperature, sa_cooling_factor, sa_iterations_per_temperature
+FROM scenario_executions;

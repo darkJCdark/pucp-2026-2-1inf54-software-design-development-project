@@ -1,6 +1,7 @@
 package com.pucp.paqrap.modulos.planificacion.service;
 
 import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
+import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 
 import java.time.Instant;
@@ -46,14 +47,27 @@ public interface PlanificadorPort {
      * @param averias           averías de la ejecución ocurridas desde el ciclo anterior
      */
     record SolicitudCiclo(long ejecucionId, Instant instante, Motivo motivo, List<RoadBlock> bloqueosIniciados,
-                          List<BreakdownEvent> averias) {
+                          List<RoadBlock> bloqueosTerminados, List<BreakdownEvent> averias,
+                          List<VehicleType> tiposFlotaActualizados) {
         public SolicitudCiclo {
             bloqueosIniciados = bloqueosIniciados == null ? List.of() : List.copyOf(bloqueosIniciados);
+            bloqueosTerminados = bloqueosTerminados == null ? List.of() : List.copyOf(bloqueosTerminados);
             averias = averias == null ? List.of() : List.copyOf(averias);
+            tiposFlotaActualizados = tiposFlotaActualizados == null ? List.of() : List.copyOf(tiposFlotaActualizados);
+        }
+
+        public SolicitudCiclo(long ejecucionId, Instant instante, Motivo motivo, List<RoadBlock> bloqueosIniciados,
+                              List<RoadBlock> bloqueosTerminados, List<BreakdownEvent> averias) {
+            this(ejecucionId, instante, motivo, bloqueosIniciados, bloqueosTerminados, averias, List.of());
+        }
+
+        public SolicitudCiclo(long ejecucionId, Instant instante, Motivo motivo, List<RoadBlock> bloqueosIniciados,
+                              List<BreakdownEvent> averias) {
+            this(ejecucionId, instante, motivo, bloqueosIniciados, List.of(), averias, List.of());
         }
 
         public SolicitudCiclo(long ejecucionId, Instant instante, Motivo motivo) {
-            this(ejecucionId, instante, motivo, List.of(), List.of());
+            this(ejecucionId, instante, motivo, List.of(), List.of(), List.of(), List.of());
         }
     }
 

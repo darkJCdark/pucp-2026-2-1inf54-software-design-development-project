@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -73,6 +74,15 @@ public class PlanPersistenceService {
         return snapshot;
     }
 
+
+    /** Identidades durables de rutas, indexadas por id operacional único dentro de un snapshot. */
+    @Transactional(readOnly = true)
+    public Map<String, Long> rutasPersistidasPorOperacion(long planId) {
+        Map<String, Long> resultado = new LinkedHashMap<>();
+        routeRepository.findByPlanPlanIdOrderByRouteIdAsc(planId)
+                .forEach(ruta -> resultado.put(ruta.getOperationalRouteId(), ruta.getRouteId()));
+        return resultado;
+    }
     private String tipoDe(MotivoReplanificacion motivo) {
         return motivo == MotivoReplanificacion.INICIO ? INITIAL : REPLANNING;
     }

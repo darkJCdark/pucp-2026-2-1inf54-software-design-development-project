@@ -122,10 +122,9 @@ public class EjecutorPlanService {
                 .buscar(null, null, ejecucionId, hasta.minus(ALCANCE_AVERIAS), hasta.plusNanos(1)).stream()
                 .map(BreakdownEventEntity::toDomain)
                 .toList();
-        trasladarAveriadosAlCentral(averias, desde, hasta);
-
         Optional<PlanResponse> vigente = planVigente.ultimoPlan(ejecucionId);
         if (vigente.isEmpty()) {
+            trasladarAveriadosAlCentral(averias, desde, hasta);
             return;
         }
         PlanResponse plan = vigente.get();
@@ -145,9 +144,10 @@ public class EjecutorPlanService {
             }
         }
 
-        for (Evento evento : eventos(plan, inicioVentana, desde, estado.continuadas, hasta)) {
+        for (Evento evento : eventos(plan, inicioVentana, desde, estado.continuadas, hasta, averias)) {
             aplicar(ejecucionId, estado, evento, averias);
         }
+        trasladarAveriadosAlCentral(averias, desde, hasta);
     }
 
     /** Rutas en curso que siguen en el plan nuevo (mismo vehículo, id y salida), ya ligadas a su versión nueva. */
@@ -308,10 +308,15 @@ public class EjecutorPlanService {
 
     // ------------------------------------------------------------------ eventos del plan
 
-    private enum TipoEvento { SALIDA, PARTIDA_HACIA_PARADA, LLEGADA_A_PARADA, FIN_RUTA }
+    /**
+     * El orden declara la semántica para eventos simultáneos: una avería en el instante de una partida o llegada
+     * interrumpe antes de que se ejecute ese tramo o entrega. La salida queda antes para que una avería exactamente
+     * en ella sea descartada por {@link #iniciarRuta(long, EstadoEjecucion, RutaResponse, List)}.
+     */
+    private enum TipoEvento { SALIDA, AVERIA, PARTIDA_HACIA_PARADA, LLEGADA_A_PARADA, FIN_RUTA }
 
-    /** {@code parada}: índice de la parada; -1 en SALIDA y FIN_RUTA. */
-    private record Evento(Instant instante, TipoEvento tipo, RutaResponse ruta, int parada) {
+    /** {@code parada}: índice de la parada; -1 en SALIDA, AVERIA y FIN_RUTA. */
+    private record Evento(Instant instante, TipoEvento tipo, RutaResponse ruta, int parada, BreakdownEvent averia) {
     }
 
     /**
@@ -319,7 +324,7 @@ public class EjecutorPlanService {
      * continuadas ya se ejecutaron hasta {@code ejecutadoHasta}: sus eventos se toman desde ahí.
      */
     private List<Evento> eventos(PlanResponse plan, Instant inicioVentana, Instant ejecutadoHasta,
-                                 Set<RutaResponse> continuadas, Instant hasta) {
+                                 Set<RutaResponse> continuadas, Instant hasta, List<BreakdownEvent> averias) {
         List<Evento> eventos = new ArrayList<>();
         for (RutaResponse ruta : plan.rutas()) {
             if (ruta.llegadaFinal() == null || ruta.salida() == null) {
@@ -341,6 +346,11 @@ public class EjecutorPlanService {
                 partida = parada.fin() != null ? parada.fin() : parada.llegada();
             }
             agregar(eventos, ruta.llegadaFinal(), TipoEvento.FIN_RUTA, ruta, -1, desde, hasta);
+            averias.stream()
+                    .filter(averia -> averia.vehicleId().equals(ruta.vehiculoId()))
+                    .filter(averia -> !averia.occurredAt().isBefore(ruta.salida())
+                            && averia.occurredAt().isBefore(ruta.llegadaFinal()))
+                    .forEach(averia -> agregarAveria(eventos, averia, ruta, desde, hasta));
         }
         eventos.sort(Comparator.comparing(Evento::instante).thenComparing(Evento::tipo));
         return eventos;
@@ -349,23 +359,29 @@ public class EjecutorPlanService {
     private void agregar(List<Evento> eventos, Instant instante, TipoEvento tipo, RutaResponse ruta, int parada,
                          Instant desde, Instant hasta) {
         if (instante.isAfter(desde) && !instante.isAfter(hasta)) {
-            eventos.add(new Evento(instante, tipo, ruta, parada));
+            eventos.add(new Evento(instante, tipo, ruta, parada, null));
+        }
+    }
+
+    private void agregarAveria(List<Evento> eventos, BreakdownEvent averia, RutaResponse ruta,
+                               Instant desde, Instant hasta) {
+        if (!averia.occurredAt().isBefore(desde) && !averia.occurredAt().isAfter(hasta)) {
+            eventos.add(new Evento(averia.occurredAt(), TipoEvento.AVERIA, ruta, -1, averia));
         }
     }
 
     private void aplicar(long ejecucionId, EstadoEjecucion estado, Evento evento, List<BreakdownEvent> averias) {
         RutaResponse ruta = evento.ruta();
         if (evento.tipo() == TipoEvento.SALIDA) {
-            iniciarRuta(estado, ruta, averias);
+            iniciarRuta(ejecucionId, estado, ruta, averias);
             return;
         }
         RutaEnCurso enCurso = estado.rutas.get(ruta.vehiculoId());
         if (enCurso == null || enCurso.ruta != ruta || enCurso.interrumpida) {
             return; // la ruta no llegó a salir, es de otro plan o la interrumpió una avería
         }
-        Optional<BreakdownEvent> averia = averiaDurante(averias, ruta.vehiculoId(), ruta.salida(), evento.instante());
-        if (averia.isPresent()) {
-            interrumpir(enCurso, averia.get());
+        if (evento.tipo() == TipoEvento.AVERIA) {
+            interrumpir(enCurso, evento.averia());
             return;
         }
         switch (evento.tipo()) {
@@ -376,20 +392,23 @@ public class EjecutorPlanService {
         }
     }
 
-    private void iniciarRuta(EstadoEjecucion estado, RutaResponse ruta, List<BreakdownEvent> averias) {
+    private void iniciarRuta(long ejecucionId, EstadoEjecucion estado, RutaResponse ruta, List<BreakdownEvent> averias) {
         VehicleEntity vehiculo = vehiculoRepository.findById(ruta.vehiculoId()).orElse(null);
         if (vehiculo == null || averiaDurante(averias, ruta.vehiculoId(), Instant.MIN, ruta.salida())
                 .filter(a -> calculadoraAverias.resolve(a).unavailableUntil().isAfter(ruta.salida())).isPresent()) {
             return;
         }
+        ParadaResponse primera = ruta.paradas().isEmpty() ? null : ruta.paradas().get(0);
+        int cargaPlanificada = primera != null && primera.cargaAntes() != null
+                ? primera.cargaAntes() : vehiculo.getCurrentLoad();
+        if (!registrarCargaInicial(ejecucionId, ruta, vehiculo, cargaPlanificada)) {
+            cargaPlanificada = vehiculo.getCurrentLoad();
+        }
+
         RutaEnCurso enCurso = new RutaEnCurso(ruta, vehiculo.getCurrentX(), vehiculo.getCurrentY());
         estado.rutas.put(ruta.vehiculoId(), enCurso);
-
         vehiculo.setOperationalStatus(VehicleOperationalStatus.IN_ROUTE);
-        ParadaResponse primera = ruta.paradas().isEmpty() ? null : ruta.paradas().get(0);
-        if (primera != null && primera.cargaAntes() != null) {
-            vehiculo.moverA(vehiculo.getCurrentX(), vehiculo.getCurrentY(), primera.cargaAntes());
-        }
+        vehiculo.moverA(vehiculo.getCurrentX(), vehiculo.getCurrentY(), cargaPlanificada);
         for (ParadaResponse parada : ruta.paradas()) {
             if (ParadaResponse.ENTREGA.equals(parada.tipo())) {
                 pedidoRepository.findById(parada.pedidoId())
@@ -399,6 +418,20 @@ public class EjecutorPlanService {
         }
     }
 
+    /** El almacén inicial solo se descuenta cuando la ruta realmente incrementa la carga del vehículo. */
+    private boolean registrarCargaInicial(long ejecucionId, RutaResponse ruta, VehicleEntity vehiculo, int cargaPlanificada) {
+        int cantidad = cargaPlanificada - vehiculo.getCurrentLoad();
+        if (cantidad <= 0 || ruta.almacenInicialId() == null) {
+            return true;
+        }
+        try {
+            return inventarioService.registrarDespacho(ejecucionId, ruta.almacenInicialId(), null, cantidad, ruta.salida(),
+                    claveCargaInicial(ruta));
+        } catch (ReglaNegocioException sinStock) {
+            log.warn("Ejecución {}: {}", ejecucionId, sinStock.getMessage());
+            return false;
+        }
+    }
     private void partirHacia(ParadaResponse parada, RutaResponse ruta, Instant instante) {
         pedidoRepository.findById(parada.pedidoId())
                 .filter(pedido -> pedido.getStatus() == OrderStatus.ASSIGNED
@@ -415,16 +448,18 @@ public class EjecutorPlanService {
         estado.costo += tramoKm * enCurso.costoPorKm;
         enCurso.x = parada.x();
         enCurso.y = parada.y();
-        vehiculoRepository.findById(ruta.vehiculoId()).ifPresent(vehiculo -> vehiculo.moverA(parada.x(), parada.y(),
-                parada.cargaDespues() != null ? parada.cargaDespues() : vehiculo.getCurrentLoad()));
 
+        boolean cargaConfirmada = !ParadaResponse.ALMACEN.equals(parada.tipo()) || parada.paquetes() <= 0
+                || despachar(ejecucionId, ruta, indice, instante);
+        vehiculoRepository.findById(ruta.vehiculoId()).ifPresent(vehiculo -> {
+            int carga = cargaConfirmada && parada.cargaDespues() != null
+                    ? parada.cargaDespues() : vehiculo.getCurrentLoad();
+            vehiculo.moverA(parada.x(), parada.y(), carga);
+        });
         if (ParadaResponse.ENTREGA.equals(parada.tipo())) {
             entregar(estado, parada, ruta.vehiculoId(), instante);
-        } else if (parada.paquetes() > 0) {
-            despachar(ejecucionId, ruta, indice, instante);
         }
     }
-
     /** Suma la entrega (puede ser parcial); el pedido queda DELIVERED al completar todos sus paquetes. */
     private void entregar(EstadoEjecucion estado, ParadaResponse parada, String vehiculoId, Instant llegada) {
         OrderEntity pedido = pedidoRepository.findById(parada.pedidoId()).orElse(null);
@@ -443,22 +478,31 @@ public class EjecutorPlanService {
         }
     }
 
-    /** La carga en un almacén se registra como despacho del siguiente pedido que entrega la ruta (la BD lo exige). */
-    private void despachar(long ejecucionId, RutaResponse ruta, int indice, Instant instante) {
+    /** La carga física se descuenta al llegar al almacén; no se atribuye artificialmente a una entrega posterior. */
+    private boolean despachar(long ejecucionId, RutaResponse ruta, int indice, Instant instante) {
         ParadaResponse almacen = ruta.paradas().get(indice);
-        ruta.paradas().stream().skip(indice + 1L)
-                .filter(parada -> ParadaResponse.ENTREGA.equals(parada.tipo()))
-                .findFirst()
-                .ifPresent(siguiente -> {
-                    try {
-                        inventarioService.registrarDespacho(ejecucionId, almacen.almacenId(), siguiente.pedidoId(),
-                                almacen.paquetes(), instante);
-                    } catch (ReglaNegocioException sinStock) {
-                        log.warn("Ejecución {}: {}", ejecucionId, sinStock.getMessage());
-                    }
-                });
+        try {
+            return inventarioService.registrarDespacho(ejecucionId, almacen.almacenId(), null, almacen.paquetes(), instante,
+                    claveCargaIntermedia(ruta, almacen));
+        } catch (ReglaNegocioException sinStock) {
+            log.warn("Ejecución {}: {}", ejecucionId, sinStock.getMessage());
+            return false;
+        }
+    }
+    private static String claveCargaInicial(RutaResponse ruta) {
+        return "INITIAL:ROUTE:" + rutaPersistedId(ruta);
     }
 
+    private static String claveCargaIntermedia(RutaResponse ruta, ParadaResponse parada) {
+        return "WAREHOUSE:ROUTE:" + rutaPersistedId(ruta) + ":STOP:" + parada.orden();
+    }
+
+    private static long rutaPersistedId(RutaResponse ruta) {
+        if (ruta.routePersistedId() == null) {
+            throw new IllegalStateException("La ruta " + ruta.id() + " no tiene identidad persistida para el kardex");
+        }
+        return ruta.routePersistedId();
+    }
     private void terminarRuta(RutaEnCurso enCurso) {
         vehiculoRepository.findById(enCurso.ruta.vehiculoId())
                 .filter(vehiculo -> vehiculo.getOperationalStatus() == VehicleOperationalStatus.IN_ROUTE)

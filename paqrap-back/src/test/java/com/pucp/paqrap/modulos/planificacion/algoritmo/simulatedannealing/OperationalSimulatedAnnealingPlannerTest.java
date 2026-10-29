@@ -52,6 +52,25 @@ class OperationalSimulatedAnnealingPlannerTest {
         assertFalse(resultado.plan().routes().isEmpty());
     }
 
+    /** Snapshot posterior a una avería: la unidad sustituta puede cumplir cualquiera de los pedidos, pero no ambos. */
+    @Test
+    void anteDosPedidosFactiblesPeroIncompatiblesPriorizaElDeMenorDeadline() {
+        Warehouse central = Warehouse.central("CENTRAL", new Location(0, 0));
+        Vehicle sustituto = new Vehicle("TA02", VehicleType.CAR, true);
+        Order urgente = new Order("URGENTE", new Location(0, 50), 24, INICIO, INICIO.plusSeconds(4 * 3600));
+        Order flexible = new Order("FLEXIBLE", new Location(0, 50), 24, INICIO, INICIO.plusSeconds(5 * 3600));
+
+        ResultadoPlanificacion resultado = planificador().planificar(snapshot(central, List.of(sustituto)),
+                List.of(flexible, urgente), List.of(), configuracion(30), random(57L));
+
+        assertTrue(resultado.esFactible(), () -> "violaciones: " + resultado.evaluacion().violations());
+        assertEquals(List.of("FLEXIBLE"), resultado.noAtendidos().stream().map(Order::id).toList());
+        assertEquals(List.of("URGENTE"), resultado.plan().routes().stream()
+                .flatMap(ruta -> ruta.stops().stream())
+                .filter(DeliveryStop.class::isInstance)
+                .map(DeliveryStop.class::cast)
+                .map(entrega -> entrega.order().id()).toList());
+    }
     @Test
     void enfriaLaTemperaturaSegunElFactorConfigurado() {
         Escenario escenario = escenarioNormal();

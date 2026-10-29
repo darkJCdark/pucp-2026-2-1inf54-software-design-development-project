@@ -9,6 +9,7 @@ import com.pucp.paqrap.modulos.almacenes.service.InventarioService;
 import com.pucp.paqrap.modulos.escenarios.entity.ScenarioStatus;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioResultRepository;
+import com.pucp.paqrap.modulos.escenarios.service.EjecutorPlanService;
 import com.pucp.paqrap.modulos.escenarios.service.MotorEscenarios;
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleEntity;
@@ -127,6 +128,7 @@ class DetalleApiTest {
     @Autowired private MockMvc mvc;
     @Autowired private RelojManual reloj;
     @Autowired private PlanesDePrueba planes;
+    @Autowired private EjecutorPlanService ejecutorPlan;
     @Autowired private MotorEscenarios motor;
     @Autowired private InventarioService inventario;
     @Autowired private ScenarioExecutionRepository ejecucionRepository;
@@ -211,6 +213,34 @@ class DetalleApiTest {
     }
 
     @Test
+    void elDetalleExponeElRefrigerioSoloMientrasDura() throws Exception {
+        long id = iniciarCincoDias();
+        VehicleEntity vehiculo = vehiculoRepository.findById("TA01").orElseThrow();
+        vehiculo.setOperationalStatus(VehicleOperationalStatus.IN_ROUTE);
+        vehiculoRepository.save(vehiculo);
+        planes.planes.put(id, plan(new RutaResponse("SA-TA01", "TA01", "CAR", hora("05:00"), hora("08:00"),
+                3.0, 24.0, List.of(new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 2,
+                hora("07:00"), hora("08:00"), 2, 0, hora("06:00"))))));
+        ejecutorPlan.avanzar(id, INICIO, INICIO);
+
+        mvc.perform(get("/api/flota/vehiculos/TA01/detalle").param("ejecucionId", String.valueOf(id)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.motivoDetencion").value((Object) null))
+                .andExpect(jsonPath("$.detenidoHasta").value((Object) null));
+
+        reloj.avanzar(Duration.ofSeconds(23)); // 06:01:20Z simulado: dentro de 06:00Z a 07:00Z.
+        mvc.perform(get("/api/flota/vehiculos/TA01/detalle").param("ejecucionId", String.valueOf(id)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.motivoDetencion").value("REFRIGERIO"))
+                .andExpect(jsonPath("$.detenidoHasta").value("2026-01-01T07:00:00Z"));
+
+        reloj.avanzar(Duration.ofSeconds(23)); // 07:02:40Z simulado: el refrigerio ya terminó.
+        mvc.perform(get("/api/flota/vehiculos/TA01/detalle").param("ejecucionId", String.valueOf(id)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.motivoDetencion").value((Object) null))
+                .andExpect(jsonPath("$.detenidoHasta").value((Object) null));
+    }
+    @Test
     void unaUnidadConRutaListaSoloLasEntregasQueAunNoOcurrieron() throws Exception {
         long id = iniciarCincoDias();
         planes.planes.put(id, plan(
@@ -285,6 +315,12 @@ class DetalleApiTest {
                 .andExpect(jsonPath("$.ocupacionPct").value(60.0))
                 .andExpect(jsonPath("$.ventanaHoras").value(3))
                 .andExpect(jsonPath("$.consumoVentana").value(400))
+                .andExpect(jsonPath("$.alertaBajoStock").value(false))
+                .andExpect(jsonPath("$.nivelAlerta").value("AMBAR"))
+                .andExpect(jsonPath("$.movimientos", hasSize(2)))
+                .andExpect(jsonPath("$.movimientos[0].tipo").value("DISPATCH"))
+                .andExpect(jsonPath("$.movimientos[0].stockAntes").value(1000))
+                .andExpect(jsonPath("$.movimientos[0].stockDespues").value(700))
                 .andExpect(jsonPath("$.ultimaRecarga").doesNotExist())
                 // 07:40Z = 02:40 en Lima: la próxima recarga es ese mismo día a las 23:59:59 (04:59:59Z del 02-ene).
                 .andExpect(jsonPath("$.proximaRecarga").value("2026-01-02T04:59:59Z"))
@@ -308,6 +344,8 @@ class DetalleApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.stock").value(1000))
                 .andExpect(jsonPath("$.ocupacionPct").value(100.0))
+                .andExpect(jsonPath("$.alertaBajoStock").value(false))
+                .andExpect(jsonPath("$.nivelAlerta").value("VERDE"))
                 .andExpect(jsonPath("$.ultimaRecarga").value("2026-01-02T04:59:59Z"))
                 .andExpect(jsonPath("$.proximaRecarga").value("2026-01-03T04:59:59Z"));
     }
@@ -321,8 +359,63 @@ class DetalleApiTest {
                 .andExpect(jsonPath("$.stock").doesNotExist())
                 .andExpect(jsonPath("$.capacidad").doesNotExist())
                 .andExpect(jsonPath("$.ocupacionPct").doesNotExist())
+                .andExpect(jsonPath("$.alertaBajoStock").value(false))
+                .andExpect(jsonPath("$.nivelAlerta").value("VERDE"))
                 .andExpect(jsonPath("$.proximaRecarga").doesNotExist())
                 .andExpect(jsonPath("$.historial", hasSize(0)));
+    }
+
+
+    @Test
+    void elDetalleMarcaRojoCuandoLaDisponibilidadLlegaAlTreintaYTresPorCiento() throws Exception {
+        long id = iniciarCincoDias();
+        inventario.registrarDespacho(id, "EAST", null, 670, hora("05:30"), "ALERTA-ROJA");
+
+        reloj.avanzar(Duration.ofMinutes(1));
+        mvc.perform(get("/api/almacenes/EAST/detalle").param("ejecucionId", String.valueOf(id)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stock").value(330))
+                .andExpect(jsonPath("$.alertaBajoStock").value(true))
+                .andExpect(jsonPath("$.nivelAlerta").value("ROJO"));
+    }
+
+    @Test
+    void elDetalleMarcaAmbarConTrescientosTreintaYUnoDisponibles() throws Exception {
+        long id = iniciarCincoDias();
+        inventario.registrarDespacho(id, "EAST", null, 669, hora("05:30"), "ALERTA-AMBAR-331");
+
+        reloj.avanzar(Duration.ofMinutes(1));
+        mvc.perform(get("/api/almacenes/EAST/detalle").param("ejecucionId", String.valueOf(id)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stock").value(331))
+                .andExpect(jsonPath("$.alertaBajoStock").value(false))
+                .andExpect(jsonPath("$.nivelAlerta").value("AMBAR"));
+    }
+
+    @Test
+    void elDetalleMarcaAmbarConSeiscientosSesentaDisponibles() throws Exception {
+        long id = iniciarCincoDias();
+        inventario.registrarDespacho(id, "EAST", null, 340, hora("05:30"), "ALERTA-AMBAR-660");
+
+        reloj.avanzar(Duration.ofMinutes(1));
+        mvc.perform(get("/api/almacenes/EAST/detalle").param("ejecucionId", String.valueOf(id)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stock").value(660))
+                .andExpect(jsonPath("$.alertaBajoStock").value(false))
+                .andExpect(jsonPath("$.nivelAlerta").value("AMBAR"));
+    }
+
+    @Test
+    void elDetalleMarcaVerdeConSeiscientosSesentaYUnoDisponibles() throws Exception {
+        long id = iniciarCincoDias();
+        inventario.registrarDespacho(id, "EAST", null, 339, hora("05:30"), "ALERTA-VERDE-661");
+
+        reloj.avanzar(Duration.ofMinutes(1));
+        mvc.perform(get("/api/almacenes/EAST/detalle").param("ejecucionId", String.valueOf(id)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stock").value(661))
+                .andExpect(jsonPath("$.alertaBajoStock").value(false))
+                .andExpect(jsonPath("$.nivelAlerta").value("VERDE"));
     }
 
     @Test

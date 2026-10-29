@@ -1,6 +1,7 @@
 package com.pucp.paqrap.modulos.planificacion.service;
 
 import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
+import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.pedidos.entity.Order;
 import com.pucp.paqrap.modulos.planificacion.dto.ReplanificacionResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.SolicitudPlanificacion;
@@ -56,17 +57,29 @@ public interface ReplanificacionService {
     void finalizar(long ejecucionId);
 
     /** Eventos que se aplican juntos en una replanificación; cualquiera de las listas puede venir vacía. */
-    record Eventos(List<Order> pedidos, List<RoadBlock> bloqueos, List<BreakdownEvent> averias) {
-        public static final Eventos NINGUNO = new Eventos(List.of(), List.of(), List.of());
+    record Eventos(List<Order> pedidos, List<RoadBlock> bloqueos, List<RoadBlock> bloqueosTerminados,
+                   List<BreakdownEvent> averias, List<VehicleType> tiposFlotaActualizados) {
+        public static final Eventos NINGUNO = new Eventos(List.of(), List.of(), List.of(), List.of(), List.of());
 
         public Eventos {
             pedidos = pedidos == null ? List.of() : List.copyOf(pedidos);
             bloqueos = bloqueos == null ? List.of() : List.copyOf(bloqueos);
+            bloqueosTerminados = bloqueosTerminados == null ? List.of() : List.copyOf(bloqueosTerminados);
             averias = averias == null ? List.of() : List.copyOf(averias);
+            tiposFlotaActualizados = tiposFlotaActualizados == null ? List.of() : List.copyOf(tiposFlotaActualizados);
+        }
+
+        public Eventos(List<Order> pedidos, List<RoadBlock> bloqueos, List<RoadBlock> bloqueosTerminados,
+                       List<BreakdownEvent> averias) {
+            this(pedidos, bloqueos, bloqueosTerminados, averias, List.of());
+        }
+
+        public Eventos(List<Order> pedidos, List<RoadBlock> bloqueos, List<BreakdownEvent> averias) {
+            this(pedidos, bloqueos, List.of(), averias, List.of());
         }
 
         public boolean vacios() {
-            return pedidos.isEmpty() && bloqueos.isEmpty() && averias.isEmpty();
+            return pedidos.isEmpty() && bloqueos.isEmpty() && bloqueosTerminados.isEmpty() && averias.isEmpty();
         }
     }
 }

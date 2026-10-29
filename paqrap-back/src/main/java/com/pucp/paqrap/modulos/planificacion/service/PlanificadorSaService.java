@@ -39,6 +39,17 @@ public class PlanificadorSaService implements PlanificadorService {
     /** Parámetros del SA de la experimentación numérica (config/formal-aprobado.properties, rama feature/expnumerica). */
     static final AnnealingConfig CONFIG_POR_DEFECTO = new AnnealingConfig(1000.0, 1.0, 0.95, 50, 1_000_000, 1_000_000);
 
+    public static AnnealingConfig configuracionPorDefecto() {
+        return CONFIG_POR_DEFECTO;
+    }
+
+    public static AnnealingConfig configuracionConParametros(double temperaturaInicial, double temperaturaMinima,
+                                                              double factorEnfriamiento, int iteracionesPorTemperatura) {
+        return new AnnealingConfig(temperaturaInicial, temperaturaMinima, factorEnfriamiento,
+                iteracionesPorTemperatura, CONFIG_POR_DEFECTO.maximumIterations(),
+                CONFIG_POR_DEFECTO.maximumIterationsWithoutImprovement());
+    }
+
     /**
      * Tope por ciclo cuando la solicitud no trae uno: el presupuesto de las corridas smoke/readiness del
      * experimento. El valor definitivo para la Simulación 5D lo envía quien controla el reloj.
@@ -85,8 +96,10 @@ public class PlanificadorSaService implements PlanificadorService {
         long semilla = semillaDe(solicitud);
         long presupuestoMs = presupuestoDe(solicitud);
 
+        AnnealingConfig configuracion = solicitud.configuracionSa() != null
+                ? solicitud.configuracionSa() : config;
         EjecucionSa ejecucion = ejecutarSa(snapshot, solicitud.pedidosPendientes(), solicitud.bloqueosActivos(),
-                semilla, presupuestoMs);
+                configuracion, semilla, presupuestoMs);
 
         return mapper.aResponse(solicitud.modo(), solicitud.horaPlanificacion(), ejecucion.resultado(), semilla,
                 ejecucion.duracionMs(), presupuestoMs);
@@ -98,8 +111,13 @@ public class PlanificadorSaService implements PlanificadorService {
 
     EjecucionSa ejecutarSa(OperationalSnapshot snapshot, List<Order> pedidos, List<RoadBlock> bloqueos,
                            long semilla, long presupuestoMs) {
+        return ejecutarSa(snapshot, pedidos, bloqueos, config, semilla, presupuestoMs);
+    }
+
+    EjecucionSa ejecutarSa(OperationalSnapshot snapshot, List<Order> pedidos, List<RoadBlock> bloqueos,
+                           AnnealingConfig configuracion, long semilla, long presupuestoMs) {
         long inicio = System.nanoTime();
-        ResultadoPlanificacion resultado = planificador.planificar(snapshot, pedidos, bloqueos, config,
+        ResultadoPlanificacion resultado = planificador.planificar(snapshot, pedidos, bloqueos, configuracion,
                 new Random(semilla), presupuestoMs);
         return new EjecucionSa(resultado, (System.nanoTime() - inicio) / 1_000_000);
     }

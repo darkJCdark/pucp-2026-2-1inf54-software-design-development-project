@@ -1,6 +1,7 @@
 package com.pucp.paqrap.modulos.planificacion.service;
 
 import com.pucp.paqrap.modulos.flota.entity.VehicleOperationalState;
+import com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.AnnealingConfig;
 import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
 import com.pucp.paqrap.modulos.pedidos.entity.Order;
 import com.pucp.paqrap.modulos.planificacion.dto.ModoOperacion;
@@ -25,6 +26,7 @@ final class EstadoEjecucion {
     final ModoOperacion modo;
     final long semillaBase;
     final long presupuestoMs;
+    final AnnealingConfig configuracionSa;
 
     Instant ultimaHora;
     int numeroReplanificacion = -1;
@@ -44,11 +46,12 @@ final class EstadoEjecucion {
     List<RutaVigente> rutas = List.of();
     ReplanificacionResponse ultimaRespuesta;
 
-    EstadoEjecucion(long ejecucionId, ModoOperacion modo, long semillaBase, long presupuestoMs, Instant hora) {
+    EstadoEjecucion(long ejecucionId, ModoOperacion modo, long semillaBase, long presupuestoMs, AnnealingConfig configuracionSa, Instant hora) {
         this.ejecucionId = ejecucionId;
         this.modo = modo;
         this.semillaBase = semillaBase;
         this.presupuestoMs = presupuestoMs;
+        this.configuracionSa = configuracionSa;
         this.ultimaHora = hora;
     }
 }

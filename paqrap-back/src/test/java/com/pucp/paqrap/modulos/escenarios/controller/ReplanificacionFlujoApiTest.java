@@ -56,6 +56,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.hasSize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -264,6 +265,94 @@ class ReplanificacionFlujoApiTest {
                 .andExpect(jsonPath("$.colapso").doesNotExist());
     }
 
+    /** La avería debe cortar la ruta antes de que el mismo tick publique el plan de reemplazo. */
+    @Test
+    void unaAveriaEntreEventosLiberaLosPedidosAntesDelReplanInmediato() throws Exception {
+        pedido("P1", 30, 14, 5, INICIO);
+        pedido("P2", 35, 14, 5, INICIO);
+        for (String id : List.of("TA02", "TA03")) {
+            VehicleEntity vehiculo = vehiculoRepository.findById(id).orElseThrow();
+            vehiculo.setOperationalStatus(VehicleOperationalStatus.UNAVAILABLE);
+            vehiculoRepository.save(vehiculo);
+        }
+        long id = iniciarCincoDias();
+        String inicial = replanificacion(id);
+        assertEquals("TA01", vehiculoQueEntrega(inicial, "P1"));
+        assertEquals("TA01", vehiculoQueEntrega(inicial, "P2"));
+
+        for (int tick = 0; tick < 45
+                && pedidoRepository.findById("P1").orElseThrow().getStatus() != OrderStatus.IN_TRANSIT; tick++) {
+            avanzar(Duration.ofSeconds(1));
+        }
+        assertEquals(OrderStatus.IN_TRANSIT, pedidoRepository.findById("P1").orElseThrow().getStatus());
+        assertEquals(OrderStatus.ASSIGNED, pedidoRepository.findById("P2").orElseThrow().getStatus());
+
+        VehicleEntity sustituto = vehiculoRepository.findById("TA02").orElseThrow();
+        sustituto.setOperationalStatus(VehicleOperationalStatus.AVAILABLE);
+        vehiculoRepository.save(sustituto);
+        Instant instanteAveria = motor.ejecutadoHasta(id).orElseThrow();
+        mvc.perform(post("/api/incidencias/averias").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"vehiculoId\": \"TA01\", \"tipo\": \"MINOR\", \"ocurridaEn\": \""
+                                + instanteAveria + "\", \"ejecucionId\": " + id + "}"))
+                .andExpect(status().isCreated());
+
+        avanzar(Duration.ofSeconds(1));
+        String replanificado = replanificacion(id);
+
+        assertEquals("AVERIA", leer(replanificado, "$.motivo"));
+        assertEquals(OrderStatus.REGISTERED, pedidoRepository.findById("P1").orElseThrow().getStatus());
+        assertEquals(OrderStatus.REGISTERED, pedidoRepository.findById("P2").orElseThrow().getStatus());
+        assertEquals(OrderStatus.REGISTERED, historialRepository
+                .findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc("P1").getLast().getStatus());
+        assertEquals(OrderStatus.REGISTERED, historialRepository
+                .findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc("P2").getLast().getStatus());
+        assertNotEquals("TA01", vehiculoQueEntrega(replanificado, "P1"));
+        assertNotEquals("TA01", vehiculoQueEntrega(replanificado, "P2"));
+        assertTrue(leer(replanificado, "$.vehiculosNoDisponibles").toString().contains("TA01"), replanificado);
+    }
+    @Test
+    void unBloqueoQueTerminaDuranteLaSimulacionGeneraUnaUnicaReplanificacionYConservaSnapshots() throws Exception {
+        RoadBlock bloqueo = new RoadBlock(INICIO.plusSeconds(10 * 60), INICIO.plusSeconds(30 * 60),
+                List.of(new Location(35, 14), new Location(38, 14)));
+        bloqueoRepository.save(RoadBlockEntity.desde(bloqueo));
+        long id = iniciarCincoDias();
+        assertEquals(ScenarioStatus.RUNNING, estado(id));
+
+        List<PlanEntity> iniciales = planRepository.findByExecutionExecutionIdOrderByPlanIdAsc(id);
+        assertEquals(1, iniciales.size());
+        long planInicialId = iniciales.getFirst().getPlanId();
+
+        // Cinco segundos reales equivalen a 13 min 20 s simulados: el bloqueo ya empezó y sigue vigente.
+        avanzar(Duration.ofSeconds(5));
+        String porInicio = replanificacion(id);
+        assertEquals("BLOQUEO", leer(porInicio, "$.motivo"));
+        assertEquals(1, (int) leer(porInicio, "$.numeroReplanificacion"));
+        mvc.perform(get("/api/monitoreo/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bloqueosVigentes", hasSize(1)));
+        List<PlanEntity> trasInicio = planRepository.findByExecutionExecutionIdOrderByPlanIdAsc(id);
+        assertEquals(2, trasInicio.size());
+        long planInicioId = trasInicio.getLast().getPlanId();
+        assertEquals(planInicialId, trasInicio.getFirst().getPlanId());
+
+        // Siete segundos más cruzan endsAt, pero no alcanzan el período de una hora simulada.
+        avanzar(Duration.ofSeconds(7));
+        String porFin = replanificacion(id);
+        assertEquals("BLOQUEO", leer(porFin, "$.motivo"));
+        assertEquals(2, (int) leer(porFin, "$.numeroReplanificacion"));
+        mvc.perform(get("/api/monitoreo/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bloqueosVigentes", hasSize(0)));
+        List<PlanEntity> trasFin = planRepository.findByExecutionExecutionIdOrderByPlanIdAsc(id);
+        assertEquals(3, trasFin.size());
+        assertEquals(List.of(planInicialId, planInicioId), trasFin.stream()
+                .limit(2).map(PlanEntity::getPlanId).toList());
+        assertNotEquals(planInicioId, trasFin.getLast().getPlanId());
+
+        avanzar(Duration.ofSeconds(1));
+        assertEquals(3, planRepository.findByExecutionExecutionIdOrderByPlanIdAsc(id).size());
+        assertEquals(2, (int) leer(replanificacion(id), "$.numeroReplanificacion"));
+    }
     @Test
     void persisteSnapshotsInmutablesYResultadoFinalDeUnaEjecucionSaReal() throws Exception {
         pedido("P1", 30, 14, 5, INICIO);

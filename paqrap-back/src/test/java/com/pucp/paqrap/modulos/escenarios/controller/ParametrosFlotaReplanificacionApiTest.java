@@ -183,6 +183,30 @@ class ParametrosFlotaReplanificacionApiTest {
     }
 
     @Test
+    void cambiarLaVelocidadDeMotocicletaRecalculaLaRutaConservada() throws Exception {
+        vehiculoRepository.findAll().forEach(vehiculo -> vehiculo.setOperationalStatus(VehicleOperationalStatus.UNAVAILABLE));
+        vehiculoRepository.save(new VehicleEntity("TM01", VehicleType.MOTORCYCLE, VehicleOperationalStatus.AVAILABLE));
+        pedido("P1", 60, 14, 3, INICIO);
+        long id = iniciarCincoDias();
+
+        String antes = replanificacion(id);
+        assertEquals("TM01", leer(antes, "$.plan.rutas[0].vehiculoId"));
+        Instant llegadaAntes = Instant.parse(leer(antes, "$.plan.rutas[0].paradas[0].llegada"));
+        int numeroAntes = leer(antes, "$.numeroReplanificacion");
+
+        mvc.perform(put("/api/flota/tipos/MOTORCYCLE").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"capacidadPaquetes\": 8, \"velocidadKmh\": 50, \"costoPorKm\": 6}"))
+                .andExpect(status().isOk());
+
+        avanzar(Duration.ofSeconds(1));
+        String despues = replanificacion(id);
+        Instant llegadaDespues = Instant.parse(leer(despues, "$.plan.rutas[0].paradas[0].llegada"));
+        assertEquals("PERIODICO", leer(despues, "$.motivo"));
+        assertEquals(numeroAntes + 1, (int) leer(despues, "$.numeroReplanificacion"));
+        assertEquals("TM01", leer(despues, "$.plan.rutas[0].vehiculoId"));
+        assertTrue(llegadaDespues.isBefore(llegadaAntes));
+    }
+    @Test
     void cambiarLaVelocidadConUnEscenarioEnMarchaReplanifica() throws Exception {
         pedido("P1", 30, 14, 5, INICIO);
         long id = iniciarCincoDias();
@@ -243,6 +267,11 @@ class ParametrosFlotaReplanificacionApiTest {
 
         mvc.perform(put("/api/flota/tipos/CAR").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"capacidadPaquetes\": 24, \"velocidadKmh\": 0, \"costoPorKm\": 8}"))
+                .andExpect(status().isBadRequest());
+
+
+        mvc.perform(put("/api/flota/tipos/MOTORCYCLE").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"capacidadPaquetes\": 8, \"velocidadKmh\": -1, \"costoPorKm\": 6}"))
                 .andExpect(status().isBadRequest());
 
         avanzar(Duration.ofSeconds(1));

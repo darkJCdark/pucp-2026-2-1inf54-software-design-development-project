@@ -267,4 +267,19 @@ class PlanResponseMapperTest {
         assertTrue(mapper.aResponse(ModoOperacion.DIA_A_DIA, HORA, resultado, 1L, 1_500L, 1_500L).presupuestoAgotado());
         assertTrue(mapper.aResponse(ModoOperacion.DIA_A_DIA, HORA, resultado, 1L, 2_000L, 1_500L).presupuestoAgotado());
     }
-}
+
+    @Test
+    void enriqueceLaRutaConLasIdentidadesDelSnapshotPersistido() {
+        Escenario e = escenarioTa01();
+        ResultadoPlanificacion resultado = new ResultadoPlanificacion(OperationalPlan.empty().withRoute(e.ruta()),
+                evaluacion(Map.of(e.ruta().id(), e.programada()), List.of(), 64.0), List.of());
+        PlanResponse original = mapper.aResponse(ModoOperacion.DIA_A_DIA, HORA, resultado, 1L, 0L, 1_500L);
+
+        RutaResponse ruta = mapper.conIdentidadesPersistidas(original, Map.of(e.ruta().id(), 73L), 41L)
+                .rutas().getFirst();
+
+        assertEquals(e.ruta().id(), ruta.id());
+        assertEquals(41L, ruta.planPersistedId());
+        assertEquals(73L, ruta.routePersistedId());
+        assertEquals(2, ruta.paradas().get(1).orden(), "orden coincide con sequence_no persistido de la ruta");
+    }}

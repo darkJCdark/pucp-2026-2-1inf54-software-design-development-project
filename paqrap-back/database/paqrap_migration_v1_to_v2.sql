@@ -294,11 +294,31 @@ CREATE TABLE scenario_executions (
     collapse_at TIMESTAMP(6)
         NULL,
 
+    sa_seed BIGINT
+        NOT NULL DEFAULT 0,
+    sa_initial_temperature DOUBLE
+        NOT NULL DEFAULT 1000.0,
+    sa_minimum_temperature DOUBLE
+        NOT NULL DEFAULT 1.0,
+    sa_cooling_factor DOUBLE
+        NOT NULL DEFAULT 0.95,
+    sa_iterations_per_temperature INT UNSIGNED
+        NOT NULL DEFAULT 50,
+
     PRIMARY KEY (execution_id),
 
     KEY idx_scenario_executions_type (scenario_type),
     KEY idx_scenario_executions_status (status),
     KEY idx_scenario_executions_started_at (started_at),
+
+    CONSTRAINT chk_scenario_execution_sa
+        CHECK (
+            sa_initial_temperature > 0
+            AND sa_minimum_temperature > 0
+            AND sa_minimum_temperature < sa_initial_temperature
+            AND sa_cooling_factor BETWEEN 0.80 AND 0.99
+            AND sa_iterations_per_temperature > 0
+        ),
 
     CONSTRAINT chk_scenario_execution_type
         CHECK (
@@ -708,7 +728,9 @@ CREATE TABLE inventory_movements (
 
     quantity INT UNSIGNED
         NOT NULL,
-
+    stock_before INT UNSIGNED NULL,
+    stock_after INT UNSIGNED NULL,
+    event_key VARCHAR(160) NULL,
     occurred_at TIMESTAMP(6)
         NOT NULL,
 
@@ -718,7 +740,8 @@ CREATE TABLE inventory_movements (
     KEY idx_inventory_movements_execution (execution_id),
     KEY idx_inventory_movements_order (order_id),
     KEY idx_inventory_movements_occurred_at (occurred_at),
-
+    KEY idx_inventory_movements_execution_warehouse_time (execution_id, warehouse_id, occurred_at, movement_id),
+    UNIQUE KEY uq_inventory_movements_execution_event (execution_id, event_key),
     CONSTRAINT fk_inventory_movements_warehouse
         FOREIGN KEY (warehouse_id)
         REFERENCES warehouses (warehouse_id)
@@ -748,21 +771,7 @@ CREATE TABLE inventory_movements (
         ),
 
     CONSTRAINT chk_inventory_movements_quantity
-        CHECK (quantity > 0),
-
-    CONSTRAINT chk_inventory_movements_order
-        CHECK (
-            (
-                movement_type = 'DISPATCH'
-                AND order_id IS NOT NULL
-            )
-            OR
-            (
-                movement_type = 'RECHARGE'
-                AND order_id IS NULL
-            )
-        )
-
+        CHECK (quantity > 0)
 ) ENGINE = InnoDB;
 
 

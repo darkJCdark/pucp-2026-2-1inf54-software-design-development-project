@@ -5,6 +5,10 @@ public record AnnealingConfig(double initialTemperature, double minimumTemperatu
                               double coolingFactor, int iterationsPerTemperature,
                               int maximumIterations, int maximumIterationsWithoutImprovement) {
     public AnnealingConfig {
+        if (!Double.isFinite(initialTemperature) || !Double.isFinite(minimumTemperature)
+                || !Double.isFinite(coolingFactor)) {
+            throw new IllegalArgumentException("Annealing parameters must be finite");
+        }
         if (initialTemperature <= 0 || minimumTemperature <= 0 || minimumTemperature >= initialTemperature) {
             throw new IllegalArgumentException("Temperatures must be positive and Tmin < T0");
         }
