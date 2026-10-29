@@ -50,6 +50,9 @@ export interface CambioEstadoPedidoDto {
 export interface PedidoDetalleResponseDto {
   pedido: PedidoResponseDto;
   historial: CambioEstadoPedidoDto[];
+  unidadAsignadaId: string | null;
+  incumplido: boolean;
+  minutosRestantes: number | null;
 }
 
 export interface PaginaResponseDto<T> {

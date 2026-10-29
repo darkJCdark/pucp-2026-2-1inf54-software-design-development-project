@@ -58,6 +58,8 @@ export function adaptarVehiculo(
     y: dto.y,
     cargaActual: dto.cargaActual,
     averiadoHasta: dto.disponibleDesde,
+    motivoDetencion: null,
+    detenidoHasta: dto.disponibleDesde,
   };
 }
 

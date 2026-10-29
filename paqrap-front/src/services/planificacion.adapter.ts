@@ -37,11 +37,13 @@ export function adaptarRuta(
     llegadaFinal: dto.llegadaFinal,
     distanciaKm: dto.distanciaKm,
     costo: dto.costo,
-    paradas: dto.paradas.map(
-      (parada) => ({
-        ...parada,
-      }),
-    ),
+    paradas: dto.paradas.map((parada) => ({
+      ...parada,
+      inicioRefrigerio: parada.inicioRefrigerio ?? null,
+    })),
+    almacenInicialId: dto.almacenInicialId ?? null,
+    planPersistedId: dto.planPersistedId ?? null,
+    routePersistedId: dto.routePersistedId ?? null,
   };
 }
 

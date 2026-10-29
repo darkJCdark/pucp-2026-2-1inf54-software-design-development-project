@@ -1,414 +1,148 @@
-import type {
-  RutaMapa,
-  VehiculoMapa,
-} from "./ejecucion.types";
+import type { ParadaMapa, RutaMapa, VehiculoMapa } from "./ejecucion.types";
 
 export interface PosicionMapa {
   x: number;
   y: number;
 }
 
-export interface PosicionVehiculoAnimada
-  extends PosicionMapa {
+export interface PosicionVehiculoAnimada extends PosicionMapa {
   enMovimiento: boolean;
   progresoTramo: number;
   destino: PosicionMapa | null;
 }
 
-function fechaMs(
-  valor:
-    | string
-    | null
-    | undefined,
-) {
-  if (!valor) {
-    return Number.NaN;
-  }
-
-  return new Date(
-    valor,
-  ).getTime();
+export function fechaMs(valor: string | null | undefined) {
+  return valor ? new Date(valor).getTime() : Number.NaN;
 }
 
-function clamp01(
-  valor: number,
-) {
-  return Math.min(
-    1,
-    Math.max(
-      0,
-      valor,
-    ),
-  );
+export function arriboFisicoMs(parada: ParadaMapa) {
+  return fechaMs(parada.inicioRefrigerio ?? parada.llegada);
 }
 
-/**
- * Decide de manera estable si la ruta
- * visual va primero horizontal o vertical.
- */
-export function horizontalPrimeroParaVehiculo(
-  vehiculoId: string,
-) {
+function clamp01(valor: number) {
+  return Math.min(1, Math.max(0, valor));
+}
+
+export function horizontalPrimeroParaVehiculo(vehiculoId: string) {
   let hash = 0;
-
-  for (
-    let index = 0;
-    index <
-    vehiculoId.length;
-    index += 1
-  ) {
-    hash =
-      (hash * 31 +
-        vehiculoId.charCodeAt(
-          index,
-        )) |
-      0;
+  for (let index = 0; index < vehiculoId.length; index += 1) {
+    hash = (hash * 31 + vehiculoId.charCodeAt(index)) | 0;
   }
-
-  return (
-    Math.abs(hash) %
-      2 ===
-    0
-  );
+  return Math.abs(hash) % 2 === 0;
 }
 
-/**
- * Interpola en trayectoria Manhattan.
- *
- * Nunca dibuja diagonales.
- */
 export function interpolarOrtogonal(
   origen: PosicionMapa,
   destino: PosicionMapa,
   progreso: number,
   horizontalPrimero: boolean,
 ): PosicionMapa {
-  const p =
-    clamp01(
-      progreso,
-    );
+  const p = clamp01(progreso);
+  const dx = destino.x - origen.x;
+  const dy = destino.y - origen.y;
+  const largoX = Math.abs(dx);
+  const largoY = Math.abs(dy);
+  const total = largoX + largoY;
 
-  const dx =
-    destino.x -
-    origen.x;
+  if (total === 0) return { ...destino };
 
-  const dy =
-    destino.y -
-    origen.y;
-
-  const largoX =
-    Math.abs(dx);
-
-  const largoY =
-    Math.abs(dy);
-
-  const total =
-    largoX +
-    largoY;
-
-  if (total === 0) {
-    return {
-      ...destino,
-    };
-  }
-
-  const recorrido =
-    total * p;
-
-  const signoX =
-    Math.sign(dx);
-
-  const signoY =
-    Math.sign(dy);
+  const recorrido = total * p;
+  const signoX = Math.sign(dx);
+  const signoY = Math.sign(dy);
 
   if (horizontalPrimero) {
-    if (
-      recorrido <=
-      largoX
-    ) {
-      return {
-        x:
-          origen.x +
-          signoX *
-            recorrido,
-
-        y: origen.y,
-      };
+    if (recorrido <= largoX) {
+      return { x: origen.x + signoX * recorrido, y: origen.y };
     }
-
-    return {
-      x: destino.x,
-
-      y:
-        origen.y +
-        signoY *
-          (recorrido -
-            largoX),
-    };
+    return { x: destino.x, y: origen.y + signoY * (recorrido - largoX) };
   }
 
-  if (
-    recorrido <=
-    largoY
-  ) {
-    return {
-      x: origen.x,
-
-      y:
-        origen.y +
-        signoY *
-          recorrido,
-    };
+  if (recorrido <= largoY) {
+    return { x: origen.x, y: origen.y + signoY * recorrido };
   }
-
-  return {
-    x:
-      origen.x +
-      signoX *
-        (recorrido -
-          largoY),
-
-    y: destino.y,
-  };
+  return { x: origen.x + signoX * (recorrido - largoY), y: destino.y };
 }
 
 /**
- * Calcula únicamente dónde debe DIBUJARSE
- * el vehículo.
- *
- * El backend continúa siendo autoridad
- * sobre estado, carga, entregas y posición
- * confirmada.
+ * Posición únicamente visual. Replica el criterio del backend:
+ * - usa inicioRefrigerio como arribo físico si existe;
+ * - mantiene el vehículo quieto durante refrigerio/servicio;
+ * - no reemplaza el estado operacional persistido.
  */
 export function calcularPosicionVehiculoAnimada(
   vehiculo: VehiculoMapa,
   ruta: RutaMapa | undefined,
   instanteSimuladoMs: number,
 ): PosicionVehiculoAnimada {
-  const posicionBackend = {
-    x: vehiculo.x,
-    y: vehiculo.y,
-  };
+  const posicionBackend = { x: vehiculo.x, y: vehiculo.y };
 
   if (
-    vehiculo.estado !==
-      "EN_RUTA" ||
+    vehiculo.estado !== "EN_RUTA" ||
     !ruta ||
-    ruta.paradas.length ===
-      0 ||
-    !Number.isFinite(
-      instanteSimuladoMs,
-    )
+    ruta.paradas.length === 0 ||
+    !Number.isFinite(instanteSimuladoMs)
   ) {
-    return {
-      ...posicionBackend,
-      enMovimiento: false,
-      progresoTramo: 0,
-      destino: null,
-    };
+    return { ...posicionBackend, enMovimiento: false, progresoTramo: 0, destino: null };
   }
 
-  const paradas = [
-    ...ruta.paradas,
-  ].sort(
-    (a, b) =>
-      a.orden -
-      b.orden,
-  );
+  const paradas = [...ruta.paradas].sort((a, b) => a.orden - b.orden);
 
-  /*
-   * Si llegó a una parada y está
-   * realizando el tiempo de servicio,
-   * se queda quieto ahí.
-   */
-  for (
-    const parada of paradas
-  ) {
-    const llegada =
-      fechaMs(
-        parada.llegada,
-      );
-
-    const fin =
-      fechaMs(
-        parada.fin,
-      );
-
+  for (const parada of paradas) {
+    const enElLugar = arriboFisicoMs(parada);
+    const fin = fechaMs(parada.fin);
     if (
-      Number.isFinite(
-        llegada,
-      ) &&
-      Number.isFinite(
-        fin,
-      ) &&
-      instanteSimuladoMs >=
-        llegada &&
-      instanteSimuladoMs <
-        fin
+      Number.isFinite(enElLugar) &&
+      Number.isFinite(fin) &&
+      instanteSimuladoMs >= enElLugar &&
+      instanteSimuladoMs < fin
     ) {
       return {
         x: parada.x,
         y: parada.y,
-
-        enMovimiento:
-          false,
-
+        enMovimiento: false,
         progresoTramo: 1,
-
-        destino: {
-          x: parada.x,
-          y: parada.y,
-        },
+        destino: { x: parada.x, y: parada.y },
       };
     }
   }
 
-  /*
-   * Primera parada cuya llegada
-   * aún está en el futuro.
-   */
-  const indiceSiguiente =
-    paradas.findIndex(
-      (parada) => {
-        const llegada =
-          fechaMs(
-            parada.llegada,
-          );
+  const indiceSiguiente = paradas.findIndex(
+    (parada) => Number.isFinite(arriboFisicoMs(parada)) && arriboFisicoMs(parada) > instanteSimuladoMs,
+  );
 
-        return (
-          Number.isFinite(
-            llegada,
-          ) &&
-          llegada >
-            instanteSimuladoMs
-        );
-      },
-    );
-
-  if (
-    indiceSiguiente < 0
-  ) {
-    return {
-      ...posicionBackend,
-
-      enMovimiento:
-        false,
-
-      progresoTramo: 1,
-
-      destino: null,
-    };
+  if (indiceSiguiente < 0) {
+    return { ...posicionBackend, enMovimiento: false, progresoTramo: 1, destino: null };
   }
 
-  const siguiente =
-    paradas[
-      indiceSiguiente
-    ];
+  const siguiente = paradas[indiceSiguiente];
+  const anterior = indiceSiguiente > 0 ? paradas[indiceSiguiente - 1] : null;
+  const inicioTramo = anterior
+    ? fechaMs(anterior.fin ?? anterior.llegada)
+    : fechaMs(ruta.salida);
+  const finTramo = arriboFisicoMs(siguiente);
+  const origen = anterior ? { x: anterior.x, y: anterior.y } : posicionBackend;
+  const destino = { x: siguiente.x, y: siguiente.y };
 
-  const anterior =
-    indiceSiguiente > 0
-      ? paradas[
-          indiceSiguiente -
-            1
-        ]
-      : null;
-
-  const inicioTramo =
-    anterior
-      ? fechaMs(
-          anterior.fin ??
-            anterior.llegada,
-        )
-      : fechaMs(
-          ruta.salida,
-        );
-
-  const finTramo =
-    fechaMs(
-      siguiente.llegada,
-    );
-
-  const origen:
-    PosicionMapa =
-    anterior
-      ? {
-          x: anterior.x,
-          y: anterior.y,
-        }
-      : posicionBackend;
-
-  const destino:
-    PosicionMapa = {
-    x: siguiente.x,
-    y: siguiente.y,
-  };
-
-  if (
-    !Number.isFinite(
-      inicioTramo,
-    ) ||
-    !Number.isFinite(
-      finTramo,
-    ) ||
-    finTramo <=
-      inicioTramo
-  ) {
-    return {
-      ...posicionBackend,
-
-      enMovimiento:
-        false,
-
-      progresoTramo: 0,
-
-      destino,
-    };
+  if (!Number.isFinite(inicioTramo) || !Number.isFinite(finTramo) || finTramo <= inicioTramo) {
+    return { ...posicionBackend, enMovimiento: false, progresoTramo: 0, destino };
   }
 
-  if (
-    instanteSimuladoMs <=
-    inicioTramo
-  ) {
-    return {
-      ...origen,
-
-      enMovimiento:
-        false,
-
-      progresoTramo: 0,
-
-      destino,
-    };
+  if (instanteSimuladoMs <= inicioTramo) {
+    return { ...origen, enMovimiento: false, progresoTramo: 0, destino };
   }
 
-  const progreso =
-    clamp01(
-      (instanteSimuladoMs -
-        inicioTramo) /
-        (finTramo -
-          inicioTramo),
-    );
-
-  const posicion =
-    interpolarOrtogonal(
-      origen,
-      destino,
-      progreso,
-      horizontalPrimeroParaVehiculo(
-        vehiculo.id,
-      ),
-    );
+  const progreso = clamp01((instanteSimuladoMs - inicioTramo) / (finTramo - inicioTramo));
+  const posicion = interpolarOrtogonal(
+    origen,
+    destino,
+    progreso,
+    horizontalPrimeroParaVehiculo(vehiculo.id),
+  );
 
   return {
     ...posicion,
-
-    enMovimiento:
-      progreso > 0 &&
-      progreso < 1,
-
-    progresoTramo:
-      progreso,
-
+    enMovimiento: progreso > 0 && progreso < 1,
+    progresoTramo: progreso,
     destino,
   };
 }

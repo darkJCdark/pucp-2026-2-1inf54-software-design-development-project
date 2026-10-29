@@ -16,6 +16,11 @@ export type EstadoVehiculo =
   | "EN_RUTA"
   | "NO_DISPONIBLE";
 
+export type MotivoDetencion =
+  | "AVERIA"
+  | "MANTENIMIENTO"
+  | "REFRIGERIO";
+
 export type EstadoPedido =
   | "PENDIENTE"
   | "ASIGNADO"
@@ -32,6 +37,8 @@ export interface VehiculoMapa {
 
   cargaActual: number;
   averiadoHasta: string | null;
+  motivoDetencion: MotivoDetencion | null;
+  detenidoHasta: string | null;
 }
 
 export interface AlmacenMapa {
@@ -84,6 +91,7 @@ export interface ParadaMapa {
 
   cargaAntes: number | null;
   cargaDespues: number | null;
+  inicioRefrigerio: string | null;
 }
 
 export interface RutaMapa {
@@ -98,6 +106,10 @@ export interface RutaMapa {
   costo: number;
 
   paradas: ParadaMapa[];
+
+  almacenInicialId: string | null;
+  planPersistedId: number | null;
+  routePersistedId: number | null;
 }
 
 export interface IndicadoresOperacion {

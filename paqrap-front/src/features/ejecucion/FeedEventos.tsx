@@ -5,6 +5,7 @@ import {
   PackagePlus,
   RefreshCcw,
   Route,
+  Coffee,
 } from "lucide-react";
 
 import type {
@@ -120,6 +121,13 @@ function IconoEvento({
       return (
         <Route
           className={`${clases} text-sky-400`}
+        />
+      );
+
+    case "DETENCION":
+      return (
+        <Coffee
+          className={`${clases} text-amber-300`}
         />
       );
 

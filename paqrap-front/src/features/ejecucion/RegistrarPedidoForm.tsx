@@ -8,6 +8,8 @@ import type {
   TipoEntregaBackend,
 } from "@/api/pedidos.dto";
 
+import { mensajeDeError } from "@/lib/api-error";
+
 interface RegistrarPedidoFormProps {
   onRegistrar: (
     pedido: RegistrarPedidoRequestDto,
@@ -132,9 +134,7 @@ export function RegistrarPedidoForm({
       );
     } catch (error) {
       setError(
-        error instanceof Error
-          ? error.message
-          : "No fue posible registrar el pedido.",
+        mensajeDeError(error, "No fue posible registrar el pedido."),
       );
     } finally {
       setEnviando(false);

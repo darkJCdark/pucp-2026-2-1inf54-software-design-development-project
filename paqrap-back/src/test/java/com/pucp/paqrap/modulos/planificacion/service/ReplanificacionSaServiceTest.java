@@ -1,5 +1,24 @@
 package com.pucp.paqrap.modulos.planificacion.service;
 
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+
 import com.pucp.paqrap.comun.error.RecursoNoEncontradoException;
 import com.pucp.paqrap.comun.error.ReglaNegocioException;
 import com.pucp.paqrap.modulos.almacenes.entity.InventorySnapshot;
@@ -29,7 +48,6 @@ import com.pucp.paqrap.modulos.planificacion.dto.PlanResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.ReplanificacionResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.RutaResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.SolicitudPlanificacion;
-import com.pucp.paqrap.modulos.planificacion.entity.DeliveryRoute;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryStop;
 import com.pucp.paqrap.modulos.planificacion.entity.OperationalSnapshot;
 import com.pucp.paqrap.modulos.planificacion.entity.ShiftSchedule;
@@ -39,25 +57,6 @@ import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 import com.pucp.paqrap.modulos.redvial.entity.RoadLeg;
 import com.pucp.paqrap.modulos.redvial.entity.StreetSegment;
 import com.pucp.paqrap.modulos.redvial.service.RoadNetwork;
-import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
-
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.stream.Collectors;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * La referencia de cada comparación es el SA original ({@link OperationalSimulatedAnnealingPlanner}) y el

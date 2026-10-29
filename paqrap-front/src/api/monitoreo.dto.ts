@@ -1,10 +1,5 @@
-import type {
-  EscenarioResponseDto,
-} from "@/api/escenarios.dto";
-
-import type {
-  AveriaResponseDto,
-} from "@/api/incidencias.dto";
+import type { EscenarioResponseDto } from "@/api/escenarios.dto";
+import type { AveriaResponseDto } from "@/api/incidencias.dto";
 
 export type TipoVehiculoMonitoreoDto =
   | "CAR"
@@ -16,9 +11,12 @@ export type EstadoVehiculoMonitoreoDto =
   | "IN_ROUTE"
   | "UNAVAILABLE";
 
-export type TipoAlmacenMonitoreoDto =
-  | "CENTRAL"
-  | "INTERMEDIATE";
+export type MotivoDetencionBackend =
+  | "AVERIA"
+  | "MANTENIMIENTO"
+  | "REFRIGERIO";
+
+export type TipoAlmacenMonitoreoDto = "CENTRAL" | "INTERMEDIATE";
 
 export interface ResumenPedidosMonitoreoDto {
   llegados: number;
@@ -28,24 +26,21 @@ export interface ResumenPedidosMonitoreoDto {
 
 export interface VehiculoMonitoreoDto {
   id: string;
-
   tipo: TipoVehiculoMonitoreoDto;
   estado: EstadoVehiculoMonitoreoDto;
-
   x: number;
   y: number;
-
   cargaActual: number;
   averiadoHasta: string | null;
+  motivoDetencion: MotivoDetencionBackend | null;
+  detenidoHasta: string | null;
 }
 
 export interface AlmacenMonitoreoDto {
   id: string;
   tipo: TipoAlmacenMonitoreoDto;
-
   x: number;
   y: number;
-
   stock: number | null;
   capacidad: number | null;
 }
@@ -65,16 +60,10 @@ export interface BloqueoMonitoreoDto {
 export interface EjecucionMonitoreoDto {
   pedidosEntregados: number;
   entregadosATiempo: number;
-  paquetesEntregados: number;
+  paquetesEntregados: number | null;
   distanciaKm: number;
   costo: number;
-
-  vehiculosEnRuta: Partial<
-    Record<
-      TipoVehiculoMonitoreoDto,
-      number
-    >
-  >;
+  vehiculosEnRuta: Partial<Record<TipoVehiculoMonitoreoDto, number>>;
 }
 
 export type CausaColapsoBackend =
@@ -96,13 +85,11 @@ export interface ColapsoMonitoreoDto {
 export interface MonitoreoResponseDto {
   escenario: EscenarioResponseDto;
   instante: string;
-
   pedidos: ResumenPedidosMonitoreoDto;
   vehiculos: VehiculoMonitoreoDto[];
   almacenes: AlmacenMonitoreoDto[];
   bloqueosVigentes: BloqueoMonitoreoDto[];
   averiasActivas: AveriaResponseDto[];
-
   ejecucion: EjecucionMonitoreoDto;
   colapso: ColapsoMonitoreoDto | null;
 }

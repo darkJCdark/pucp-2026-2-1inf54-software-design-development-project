@@ -1,15 +1,15 @@
 package com.pucp.paqrap.modulos.planificacion.service;
 
-import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
+import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
 import com.pucp.paqrap.modulos.pedidos.entity.Order;
 import com.pucp.paqrap.modulos.planificacion.dto.ReplanificacionResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.SolicitudPlanificacion;
 import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
-
-import java.time.Instant;
-import java.util.List;
-import java.util.Optional;
 
 /**
  * Replanificación de una ejecución ante eventos. Quien controla el reloj invoca los disparadores con la

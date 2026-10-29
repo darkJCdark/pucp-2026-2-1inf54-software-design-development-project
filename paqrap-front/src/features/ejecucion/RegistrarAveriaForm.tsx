@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useMemo,
   useState,
   type FormEvent,
@@ -9,13 +10,14 @@ import type {
   TipoAveriaBackend,
 } from "@/api/incidencias.dto";
 
+import { mensajeDeError } from "@/lib/api-error";
+
 import type {
   VehiculoMapa,
 } from "./ejecucion.types";
 
 interface RegistrarAveriaFormProps {
   vehiculos: VehiculoMapa[];
-  instante: string;
   ejecucionId: number;
 
   onRegistrar: (
@@ -27,21 +29,30 @@ interface RegistrarAveriaFormProps {
 
 export function RegistrarAveriaForm({
   vehiculos,
-  instante,
   ejecucionId,
   onRegistrar,
   onCerrar,
 }: RegistrarAveriaFormProps) {
   const ordenados = useMemo(
     () =>
-      [...vehiculos].sort((a, b) =>
-        a.id.localeCompare(b.id),
-      ),
+      [...vehiculos]
+        .filter(
+          (vehiculo) =>
+            vehiculo.estado !== "NO_DISPONIBLE" &&
+            vehiculo.motivoDetencion === null,
+        )
+        .sort((a, b) => a.id.localeCompare(b.id)),
     [vehiculos],
   );
 
   const [vehiculoId, setVehiculoId] =
     useState(ordenados[0]?.id ?? "");
+
+  useEffect(() => {
+    if (!ordenados.some((vehiculo) => vehiculo.id === vehiculoId)) {
+      setVehiculoId(ordenados[0]?.id ?? "");
+    }
+  }, [ordenados, vehiculoId]);
 
   const [tipo, setTipo] =
     useState<TipoAveriaBackend>(
@@ -79,16 +90,15 @@ export function RegistrarAveriaForm({
       await onRegistrar({
         vehiculoId,
         tipo,
-        ocurridaEn: instante,
-        x: vehiculo.x,
-        y: vehiculo.y,
+        /*
+         * No enviamos ocurridaEn ni x/y: el backend usa el reloj
+         * simulado vivo y calcula la posición real sobre el tramo.
+         */
         ejecucionId,
       });
     } catch (error) {
       setError(
-        error instanceof Error
-          ? error.message
-          : "No fue posible registrar la avería.",
+        mensajeDeError(error, "No fue posible registrar la avería."),
       );
     } finally {
       setEnviando(false);
@@ -103,7 +113,7 @@ export function RegistrarAveriaForm({
         </h2>
 
         <p className="mt-1 text-xs text-slate-400">
-          La incidencia se registrará en el instante simulado actual y disparará una replanificación.
+          La incidencia se registrará con el reloj simulado del backend. Si la unidad está en ruta, el backend calculará su posición real y disparará una replanificación.
         </p>
       </div>
 

@@ -62,6 +62,8 @@ export function adaptarVehiculoMonitoreo(
     y: dto.y,
     cargaActual: dto.cargaActual,
     averiadoHasta: dto.averiadoHasta,
+    motivoDetencion: dto.motivoDetencion,
+    detenidoHasta: dto.detenidoHasta,
   };
 }
 

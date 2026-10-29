@@ -28,6 +28,28 @@ export const flotaService = {
     );
   },
 
+
+  altaVehiculo(
+    tipo: TipoVehiculoBackend,
+  ): Promise<VehiculoResponseDto> {
+    return apiRequest<VehiculoResponseDto>(
+      "/api/flota/vehiculos",
+      {
+        method: "POST",
+        body: JSON.stringify({ tipo }),
+      },
+    );
+  },
+
+  bajaVehiculo(
+    id: string,
+  ): Promise<void> {
+    return apiRequest<void>(
+      `/api/flota/vehiculos/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    );
+  },
+
   listarTipos(): Promise<
     TipoVehiculoResponseDto[]
   > {

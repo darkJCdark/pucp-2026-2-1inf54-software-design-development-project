@@ -131,6 +131,10 @@ interface MapaOperacionProps {
 
   estadoEscenario:
     EstadoEscenarioBackend;
+
+  onSeleccionarVehiculo?: (id: string) => void;
+  onSeleccionarPedido?: (id: string) => void;
+  onSeleccionarAlmacen?: (id: string) => void;
 }
 
 interface VehiculoVisual {
@@ -162,6 +166,9 @@ export function MapaOperacion({
   instanteSimulado,
   factorAceleracion,
   estadoEscenario,
+  onSeleccionarVehiculo,
+  onSeleccionarPedido,
+  onSeleccionarAlmacen,
 }: MapaOperacionProps) {
   const {
     ref: contenedorRef,
@@ -1142,6 +1149,8 @@ export function MapaOperacion({
                             ? 0.75
                             : 0.95
                         }
+                        onClick={() => onSeleccionarPedido?.(pedido.id)}
+                        onTap={() => onSeleccionarPedido?.(pedido.id)}
                         onMouseEnter={(
                           event,
                         ) =>
@@ -1218,6 +1227,8 @@ export function MapaOperacion({
                       y={geometria.y(
                         almacen.y,
                       )}
+                      onClick={() => onSeleccionarAlmacen?.(almacen.id)}
+                      onTap={() => onSeleccionarAlmacen?.(almacen.id)}
                       onMouseEnter={(
                         event,
                       ) =>
@@ -1479,13 +1490,10 @@ export function MapaOperacion({
                             ) *
                               radio
                           }
-                          onSeleccionar={() =>
-                            setVehiculoSeleccionadoId(
-                              item
-                                .vehiculo
-                                .id,
-                            )
-                          }
+                          onSeleccionar={() => {
+                            setVehiculoSeleccionadoId(item.vehiculo.id);
+                            onSeleccionarVehiculo?.(item.vehiculo.id);
+                          }}
                           onTooltip={
                             mostrarTooltip
                           }
@@ -2155,6 +2163,7 @@ function ParadaMarker({
 
   estado:
     | "COMPLETADA"
+    | "REFRIGERIO"
     | "EN_SERVICIO"
     | "SIGUIENTE"
     | "FUTURA";
@@ -2170,9 +2179,12 @@ function ParadaMarker({
     "COMPLETADA"
       ? "#16a34a"
       : estado ===
-          "EN_SERVICIO"
-        ? "#f97316"
+          "REFRIGERIO"
+        ? "#f59e0b"
         : estado ===
+            "EN_SERVICIO"
+          ? "#f97316"
+          : estado ===
             "SIGUIENTE"
           ? "#0ea5e9"
           : "#64748b";
@@ -2182,9 +2194,12 @@ function ParadaMarker({
     "COMPLETADA"
       ? "✓"
       : estado ===
-          "EN_SERVICIO"
-        ? "●"
+          "REFRIGERIO"
+        ? "☕"
         : estado ===
+            "EN_SERVICIO"
+          ? "●"
+          : estado ===
             "SIGUIENTE"
           ? "▶"
           : String(
@@ -2325,6 +2340,14 @@ function VehiculoMarker({
 
     `Carga: ${vehiculo.cargaActual}`,
 
+    vehiculo.motivoDetencion
+      ? `Motivo de detención: ${nombreMotivoDetencion(vehiculo.motivoDetencion)}`
+      : "Sin detención activa",
+
+    vehiculo.detenidoHasta
+      ? `Disponible nuevamente: ${formatearFecha(vehiculo.detenidoHasta)}`
+      : "",
+
     vehiculo.averiadoHasta
       ? `Averiado hasta: ${formatearFecha(
           vehiculo.averiadoHasta,
@@ -2432,19 +2455,29 @@ function VehiculoMarker({
       <Text
         x={-28}
         y={13}
-        width={
-          56
-        }
+        width={56}
         align="center"
-        text={
-          vehiculo.id
-        }
-        fontSize={
-          8
-        }
+        text={vehiculo.id}
+        fontSize={8}
         fontStyle="bold"
         fill="#0f172a"
       />
+
+      {vehiculo.motivoDetencion && (
+        <Group x={9} y={-13}>
+          <Circle radius={7} fill={colorMotivoDetencion(vehiculo.motivoDetencion)} stroke="#ffffff" strokeWidth={1} />
+          <Text
+            x={-6}
+            y={-5}
+            width={12}
+            align="center"
+            text={simboloMotivoDetencion(vehiculo.motivoDetencion)}
+            fontSize={8}
+            fontStyle="bold"
+            fill="#ffffff"
+          />
+        </Group>
+      )}
     </Group>
   );
 }
@@ -2652,15 +2685,23 @@ function PanelVehiculoSeleccionado({
           </div>
 
           <p className="mt-1 text-xs text-slate-500">
-            {servicio
-              ? `Atendiendo ${nombreParada(
-                  servicio,
-                )}`
-              : siguiente
-                ? `En tránsito hacia ${nombreParada(
-                    siguiente,
-                  )}`
-                : "Ruta finalizando"}
+            {visual.vehiculo.motivoDetencion
+              ? `${nombreMotivoDetencion(visual.vehiculo.motivoDetencion)}${
+                  visual.vehiculo.detenidoHasta
+                    ? ` hasta ${formatearHora(visual.vehiculo.detenidoHasta)}`
+                    : ""
+                }`
+              : seguimiento.enRefrigerio
+                ? `En refrigerio hasta ${
+                    seguimiento.refrigerioHasta
+                      ? formatearHora(seguimiento.refrigerioHasta)
+                      : "—"
+                  }`
+                : servicio
+                  ? `Atendiendo ${nombreParada(servicio)}`
+                  : siguiente
+                    ? `En tránsito hacia ${nombreParada(siguiente)}`
+                    : "Ruta finalizando"}
           </p>
         </div>
 
@@ -2808,7 +2849,11 @@ function PanelVehiculoSeleccionado({
                       ? "bg-green-500/15 text-green-400"
 
                       : estado ===
-                        "EN_SERVICIO"
+                        "REFRIGERIO"
+                        ? "bg-amber-500/15 text-amber-300"
+
+                        : estado ===
+                          "EN_SERVICIO"
                         ? "bg-orange-500/15 text-orange-400"
 
                         : estado ===
@@ -2826,7 +2871,11 @@ function PanelVehiculoSeleccionado({
                     ? "✓"
 
                     : estado ===
-                      "EN_SERVICIO"
+                      "REFRIGERIO"
+                      ? "☕"
+
+                      : estado ===
+                        "EN_SERVICIO"
                       ? "●"
 
                       : estado ===
@@ -3173,6 +3222,41 @@ function construirPuntosOrtogonales(
   }
 
   return resultado;
+}
+
+function nombreMotivoDetencion(motivo: VehiculoMapa["motivoDetencion"]) {
+  switch (motivo) {
+    case "AVERIA":
+      return "Avería";
+    case "MANTENIMIENTO":
+      return "Mantenimiento";
+    case "REFRIGERIO":
+      return "Refrigerio";
+    default:
+      return "Detención";
+  }
+}
+
+function simboloMotivoDetencion(motivo: NonNullable<VehiculoMapa["motivoDetencion"]>) {
+  switch (motivo) {
+    case "AVERIA":
+      return "!";
+    case "MANTENIMIENTO":
+      return "M";
+    case "REFRIGERIO":
+      return "☕";
+  }
+}
+
+function colorMotivoDetencion(motivo: NonNullable<VehiculoMapa["motivoDetencion"]>) {
+  switch (motivo) {
+    case "AVERIA":
+      return "#dc2626";
+    case "MANTENIMIENTO":
+      return "#64748b";
+    case "REFRIGERIO":
+      return "#d97706";
+  }
 }
 
 function formatearFecha(

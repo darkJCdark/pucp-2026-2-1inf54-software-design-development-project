@@ -45,6 +45,13 @@ const configuracionInicial: ConfiguracionPlanificador = {
 
   pedidoVerdeHasta: 60,
   pedidoAmbarHasta: 85,
+
+  usarConfiguracionSa: false,
+  saSemilla: "",
+  saTemperaturaInicial: 1000,
+  saTemperaturaMinima: 1,
+  saFactorEnfriamiento: 0.95,
+  saIteracionesPorTemperatura: 50,
 };
 
 const ConfiguracionContext =

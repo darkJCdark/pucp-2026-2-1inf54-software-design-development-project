@@ -31,6 +31,9 @@ export interface ParadaResponseDto {
 
   cargaAntes: number | null;
   cargaDespues: number | null;
+
+  /** Hora física de llegada a la parada antes de iniciar el refrigerio. */
+  inicioRefrigerio?: string | null;
 }
 
 export interface RutaResponseDto {
@@ -49,6 +52,10 @@ export interface RutaResponseDto {
   costo: number;
 
   paradas: ParadaResponseDto[];
+
+  almacenInicialId?: string | null;
+  planPersistedId?: number | null;
+  routePersistedId?: number | null;
 }
 
 export interface ViolacionResponseDto {

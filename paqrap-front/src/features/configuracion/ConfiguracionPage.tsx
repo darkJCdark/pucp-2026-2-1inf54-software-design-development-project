@@ -1,12 +1,5 @@
-import {
-  useEffect,
-  useState,
-} from "react";
-
-import {
-  useNavigate,
-} from "react-router-dom";
-
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   CircleStop,
   ExternalLink,
@@ -14,63 +7,34 @@ import {
   TriangleAlert,
 } from "lucide-react";
 
-import {
-  Button,
-} from "@/components/ui/button";
-
-import {
-  useConfiguracion,
-} from "@/context/ConfiguracionContext";
-
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/feedback/ToastProvider";
+import { useConfiguracion } from "@/context/ConfiguracionContext";
 import type {
+  CrearEscenarioRequestDto,
   EscenarioResponseDto,
   TipoEscenarioBackend,
 } from "@/api/escenarios.dto";
+import type {
+  TipoVehiculoBackend,
+  VehiculoResponseDto,
+} from "@/api/flota.dto";
+import { escenariosService } from "@/services/escenarios.service";
+import { pedidosService } from "@/services/pedidos.service";
+import { bloqueosService } from "@/services/bloqueos.service";
+import { flotaService } from "@/services/flota.service";
+import { mensajeDeError } from "@/lib/api-error";
 
-import {
-  escenariosService,
-} from "@/services/escenarios.service";
-
-import {
-  pedidosService,
-} from "@/services/pedidos.service";
-
-import {
-  bloqueosService,
-} from "@/services/bloqueos.service";
-
-import {
-  flotaService,
-} from "@/services/flota.service";
-
-import {
-  ApiError,
-} from "@/services/api";
-
-import {
-  OrigenDatos,
-} from "./OrigenDatos";
-
-import {
-  ParametrosOperacion,
-} from "./ParametrosOperacion";
-
-import {
-  FlotaConfiguracion,
-} from "./FlotaConfiguracion";
-
-import {
-  SemaforoConfiguracion,
-} from "./SemaforoConfiguracion";
-
-import {
-  ResumenConfiguracion,
-} from "./ResumenConfiguracion";
+import { OrigenDatos } from "./OrigenDatos";
+import { ParametrosOperacion } from "./ParametrosOperacion";
+import { FlotaConfiguracion } from "./FlotaConfiguracion";
+import { SemaforoConfiguracion } from "./SemaforoConfiguracion";
+import { ResumenConfiguracion } from "./ResumenConfiguracion";
+import { ConfirmarInicioModal } from "./ConfirmarInicioModal";
 
 export default function ConfiguracionPage() {
-  const navigate =
-    useNavigate();
-
+  const navigate = useNavigate();
+  const { mostrarToast } = useToast();
   const {
     configuracion,
     actualizarConfiguracion,
@@ -78,207 +42,150 @@ export default function ConfiguracionPage() {
     archivoBloqueos,
   } = useConfiguracion();
 
-  const [
-    iniciando,
-    setIniciando,
-  ] = useState(false);
+  const [iniciando, setIniciando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [escenarioActivo, setEscenarioActivo] =
+    useState<EscenarioResponseDto | null>(null);
+  const [verificandoActivo, setVerificandoActivo] = useState(true);
+  const [deteniendo, setDeteniendo] = useState(false);
+  const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
 
-  const [
-    error,
-    setError,
-  ] = useState<
-    string | null
-  >(null);
-
-  const [
-    mensaje,
-    setMensaje,
-  ] = useState<
-    string | null
-  >(null);
-
-  const [
-    escenarioActivo,
-    setEscenarioActivo,
-  ] =
-    useState<
-      EscenarioResponseDto | null
-    >(null);
-
-  const [
-    verificandoActivo,
-    setVerificandoActivo,
-  ] = useState(true);
-
-  const [
-    deteniendo,
-    setDeteniendo,
-  ] = useState(false);
-
-  const necesitaArchivo =
-    configuracion.escenario !==
-    "DIA_A_DIA";
+  const necesitaArchivo = configuracion.escenario !== "DIA_A_DIA";
 
   useEffect(() => {
-    void cargarEscenarioActivo();
-    void cargarFlotaDesdeBackend();
-  }, []);
+    let vigente = true;
 
-  async function cargarFlotaDesdeBackend() {
-    try {
-      const [tipos, vehiculos] =
-        await Promise.all([
+    async function inicializar() {
+      try {
+        const [activo, tipos, vehiculos] = await Promise.all([
+          buscarEscenarioActivo(),
           flotaService.listarTipos(),
           flotaService.listarVehiculos(),
         ]);
 
-      const porTipo = new Map(
-        tipos.map((tipo) => [
-          tipo.tipo,
-          tipo,
-        ]),
-      );
+        if (!vigente) return;
 
-      actualizarConfiguracion({
-        autosCantidad:
-          vehiculos.filter(
-            (vehiculo) =>
-              vehiculo.tipo === "CAR",
-          ).length,
-        autosVelocidad:
-          porTipo.get("CAR")
-            ?.velocidadKmh ??
-          configuracion.autosVelocidad,
+        setEscenarioActivo(activo);
+        const porTipo = new Map(tipos.map((tipo) => [tipo.tipo, tipo]));
 
-        motosCantidad:
-          vehiculos.filter(
-            (vehiculo) =>
-              vehiculo.tipo ===
-              "MOTORCYCLE",
-          ).length,
-        motosVelocidad:
-          porTipo.get("MOTORCYCLE")
-            ?.velocidadKmh ??
-          configuracion.motosVelocidad,
-
-        bicicletasCantidad:
-          vehiculos.filter(
-            (vehiculo) =>
-              vehiculo.tipo ===
-              "BICYCLE",
-          ).length,
-        bicicletasVelocidad:
-          porTipo.get("BICYCLE")
-            ?.velocidadKmh ??
-          configuracion.bicicletasVelocidad,
-      });
-    } catch (error) {
-      console.error(
-        "No se pudo cargar la flota desde el backend:",
-        error,
-      );
+        actualizarConfiguracion({
+          autosCantidad: contar(vehiculos, "CAR"),
+          autosVelocidad:
+            porTipo.get("CAR")?.velocidadKmh ?? configuracion.autosVelocidad,
+          motosCantidad: contar(vehiculos, "MOTORCYCLE"),
+          motosVelocidad:
+            porTipo.get("MOTORCYCLE")?.velocidadKmh ?? configuracion.motosVelocidad,
+          bicicletasCantidad: contar(vehiculos, "BICYCLE"),
+          bicicletasVelocidad:
+            porTipo.get("BICYCLE")?.velocidadKmh ??
+            configuracion.bicicletasVelocidad,
+        });
+      } catch (error) {
+        if (vigente) {
+          setError(
+            mensajeDeError(error, "No fue posible cargar la configuración inicial."),
+          );
+        }
+      } finally {
+        if (vigente) setVerificandoActivo(false);
+      }
     }
-  }
 
-  async function buscarEscenarioActivo():
-    Promise<
-      EscenarioResponseDto | null
-    > {
-    const pagina =
-      await escenariosService.listar(
-        0,
-        100,
-      );
+    void inicializar();
 
+    return () => {
+      vigente = false;
+    };
+  }, []);
+
+  async function buscarEscenarioActivo(): Promise<EscenarioResponseDto | null> {
+    const pagina = await escenariosService.listar(0, 100);
     return (
       pagina.contenido.find(
         (escenario) =>
-          escenario.estado ===
-            "RUNNING" ||
-          escenario.estado ===
-            "PAUSED",
+          escenario.estado === "RUNNING" || escenario.estado === "PAUSED",
       ) ?? null
     );
   }
 
-  async function cargarEscenarioActivo() {
-    try {
-      setVerificandoActivo(
-        true,
-      );
-
-      const activo =
-        await buscarEscenarioActivo();
-
-      setEscenarioActivo(
-        activo,
-      );
-    } catch (error) {
-      console.error(
-        "No se pudo consultar el escenario activo:",
-        error,
-      );
-    } finally {
-      setVerificandoActivo(
-        false,
-      );
-    }
-  }
-
   async function handleDetenerActivo() {
-    if (!escenarioActivo) {
-      return;
-    }
+    if (!escenarioActivo) return;
 
     try {
       setDeteniendo(true);
       setError(null);
-      setMensaje(null);
-
-      const id =
-        escenarioActivo.id;
-
-      await escenariosService.detener(
-        id,
-      );
-
-      setEscenarioActivo(
-        null,
-      );
-
-      setMensaje(
-        `La ejecución #${id} fue detenida correctamente.`,
-      );
+      await escenariosService.detener(escenarioActivo.id);
+      mostrarToast({
+        titulo: "Simulación detenida",
+        descripcion: `La ejecución #${escenarioActivo.id} fue detenida correctamente.`,
+        variante: "success",
+      });
+      setEscenarioActivo(null);
     } catch (error) {
-      manejarError(
+      const mensaje = mensajeDeError(
         error,
         "No fue posible detener la simulación activa.",
       );
+      setError(mensaje);
+      mostrarToast({ titulo: "No se pudo detener", descripcion: mensaje, variante: "error" });
     } finally {
       setDeteniendo(false);
     }
   }
 
-  function handleIrAEjecucion() {
-    if (!escenarioActivo) {
-      return;
+  function validarConfiguracion(): string | null {
+    if (
+      configuracion.autosCantidad < 1 ||
+      configuracion.motosCantidad < 1 ||
+      configuracion.bicicletasCantidad < 1
+    ) {
+      return "La flota debe tener al menos una unidad de cada tipo.";
     }
 
-    navigate(
-      `/ejecucion/${escenarioActivo.id}`,
-    );
-  }
-
-  function validarConfiguracion():
-    string | null {
-    /*
-     * Día a Día no requiere
-     * archivo ni fecha.
-     */
     if (
-      configuracion.escenario ===
-      "DIA_A_DIA"
+      configuracion.autosVelocidad <= 0 ||
+      configuracion.motosVelocidad <= 0 ||
+      configuracion.bicicletasVelocidad <= 0
     ) {
+      return "Todas las velocidades deben ser mayores que cero.";
+    }
+
+    if (
+      configuracion.almacenVerdeHasta >= configuracion.almacenAmbarHasta ||
+      configuracion.pedidoVerdeHasta >= configuracion.pedidoAmbarHasta
+    ) {
+      return "Los límites verdes deben ser menores que los límites ámbar.";
+    }
+
+    if (configuracion.usarConfiguracionSa) {
+      if (
+        configuracion.saTemperaturaInicial <= 0 ||
+        configuracion.saTemperaturaMinima <= 0 ||
+        configuracion.saTemperaturaMinima >= configuracion.saTemperaturaInicial
+      ) {
+        return "Los parámetros de SA requieren temperaturas positivas y Tmin menor que T0.";
+      }
+
+      if (
+        configuracion.saFactorEnfriamiento < 0.8 ||
+        configuracion.saFactorEnfriamiento > 0.99
+      ) {
+        return "El factor de enfriamiento debe estar entre 0.80 y 0.99.";
+      }
+
+      if (configuracion.saIteracionesPorTemperatura <= 0) {
+        return "Las iteraciones por temperatura deben ser mayores que cero.";
+      }
+
+      if (
+        configuracion.saSemilla.trim() &&
+        !/^-?\d+$/.test(configuracion.saSemilla.trim())
+      ) {
+        return "La semilla debe ser un número entero.";
+      }
+    }
+
+    if (configuracion.escenario === "DIA_A_DIA") {
       return null;
     }
 
@@ -286,339 +193,199 @@ export default function ConfiguracionPage() {
       return "Selecciona el archivo de pedidos antes de iniciar.";
     }
 
-    const match =
-      /^ventas\.(\d{4})(\d{2})\.txt$/i.exec(
-        archivoPedidos.name,
-      );
-
-    if (!match) {
-      return "El archivo debe tener el nombre ventas.AAAAMM.txt.";
+    const ventas = /^ventas\.(\d{4})(\d{2})\.txt$/i.exec(archivoPedidos.name);
+    if (!ventas) {
+      return "El archivo de pedidos debe llamarse ventas.AAAAMM.txt.";
     }
 
-    if (
-      !configuracion.inicioSimulado
-    ) {
+    if (!configuracion.inicioSimulado) {
       return "Selecciona la fecha y hora inicial de la simulación.";
     }
 
     if (archivoBloqueos) {
-      const matchBloqueos =
-        /^bloqueo\.(\d{2})(\d{2})\.txt$/i.exec(
-          archivoBloqueos.name,
-        );
+      const bloqueos = /^bloqueo\.(\d{2})(\d{2})\.txt$/i.exec(
+        archivoBloqueos.name,
+      );
 
-      if (!matchBloqueos) {
+      if (!bloqueos) {
         return "El archivo de bloqueos debe llamarse bloqueo.AAMM.txt.";
       }
 
-      const anioBloqueos =
-        2000 + Number(matchBloqueos[1]);
-
-      const mesBloqueos =
-        Number(matchBloqueos[2]);
-
       if (
-        anioBloqueos !== Number(match[1]) ||
-        mesBloqueos !== Number(match[2])
+        2000 + Number(bloqueos[1]) !== Number(ventas[1]) ||
+        Number(bloqueos[2]) !== Number(ventas[2])
       ) {
         return "Los archivos de pedidos y bloqueos deben corresponder al mismo periodo.";
       }
     }
 
-    /*
-     * Evitamos el error más frecuente:
-     *
-     * archivo de enero
-     * +
-     * simulación iniciada en octubre.
-     */
-    const anioArchivo =
-      Number(match[1]);
+    const fecha = new Date(
+      `${normalizarFechaLocal(configuracion.inicioSimulado)}-05:00`,
+    );
 
-    const mesArchivo =
-      Number(match[2]);
-
-    const fecha =
-      new Date(
-        `${normalizarFechaLocal(
-          configuracion.inicioSimulado,
-        )}-05:00`,
-      );
-
-    if (
-      Number.isNaN(
-        fecha.getTime(),
-      )
-    ) {
+    if (Number.isNaN(fecha.getTime())) {
       return "La fecha inicial no es válida.";
     }
 
-    /*
-     * Convertimos nuevamente a hora de
-     * Lima para verificar el periodo.
-     */
-    const partes =
-      new Intl.DateTimeFormat(
-        "en-CA",
-        {
-          timeZone:
-            "America/Lima",
+    const partes = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Lima",
+      year: "numeric",
+      month: "2-digit",
+    }).formatToParts(fecha);
 
-          year: "numeric",
-          month: "2-digit",
-        },
-      ).formatToParts(
-        fecha,
-      );
+    const anio = Number(partes.find((parte) => parte.type === "year")?.value);
+    const mes = Number(partes.find((parte) => parte.type === "month")?.value);
 
-    const anioInicio =
-      Number(
-        partes.find(
-          (parte) =>
-            parte.type ===
-            "year",
-        )?.value,
-      );
-
-    const mesInicio =
-      Number(
-        partes.find(
-          (parte) =>
-            parte.type ===
-            "month",
-        )?.value,
-      );
-
-    if (
-      anioInicio !==
-        anioArchivo ||
-      mesInicio !==
-        mesArchivo
-    ) {
-      return `La simulación debe comenzar dentro del periodo del archivo: ${anioArchivo}-${String(
-        mesArchivo,
-      ).padStart(2, "0")}.`;
+    if (anio !== Number(ventas[1]) || mes !== Number(ventas[2])) {
+      return `La simulación debe comenzar dentro del periodo ${ventas[1]}-${ventas[2]}.`;
     }
 
     return null;
   }
 
-  async function handleIniciarSimulacion() {
-    const errorConfiguracion =
-      validarConfiguracion();
-
-    if (errorConfiguracion) {
-      setError(
-        errorConfiguracion,
-      );
-
+  function prepararInicio() {
+    const validacion = validarConfiguracion();
+    if (validacion) {
+      setError(validacion);
+      mostrarToast({ titulo: "Revisa la configuración", descripcion: validacion, variante: "warning" });
       return;
     }
 
+    setError(null);
+    setMostrarConfirmacion(true);
+  }
+
+  async function handleIniciarSimulacion() {
     try {
       setIniciando(true);
       setError(null);
-      setMensaje(null);
 
-      /*
-       * Revisión final para evitar
-       * escenarios CREATED huérfanos.
-       */
-      const activo =
-        await buscarEscenarioActivo();
-
+      const activo = await buscarEscenarioActivo();
       if (activo) {
-        setEscenarioActivo(
-          activo,
-        );
-
-        setError(
-          "Ya existe una simulación activa.",
-        );
-
-        return;
+        setEscenarioActivo(activo);
+        throw new Error("Ya existe una simulación activa; deténla antes de iniciar otra.");
       }
 
-      /*
-       * Guardamos las velocidades configuradas
-       * antes de crear el escenario. La capacidad
-       * y el costo se conservan con los valores
-       * actuales del backend.
-       */
-      const tiposFlota =
-        await flotaService.listarTipos();
+      await reconciliarCantidadFlota();
+      await actualizarParametrosFlota();
 
-      const velocidadPorTipo = {
-        CAR: configuracion.autosVelocidad,
-        MOTORCYCLE:
-          configuracion.motosVelocidad,
-        BICYCLE:
-          configuracion.bicicletasVelocidad,
-      } as const;
-
-      await Promise.all(
-        tiposFlota.map((tipo) =>
-          flotaService.actualizarTipo(
-            tipo.tipo,
-            {
-              capacidadPaquetes:
-                tipo.capacidadPaquetes,
-              velocidadKmh:
-                velocidadPorTipo[
-                  tipo.tipo
-                ],
-              costoPorKm:
-                tipo.costoPorKm,
-            },
-          ),
-        ),
-      );
-
-      /*
-       * Para 5D y Colapso cargamos
-       * primero los datos históricos.
-       *
-       * El backend evita duplicarlos
-       * si el mismo archivo ya fue
-       * cargado anteriormente.
-       */
-      if (
-        necesitaArchivo &&
-        archivoPedidos
-      ) {
-        const carga =
-          await pedidosService.cargarArchivo(
-            archivoPedidos,
-          );
-
-        console.log(
-          "Carga de pedidos:",
-          carga,
-        );
+      if (necesitaArchivo && archivoPedidos) {
+        const carga = await pedidosService.cargarArchivo(archivoPedidos);
+        mostrarToast({
+          titulo: "Pedidos cargados",
+          descripcion: `${carga.registrados} registrados · ${carga.omitidos} omitidos`,
+          variante: "success",
+        });
       }
 
-      if (
-        necesitaArchivo &&
-        archivoBloqueos
-      ) {
-        const cargaBloqueos =
-          await bloqueosService.cargarArchivo(
-            archivoBloqueos,
-          );
-
-        console.log(
-          "Carga de bloqueos:",
-          cargaBloqueos,
+      if (necesitaArchivo && archivoBloqueos) {
+        const periodo = periodoDesdeVentas(archivoPedidos?.name ?? "");
+        const carga = await bloqueosService.cargarArchivo(
+          archivoBloqueos,
+          periodo ?? undefined,
         );
+        mostrarToast({
+          titulo: "Bloqueos cargados",
+          descripcion: `${carga.registrados} registrados · ${carga.reemplazados} reemplazados en ${carga.periodo}`,
+          variante: "success",
+        });
       }
 
-      const tipo =
-        convertirEscenario(
-          configuracion.escenario,
-        );
+      const request = construirRequestEscenario();
+      const creado = await escenariosService.crear(request);
+      const iniciado = await escenariosService.iniciar(creado.id);
 
-      const request =
-        tipo === "DAY_TO_DAY"
-          ? {
-              tipo,
-            }
-          : {
-              tipo,
+      mostrarToast({
+        titulo: "Simulación iniciada",
+        descripcion: `Ejecución #${iniciado.id} · ${nombreTipoEscenario(iniciado.tipo)}`,
+        variante: "success",
+      });
 
-              /*
-               * El archivo se interpreta
-               * en America/Lima.
-               *
-               * Forzamos -05:00 para que
-               * la simulación use la misma
-               * zona horaria independientemente
-               * del navegador.
-               */
-              inicioSimulado:
-                convertirHoraLimaAIso(
-                  configuracion.inicioSimulado,
-                ),
-            };
-
-      const creado =
-        await escenariosService.crear(
-          request,
-        );
-
-      const iniciado =
-        await escenariosService.iniciar(
-          creado.id,
-        );
-
-      navigate(
-        `/ejecucion/${iniciado.id}`,
-      );
+      setMostrarConfirmacion(false);
+      navigate(`/ejecucion/${iniciado.id}`);
     } catch (error) {
-      console.error(
-        "No se pudo iniciar la simulación:",
-        error,
-      );
-
-      if (
-        error instanceof ApiError &&
-        error.status === 409
-      ) {
-        try {
-          const activo =
-            await buscarEscenarioActivo();
-
-          setEscenarioActivo(
-            activo,
-          );
-        } catch {
-          // Conservamos el error original.
-        }
-      }
-
-      manejarError(
-        error,
-        "No fue posible iniciar la simulación.",
-      );
+      const mensaje = mensajeDeError(error, "No fue posible iniciar la simulación.");
+      setError(mensaje);
+      mostrarToast({ titulo: "No se pudo iniciar", descripcion: mensaje, variante: "error" });
     } finally {
       setIniciando(false);
     }
   }
 
-  function manejarError(
-    error: unknown,
-    fallback: string,
-  ) {
-    if (
-      error instanceof ApiError
-    ) {
-      setError(
-        error.message,
-      );
+  async function reconciliarCantidadFlota() {
+    const vehiculos = await flotaService.listarVehiculos();
+    const objetivos: Record<TipoVehiculoBackend, number> = {
+      CAR: configuracion.autosCantidad,
+      MOTORCYCLE: configuracion.motosCantidad,
+      BICYCLE: configuracion.bicicletasCantidad,
+    };
 
-      return;
+    for (const tipo of Object.keys(objetivos) as TipoVehiculoBackend[]) {
+      const existentes = vehiculos
+        .filter((vehiculo) => vehiculo.tipo === tipo)
+        .sort((a, b) => b.id.localeCompare(a.id, undefined, { numeric: true }));
+      const diferencia = objetivos[tipo] - existentes.length;
+
+      if (diferencia > 0) {
+        for (let i = 0; i < diferencia; i += 1) {
+          await flotaService.altaVehiculo(tipo);
+        }
+      } else if (diferencia < 0) {
+        const candidatos = ordenarParaBaja(existentes).slice(0, Math.abs(diferencia));
+        for (const vehiculo of candidatos) {
+          await flotaService.bajaVehiculo(vehiculo.id);
+        }
+      }
     }
+  }
 
-    if (
-      error instanceof Error
-    ) {
-      setError(
-        error.message,
-      );
+  async function actualizarParametrosFlota() {
+    const tipos = await flotaService.listarTipos();
+    const velocidad: Record<TipoVehiculoBackend, number> = {
+      CAR: configuracion.autosVelocidad,
+      MOTORCYCLE: configuracion.motosVelocidad,
+      BICYCLE: configuracion.bicicletasVelocidad,
+    };
 
-      return;
-    }
-
-    setError(
-      fallback,
+    await Promise.all(
+      tipos.map((tipo) =>
+        flotaService.actualizarTipo(tipo.tipo, {
+          capacidadPaquetes: tipo.capacidadPaquetes,
+          velocidadKmh: velocidad[tipo.tipo],
+          costoPorKm: tipo.costoPorKm,
+        }),
+      ),
     );
+  }
+
+  function construirRequestEscenario(): CrearEscenarioRequestDto {
+    const tipo = convertirEscenario(configuracion.escenario);
+    const request: CrearEscenarioRequestDto = { tipo };
+
+    if (tipo !== "DAY_TO_DAY") {
+      request.inicioSimulado = convertirHoraLimaAIso(configuracion.inicioSimulado);
+    }
+
+    if (configuracion.usarConfiguracionSa) {
+      request.configuracionSa = {
+        ...(configuracion.saSemilla.trim()
+          ? { semilla: Number(configuracion.saSemilla.trim()) }
+          : {}),
+        temperaturaInicial: configuracion.saTemperaturaInicial,
+        temperaturaMinima: configuracion.saTemperaturaMinima,
+        factorEnfriamiento: configuracion.saFactorEnfriamiento,
+        iteracionesPorTemperatura: configuracion.saIteracionesPorTemperatura,
+      };
+    }
+
+    return request;
   }
 
   const puedeIniciar =
     !iniciando &&
     !verificandoActivo &&
     !escenarioActivo &&
-    validarConfiguracion() ===
-      null;
+    validarConfiguracion() === null;
 
   return (
     <div className="flex min-h-full flex-col">
@@ -627,9 +394,7 @@ export default function ConfiguracionPage() {
 
         <section className="space-y-3">
           <ParametrosOperacion />
-
           <FlotaConfiguracion />
-
           <SemaforoConfiguracion />
         </section>
 
@@ -639,7 +404,6 @@ export default function ConfiguracionPage() {
       {verificandoActivo && (
         <div className="mx-4 mb-3 flex items-center gap-2 rounded-md border border-slate-700 bg-[#151b23] px-4 py-3 text-sm text-slate-300">
           <Loader2 className="size-4 animate-spin" />
-
           Verificando si existe una simulación activa...
         </div>
       )}
@@ -649,32 +413,15 @@ export default function ConfiguracionPage() {
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
             <div className="flex items-start gap-3">
               <TriangleAlert className="mt-0.5 size-5 shrink-0 text-amber-400" />
-
               <div>
                 <p className="font-semibold text-amber-300">
                   Ya existe una simulación activa
                 </p>
-
                 <p className="mt-1 text-sm text-slate-400">
-                  Ejecución #
-                  {
-                    escenarioActivo.id
-                  }
-                  {" · "}
-                  {nombreTipoEscenario(
-                    escenarioActivo.tipo,
-                  )}
-                  {" · "}
-                  {nombreEstado(
-                    escenarioActivo.estado,
-                  )}
+                  Ejecución #{escenarioActivo.id} · {nombreTipoEscenario(escenarioActivo.tipo)} · {nombreEstado(escenarioActivo.estado)}
                 </p>
-
                 <p className="mt-1 text-xs text-slate-500">
-                  Puedes volver a la
-                  ejecución actual o
-                  detenerla antes de
-                  iniciar otra.
+                  Puedes volver a la ejecución actual o detenerla antes de iniciar otra.
                 </p>
               </div>
             </div>
@@ -682,24 +429,17 @@ export default function ConfiguracionPage() {
             <div className="flex shrink-0 gap-2">
               <button
                 type="button"
-                onClick={
-                  handleIrAEjecucion
-                }
+                onClick={() => navigate(`/ejecucion/${escenarioActivo.id}`)}
                 className="flex items-center gap-2 rounded-md border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
               >
                 <ExternalLink className="size-4" />
-
                 Ir a ejecución
               </button>
 
               <button
                 type="button"
-                disabled={
-                  deteniendo
-                }
-                onClick={() =>
-                  void handleDetenerActivo()
-                }
+                disabled={deteniendo}
+                onClick={() => void handleDetenerActivo()}
                 className="flex items-center gap-2 rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600 disabled:opacity-50"
               >
                 {deteniendo ? (
@@ -707,24 +447,15 @@ export default function ConfiguracionPage() {
                 ) : (
                   <CircleStop className="size-4" />
                 )}
-
-                {deteniendo
-                  ? "Deteniendo..."
-                  : "Detener simulación"}
+                {deteniendo ? "Deteniendo..." : "Detener simulación"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {mensaje && (
-        <div className="mx-4 mb-3 rounded-md border border-green-900 bg-green-950/30 px-4 py-3 text-sm text-green-400">
-          {mensaje}
-        </div>
-      )}
-
       {error && (
-        <div className="mx-4 mb-3 rounded-md border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-400">
+        <div className="mx-4 mb-3 whitespace-pre-line rounded-md border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-400">
           {error}
         </div>
       )}
@@ -733,137 +464,107 @@ export default function ConfiguracionPage() {
         <div className="text-xs text-slate-500">
           {escenarioActivo
             ? "Existe una ejecución activa."
-            : "Listo para iniciar una ejecución."}
+            : "Listo para revisar e iniciar una ejecución."}
         </div>
 
         <Button
           type="button"
-          disabled={
-            !puedeIniciar
-          }
-          onClick={() =>
-            void handleIniciarSimulacion()
-          }
+          disabled={!puedeIniciar}
+          onClick={prepararInicio}
           className="bg-[#ff6b35] text-white hover:bg-[#ff7b4d]"
         >
           {iniciando ? (
             <>
               <Loader2 className="mr-2 size-4 animate-spin" />
-
               Iniciando...
             </>
           ) : (
-            "Iniciar simulación"
+            "Revisar e iniciar"
           )}
         </Button>
       </div>
+
+      <ConfirmarInicioModal
+        abierto={mostrarConfirmacion}
+        configuracion={configuracion}
+        archivoPedidos={archivoPedidos}
+        archivoBloqueos={archivoBloqueos}
+        confirmando={iniciando}
+        onCancelar={() => setMostrarConfirmacion(false)}
+        onConfirmar={() => void handleIniciarSimulacion()}
+      />
     </div>
   );
 }
 
+function contar(vehiculos: VehiculoResponseDto[], tipo: TipoVehiculoBackend) {
+  return vehiculos.filter((vehiculo) => vehiculo.tipo === tipo).length;
+}
+
+function ordenarParaBaja(vehiculos: VehiculoResponseDto[]) {
+  return [...vehiculos].sort((a, b) => {
+    const prioridadA = a.estado === "AVAILABLE" ? 0 : 1;
+    const prioridadB = b.estado === "AVAILABLE" ? 0 : 1;
+    return prioridadA - prioridadB || b.id.localeCompare(a.id, undefined, { numeric: true });
+  });
+}
+
+function periodoDesdeVentas(nombre: string) {
+  const match = /^ventas\.(\d{4})(\d{2})\.txt$/i.exec(nombre);
+  return match ? `${match[1]}-${match[2]}` : null;
+}
+
 function convertirEscenario(
-  escenario:
-    | "DIA_A_DIA"
-    | "SIMULACION_5D"
-    | "COLAPSO",
+  escenario: "DIA_A_DIA" | "SIMULACION_5D" | "COLAPSO",
 ): TipoEscenarioBackend {
   switch (escenario) {
     case "DIA_A_DIA":
       return "DAY_TO_DAY";
-
     case "SIMULACION_5D":
       return "FIVE_DAY";
-
     case "COLAPSO":
       return "COLLAPSE";
   }
 }
 
-function nombreTipoEscenario(
-  tipo: TipoEscenarioBackend,
-) {
+function nombreTipoEscenario(tipo: TipoEscenarioBackend) {
   switch (tipo) {
     case "DAY_TO_DAY":
       return "Día a Día";
-
     case "FIVE_DAY":
       return "Simulación 5D";
-
     case "COLLAPSE":
       return "Colapso";
   }
 }
 
-function nombreEstado(
-  estado: EscenarioResponseDto["estado"],
-) {
+function nombreEstado(estado: EscenarioResponseDto["estado"]) {
   switch (estado) {
     case "CREATED":
       return "Creado";
-
     case "RUNNING":
       return "En ejecución";
-
     case "PAUSED":
       return "Pausado";
-
     case "STOPPED":
       return "Detenido";
-
     case "COMPLETED":
       return "Completado";
-
     case "COLLAPSED":
       return "Colapsado";
-
     case "FAILED":
       return "Error";
   }
 }
 
-/**
- * datetime-local normalmente tiene:
- *
- * YYYY-MM-DDTHH:mm
- *
- * Agregamos segundos si faltan.
- */
-function normalizarFechaLocal(
-  valor: string,
-) {
-  return valor.length === 16
-    ? `${valor}:00`
-    : valor;
+function normalizarFechaLocal(valor: string) {
+  return valor.length === 16 ? `${valor}:00` : valor;
 }
 
-/**
- * Los archivos históricos de PaqRap
- * se interpretan en hora de Lima.
- *
- * Perú utiliza UTC-5 sin DST.
- */
-function convertirHoraLimaAIso(
-  valor: string,
-) {
-  const normalizado =
-    normalizarFechaLocal(
-      valor,
-    );
-
-  const fecha =
-    new Date(
-      `${normalizado}-05:00`,
-    );
-
-  if (
-    Number.isNaN(
-      fecha.getTime(),
-    )
-  ) {
-    throw new Error(
-      "La fecha inicial de la simulación no es válida.",
-    );
+function convertirHoraLimaAIso(valor: string) {
+  const fecha = new Date(`${normalizarFechaLocal(valor)}-05:00`);
+  if (Number.isNaN(fecha.getTime())) {
+    throw new Error("La fecha inicial de la simulación no es válida.");
   }
-
   return fecha.toISOString();
 }

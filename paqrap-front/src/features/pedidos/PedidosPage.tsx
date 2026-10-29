@@ -385,6 +385,25 @@ function DetallePedido({
         <Dato label="Plazo" value={`${pedido.horasPrometidas} h`} />
         <Dato label="Registrado" value={formatearFecha(pedido.registradoEn)} />
         <Dato label="Vence" value={formatearFecha(pedido.vence)} />
+        <Dato label="Unidad asignada" value={detalle.unidadAsignadaId ?? "Sin asignar"} />
+        <Dato
+          label="Tiempo restante"
+          value={
+            detalle.minutosRestantes === null
+              ? "—"
+              : detalle.minutosRestantes >= 0
+                ? `${detalle.minutosRestantes} min`
+                : `${Math.abs(detalle.minutosRestantes)} min vencido`
+          }
+        />
+        <Dato
+          label="Cumplimiento"
+          value={detalle.incumplido ? "Incumplido" : "Dentro del plazo"}
+        />
+        <Dato
+          label="Entregado"
+          value={pedido.entregadoEn ? formatearFecha(pedido.entregadoEn) : "—"}
+        />
       </div>
 
       <div className="mt-6">

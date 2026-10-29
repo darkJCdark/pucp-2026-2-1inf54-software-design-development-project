@@ -141,11 +141,14 @@ export const pedidosService = {
 
   obtener(
     id: string,
+    instante?: string,
   ): Promise<PedidoDetalleResponseDto> {
+    const query = instante
+      ? `?instante=${encodeURIComponent(instante)}`
+      : "";
+
     return apiRequest<PedidoDetalleResponseDto>(
-      `/api/pedidos/${encodeURIComponent(
-        id,
-      )}`,
+      `/api/pedidos/${encodeURIComponent(id)}${query}`,
     );
   },
 

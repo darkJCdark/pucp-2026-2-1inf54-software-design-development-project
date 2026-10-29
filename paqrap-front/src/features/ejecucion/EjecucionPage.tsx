@@ -7,6 +7,7 @@ import {
 
 import {
   AlertTriangle,
+  BarChart3,
   CirclePause,
   CirclePlay,
   Loader2,
@@ -43,12 +44,17 @@ import type {
 } from "@/api/pedidos.dto";
 
 import type {
+  TipoVehiculoBackend,
   TipoVehiculoResponseDto,
 } from "@/api/flota.dto";
 
 import {
   ApiError,
 } from "@/services/api";
+
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { useToast } from "@/components/feedback/ToastProvider";
+import { mensajeDeError } from "@/lib/api-error";
 
 import {
   escenariosService,
@@ -115,6 +121,13 @@ import {
   RegistrarPedidoForm,
 } from "./RegistrarPedidoForm";
 
+import {
+  DetalleOperacionPanel,
+  type SeleccionDetalleOperacion,
+} from "./DetalleOperacionPanel";
+
+import { ResultadoEscenarioModal } from "../ejecuciones/ResultadoEscenarioModal";
+
 export default function EjecucionPage() {
   const {
     ejecucionId:
@@ -124,6 +137,8 @@ export default function EjecucionPage() {
 
   const navigate =
     useNavigate();
+
+  const { mostrarToast } = useToast();
 
   const ejecucionId =
     Number(
@@ -233,6 +248,18 @@ export default function EjecucionPage() {
     useState(
       false,
     );
+
+  const [seleccionDetalle, setSeleccionDetalle] =
+    useState<SeleccionDetalleOperacion | null>(null);
+
+  const [tipoActualizando, setTipoActualizando] =
+    useState<TipoVehiculoBackend | null>(null);
+
+  const [confirmarDetencion, setConfirmarDetencion] =
+    useState(false);
+
+  const [mostrarResultado, setMostrarResultado] =
+    useState(false);
 
   const estadoEnCursoRef =
     useRef(false);
@@ -616,6 +643,12 @@ export default function EjecucionPage() {
       false,
     );
 
+    mostrarToast({
+      titulo: "Pedido registrado",
+      descripcion: `El pedido ${respuesta.id} fue guardado y provocará una replanificación.`,
+      variante: "success",
+    });
+
     ultimoRefrescoPedidosRef.current =
       0;
 
@@ -657,6 +690,12 @@ export default function EjecucionPage() {
     setMostrarFormularioAveria(
       false,
     );
+
+    mostrarToast({
+      titulo: "Avería registrada",
+      descripcion: "El backend calculó la posición real de la unidad y solicitó una replanificación.",
+      variante: "warning",
+    });
 
     await cargarEstado(
       false,
@@ -714,6 +753,20 @@ export default function EjecucionPage() {
           break;
       }
 
+      if (accion === "DETENER") {
+        setConfirmarDetencion(false);
+      }
+
+      mostrarToast({
+        titulo:
+          accion === "PAUSAR"
+            ? "Simulación pausada"
+            : accion === "REANUDAR"
+              ? "Simulación reanudada"
+              : "Simulación detenida",
+        variante: "success",
+      });
+
       await cargarEstado(
         false,
         true,
@@ -723,17 +776,55 @@ export default function EjecucionPage() {
     } catch (
       error
     ) {
-      setError(
-        mensajeError(
-          error,
-
-          "No fue posible cambiar el estado del escenario.",
-        ),
+      const mensaje = mensajeDeError(
+        error,
+        "No fue posible cambiar el estado del escenario.",
       );
+      setError(mensaje);
+      mostrarToast({ titulo: "No se pudo completar la acción", descripcion: mensaje, variante: "error" });
     } finally {
       setAccionando(
         false,
       );
+    }
+  }
+
+  async function handleActualizarVelocidad(
+    tipoVehiculo: TipoVehiculoBackend,
+    velocidadKmh: number,
+  ) {
+    const actual = tiposFlota.find((tipoFlota) => tipoFlota.tipo === tipoVehiculo);
+    if (!actual) {
+      throw new Error("No se encontró la configuración del tipo de vehículo.");
+    }
+
+    try {
+      setTipoActualizando(tipoVehiculo);
+      const actualizado = await flotaService.actualizarTipo(tipoVehiculo, {
+        capacidadPaquetes: actual.capacidadPaquetes,
+        velocidadKmh,
+        costoPorKm: actual.costoPorKm,
+      });
+
+      setTiposFlota((tipos) =>
+        tipos.map((tipoFlota) =>
+          tipoFlota.tipo === tipoVehiculo ? actualizado : tipoFlota,
+        ),
+      );
+
+      mostrarToast({
+        titulo: "Velocidad actualizada",
+        descripcion: `${nombreTipoVehiculo(tipoVehiculo)}: ${velocidadKmh} km/h. El backend replanificará con el nuevo perfil.`,
+        variante: "success",
+      });
+
+      window.setTimeout(() => void cargarPlan(), 1200);
+    } catch (cause) {
+      const mensaje = mensajeDeError(cause, "No fue posible actualizar la velocidad.");
+      mostrarToast({ titulo: "Velocidad rechazada", descripcion: mensaje, variante: "error" });
+      throw cause;
+    } finally {
+      setTipoActualizando(null);
     }
   }
 
@@ -890,7 +981,7 @@ export default function EjecucionPage() {
       paquetesEntregados:
         monitoreo
           .ejecucion
-          .paquetesEntregados,
+          .paquetesEntregados ?? 0,
 
       pedidosRiesgo:
         monitoreo
@@ -945,6 +1036,9 @@ export default function EjecucionPage() {
               .escenario
               .estado
           }
+          onSeleccionarVehiculo={(id) => setSeleccionDetalle({ tipo: "VEHICULO", id })}
+          onSeleccionarPedido={(id) => setSeleccionDetalle({ tipo: "PEDIDO", id })}
+          onSeleccionarAlmacen={(id) => setSeleccionDetalle({ tipo: "ALMACEN", id })}
         />
 
         {/* RELOJ + CONTROLES */}
@@ -966,9 +1060,7 @@ export default function EjecucionPage() {
             )
           }
           onDetener={() =>
-            void ejecutarAccion(
-              "DETENER",
-            )
+            setConfirmarDetencion(true)
           }
         />
 
@@ -1014,6 +1106,17 @@ export default function EjecucionPage() {
               Registrar avería
             </button>
           )}
+
+          {["STOPPED", "COMPLETED", "COLLAPSED", "FAILED"].includes(estado) && (
+            <button
+              type="button"
+              onClick={() => setMostrarResultado(true)}
+              className="flex items-center justify-center gap-2 rounded-md border border-orange-700 bg-[#11161d] px-4 py-2 text-sm font-semibold text-orange-300 shadow hover:bg-orange-950/50"
+            >
+              <BarChart3 className="size-4" />
+              Ver resultado
+            </button>
+          )}
         </div>
 
         {/* FORM PEDIDO */}
@@ -1038,10 +1141,6 @@ export default function EjecucionPage() {
               vehiculos={
                 vehiculos
               }
-              instante={
-                monitoreo
-                  .instante
-              }
               ejecucionId={
                 ejecucionId
               }
@@ -1055,6 +1154,13 @@ export default function EjecucionPage() {
               }
             />
           )}
+
+        <DetalleOperacionPanel
+          seleccion={seleccionDetalle}
+          ejecucionId={ejecucionId}
+          instante={monitoreo.instante}
+          onCerrar={() => setSeleccionDetalle(null)}
+        />
 
         {/* ERROR */}
         {error && (
@@ -1135,6 +1241,26 @@ export default function EjecucionPage() {
         errorPlan={
           errorPlan
         }
+        permitirCambioVelocidad={estado === "RUNNING" || estado === "PAUSED"}
+        tipoActualizando={tipoActualizando}
+        onActualizarVelocidad={handleActualizarVelocidad}
+        onSeleccionarAlmacen={(id) => setSeleccionDetalle({ tipo: "ALMACEN", id })}
+      />
+
+      <ConfirmDialog
+        abierto={confirmarDetencion}
+        titulo="Detener simulación"
+        descripcion="El escenario se cerrará y el backend consolidará el resultado final."
+        textoConfirmar="Detener"
+        variante="danger"
+        confirmando={accionando}
+        onCancelar={() => setConfirmarDetencion(false)}
+        onConfirmar={() => void ejecutarAccion("DETENER")}
+      />
+
+      <ResultadoEscenarioModal
+        ejecucionId={mostrarResultado ? ejecucionId : null}
+        onCerrar={() => setMostrarResultado(false)}
       />
     </div>
   );
@@ -1613,6 +1739,17 @@ function formatearInstante(
  * ERROR
  * =========================================================
  */
+
+function nombreTipoVehiculo(tipo: TipoVehiculoBackend) {
+  switch (tipo) {
+    case "CAR":
+      return "Autos";
+    case "MOTORCYCLE":
+      return "Motos";
+    case "BICYCLE":
+      return "Bicicletas";
+  }
+}
 
 function mensajeError(
   error:
