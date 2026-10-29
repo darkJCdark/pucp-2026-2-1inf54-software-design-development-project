@@ -43,6 +43,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Ruta de prueba de TA01, que sale del central (27,14) a las 10:00:
@@ -181,6 +182,47 @@ class EjecutorPlanServiceTest {
         assertEquals(VehicleOperationalStatus.AVAILABLE, vehiculo("TA01").getOperationalStatus());
     }
 
+    /**
+     * La avería cae entre la salida y la primera llegada; el mismo tick puede sustituir el plan, así que la
+     * interrupción debe ejecutarse sin esperar esa llegada posterior.
+     */
+    @Test
+    void unaAveriaEntreEventosInterrumpeAntesDeQueElPlanNuevoReemplaceLaRuta() {
+        planes.planes.put(ejecucion, planConRutaTa01());
+        ejecutor.avanzar(ejecucion, SALIDA, SALIDA);
+        averiaRepository.save(new BreakdownEventEntity(ejecucion,
+                new BreakdownEvent("TA01", BreakdownType.MINOR, hora("10:15"), new Location(28, 14))));
+
+        ejecutor.avanzar(ejecucion, SALIDA, hora("10:20"));
+        planes.planes.put(ejecucion, plan(hora("10:20"), List.of()));
+        ejecutor.avanzar(ejecucion, hora("10:20"), hora("10:21"));
+
+        assertEquals(OrderStatus.REGISTERED, pedido("P1").getStatus());
+        assertEquals(OrderStatus.REGISTERED, pedido("P2").getStatus());
+        assertEquals(VehicleOperationalStatus.AVAILABLE, vehiculo("TA01").getOperationalStatus());
+        assertEquals(List.of(OrderStatus.REGISTERED, OrderStatus.ASSIGNED, OrderStatus.IN_TRANSIT,
+                        OrderStatus.REGISTERED),
+                historialRepository.findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc("P1").stream()
+                        .map(OrderStatusHistoryEntity::getStatus).toList());
+        assertEquals(List.of(OrderStatus.REGISTERED, OrderStatus.ASSIGNED, OrderStatus.REGISTERED),
+                historialRepository.findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc("P2").stream()
+                        .map(OrderStatusHistoryEntity::getStatus).toList());
+    }
+
+    @Test
+    void unaAveriaDuranteAtencionConservaLaEntregaParcialYLiberaLoPendiente() {
+        planes.planes.put(ejecucion, planConRutaTa01());
+        averiaRepository.save(new BreakdownEventEntity(ejecucion,
+                new BreakdownEvent("TA01", BreakdownType.MINOR, hora("12:30"), new Location(30, 18))));
+
+        ejecutor.avanzar(ejecucion, SALIDA, hora("12:45"));
+
+        assertEquals(OrderStatus.DELIVERED, pedido("P1").getStatus());
+        assertEquals(OrderStatus.REGISTERED, pedido("P2").getStatus());
+        assertEquals(7, ejecutor.metricas(ejecucion).orElseThrow().paquetesEntregados());
+        assertEquals(0, vehiculo("TA01").getCurrentLoad());
+        assertTrue(vehiculo("TA01").getCurrentLoad() >= 0);
+    }
     @Test
     void unaAveriaDeOtraEjecucionDelMismoPeriodoNoLaAfecta() {
         // Una corrida anterior del mismo periodo averió a TA01 a las 10:40; en esta corrida no le pasó nada.

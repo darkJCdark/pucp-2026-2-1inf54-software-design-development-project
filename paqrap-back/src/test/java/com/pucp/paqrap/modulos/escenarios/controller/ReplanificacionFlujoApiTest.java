@@ -265,6 +265,51 @@ class ReplanificacionFlujoApiTest {
                 .andExpect(jsonPath("$.colapso").doesNotExist());
     }
 
+    /** La avería debe cortar la ruta antes de que el mismo tick publique el plan de reemplazo. */
+    @Test
+    void unaAveriaEntreEventosLiberaLosPedidosAntesDelReplanInmediato() throws Exception {
+        pedido("P1", 30, 14, 5, INICIO);
+        pedido("P2", 35, 14, 5, INICIO);
+        for (String id : List.of("TA02", "TA03")) {
+            VehicleEntity vehiculo = vehiculoRepository.findById(id).orElseThrow();
+            vehiculo.setOperationalStatus(VehicleOperationalStatus.UNAVAILABLE);
+            vehiculoRepository.save(vehiculo);
+        }
+        long id = iniciarCincoDias();
+        String inicial = replanificacion(id);
+        assertEquals("TA01", vehiculoQueEntrega(inicial, "P1"));
+        assertEquals("TA01", vehiculoQueEntrega(inicial, "P2"));
+
+        for (int tick = 0; tick < 45
+                && pedidoRepository.findById("P1").orElseThrow().getStatus() != OrderStatus.IN_TRANSIT; tick++) {
+            avanzar(Duration.ofSeconds(1));
+        }
+        assertEquals(OrderStatus.IN_TRANSIT, pedidoRepository.findById("P1").orElseThrow().getStatus());
+        assertEquals(OrderStatus.ASSIGNED, pedidoRepository.findById("P2").orElseThrow().getStatus());
+
+        VehicleEntity sustituto = vehiculoRepository.findById("TA02").orElseThrow();
+        sustituto.setOperationalStatus(VehicleOperationalStatus.AVAILABLE);
+        vehiculoRepository.save(sustituto);
+        Instant instanteAveria = motor.ejecutadoHasta(id).orElseThrow();
+        mvc.perform(post("/api/incidencias/averias").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"vehiculoId\": \"TA01\", \"tipo\": \"MINOR\", \"ocurridaEn\": \""
+                                + instanteAveria + "\", \"ejecucionId\": " + id + "}"))
+                .andExpect(status().isCreated());
+
+        avanzar(Duration.ofSeconds(1));
+        String replanificado = replanificacion(id);
+
+        assertEquals("AVERIA", leer(replanificado, "$.motivo"));
+        assertEquals(OrderStatus.REGISTERED, pedidoRepository.findById("P1").orElseThrow().getStatus());
+        assertEquals(OrderStatus.REGISTERED, pedidoRepository.findById("P2").orElseThrow().getStatus());
+        assertEquals(OrderStatus.REGISTERED, historialRepository
+                .findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc("P1").getLast().getStatus());
+        assertEquals(OrderStatus.REGISTERED, historialRepository
+                .findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc("P2").getLast().getStatus());
+        assertNotEquals("TA01", vehiculoQueEntrega(replanificado, "P1"));
+        assertNotEquals("TA01", vehiculoQueEntrega(replanificado, "P2"));
+        assertTrue(leer(replanificado, "$.vehiculosNoDisponibles").toString().contains("TA01"), replanificado);
+    }
     @Test
     void unBloqueoQueTerminaDuranteLaSimulacionGeneraUnaUnicaReplanificacionYConservaSnapshots() throws Exception {
         RoadBlock bloqueo = new RoadBlock(INICIO.plusSeconds(10 * 60), INICIO.plusSeconds(30 * 60),

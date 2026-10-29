@@ -122,10 +122,9 @@ public class EjecutorPlanService {
                 .buscar(null, null, ejecucionId, hasta.minus(ALCANCE_AVERIAS), hasta.plusNanos(1)).stream()
                 .map(BreakdownEventEntity::toDomain)
                 .toList();
-        trasladarAveriadosAlCentral(averias, desde, hasta);
-
         Optional<PlanResponse> vigente = planVigente.ultimoPlan(ejecucionId);
         if (vigente.isEmpty()) {
+            trasladarAveriadosAlCentral(averias, desde, hasta);
             return;
         }
         PlanResponse plan = vigente.get();
@@ -145,9 +144,10 @@ public class EjecutorPlanService {
             }
         }
 
-        for (Evento evento : eventos(plan, inicioVentana, desde, estado.continuadas, hasta)) {
+        for (Evento evento : eventos(plan, inicioVentana, desde, estado.continuadas, hasta, averias)) {
             aplicar(ejecucionId, estado, evento, averias);
         }
+        trasladarAveriadosAlCentral(averias, desde, hasta);
     }
 
     /** Rutas en curso que siguen en el plan nuevo (mismo vehículo, id y salida), ya ligadas a su versión nueva. */
@@ -308,10 +308,15 @@ public class EjecutorPlanService {
 
     // ------------------------------------------------------------------ eventos del plan
 
-    private enum TipoEvento { SALIDA, PARTIDA_HACIA_PARADA, LLEGADA_A_PARADA, FIN_RUTA }
+    /**
+     * El orden declara la semántica para eventos simultáneos: una avería en el instante de una partida o llegada
+     * interrumpe antes de que se ejecute ese tramo o entrega. La salida queda antes para que una avería exactamente
+     * en ella sea descartada por {@link #iniciarRuta(long, EstadoEjecucion, RutaResponse, List)}.
+     */
+    private enum TipoEvento { SALIDA, AVERIA, PARTIDA_HACIA_PARADA, LLEGADA_A_PARADA, FIN_RUTA }
 
-    /** {@code parada}: índice de la parada; -1 en SALIDA y FIN_RUTA. */
-    private record Evento(Instant instante, TipoEvento tipo, RutaResponse ruta, int parada) {
+    /** {@code parada}: índice de la parada; -1 en SALIDA, AVERIA y FIN_RUTA. */
+    private record Evento(Instant instante, TipoEvento tipo, RutaResponse ruta, int parada, BreakdownEvent averia) {
     }
 
     /**
@@ -319,7 +324,7 @@ public class EjecutorPlanService {
      * continuadas ya se ejecutaron hasta {@code ejecutadoHasta}: sus eventos se toman desde ahí.
      */
     private List<Evento> eventos(PlanResponse plan, Instant inicioVentana, Instant ejecutadoHasta,
-                                 Set<RutaResponse> continuadas, Instant hasta) {
+                                 Set<RutaResponse> continuadas, Instant hasta, List<BreakdownEvent> averias) {
         List<Evento> eventos = new ArrayList<>();
         for (RutaResponse ruta : plan.rutas()) {
             if (ruta.llegadaFinal() == null || ruta.salida() == null) {
@@ -341,6 +346,11 @@ public class EjecutorPlanService {
                 partida = parada.fin() != null ? parada.fin() : parada.llegada();
             }
             agregar(eventos, ruta.llegadaFinal(), TipoEvento.FIN_RUTA, ruta, -1, desde, hasta);
+            averias.stream()
+                    .filter(averia -> averia.vehicleId().equals(ruta.vehiculoId()))
+                    .filter(averia -> !averia.occurredAt().isBefore(ruta.salida())
+                            && averia.occurredAt().isBefore(ruta.llegadaFinal()))
+                    .forEach(averia -> agregarAveria(eventos, averia, ruta, desde, hasta));
         }
         eventos.sort(Comparator.comparing(Evento::instante).thenComparing(Evento::tipo));
         return eventos;
@@ -349,7 +359,14 @@ public class EjecutorPlanService {
     private void agregar(List<Evento> eventos, Instant instante, TipoEvento tipo, RutaResponse ruta, int parada,
                          Instant desde, Instant hasta) {
         if (instante.isAfter(desde) && !instante.isAfter(hasta)) {
-            eventos.add(new Evento(instante, tipo, ruta, parada));
+            eventos.add(new Evento(instante, tipo, ruta, parada, null));
+        }
+    }
+
+    private void agregarAveria(List<Evento> eventos, BreakdownEvent averia, RutaResponse ruta,
+                               Instant desde, Instant hasta) {
+        if (!averia.occurredAt().isBefore(desde) && !averia.occurredAt().isAfter(hasta)) {
+            eventos.add(new Evento(averia.occurredAt(), TipoEvento.AVERIA, ruta, -1, averia));
         }
     }
 
@@ -363,9 +380,8 @@ public class EjecutorPlanService {
         if (enCurso == null || enCurso.ruta != ruta || enCurso.interrumpida) {
             return; // la ruta no llegó a salir, es de otro plan o la interrumpió una avería
         }
-        Optional<BreakdownEvent> averia = averiaDurante(averias, ruta.vehiculoId(), ruta.salida(), evento.instante());
-        if (averia.isPresent()) {
-            interrumpir(enCurso, averia.get());
+        if (evento.tipo() == TipoEvento.AVERIA) {
+            interrumpir(enCurso, evento.averia());
             return;
         }
         switch (evento.tipo()) {
