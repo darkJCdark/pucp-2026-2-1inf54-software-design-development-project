@@ -5,6 +5,7 @@ import com.pucp.paqrap.comun.error.RecursoNoEncontradoException;
 import com.pucp.paqrap.comun.error.ReglaNegocioException;
 import com.pucp.paqrap.modulos.escenarios.entity.ScenarioStatus;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
+import com.pucp.paqrap.modulos.escenarios.service.MotorEscenarios;
 import com.pucp.paqrap.modulos.pedidos.dto.CargaPedidosResponse;
 import com.pucp.paqrap.modulos.pedidos.dto.PedidoDetalleResponse;
 import com.pucp.paqrap.modulos.pedidos.dto.PedidoResponse;
@@ -66,20 +67,23 @@ public class PedidoService {
     private final OrderStatusHistoryRepository historialRepository;
     private final ApplicationEventPublisher eventos;
     private final ScenarioExecutionRepository ejecucionRepository;
+    private final MotorEscenarios motorEscenarios;
     private final CargadorPedidos cargador = new CargadorPedidos();
 
     public PedidoService(OrderRepository pedidoRepository, OrderStatusHistoryRepository historialRepository,
-                         ApplicationEventPublisher eventos, ScenarioExecutionRepository ejecucionRepository) {
+                         ApplicationEventPublisher eventos, ScenarioExecutionRepository ejecucionRepository,
+                         MotorEscenarios motorEscenarios) {
         this.pedidoRepository = pedidoRepository;
         this.historialRepository = historialRepository;
         this.eventos = eventos;
         this.ejecucionRepository = ejecucionRepository;
+        this.motorEscenarios = motorEscenarios;
     }
 
     @Transactional
     public PedidoResponse registrar(RegistrarPedidoRequest request) {
         int horas = horasPrometidas(request.tipoEntrega(), request.horasPrometidas());
-        Instant registradoEn = request.registradoEn() != null ? request.registradoEn() : Instant.now();
+        Instant registradoEn = resolverRegistradoEn(request.registradoEn());
         validarContraEscenarioActivo(registradoEn);
         OrderEntity pedido = new OrderEntity("M-" + UUID.randomUUID(), request.clienteId(),
                 new Location(request.x(), request.y()), request.paquetes(), registradoEn, request.tipoEntrega(), horas);
@@ -89,6 +93,17 @@ public class PedidoService {
         // El motor de escenarios replanifica cuando esta transacción se confirma.
         eventos.publishEvent(new PedidoRegistrado(pedido.getOrderId(), registradoEn));
         return PedidoResponse.de(pedido);
+    }
+
+    /** Una alta manual durante una simulación en marcha pertenece al instante actual de esa simulación. */
+    private Instant resolverRegistradoEn(Instant solicitado) {
+        if (solicitado != null) {
+            return solicitado;
+        }
+        return ejecucionRepository.findByStatusIn(Set.of(ScenarioStatus.RUNNING)).stream()
+                .findFirst()
+                .flatMap(ejecucion -> motorEscenarios.instanteSimulado(ejecucion.getExecutionId()))
+                .orElseGet(Instant::now);
     }
 
     /** Regla de coherencia (d): un pedido manual no puede ser anterior al inicio del escenario activo. */

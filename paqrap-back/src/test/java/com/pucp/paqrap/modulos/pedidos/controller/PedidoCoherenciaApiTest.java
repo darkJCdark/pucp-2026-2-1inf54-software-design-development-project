@@ -13,6 +13,7 @@ import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleEntity;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleOperationalStatus;
 import com.pucp.paqrap.modulos.flota.repository.VehicleRepository;
+import com.pucp.paqrap.modulos.pedidos.persistence.OrderEntity;
 import com.pucp.paqrap.modulos.pedidos.repository.OrderRepository;
 import com.pucp.paqrap.modulos.pedidos.repository.OrderStatusHistoryRepository;
 import com.pucp.paqrap.modulos.planificacion.service.PlanificadorPort;
@@ -32,6 +33,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -133,6 +135,40 @@ class PedidoCoherenciaApiTest {
                         + ", \"registradoEn\": \"" + registradoEn + "\"}"));
     }
 
+    private ResultActions registrarSinFecha(String clienteId, String tipoEntrega, Integer horasPrometidas)
+            throws Exception {
+        String horas = horasPrometidas == null ? "" : ", \"horasPrometidas\": " + horasPrometidas;
+        return mvc.perform(post("/api/pedidos").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"clienteId\": \"" + clienteId + "\", \"x\": 10, \"y\": 20, \"paquetes\": 5, "
+                        + "\"tipoEntrega\": \"" + tipoEntrega + "\"" + horas + "}"));
+    }
+
+    @Test
+    void unPedidoRegularSinFechaDuranteEscenarioEnMarchaUsaElRelojSimulado() throws Exception {
+        iniciarCincoDias();
+
+        registrarSinFecha("CP65REGULAR", "REGULAR", null)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.registradoEn").value(INICIO.toString()))
+                .andExpect(jsonPath("$.vence").value("2026-01-02T17:00:00Z"));
+        OrderEntity pedido = pedidoRepository.findAll().getFirst();
+        assertEquals(INICIO, pedido.getRegisteredAt());
+        assertEquals(INICIO.plus(Duration.ofHours(36)), pedido.getDeadline());
+    }
+
+    @Test
+    void unPedidoPrioritySinFechaDuranteEscenarioEnMarchaUsaElRelojSimuladoYSuPlazo() throws Exception {
+        iniciarCincoDias();
+
+        registrarSinFecha("CP65PRIORITY", "PRIORITY", 8)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.registradoEn").value(INICIO.toString()))
+                .andExpect(jsonPath("$.vence").value("2026-01-01T13:00:00Z"));
+        OrderEntity pedido = pedidoRepository.findAll().getFirst();
+        assertEquals(INICIO, pedido.getRegisteredAt());
+        assertEquals(INICIO.plus(Duration.ofHours(8)), pedido.getDeadline());
+    }
+
     @Test
     void unPedidoAnteriorAlInicioDelEscenarioActivoDa409YNoSeGuarda() throws Exception {
         iniciarCincoDias();
@@ -147,8 +183,12 @@ class PedidoCoherenciaApiTest {
     void unPedidoEnElInicioOPosteriorAlInicioSeAcepta() throws Exception {
         iniciarCincoDias();
 
-        registrar(INICIO.toString()).andExpect(status().isCreated());
-        registrar("2026-01-01T06:00:00Z").andExpect(status().isCreated());
+        registrar(INICIO.toString())
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.registradoEn").value(INICIO.toString()));
+        registrar("2026-01-01T06:00:00Z")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.registradoEn").value("2026-01-01T06:00:00Z"));
         assertEquals(2, pedidoRepository.count());
     }
 
