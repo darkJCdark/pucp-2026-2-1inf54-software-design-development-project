@@ -115,6 +115,14 @@ class EjecutorPlanServiceTest {
         return plan(SALIDA, List.of(ruta));
     }
 
+    private PlanResponse planReplanificadoEnTm01() {
+        Instant salida = hora("12:30");
+        RutaResponse ruta = new RutaResponse("SA-TM01", "TM01", "MOTORCYCLE", salida, hora("14:00"), 14.0, 84.0, List.of(
+                new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 5, hora("13:00"), hora("13:00"), 8, 3),
+                new ParadaResponse(2, ParadaResponse.ENTREGA, "P2", null, 30, 18, 3, hora("13:30"), hora("13:30"), 3, 0),
+                new ParadaResponse(3, ParadaResponse.ALMACEN, null, "CENTRAL", 27, 14, 0, hora("14:00"), hora("14:00"), 0, 0)));
+        return plan(salida, List.of(ruta));
+    }
     private static PlanResponse plan(Instant planificadoEn, List<RutaResponse> rutas) {
         return new PlanResponse(ModoOperacion.SIMULACION_5D, planificadoEn, true, false, 0, 0, 1L, 0, 1500, false,
                 rutas, List.of(), List.of());
@@ -238,11 +246,15 @@ class EjecutorPlanServiceTest {
     }
 
     @Test
-    void unaAveriaAntesDeLaSalidaNoIniciaLaRutaYSusPedidosSiguenPendientes() {
+    void unaAveriaAntesDeLaSalidaNoIniciaLaRutaYReasignaSusPedidosAOtroVehiculo() {
         // CP-45: avería menor a las 09:30 (inhabilitado hasta las 11:30); la ruta salía a las 10:00.
-        planes.planes.put(ejecucion, planConRutaTa01());
+        PlanResponse planInicial = planConRutaTa01();
+        assertEquals("TA01", planInicial.rutas().getFirst().vehiculoId());
+        planes.planes.put(ejecucion, planInicial);
+        BreakdownEvent averia = new BreakdownEvent("TA01", BreakdownType.MINOR, hora("09:30"), new Location(27, 14));
+        assertTrue(averia.occurredAt().isBefore(planInicial.rutas().getFirst().salida()));
         averiaRepository.save(new BreakdownEventEntity(ejecucion,
-                new BreakdownEvent("TA01", BreakdownType.MINOR, hora("09:30"), new Location(27, 14))));
+                averia));
 
         ejecutor.avanzar(ejecucion, SALIDA, hora("12:30"));
 
@@ -250,6 +262,18 @@ class EjecutorPlanServiceTest {
         assertEquals(OrderStatus.REGISTERED, pedido("P1").getStatus());
         assertEquals(OrderStatus.REGISTERED, pedido("P2").getStatus());
         assertEquals(0, ejecutor.metricas(ejecucion).orElseThrow().pedidosEntregados());
+
+        // La replanificación por la avería asigna ambos pedidos liberados a la alternativa factible TM01.
+        planes.planes.put(ejecucion, planReplanificadoEnTm01());
+        ejecutor.avanzar(ejecucion, hora("12:30"), hora("12:30"));
+
+        assertEquals(VehicleOperationalStatus.AVAILABLE, vehiculo("TA01").getOperationalStatus(),
+                "la unidad averiada no inicia ni recibe la ruta de reemplazo");
+        assertEquals(VehicleOperationalStatus.IN_ROUTE, vehiculo("TM01").getOperationalStatus());
+        assertEquals(OrderStatus.IN_TRANSIT, pedido("P1").getStatus());
+        assertEquals(OrderStatus.ASSIGNED, pedido("P2").getStatus());
+        assertEquals("TM01", historialRepository.findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc("P1").getLast().getVehicleId());
+        assertEquals("TM01", historialRepository.findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc("P2").getLast().getVehicleId());
     }
 
     @Test
