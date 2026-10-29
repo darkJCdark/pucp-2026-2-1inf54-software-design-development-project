@@ -22,7 +22,8 @@ public interface FuenteDatosOperativos {
 
     MaintenanceCalendar calendarioMantenimiento();
 
-    List<BreakdownEvent> averias();
+    /** Averías de la ejecución indicada; con {@code null}, las registradas fuera de los escenarios. */
+    List<BreakdownEvent> averias(Long ejecucionId);
 
     default FleetProfile perfilFlota() {
         return FleetProfile.defaults();

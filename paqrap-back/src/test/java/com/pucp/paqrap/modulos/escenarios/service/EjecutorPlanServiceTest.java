@@ -170,7 +170,7 @@ class EjecutorPlanServiceTest {
     @Test
     void unaAveriaDetieneLaRutaYDevuelveSusPedidosPendientes() {
         planes.planes.put(ejecucion, planConRutaTa01());
-        averiaRepository.save(new BreakdownEventEntity(null,
+        averiaRepository.save(new BreakdownEventEntity(ejecucion,
                 new BreakdownEvent("TA01", BreakdownType.MINOR, hora("10:40"), new Location(30, 15))));
 
         ejecutor.avanzar(ejecucion, SALIDA, hora("14:30"));
@@ -179,6 +179,83 @@ class EjecutorPlanServiceTest {
         assertEquals(OrderStatus.REGISTERED, pedido("P2").getStatus(), "P2 vuelve a planificarse");
         assertEquals(15, vehiculo("TA01").getCurrentY(), "queda en el lugar de la avería");
         assertEquals(VehicleOperationalStatus.AVAILABLE, vehiculo("TA01").getOperationalStatus());
+    }
+
+    @Test
+    void unaAveriaDeOtraEjecucionDelMismoPeriodoNoLaAfecta() {
+        // Una corrida anterior del mismo periodo averió a TA01 a las 10:40; en esta corrida no le pasó nada.
+        planes.planes.put(ejecucion, planConRutaTa01());
+        averiaRepository.save(new BreakdownEventEntity(ejecucion + 1000,
+                new BreakdownEvent("TA01", BreakdownType.MAJOR, hora("10:40"), new Location(30, 15))));
+
+        ejecutor.avanzar(ejecucion, SALIDA, hora("12:30"));
+
+        assertEquals(OrderStatus.DELIVERED, pedido("P1").getStatus());
+        assertEquals(OrderStatus.IN_TRANSIT, pedido("P2").getStatus(), "sigue su ruta hacia P2");
+        assertEquals(VehicleOperationalStatus.IN_ROUTE, vehiculo("TA01").getOperationalStatus());
+    }
+
+    @Test
+    void unaAveriaAntesDeLaSalidaNoIniciaLaRutaYSusPedidosSiguenPendientes() {
+        // CP-45: avería menor a las 09:30 (inhabilitado hasta las 11:30); la ruta salía a las 10:00.
+        planes.planes.put(ejecucion, planConRutaTa01());
+        averiaRepository.save(new BreakdownEventEntity(ejecucion,
+                new BreakdownEvent("TA01", BreakdownType.MINOR, hora("09:30"), new Location(27, 14))));
+
+        ejecutor.avanzar(ejecucion, SALIDA, hora("12:30"));
+
+        assertEquals(VehicleOperationalStatus.AVAILABLE, vehiculo("TA01").getOperationalStatus());
+        assertEquals(OrderStatus.REGISTERED, pedido("P1").getStatus());
+        assertEquals(OrderStatus.REGISTERED, pedido("P2").getStatus());
+        assertEquals(0, ejecutor.metricas(ejecucion).orElseThrow().pedidosEntregados());
+    }
+
+    @Test
+    void unaAveriaIntermediaEnRutaLlevaElVehiculoAlCentralALasCuatroHoras() {
+        // CP-47: se conserva lo entregado, el resto vuelve a planificarse y a las 15:40 la unidad pasa al central vacía.
+        planes.planes.put(ejecucion, planConRutaTa01());
+        averiaRepository.save(new BreakdownEventEntity(ejecucion,
+                new BreakdownEvent("TA01", BreakdownType.INTERMEDIATE, hora("11:40"), new Location(30, 15))));
+
+        ejecutor.avanzar(ejecucion, SALIDA, hora("15:30"));
+        assertEquals(OrderStatus.DELIVERED, pedido("P1").getStatus());
+        assertEquals(OrderStatus.REGISTERED, pedido("P2").getStatus());
+        assertEquals(15, vehiculo("TA01").getCurrentY(), "hasta las 15:40 sigue donde se averió");
+
+        ejecutor.avanzar(ejecucion, hora("15:30"), hora("16:00"));
+        assertEquals(27, vehiculo("TA01").getCurrentX());
+        assertEquals(14, vehiculo("TA01").getCurrentY());
+        assertEquals(0, vehiculo("TA01").getCurrentLoad());
+    }
+
+    @Test
+    void unaAveriaDespuesDeTerminarLaRutaNoCambiaLoEntregado() {
+        // CP-50: la ruta termina a las 14:00 y la avería ocurre a las 14:10.
+        planes.planes.put(ejecucion, planConRutaTa01());
+        averiaRepository.save(new BreakdownEventEntity(ejecucion,
+                new BreakdownEvent("TA01", BreakdownType.MINOR, hora("14:10"), new Location(27, 14))));
+
+        ejecutor.avanzar(ejecucion, SALIDA, hora("14:30"));
+
+        assertEquals(OrderStatus.DELIVERED, pedido("P1").getStatus());
+        assertEquals(OrderStatus.IN_TRANSIT, pedido("P2").getStatus(), "su entrega parcial no se deshace");
+        assertEquals(14.0, ejecutor.metricas(ejecucion).orElseThrow().distanciaKm());
+        assertEquals(VehicleOperationalStatus.AVAILABLE, vehiculo("TA01").getOperationalStatus());
+    }
+
+    @Test
+    void informaElRefrigerioDelConductorMientrasDura() {
+        // Llega a P1 a las 10:20 y descansa hasta las 10:30, cuando lo atiende.
+        RutaResponse ruta = new RutaResponse("SA-TA01", "TA01", "CAR", SALIDA, hora("11:30"), 3.0, 24.0, List.of(
+                new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 5, hora("10:30"), hora("11:30"),
+                        5, 0, hora("10:20"))));
+        planes.planes.put(ejecucion, plan(SALIDA, List.of(ruta)));
+        ejecutor.avanzar(ejecucion, SALIDA, SALIDA);
+
+        assertEquals(Optional.of(hora("10:30")), ejecutor.refrigerioHasta(ejecucion, "TA01", hora("10:25")));
+        assertEquals(Optional.empty(), ejecutor.refrigerioHasta(ejecucion, "TA01", hora("10:10")), "aún viaja");
+        assertEquals(Optional.empty(), ejecutor.refrigerioHasta(ejecucion, "TA01", hora("10:45")), "ya atiende");
+        assertEquals(Optional.empty(), ejecutor.refrigerioHasta(ejecucion, "TM01", hora("10:25")), "otro vehículo");
     }
 
     @Test

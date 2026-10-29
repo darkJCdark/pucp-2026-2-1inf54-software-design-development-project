@@ -8,7 +8,6 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 
 public interface BreakdownEventRepository extends JpaRepository<BreakdownEventEntity, Long> {
 
@@ -27,7 +26,16 @@ public interface BreakdownEventRepository extends JpaRepository<BreakdownEventEn
                                       @Param("desde") Instant desde,
                                       @Param("hasta") Instant hasta);
 
-    /** Última avería del vehículo ocurrida hasta {@code instante} (incluido). */
-    Optional<BreakdownEventEntity> findFirstByVehicleIdAndOccurredAtLessThanEqualOrderByOccurredAtDesc(
-            String vehicleId, Instant instante);
+    /**
+     * Averías de una ejecución; con {@code ejecucionId} nulo, las registradas fuera de los escenarios. Cada escenario
+     * repite su periodo desde cero, así que las averías de otra ejecución no le afectan.
+     */
+    @Query("""
+            select b from BreakdownEventEntity b
+            where (:vehiculoId is null or b.vehicleId = :vehiculoId)
+              and ((:ejecucionId is null and b.executionId is null) or b.executionId = :ejecucionId)
+            order by b.occurredAt, b.breakdownId
+            """)
+    List<BreakdownEventEntity> deLaEjecucion(@Param("vehiculoId") String vehiculoId,
+                                             @Param("ejecucionId") Long ejecucionId);
 }

@@ -24,15 +24,26 @@ public record MonitoreoResponse(EscenarioResponse escenario, Instant instante, P
 
     /**
      * Resultados de ejecutar el plan hasta {@code instante}: pedidos completos, cuántos llegaron dentro del plazo,
-     * paquetes entregados (incluye parciales), distancia y costo recorridos, y vehículos en ruta por tipo.
+     * paquetes entregados (incluye parciales; nulo si se lee del resultado guardado, que no los registra), distancia y
+     * costo recorridos, y vehículos en ruta por tipo.
      */
-    public record Ejecucion(int pedidosEntregados, int entregadosATiempo, int paquetesEntregados, double distanciaKm,
+    public record Ejecucion(int pedidosEntregados, int entregadosATiempo, Integer paquetesEntregados, double distanciaKm,
                             double costo, Map<VehicleType, Long> vehiculosEnRuta) {
     }
 
     /** {@code averiadoHasta} es nulo si el vehículo no tiene una avería en curso. */
     public record Vehiculo(String id, VehicleType tipo, VehicleOperationalStatus estado, int x, int y, int cargaActual,
-                           Instant averiadoHasta) {
+                           Instant averiadoHasta, MotivoDetencion motivoDetencion, Instant detenidoHasta) {
+    }
+
+    /**
+     * Por qué un vehículo está detenido en {@code instante} (O3); si coinciden varios se informa el de mayor
+     * prioridad: avería, luego mantenimiento, luego refrigerio. {@code detenidoHasta} es cuándo vuelve a operar.
+     */
+    public enum MotivoDetencion {
+        AVERIA,
+        MANTENIMIENTO,
+        REFRIGERIO
     }
 
     /** {@code stock} y {@code capacidad} son nulos en el almacén central (ilimitado). */

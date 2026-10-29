@@ -105,7 +105,7 @@ class FuenteDatosOperativosMockTest {
     void noHayMantenimientosNiAverias() {
         Instant instante = Instant.parse("2026-09-09T12:00:00Z");
 
-        assertTrue(fuente.averias().isEmpty());
+        assertTrue(fuente.averias(null).isEmpty());
         for (Vehicle vehiculo : fuente.flota()) {
             assertFalse(fuente.calendarioMantenimiento().isUnavailable(vehiculo.id(), instante));
         }
