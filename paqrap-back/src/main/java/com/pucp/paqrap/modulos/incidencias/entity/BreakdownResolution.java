@@ -14,4 +14,15 @@ import java.time.Instant;
 
 /** Consequences calculated from a breakdown according to the course rules. */
 public record BreakdownResolution(Instant unavailableUntil, Instant returnsToCentralAt) {
+
+    /**
+     * First instant at which the vehicle can be considered by the planner again.
+     * Minor breakdowns have no return trip, while intermediate and major ones must
+     * satisfy both the unavailability window and the return-to-central time.
+     */
+    public Instant availableFrom() {
+        return returnsToCentralAt != null && returnsToCentralAt.isAfter(unavailableUntil)
+                ? returnsToCentralAt
+                : unavailableUntil;
+    }
 }

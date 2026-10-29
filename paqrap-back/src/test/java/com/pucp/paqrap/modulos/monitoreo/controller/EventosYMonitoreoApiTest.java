@@ -54,6 +54,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -215,6 +216,38 @@ class EventosYMonitoreoApiTest {
         reloj.avanzar(Duration.ofSeconds(1));
         motor.tick();
         assertEquals(2, planificador.solicitudes.size());
+    }
+
+    /** El fin efectivo de una avería se procesa una vez y provoca una replanificación inmediata. */
+    @Test
+    void cuandoTerminaUnaAveriaMenorElVehiculoVuelveAEntrarEnLaPlanificacion() throws Exception {
+        long id = iniciarCincoDias();
+
+        mvc.perform(post("/api/incidencias/averias").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"vehiculoId\": \"TA01\", \"tipo\": \"MINOR\", "
+                                + "\"ocurridaEn\": \"2026-01-01T05:10:00Z\", \"ejecucionId\": " + id + "}"))
+                .andExpect(status().isCreated());
+
+        // 4 s reales = 10 min 40 s simulados: procesa el inicio de la avería.
+        reloj.avanzar(Duration.ofSeconds(4));
+        motor.tick();
+        assertEquals(2, planificador.solicitudes.size());
+        assertEquals(List.of("TA01"), planificador.solicitudes.get(1).averias().stream()
+                .map(a -> a.vehicleId()).toList());
+        assertTrue(planificador.solicitudes.get(1).averiasTerminadas().isEmpty());
+
+        // +45 s reales = +2 h simuladas: cruza 07:10Z y procesa exactamente una vez su finalización.
+        reloj.avanzar(Duration.ofSeconds(45));
+        motor.tick();
+        assertEquals(3, planificador.solicitudes.size());
+        assertEquals(PlanificadorPort.Motivo.INCIDENCIA, planificador.solicitudes.get(2).motivo());
+        assertTrue(planificador.solicitudes.get(2).averias().isEmpty());
+        assertEquals(List.of("TA01"), planificador.solicitudes.get(2).averiasTerminadas().stream()
+                .map(a -> a.vehicleId()).toList());
+
+        reloj.avanzar(Duration.ofSeconds(1));
+        motor.tick();
+        assertEquals(3, planificador.solicitudes.size(), "el fin de la avería no debe procesarse dos veces");
     }
 
     /** Una avería registrada con un instante que el reloj ya pasó replanifica en el próximo tick. */

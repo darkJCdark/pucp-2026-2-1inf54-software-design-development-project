@@ -58,28 +58,38 @@ public interface ReplanificacionService {
 
     /** Eventos que se aplican juntos en una replanificación; cualquiera de las listas puede venir vacía. */
     record Eventos(List<Order> pedidos, List<RoadBlock> bloqueos, List<RoadBlock> bloqueosTerminados,
-                   List<BreakdownEvent> averias, List<VehicleType> tiposFlotaActualizados) {
-        public static final Eventos NINGUNO = new Eventos(List.of(), List.of(), List.of(), List.of(), List.of());
+                   List<BreakdownEvent> averias, List<BreakdownEvent> averiasTerminadas,
+                   List<VehicleType> tiposFlotaActualizados) {
+        public static final Eventos NINGUNO = new Eventos(
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
 
         public Eventos {
             pedidos = pedidos == null ? List.of() : List.copyOf(pedidos);
             bloqueos = bloqueos == null ? List.of() : List.copyOf(bloqueos);
             bloqueosTerminados = bloqueosTerminados == null ? List.of() : List.copyOf(bloqueosTerminados);
             averias = averias == null ? List.of() : List.copyOf(averias);
+            averiasTerminadas = averiasTerminadas == null ? List.of() : List.copyOf(averiasTerminadas);
             tiposFlotaActualizados = tiposFlotaActualizados == null ? List.of() : List.copyOf(tiposFlotaActualizados);
+        }
+
+        /** Conserva el contrato anterior: sin averías terminadas explícitas. */
+        public Eventos(List<Order> pedidos, List<RoadBlock> bloqueos, List<RoadBlock> bloqueosTerminados,
+                       List<BreakdownEvent> averias, List<VehicleType> tiposFlotaActualizados) {
+            this(pedidos, bloqueos, bloqueosTerminados, averias, List.of(), tiposFlotaActualizados);
         }
 
         public Eventos(List<Order> pedidos, List<RoadBlock> bloqueos, List<RoadBlock> bloqueosTerminados,
                        List<BreakdownEvent> averias) {
-            this(pedidos, bloqueos, bloqueosTerminados, averias, List.of());
+            this(pedidos, bloqueos, bloqueosTerminados, averias, List.of(), List.of());
         }
 
         public Eventos(List<Order> pedidos, List<RoadBlock> bloqueos, List<BreakdownEvent> averias) {
-            this(pedidos, bloqueos, List.of(), averias, List.of());
+            this(pedidos, bloqueos, List.of(), averias, List.of(), List.of());
         }
 
         public boolean vacios() {
-            return pedidos.isEmpty() && bloqueos.isEmpty() && bloqueosTerminados.isEmpty() && averias.isEmpty();
+            return pedidos.isEmpty() && bloqueos.isEmpty() && bloqueosTerminados.isEmpty()
+                    && averias.isEmpty() && averiasTerminadas.isEmpty();
         }
     }
 }

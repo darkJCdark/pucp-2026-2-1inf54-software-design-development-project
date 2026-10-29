@@ -48,26 +48,37 @@ public interface PlanificadorPort {
      */
     record SolicitudCiclo(long ejecucionId, Instant instante, Motivo motivo, List<RoadBlock> bloqueosIniciados,
                           List<RoadBlock> bloqueosTerminados, List<BreakdownEvent> averias,
-                          List<VehicleType> tiposFlotaActualizados) {
+                          List<BreakdownEvent> averiasTerminadas, List<VehicleType> tiposFlotaActualizados) {
         public SolicitudCiclo {
             bloqueosIniciados = bloqueosIniciados == null ? List.of() : List.copyOf(bloqueosIniciados);
             bloqueosTerminados = bloqueosTerminados == null ? List.of() : List.copyOf(bloqueosTerminados);
             averias = averias == null ? List.of() : List.copyOf(averias);
+            averiasTerminadas = averiasTerminadas == null ? List.of() : List.copyOf(averiasTerminadas);
             tiposFlotaActualizados = tiposFlotaActualizados == null ? List.of() : List.copyOf(tiposFlotaActualizados);
+        }
+
+        /** Conserva el contrato anterior: sin averías terminadas explícitas. */
+        public SolicitudCiclo(long ejecucionId, Instant instante, Motivo motivo, List<RoadBlock> bloqueosIniciados,
+                              List<RoadBlock> bloqueosTerminados, List<BreakdownEvent> averias,
+                              List<VehicleType> tiposFlotaActualizados) {
+            this(ejecucionId, instante, motivo, bloqueosIniciados, bloqueosTerminados, averias,
+                    List.of(), tiposFlotaActualizados);
         }
 
         public SolicitudCiclo(long ejecucionId, Instant instante, Motivo motivo, List<RoadBlock> bloqueosIniciados,
                               List<RoadBlock> bloqueosTerminados, List<BreakdownEvent> averias) {
-            this(ejecucionId, instante, motivo, bloqueosIniciados, bloqueosTerminados, averias, List.of());
+            this(ejecucionId, instante, motivo, bloqueosIniciados, bloqueosTerminados, averias,
+                    List.of(), List.of());
         }
 
         public SolicitudCiclo(long ejecucionId, Instant instante, Motivo motivo, List<RoadBlock> bloqueosIniciados,
                               List<BreakdownEvent> averias) {
-            this(ejecucionId, instante, motivo, bloqueosIniciados, List.of(), averias, List.of());
+            this(ejecucionId, instante, motivo, bloqueosIniciados, List.of(), averias,
+                    List.of(), List.of());
         }
 
         public SolicitudCiclo(long ejecucionId, Instant instante, Motivo motivo) {
-            this(ejecucionId, instante, motivo, List.of(), List.of(), List.of(), List.of());
+            this(ejecucionId, instante, motivo, List.of(), List.of(), List.of(), List.of(), List.of());
         }
     }
 

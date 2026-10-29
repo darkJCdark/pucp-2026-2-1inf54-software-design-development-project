@@ -82,6 +82,8 @@ public class MotorEscenarios {
         private final List<RoadBlock> bloqueosPendientes = new ArrayList<>();
         private final List<RoadBlock> bloqueosTerminadosPendientes = new ArrayList<>();
         private final List<BreakdownEvent> averiasPendientes = new ArrayList<>();
+        /** Averías cuya ventana de indisponibilidad terminó desde el último plan. */
+        private final List<BreakdownEvent> averiasTerminadasPendientes = new ArrayList<>();
         /** Llegaron pedidos desde el último plan: se replanifica en el próximo tick. */
         private boolean pedidosPendientes;
         /** Cambiaron los parámetros de un tipo de vehículo desde el último plan: se replanifica en el próximo tick. */
@@ -93,6 +95,8 @@ public class MotorEscenarios {
         private final Set<Long> bloqueosTerminadosProcesados = new HashSet<>();
         /** Averías de esta ejecución detectadas en un intervalo ya procesado. */
         private final Set<Long> averiasProcesadas = new HashSet<>();
+        /** Finalizaciones de avería ya procesadas, para no replanificar dos veces por el mismo evento. */
+        private final Set<Long> averiasTerminadasProcesadas = new HashSet<>();
 
         private EscenarioActivo(ScenarioType tipo, SimulationClock reloj) {
             this.tipo = tipo;
@@ -278,6 +282,11 @@ public class MotorEscenarios {
                 }
             }
             activo.averiasProcesadas.addAll(resumen.averiasIds());
+            for (int indice = 0; indice < resumen.averiasTerminadas().size(); indice++) {
+                if (activo.averiasTerminadasProcesadas.add(resumen.averiasTerminadasIds().get(indice))) {
+                    activo.averiasTerminadasPendientes.add(resumen.averiasTerminadas().get(indice));
+                }
+            }
             activo.bloqueosPendientes.addAll(resumen.bloqueosIniciados());
             activo.averiasPendientes.addAll(resumen.averias());
             if (!resumen.pedidosLlegadosIds().isEmpty()) {
@@ -292,7 +301,7 @@ public class MotorEscenarios {
             return;
         }
         if (!activo.bloqueosPendientes.isEmpty() || !activo.bloqueosTerminadosPendientes.isEmpty()
-                || !activo.averiasPendientes.isEmpty()) {
+                || !activo.averiasPendientes.isEmpty() || !activo.averiasTerminadasPendientes.isEmpty()) {
             planificar(ejecucionId, activo, PlanificadorPort.Motivo.INCIDENCIA);
         } else if (activo.pedidosPendientes) {
             planificar(ejecucionId, activo, PlanificadorPort.Motivo.NUEVO_PEDIDO);
@@ -310,11 +319,13 @@ public class MotorEscenarios {
         // Que SA deje pedidos sin asignar en un ciclo no es colapso: lo decide DetectorColapso.
         planificador().planificar(new PlanificadorPort.SolicitudCiclo(
                 ejecucionId, ahora, motivo, activo.bloqueosPendientes, activo.bloqueosTerminadosPendientes,
-                activo.averiasPendientes, List.copyOf(activo.tiposFlotaCambiados)));
+                activo.averiasPendientes, activo.averiasTerminadasPendientes,
+                List.copyOf(activo.tiposFlotaCambiados)));
         activo.proximaPlanificacion = ahora.plus(propiedades.intervaloPlanificacion());
         activo.bloqueosPendientes.clear();
         activo.bloqueosTerminadosPendientes.clear();
         activo.averiasPendientes.clear();
+        activo.averiasTerminadasPendientes.clear();
         activo.pedidosPendientes = false;
         activo.tiposFlotaCambiados.clear();
     }

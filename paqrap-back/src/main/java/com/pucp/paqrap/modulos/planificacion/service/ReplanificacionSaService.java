@@ -143,7 +143,8 @@ public class ReplanificacionSaService implements ReplanificacionService {
                 && (bloqueo.startsAt().isAfter(estado.ultimaHora) || recibidos.contains(bloqueo)));
         boolean bloqueoTerminado = eventos.bloqueosTerminados().stream().anyMatch(bloqueo ->
                 !bloqueo.endsAt().isAfter(ahora) && bloqueo.endsAt().isAfter(estado.ultimaHora));
-        MotivoReplanificacion motivo = !eventos.averias().isEmpty() ? MotivoReplanificacion.AVERIA
+        MotivoReplanificacion motivo = !eventos.averias().isEmpty() || !eventos.averiasTerminadas().isEmpty()
+                ? MotivoReplanificacion.AVERIA
                 : bloqueoIniciado || bloqueoTerminado ? MotivoReplanificacion.BLOQUEO
                 : !eventos.pedidos().isEmpty() ? MotivoReplanificacion.NUEVO_PEDIDO
                 : MotivoReplanificacion.PERIODICO;
@@ -364,20 +365,20 @@ public class ReplanificacionSaService implements ReplanificacionService {
     }
 
     /**
-     * Estado del vehículo cuya ruta se interrumpió, según el cálculo original de la avería: si la avería
-     * define regreso al central, queda disponible allí desde el mayor entre el fin de la indisponibilidad y
-     * ese regreso; si no lo define (MINOR), permanece en el lugar de la avería y vuelve a ser planificable al terminar la indisponibilidad.
+     * Estado del vehículo después de interrumpir una ruta por avería.
+     *
+     * <p>Una MINOR permanece en el lugar de la avería y vuelve a ser planificable al finalizar sus dos horas.
+     * Las INTERMEDIATE y MAJOR quedan en el central desde el instante en que terminan tanto la indisponibilidad
+     * como el retorno automático.
      */
     private VehicleOperationalState estadoTrasAveria(Vehicle vehiculo, BreakdownEvent averia, Warehouse central) {
         BreakdownResolution resolucion =
                 new BreakdownAvailabilityCalculator(new ShiftSchedule(ShiftSchedule.DEFAULT_ZONE)).resolve(averia);
-        if (resolucion.returnsToCentralAt() == null) {
-            return new VehicleOperationalState(vehiculo, VehicleStatus.OUT_OF_SERVICE, averia.location(),
-                    averia.occurredAt());
-        }
-        Instant disponible = resolucion.unavailableUntil().isAfter(resolucion.returnsToCentralAt())
-                ? resolucion.unavailableUntil() : resolucion.returnsToCentralAt();
-        return new VehicleOperationalState(vehiculo, VehicleStatus.AVAILABLE, central.location(), disponible);
+        return new VehicleOperationalState(
+                vehiculo,
+                VehicleStatus.AVAILABLE,
+                resolucion.returnsToCentralAt() == null ? averia.location() : central.location(),
+                resolucion.availableFrom());
     }
 
     private OperationalSnapshot construirSnapshot(Instant ahora, Warehouse central, Collection<Warehouse> almacenes,

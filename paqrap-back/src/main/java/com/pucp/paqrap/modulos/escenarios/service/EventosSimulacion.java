@@ -4,6 +4,7 @@ import com.pucp.paqrap.modulos.almacenes.service.InventarioService;
 import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
 import com.pucp.paqrap.modulos.incidencias.persistence.BreakdownEventEntity;
 import com.pucp.paqrap.modulos.incidencias.repository.BreakdownEventRepository;
+import com.pucp.paqrap.modulos.incidencias.service.BreakdownAvailabilityCalculator;
 import com.pucp.paqrap.modulos.pedidos.repository.OrderRepository;
 import com.pucp.paqrap.modulos.planificacion.entity.ShiftSchedule;
 import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
@@ -32,6 +33,8 @@ public class EventosSimulacion {
     private final RoadBlockRepository bloqueoRepository;
     private final BreakdownEventRepository averiaRepository;
     private final OrderRepository pedidoRepository;
+    private final BreakdownAvailabilityCalculator calculadoraAverias =
+            new BreakdownAvailabilityCalculator(ShiftSchedule.defaultSchedule());
 
     public EventosSimulacion(InventarioService inventarioService, RoadBlockRepository bloqueoRepository,
                              BreakdownEventRepository averiaRepository, OrderRepository pedidoRepository) {
@@ -41,10 +44,15 @@ public class EventosSimulacion {
         this.pedidoRepository = pedidoRepository;
     }
 
-    /** Lo que pasó en el intervalo; un bloqueo, una avería o un pedido nuevo obligan a replanificar. */
+    /**
+     * Lo que pasó en el intervalo. El inicio y el fin efectivo de una avería son eventos distintos:
+     * el primero retira la unidad y el segundo la vuelve a incorporar inmediatamente al siguiente plan.
+     */
     public record Resumen(int recargas, List<RoadBlock> bloqueosIniciados, List<Long> bloqueosIniciadosIds,
                           List<RoadBlock> bloqueosTerminados, List<Long> bloqueosTerminadosIds,
-                          List<BreakdownEvent> averias, List<Long> averiasIds, List<String> pedidosLlegadosIds) {
+                          List<BreakdownEvent> averias, List<Long> averiasIds,
+                          List<BreakdownEvent> averiasTerminadas, List<Long> averiasTerminadasIds,
+                          List<String> pedidosLlegadosIds) {
         public Resumen {
             bloqueosIniciados = List.copyOf(bloqueosIniciados);
             bloqueosIniciadosIds = List.copyOf(bloqueosIniciadosIds);
@@ -52,6 +60,8 @@ public class EventosSimulacion {
             bloqueosTerminadosIds = List.copyOf(bloqueosTerminadosIds);
             averias = List.copyOf(averias);
             averiasIds = List.copyOf(averiasIds);
+            averiasTerminadas = List.copyOf(averiasTerminadas);
+            averiasTerminadasIds = List.copyOf(averiasTerminadasIds);
             pedidosLlegadosIds = List.copyOf(pedidosLlegadosIds);
             if (bloqueosIniciados.size() != bloqueosIniciadosIds.size()) {
                 throw new IllegalArgumentException("Cada bloqueo iniciado debe conservar su identificador");
@@ -61,6 +71,9 @@ public class EventosSimulacion {
             }
             if (averias.size() != averiasIds.size()) {
                 throw new IllegalArgumentException("Cada avería debe conservar su identificador");
+            }
+            if (averiasTerminadas.size() != averiasTerminadasIds.size()) {
+                throw new IllegalArgumentException("Cada avería terminada debe conservar su identificador");
             }
         }
     }
@@ -91,10 +104,26 @@ public class EventosSimulacion {
         List<BreakdownEvent> averias = averiasEntidades.stream()
                 .map(BreakdownEventEntity::toDomain)
                 .toList();
+
+        /*
+         * unavailableUntil no está materializado en la tabla: se deriva con las mismas reglas del dominio.
+         * Se toma (desde, hasta] para que cada finalización se procese una sola vez.
+         */
+        List<BreakdownEventEntity> averiasTerminadasEntidades = averiaRepository.deLaEjecucion(null, ejecucionId).stream()
+                .filter(entity -> {
+                    Instant disponibleDesde = calculadoraAverias.resolve(entity.toDomain()).availableFrom();
+                    return disponibleDesde.isAfter(desde) && !disponibleDesde.isAfter(hasta);
+                })
+                .toList();
+        List<BreakdownEvent> averiasTerminadas = averiasTerminadasEntidades.stream()
+                .map(BreakdownEventEntity::toDomain)
+                .toList();
+
         List<String> pedidos = pedidoRepository.idsRegistradosEntre(desde, hasta);
         return new Resumen(recargas, bloqueos,
                 bloqueosEntidades.stream().map(RoadBlockEntity::getRoadBlockId).toList(), bloqueosTerminados,
                 bloqueosTerminadosEntidades.stream().map(RoadBlockEntity::getRoadBlockId).toList(), averias,
-                averiasEntidades.stream().map(BreakdownEventEntity::getBreakdownId).toList(), pedidos);
+                averiasEntidades.stream().map(BreakdownEventEntity::getBreakdownId).toList(), averiasTerminadas,
+                averiasTerminadasEntidades.stream().map(BreakdownEventEntity::getBreakdownId).toList(), pedidos);
     }
 }

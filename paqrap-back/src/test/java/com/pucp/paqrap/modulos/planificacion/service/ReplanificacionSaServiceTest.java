@@ -454,22 +454,25 @@ class ReplanificacionSaServiceTest {
     }
 
     /**
-     * El código original no define regreso al central para una avería MINOR (returnsToCentralAt es null):
-     * el vehículo cuya ruta se interrumpió queda en el lugar de la avería y no vuelve a recibir rutas.
+     * Una MINOR no devuelve el vehículo al central: queda en el lugar de la avería durante dos horas y el fin de
+     * esa ventana provoca una replanificación en la que vuelve a formar parte de la flota utilizable.
      */
     @Test
     void trasUnaAveriaMenorEnRutaElVehiculoVuelveAEstarDisponibleAlTerminarLaIndisponibilidad() {
         ReplanificacionResponse inicio = servicio.iniciar(EJECUCION, solicitud());
         RutaResponse afectada = rutaQueAunNoLlegaASuPrimeraEntrega(inicio);
         Instant t = H.plusSeconds(60);
-        servicio.registrarAveria(EJECUCION,
-                new BreakdownEvent(afectada.vehiculoId(), BreakdownType.MINOR, t, new Location(28, 14)), t);
+        BreakdownEvent averia = new BreakdownEvent(
+                afectada.vehiculoId(), BreakdownType.MINOR, t, new Location(28, 14));
+        servicio.registrarAveria(EJECUCION, averia, t);
         Instant despues = t.plus(BreakdownType.MINOR.minimumUnavailable()).plusSeconds(60);
 
-        ReplanificacionResponse luego = servicio.registrarPedido(EJECUCION, p04(despues), despues);
+        ReplanificacionResponse luego = servicio.replanificar(EJECUCION,
+                new ReplanificacionService.Eventos(List.of(), List.of(), List.of(), List.of(),
+                        List.of(averia), List.of()), despues);
 
-        assertTrue(luego.vehiculosNoDisponibles().contains(afectada.vehiculoId()));
-        assertTrue(luego.plan().rutas().stream().noneMatch(x -> x.vehiculoId().equals(afectada.vehiculoId())));
+        assertEquals(MotivoReplanificacion.AVERIA, luego.motivo());
+        assertFalse(luego.vehiculosNoDisponibles().contains(afectada.vehiculoId()));
     }
 
     @Test
