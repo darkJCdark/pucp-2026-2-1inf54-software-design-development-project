@@ -7,6 +7,7 @@ import com.pucp.paqrap.modulos.almacenes.entity.Warehouse;
 import com.pucp.paqrap.modulos.flota.entity.Vehicle;
 import com.pucp.paqrap.modulos.flota.entity.VehicleOperationalState;
 import com.pucp.paqrap.modulos.flota.entity.VehicleStatus;
+import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
 import com.pucp.paqrap.modulos.incidencias.entity.BreakdownResolution;
 import com.pucp.paqrap.modulos.incidencias.service.BreakdownAvailabilityCalculator;
@@ -98,7 +99,7 @@ public class ReplanificacionSaService implements ReplanificacionService {
         // Igual que el plan sin replanificación: las averías ya registradas cuentan desde el inicio.
         estado.averias = new ArrayList<>(fuente.averias(ejecucionId));
         ReplanificacionResponse respuesta = replanificar(estado, MotivoReplanificacion.INICIO,
-                solicitud.horaPlanificacion(), List.of(), List.of(), List.of(), false);
+                solicitud.horaPlanificacion(), List.of(), List.of(), List.of(), false, Set.of());
         ejecuciones.put(ejecucionId, estado);
         return respuesta;
     }
@@ -146,7 +147,8 @@ public class ReplanificacionSaService implements ReplanificacionService {
                 : !eventos.pedidos().isEmpty() ? MotivoReplanificacion.NUEVO_PEDIDO
                 : MotivoReplanificacion.PERIODICO;
         ReplanificacionResponse respuesta = replanificar(estado, motivo, ahora, List.copyOf(nuevos.values()),
-                bloqueos, eventos.averias(), bloqueoIniciado || bloqueoTerminado);
+                bloqueos, eventos.averias(), bloqueoIniciado || bloqueoTerminado,
+                Set.copyOf(eventos.tiposFlotaActualizados()));
         estado.bloqueosConocidos.addAll(recibidos);
         return respuesta;
     }
@@ -194,7 +196,8 @@ public class ReplanificacionSaService implements ReplanificacionService {
 
     private ReplanificacionResponse replanificar(EstadoEjecucion estado, MotivoReplanificacion motivo, Instant ahora,
                                                  List<Order> nuevosPedidos, List<RoadBlock> nuevosBloqueos,
-                                                 List<BreakdownEvent> nuevasAverias, boolean cambioBloqueo) {
+                                                 List<BreakdownEvent> nuevasAverias, boolean cambioBloqueo,
+                                                 Set<VehicleType> tiposFlotaActualizados) {
         // 1. Datos con los eventos aplicados (el estado se confirma recién al final).
         Map<String, Order> pedidos = new LinkedHashMap<>(estado.pedidos);
         nuevosPedidos.forEach(pedido -> pedidos.put(pedido.id(), pedido));
@@ -223,10 +226,11 @@ public class ReplanificacionSaService implements ReplanificacionService {
                     averiaPorVehiculo.get(interrumpida.vehiculoId()), central));
         }
 
-        // 3. Rutas conservadas; ante un bloqueo se vuelven a programar con el RouteScheduler original.
-        List<RutaVigente> conservadas = cambioBloqueo
-                ? corte.conservadas().stream().map(ruta -> reprogramar(ruta, bloqueos)).toList()
-                : corte.conservadas();
+        // 3. Conserved routes are rescheduled when their road path or fleet parameters change.
+        List<RutaVigente> conservadas = corte.conservadas().stream()
+                .map(ruta -> cambioBloqueo || tiposFlotaActualizados.contains(ruta.ruta().vehicle().type())
+                        ? reprogramar(ruta, bloqueos, !tiposFlotaActualizados.isEmpty()) : ruta)
+                .toList();
 
         // 4. Pendiente = pedido menos lo entregado y lo que llevan las rutas conservadas.
         Map<String, Integer> cubiertos = new HashMap<>(entregados);
@@ -322,21 +326,29 @@ public class ReplanificacionSaService implements ReplanificacionService {
         return respuesta;
     }
 
-    private RutaVigente reprogramar(RutaVigente ruta, List<RoadBlock> bloqueos) {
+    private RutaVigente reprogramar(RutaVigente ruta, List<RoadBlock> bloqueos, boolean perfilFlotaActualizado) {
+        OperationalSnapshot snapshot = perfilFlotaActualizado ? conPerfilFlotaActual(ruta.snapshotOrigen())
+                : ruta.snapshotOrigen();
         try {
-            ScheduledDeliveryRoute programada = programador.schedule(ruta.ruta(), ruta.snapshotOrigen(), bloqueos);
-            return new RutaVigente(ruta.ruta(), ruta.snapshotOrigen(), programada, violacionesDeRuta(ruta, bloqueos));
+            ScheduledDeliveryRoute programada = programador.schedule(ruta.ruta(), snapshot, bloqueos);
+            return new RutaVigente(ruta.ruta(), snapshot, programada, violacionesDeRuta(ruta, bloqueos, snapshot));
         } catch (IllegalStateException sinCamino) {
-            return new RutaVigente(ruta.ruta(), ruta.snapshotOrigen(), ruta.programada(),
+            return new RutaVigente(ruta.ruta(), snapshot, ruta.programada(),
                     List.of(new PlanViolation(PlanViolationType.NO_ROAD_PATH, ruta.ruta().id(), sinCamino.getMessage())));
         }
+    }
+
+    private OperationalSnapshot conPerfilFlotaActual(OperationalSnapshot origen) {
+        return new OperationalSnapshot(origen.planningTime(), fuente.perfilFlota(), origen.inventory(),
+                origen.vehiclesById(), origen.maintenanceCalendar(), origen.shiftSchedule(), origen.breakdowns());
     }
 
     /**
      * Evalúa la ruta sola con el evaluador original y su snapshot de origen. Se descarta
      * PARTIAL_DELIVERY_MISMATCH porque una ruta puede llevar solo una parte de un pedido.
      */
-    private List<PlanViolation> violacionesDeRuta(RutaVigente ruta, List<RoadBlock> bloqueos) {
+    private List<PlanViolation> violacionesDeRuta(RutaVigente ruta, List<RoadBlock> bloqueos,
+                                                   OperationalSnapshot snapshot) {
         Map<String, Order> pedidos = new LinkedHashMap<>();
         ruta.ruta().stops().forEach(parada -> {
             if (parada instanceof DeliveryStop entrega) {
@@ -344,7 +356,7 @@ public class ReplanificacionSaService implements ReplanificacionService {
             }
         });
         PlanEvaluation evaluacion = evaluador.evaluate(OperationalPlan.empty().withRoute(ruta.ruta()),
-                ruta.snapshotOrigen(), pedidos.values(), bloqueos);
+                snapshot, pedidos.values(), bloqueos);
         return evaluacion.violations().stream()
                 .filter(violacion -> violacion.type() != PlanViolationType.PARTIAL_DELIVERY_MISMATCH)
                 .toList();

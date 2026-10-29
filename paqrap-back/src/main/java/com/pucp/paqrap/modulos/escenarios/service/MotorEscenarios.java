@@ -8,6 +8,7 @@ import com.pucp.paqrap.modulos.escenarios.entity.ScenarioType;
 import com.pucp.paqrap.modulos.escenarios.persistence.ScenarioExecutionEntity;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
 import com.pucp.paqrap.modulos.flota.entity.ParametrosFlotaActualizados;
+import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.incidencias.entity.AveriaRegistrada;
 import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
 import com.pucp.paqrap.modulos.pedidos.entity.PedidoRegistrado;
@@ -84,7 +85,7 @@ public class MotorEscenarios {
         /** Llegaron pedidos desde el último plan: se replanifica en el próximo tick. */
         private boolean pedidosPendientes;
         /** Cambiaron los parámetros de un tipo de vehículo desde el último plan: se replanifica en el próximo tick. */
-        private boolean flotaCambiada;
+        private final Set<VehicleType> tiposFlotaCambiados = new HashSet<>();
         /** IDs de pedidos que pertenecen al intervalo simulado ya procesado. */
         private final Set<String> pedidosProcesados = new HashSet<>();
         /** Bloqueos cuyo inicio fue detectado en un intervalo ya procesado. */
@@ -132,13 +133,13 @@ public class MotorEscenarios {
 
     /**
      * Cambiar velocidad, capacidad o costo de un tipo de vehículo con un escenario en marcha lo hace replanificar en
-     * el próximo tick. Las rutas ya en marcha conservan sus horas; las que se planifiquen desde ahora usan los valores
-     * nuevos, que el planificador lee de la BD en cada ciclo.
+     * el próximo tick. Las rutas en marcha del tipo cambiado se vuelven a programar con el perfil vigente; las de los demás
+     * tipos se conservan.
      */
     @TransactionalEventListener(fallbackExecution = true)
     public synchronized void alActualizarParametrosFlota(ParametrosFlotaActualizados cambio) {
         for (EscenarioActivo activo : activos.values()) {
-            activo.flotaCambiada = true;
+            activo.tiposFlotaCambiados.add(cambio.tipo());
         }
     }
 
@@ -295,7 +296,7 @@ public class MotorEscenarios {
             planificar(ejecucionId, activo, PlanificadorPort.Motivo.INCIDENCIA);
         } else if (activo.pedidosPendientes) {
             planificar(ejecucionId, activo, PlanificadorPort.Motivo.NUEVO_PEDIDO);
-        } else if (activo.flotaCambiada || !ahora.isBefore(activo.proximaPlanificacion)) {
+        } else if (!activo.tiposFlotaCambiados.isEmpty() || !ahora.isBefore(activo.proximaPlanificacion)) {
             planificar(ejecucionId, activo, PlanificadorPort.Motivo.PERIODICO);
         }
     }
@@ -309,13 +310,13 @@ public class MotorEscenarios {
         // Que SA deje pedidos sin asignar en un ciclo no es colapso: lo decide DetectorColapso.
         planificador().planificar(new PlanificadorPort.SolicitudCiclo(
                 ejecucionId, ahora, motivo, activo.bloqueosPendientes, activo.bloqueosTerminadosPendientes,
-                activo.averiasPendientes));
+                activo.averiasPendientes, List.copyOf(activo.tiposFlotaCambiados)));
         activo.proximaPlanificacion = ahora.plus(propiedades.intervaloPlanificacion());
         activo.bloqueosPendientes.clear();
         activo.bloqueosTerminadosPendientes.clear();
         activo.averiasPendientes.clear();
         activo.pedidosPendientes = false;
-        activo.flotaCambiada = false;
+        activo.tiposFlotaCambiados.clear();
     }
 
     /**
