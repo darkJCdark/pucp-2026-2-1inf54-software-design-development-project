@@ -4,9 +4,11 @@ import com.pucp.paqrap.comun.api.PaginaResponse;
 import com.pucp.paqrap.modulos.pedidos.dto.CargaPedidosResponse;
 import com.pucp.paqrap.modulos.pedidos.dto.PedidoDetalleResponse;
 import com.pucp.paqrap.modulos.pedidos.dto.PedidoResponse;
+import com.pucp.paqrap.modulos.pedidos.dto.PeriodoCargadoResponse;
 import com.pucp.paqrap.modulos.pedidos.dto.RegistrarPedidoRequest;
 import com.pucp.paqrap.modulos.pedidos.entity.DeliveryType;
 import com.pucp.paqrap.modulos.pedidos.entity.OrderStatus;
+import com.pucp.paqrap.modulos.pedidos.service.CoberturaPedidosService;
 import com.pucp.paqrap.modulos.pedidos.service.PedidoService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
@@ -30,15 +32,18 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.YearMonth;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/pedidos")
 public class PedidoController {
 
     private final PedidoService pedidoService;
+    private final CoberturaPedidosService coberturaPedidos;
 
-    public PedidoController(PedidoService pedidoService) {
+    public PedidoController(PedidoService pedidoService, CoberturaPedidosService coberturaPedidos) {
         this.pedidoService = pedidoService;
+        this.coberturaPedidos = coberturaPedidos;
     }
 
     @PostMapping
@@ -76,6 +81,12 @@ public class PedidoController {
             Pageable pageable) {
         return pedidoService.listar(clienteId, estado, tipoEntrega, registradoDesde, registradoHasta, venceHasta,
                 pageable);
+    }
+
+    /** Meses con pedidos cargados desde archivos ventas.AAAAMM.txt y cuántos pedidos tiene cada uno. */
+    @GetMapping("/periodos-cargados")
+    public List<PeriodoCargadoResponse> periodosCargados() {
+        return coberturaPedidos.periodosCargados();
     }
 
     /** {@code instante} (opcional, simulado) permite saber si un pedido aún no entregado ya incumplió su plazo. */
