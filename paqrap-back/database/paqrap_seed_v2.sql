@@ -19,9 +19,9 @@ INSERT INTO vehicle_type_parameters (
     cost_per_km
 )
 VALUES
-    ('CAR',        24, 40.00, 8.00),
-    ('MOTORCYCLE',  8, 25.00, 6.00),
-    ('BICYCLE',     4, 12.00, 3.00)
+    ('CAR',        24, 20.00, 8.00),
+    ('MOTORCYCLE',  8, 40.00, 6.00),
+    ('BICYCLE',     4, 14.00, 3.00)
 ON DUPLICATE KEY UPDATE
     capacity_packages = VALUES(capacity_packages),
     speed_kmh = VALUES(speed_kmh),
