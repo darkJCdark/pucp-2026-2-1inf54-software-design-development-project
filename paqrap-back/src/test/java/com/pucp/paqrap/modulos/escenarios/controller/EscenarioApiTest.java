@@ -1,5 +1,7 @@
 package com.pucp.paqrap.modulos.escenarios.controller;
 
+import com.pucp.paqrap.modulos.pedidos.CoberturaDePrueba;
+import java.time.YearMonth;
 import com.jayway.jsonpath.JsonPath;
 import com.pucp.paqrap.modulos.escenarios.entity.ScenarioStatus;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
@@ -124,7 +126,11 @@ class EscenarioApiTest {
     }
 
     private ResultActions crear(String json) throws Exception {
-        return mvc.perform(post("/api/escenarios").contentType(MediaType.APPLICATION_JSON).content(json));
+        // J1 (semana 12): 5D y Colapso exigen pedidos cargados en el mes de inicio.
+        CoberturaDePrueba.cubrirMes(pedidoRepository, YearMonth.of(2026, 1));
+        ResultActions resultado = mvc.perform(post("/api/escenarios").contentType(MediaType.APPLICATION_JSON).content(json));
+        CoberturaDePrueba.quitarMarcador(pedidoRepository, YearMonth.of(2026, 1));
+        return resultado;
     }
 
     private long crearCincoDias() throws Exception {

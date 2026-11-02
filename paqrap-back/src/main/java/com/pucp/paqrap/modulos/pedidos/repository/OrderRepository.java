@@ -126,6 +126,20 @@ public interface OrderRepository extends JpaRepository<OrderEntity, String> {
     List<OrderEntity> incumplidosDesde(@Param("desde") Instant desde, @Param("instante") Instant instante,
                                        Pageable pagina);
 
+    /**
+     * Pedidos cargados desde archivos agrupados por mes: [AAAAMM, cantidad]. Solo cuentan los ids AAAAMM-...; los
+     * registrados a mano empiezan con M- y no entran.
+     */
+    @Query("""
+            select substring(o.orderId, 1, 6), count(o) from OrderEntity o
+            where o.orderId like '______-%'
+            group by substring(o.orderId, 1, 6)
+            """)
+    List<Object[]> contarCargadosPorMes();
+
+    /** Si hay algún pedido del archivo de un mes ({@code prefijo} = AAAAMM-). */
+    boolean existsByOrderIdStartingWith(String prefijo);
+
     /** Ids ya registrados de un archivo mensual (prefijo AAAAMM-). */
     @Query("select o.orderId from OrderEntity o where o.orderId like :prefijo")
     List<String> idsConPrefijo(@Param("prefijo") String prefijo);

@@ -1,5 +1,7 @@
 package com.pucp.paqrap.modulos.planificacion.service;
 
+import com.pucp.paqrap.modulos.pedidos.CoberturaDePrueba;
+import java.time.YearMonth;
 import com.jayway.jsonpath.JsonPath;
 import com.pucp.paqrap.modulos.almacenes.persistence.WarehouseEntity;
 import com.pucp.paqrap.modulos.almacenes.persistence.WarehouseKind;
@@ -172,6 +174,8 @@ class ConfiguracionSaEscenarioIntegrationTest {
 
     @Test
     void configuracionPersonalizadaDelEscenarioLlegaAlInicialYAlPrimerReplan() throws Exception {
+        // J1 (semana 12): 5D y Colapso exigen pedidos cargados en el mes de inicio.
+        CoberturaDePrueba.cubrirMes(pedidoRepository, YearMonth.of(2026, 1));
         String respuesta = mvc.perform(post("/api/escenarios").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"tipo\":\"FIVE_DAY\",\"inicioSimulado\":\"" + INICIO + "\","
                                 + "\"configuracionSa\":{\"semilla\":42,\"temperaturaInicial\":200.0,"
@@ -179,6 +183,7 @@ class ConfiguracionSaEscenarioIntegrationTest {
                                 + "\"iteracionesPorTemperatura\":7}}"))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
+        CoberturaDePrueba.quitarMarcador(pedidoRepository, YearMonth.of(2026, 1));
         long id = ((Number) JsonPath.read(respuesta, "$.id")).longValue();
 
         ScenarioExecutionEntity entidad = ejecucionRepository.findById(id).orElseThrow();
