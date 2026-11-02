@@ -57,8 +57,7 @@ public class EscenarioService {
             Instant fin = request.tipo().duracionSimulada()
                     .map(duracion -> request.inicioSimulado().plus(duracion).minusNanos(1))
                     .orElse(request.inicioSimulado());
-            // TEMPORAL (experimento semana 12): validación J1 desactivada. Restaurar antes del commit.
-            // coberturaPedidos.validarCobertura(inicio, fin);
+            coberturaPedidos.validarCobertura(inicio, fin);
         }
         ConfiguracionSaRequest solicitada = request.configuracionSa();
         AnnealingConfig porDefecto = PlanificadorSaService.configuracionPorDefecto();
