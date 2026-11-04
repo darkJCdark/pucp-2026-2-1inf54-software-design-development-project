@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, Loader2, Pencil, X } from "lucide-react";
 
 import type { TipoVehiculoBackend, TipoVehiculoResponseDto } from "@/api/flota.dto";
 import type { PlanResponseDto, ReplanificacionResponseDto } from "@/api/planificacion.dto";
 import { Card } from "@/components/ui/card";
+import { useConfiguracion } from "@/context/ConfiguracionContext";
 import { Progress } from "@/components/ui/progress";
 import type {
   AlmacenMapa,
@@ -40,6 +41,10 @@ export function PanelIndicadores({
   onActualizarVelocidad,
   onSeleccionarAlmacen,
 }: PanelIndicadoresProps) {
+  const {
+    configuracion,
+  } = useConfiguracion();
+
   const intermedios = almacenes.filter((almacen) => almacen.tipo === "INTERMEDIO");
   const totalPorTipo = (tipo: TipoVehiculo) =>
     vehiculos.filter((vehiculo) => vehiculo.tipo === tipo).length;
@@ -48,6 +53,53 @@ export function PanelIndicadores({
       (vehiculo) => vehiculo.tipo === tipo && vehiculo.estado === "EN_RUTA",
     ).length;
   const detenidos = vehiculos.filter((vehiculo) => vehiculo.motivoDetencion !== null).length;
+
+  const capacidadPorTipo =
+    useMemo(
+      () =>
+        new Map(
+          tiposFlota.map((tipo) => [
+            tipo.tipo === "CAR"
+              ? "AUTO"
+              : tipo.tipo === "MOTORCYCLE"
+                ? "MOTO"
+                : "BICICLETA",
+            tipo.capacidadPaquetes,
+          ]),
+        ),
+      [tiposFlota],
+    );
+
+  const cargaTotal = vehiculos.reduce(
+    (total, vehiculo) => total + vehiculo.cargaActual,
+    0,
+  );
+
+  const capacidadTotal = vehiculos.reduce(
+    (total, vehiculo) =>
+      total + (capacidadPorTipo.get(vehiculo.tipo) ?? 0),
+    0,
+  );
+
+  const ocupacionFlota =
+    capacidadTotal > 0
+      ? (cargaTotal / capacidadTotal) * 100
+      : 0;
+
+  const stockTotal = intermedios.reduce(
+    (total, almacen) => total + (almacen.stock ?? 0),
+    0,
+  );
+
+  const capacidadAlmacenes = intermedios.reduce(
+    (total, almacen) => total + (almacen.capacidad ?? 0),
+    0,
+  );
+
+  const ocupacionAlmacenes =
+    capacidadAlmacenes > 0
+      ? (stockTotal / capacidadAlmacenes) * 100
+      : 0;
 
   return (
     <aside className="space-y-3 overflow-y-auto bg-[#11161d] p-3">
@@ -72,6 +124,32 @@ export function PanelIndicadores({
         <Dato label="Entregados a tiempo" value={String(indicadores.entregasATiempo)} />
         <Dato label="Paquetes entregados" value={String(indicadores.paquetesEntregados)} />
         <Dato label="Unidades detenidas" value={String(detenidos)} />
+      </Card>
+
+      <Card className="border-slate-800 bg-[#151b23] p-4">
+        <h3 className="mb-3 font-semibold">Indicadores globales</h3>
+
+        <IndicadorSemaforo
+          label="Ocupación de carga de la flota"
+          porcentaje={ocupacionFlota}
+          nivel={nivelCargaGlobal(
+            ocupacionFlota,
+            configuracion.vehiculoVerdeHasta,
+            configuracion.vehiculoAmbarHasta,
+          )}
+          detalle={`${cargaTotal}/${capacidadTotal || 0} paquetes`}
+        />
+
+        <IndicadorSemaforo
+          label="Stock de almacenes intermedios"
+          porcentaje={ocupacionAlmacenes}
+          nivel={nivelStockGlobal(
+            ocupacionAlmacenes,
+            configuracion.almacenVerdeHasta,
+            configuracion.almacenAmbarHasta,
+          )}
+          detalle={`${stockTotal}/${capacidadAlmacenes || 0} unidades`}
+        />
       </Card>
 
       <Card className="border-slate-800 bg-[#151b23] p-4">
@@ -128,14 +206,18 @@ export function PanelIndicadores({
                 </div>
                 <span
                   className={
-                    porcentajeDisponible > 66
+                    porcentajeDisponible >= configuracion.almacenAmbarHasta
                       ? "rounded-full bg-green-500 px-2 py-1 text-[10px] text-black"
-                      : porcentajeDisponible > 33
+                      : porcentajeDisponible >= configuracion.almacenVerdeHasta
                         ? "rounded-full bg-amber-500 px-2 py-1 text-[10px] text-black"
                         : "rounded-full bg-red-500 px-2 py-1 text-[10px] text-white"
                   }
                 >
-                  {porcentajeDisponible > 66 ? "Verde" : porcentajeDisponible > 33 ? "Ámbar" : "Rojo"}
+                  {porcentajeDisponible >= configuracion.almacenAmbarHasta
+                    ? "Verde"
+                    : porcentajeDisponible >= configuracion.almacenVerdeHasta
+                      ? "Ámbar"
+                      : "Rojo"}
                 </span>
               </div>
 
@@ -273,6 +355,63 @@ function UsoFlota({ nombre, actual, total }: { nombre: string; actual: number; t
       <Progress value={porcentaje} className="h-2" />
     </div>
   );
+}
+
+type NivelIndicador = "VERDE" | "AMBAR" | "ROJO";
+
+function IndicadorSemaforo({
+  label,
+  porcentaje,
+  nivel,
+  detalle,
+}: {
+  label: string;
+  porcentaje: number;
+  nivel: NivelIndicador;
+  detalle: string;
+}) {
+  const clases =
+    nivel === "VERDE"
+      ? "bg-green-500 text-black"
+      : nivel === "AMBAR"
+        ? "bg-amber-500 text-black"
+        : "bg-red-500 text-white";
+
+  return (
+    <div className="mb-4 last:mb-0">
+      <div className="mb-1 flex items-center justify-between gap-3 text-xs">
+        <span className="text-slate-400">{label}</span>
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${clases}`}>
+          {nivel === "AMBAR" ? "Ámbar" : nivel.charAt(0) + nivel.slice(1).toLowerCase()}
+        </span>
+      </div>
+      <Progress value={porcentaje} className="h-2" />
+      <div className="mt-1 flex justify-between text-[10px] text-slate-500">
+        <span>{detalle}</span>
+        <span>{porcentaje.toFixed(0)}%</span>
+      </div>
+    </div>
+  );
+}
+
+function nivelCargaGlobal(
+  porcentaje: number,
+  verdeHasta: number,
+  ambarHasta: number,
+): NivelIndicador {
+  if (porcentaje <= verdeHasta) return "VERDE";
+  if (porcentaje <= ambarHasta) return "AMBAR";
+  return "ROJO";
+}
+
+function nivelStockGlobal(
+  porcentaje: number,
+  verdeDesde: number,
+  ambarDesde: number,
+): NivelIndicador {
+  if (porcentaje >= ambarDesde) return "VERDE";
+  if (porcentaje >= verdeDesde) return "AMBAR";
+  return "ROJO";
 }
 
 function Dato({ label, value }: { label: string; value: string }) {

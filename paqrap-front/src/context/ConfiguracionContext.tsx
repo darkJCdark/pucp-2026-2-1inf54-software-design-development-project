@@ -43,8 +43,8 @@ const configuracionInicial: ConfiguracionPlanificador = {
   almacenVerdeHasta: 33,
   almacenAmbarHasta: 66,
 
-  pedidoVerdeHasta: 60,
-  pedidoAmbarHasta: 85,
+  vehiculoVerdeHasta: 60,
+  vehiculoAmbarHasta: 85,
 
   usarConfiguracionSa: false,
   saSemilla: "",

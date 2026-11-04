@@ -126,6 +126,14 @@ import {
   type SeleccionDetalleOperacion,
 } from "./DetalleOperacionPanel";
 
+import {
+  BloqueTiempos,
+} from "./BloqueTiempos";
+
+import {
+  PanelListasOperacion,
+} from "./PanelListasOperacion";
+
 import { ResultadoEscenarioModal } from "../ejecuciones/ResultadoEscenarioModal";
 
 export default function EjecucionPage() {
@@ -693,7 +701,7 @@ export default function EjecucionPage() {
 
     mostrarToast({
       titulo: "Avería registrada",
-      descripcion: "El backend calculó la posición real de la unidad y solicitó una replanificación.",
+      descripcion: "La avería fue registrada en la posición actual de la unidad y las rutas afectadas fueron actualizadas.",
       variante: "warning",
     });
 
@@ -814,7 +822,7 @@ export default function EjecucionPage() {
 
       mostrarToast({
         titulo: "Velocidad actualizada",
-        descripcion: `${nombreTipoVehiculo(tipoVehiculo)}: ${velocidadKmh} km/h. El backend replanificará con el nuevo perfil.`,
+        descripcion: `${nombreTipoVehiculo(tipoVehiculo)}: ${velocidadKmh} km/h. La velocidad fue actualizada y la planificación se ajustará al nuevo valor.`,
         variante: "success",
       });
 
@@ -1036,9 +1044,33 @@ export default function EjecucionPage() {
               .escenario
               .estado
           }
-          onSeleccionarVehiculo={(id) => setSeleccionDetalle({ tipo: "VEHICULO", id })}
-          onSeleccionarPedido={(id) => setSeleccionDetalle({ tipo: "PEDIDO", id })}
-          onSeleccionarAlmacen={(id) => setSeleccionDetalle({ tipo: "ALMACEN", id })}
+          tiposFlota={
+            tiposFlota
+          }
+          seleccionVehiculoId={
+            seleccionDetalle?.tipo === "VEHICULO"
+              ? seleccionDetalle.id
+              : null
+          }
+          seleccionPedidoId={
+            seleccionDetalle?.tipo === "PEDIDO"
+              ? seleccionDetalle.id
+              : null
+          }
+          seleccionAlmacenId={
+            seleccionDetalle?.tipo === "ALMACEN"
+              ? seleccionDetalle.id
+              : null
+          }
+          onSeleccionarVehiculo={(id) =>
+            setSeleccionDetalle({ tipo: "VEHICULO", id })
+          }
+          onSeleccionarPedido={(id) =>
+            setSeleccionDetalle({ tipo: "PEDIDO", id })
+          }
+          onSeleccionarAlmacen={(id) =>
+            setSeleccionDetalle({ tipo: "ALMACEN", id })
+          }
         />
 
         {/* RELOJ + CONTROLES */}
@@ -1061,6 +1093,27 @@ export default function EjecucionPage() {
           }
           onDetener={() =>
             setConfirmarDetencion(true)
+          }
+        />
+
+        <PanelListasOperacion
+          monitoreo={
+            monitoreo
+          }
+          ejecucionId={
+            ejecucionId
+          }
+          tiposFlota={
+            tiposFlota
+          }
+          plan={
+            plan
+          }
+          seleccion={
+            seleccionDetalle
+          }
+          onSeleccionar={
+            setSeleccionDetalle
           }
         />
 
@@ -1250,7 +1303,7 @@ export default function EjecucionPage() {
       <ConfirmDialog
         abierto={confirmarDetencion}
         titulo="Detener simulación"
-        descripcion="El escenario se cerrará y el backend consolidará el resultado final."
+        descripcion="El escenario se cerrará y se generará el resultado final."
         textoConfirmar="Detener"
         variante="danger"
         confirmando={accionando}
@@ -1300,10 +1353,9 @@ function PanelEscenario({
       .estado;
 
   return (
-    <div className="absolute left-5 top-5 z-50 min-w-80 rounded-lg border border-slate-700 bg-[#11161d]/95 p-4 text-white shadow-xl">
+    <div className="absolute left-5 top-5 z-50 w-[430px] rounded-lg border border-slate-700 bg-[#11161d]/95 p-4 text-white shadow-xl">
 
-      <div className="flex items-start justify-between gap-4">
-
+      <div className="mb-3 flex items-start justify-between gap-4">
         <div>
           <p className="text-[10px] uppercase text-slate-500">
             {nombreTipoEscenario(
@@ -1312,12 +1364,8 @@ function PanelEscenario({
                 .tipo,
             )}
           </p>
-
-          <p className="mt-1 text-lg font-semibold">
-            {formatearInstante(
-              monitoreo
-                .instante,
-            )}
+          <p className="mt-1 text-[10px] text-slate-500">
+            Factor {monitoreo.escenario.factorAceleracion}×
           </p>
         </div>
 
@@ -1328,15 +1376,14 @@ function PanelEscenario({
         />
       </div>
 
-      <p className="mt-1 text-[10px] text-slate-500">
-        Hora simulada · Lima ·{" "}
-        {
-          monitoreo
-            .escenario
-            .factorAceleracion
+      <BloqueTiempos
+        escenario={
+          monitoreo.escenario
         }
-        ×
-      </p>
+        instante={
+          monitoreo.instante
+        }
+      />
 
       <div className="mt-4 flex gap-2">
 
@@ -1695,44 +1742,6 @@ function nombreCausaColapso(
  * FORMATOS
  * =========================================================
  */
-
-function formatearInstante(
-  instante:
-    string,
-) {
-  return new Intl.DateTimeFormat(
-    "es-PE",
-    {
-      timeZone:
-        "America/Lima",
-
-      day:
-        "2-digit",
-
-      month:
-        "2-digit",
-
-      year:
-        "numeric",
-
-      hour:
-        "2-digit",
-
-      minute:
-        "2-digit",
-
-      second:
-        "2-digit",
-
-      hour12:
-        false,
-    },
-  ).format(
-    new Date(
-      instante,
-    ),
-  );
-}
 
 /*
  * =========================================================

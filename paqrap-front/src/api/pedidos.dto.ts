@@ -70,3 +70,8 @@ export interface CargaPedidosResponseDto {
   registrados: number;
   omitidos: number;
 }
+export interface PeriodoCargadoResponseDto {
+  periodo: string;
+  pedidos: number;
+}
+

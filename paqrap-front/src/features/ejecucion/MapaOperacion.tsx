@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -39,6 +40,14 @@ import type {
 import type {
   BloqueoMonitoreoDto,
 } from "@/api/monitoreo.dto";
+
+import type {
+  TipoVehiculoResponseDto,
+} from "@/api/flota.dto";
+
+import {
+  useConfiguracion,
+} from "@/context/ConfiguracionContext";
 
 import {
   useElementSize,
@@ -91,6 +100,13 @@ type FiltroMapa =
   | "BLOQUEOS"
   | "AVERIAS";
 
+type NivelSemaforo =
+  | "TODOS"
+  | "VACIO"
+  | "VERDE"
+  | "AMBAR"
+  | "ROJO";
+
 interface TooltipMapa {
   x: number;
   y: number;
@@ -132,6 +148,13 @@ interface MapaOperacionProps {
   estadoEscenario:
     EstadoEscenarioBackend;
 
+  tiposFlota:
+    TipoVehiculoResponseDto[];
+
+  seleccionVehiculoId?: string | null;
+  seleccionPedidoId?: string | null;
+  seleccionAlmacenId?: string | null;
+
   onSeleccionarVehiculo?: (id: string) => void;
   onSeleccionarPedido?: (id: string) => void;
   onSeleccionarAlmacen?: (id: string) => void;
@@ -154,6 +177,9 @@ interface VehiculoVisual {
 
   progresoTramo:
     number;
+
+  direccionGrados:
+    number | null;
 }
 
 export function MapaOperacion({
@@ -166,6 +192,10 @@ export function MapaOperacion({
   instanteSimulado,
   factorAceleracion,
   estadoEscenario,
+  tiposFlota,
+  seleccionVehiculoId = null,
+  seleccionPedidoId = null,
+  seleccionAlmacenId = null,
   onSeleccionarVehiculo,
   onSeleccionarPedido,
   onSeleccionarAlmacen,
@@ -176,6 +206,10 @@ export function MapaOperacion({
     height,
   } =
     useElementSize<HTMLElement>();
+
+  const {
+    configuracion,
+  } = useConfiguracion();
 
   const [
     vista,
@@ -222,6 +256,24 @@ export function MapaOperacion({
       AVERIAS: true,
     });
 
+  const [
+    filtroCargaVehiculos,
+    setFiltroCargaVehiculos,
+  ] =
+    useState<NivelSemaforo>("TODOS");
+
+  const [
+    filtroStockAlmacenes,
+    setFiltroStockAlmacenes,
+  ] =
+    useState<NivelSemaforo>("TODOS");
+
+  useEffect(() => {
+    setVehiculoSeleccionadoId(
+      seleccionVehiculoId,
+    );
+  }, [seleccionVehiculoId]);
+
   /*
    * El servidor es la fuente
    * verdadera del reloj.
@@ -235,6 +287,22 @@ export function MapaOperacion({
       instanteSimulado,
       factorAceleracion,
       estadoEscenario,
+    );
+
+  const capacidadPorTipo =
+    useMemo(
+      () =>
+        new Map(
+          tiposFlota.map(
+            (tipo) => [
+              adaptarTipoVehiculo(
+                tipo.tipo,
+              ),
+              tipo.capacidadPaquetes,
+            ],
+          ),
+        ),
+      [tiposFlota],
     );
 
   /*
@@ -323,6 +391,24 @@ export function MapaOperacion({
       );
     }, [rutas]);
 
+  const rutasSeleccionadasPorPedido =
+    useMemo(
+      () =>
+        new Set(
+          seleccionPedidoId
+            ? rutas
+                .filter((ruta) =>
+                  ruta.paradas.some(
+                    (parada) =>
+                      parada.pedidoId === seleccionPedidoId,
+                  ),
+                )
+                .map((ruta) => ruta.id)
+            : [],
+        ),
+      [rutas, seleccionPedidoId],
+    );
+
   /*
    * Posición visual animada
    * para cada vehículo.
@@ -350,6 +436,9 @@ export function MapaOperacion({
 
               progresoTramo:
                 0,
+
+              direccionGrados:
+                null,
             };
           }
 
@@ -382,6 +471,10 @@ export function MapaOperacion({
             progresoTramo:
               seguimiento
                 .progresoTramo,
+
+            direccionGrados:
+              seguimiento
+                .direccionGrados,
           };
         },
       );
@@ -959,11 +1052,16 @@ export function MapaOperacion({
 
                     const seleccionada =
                       ruta.vehiculoId ===
-                      vehiculoSeleccionadoId;
+                        vehiculoSeleccionadoId ||
+                      rutasSeleccionadasPorPedido.has(
+                        ruta.id,
+                      );
 
                     const haySeleccion =
                       vehiculoSeleccionadoId !==
-                      null;
+                        null ||
+                      seleccionPedidoId !==
+                        null;
 
                     /*
                      * Para rutas no seleccionadas
@@ -1055,16 +1153,22 @@ export function MapaOperacion({
                           hitStrokeWidth={
                             18
                           }
-                          onClick={() =>
+                          onClick={() => {
                             setVehiculoSeleccionadoId(
                               ruta.vehiculoId,
-                            )
-                          }
-                          onTap={() =>
+                            );
+                            onSeleccionarVehiculo?.(
+                              ruta.vehiculoId,
+                            );
+                          }}
+                          onTap={() => {
                             setVehiculoSeleccionadoId(
                               ruta.vehiculoId,
-                            )
-                          }
+                            );
+                            onSeleccionarVehiculo?.(
+                              ruta.vehiculoId,
+                            );
+                          }}
                         />
                       );
                     }
@@ -1134,14 +1238,22 @@ export function MapaOperacion({
                           pedido.y,
                         )}
                         radius={
-                          5.5
+                          seleccionPedidoId === pedido.id
+                            ? 8
+                            : 5.5
                         }
                         fill={
                           color
                         }
-                        stroke="#ffffff"
+                        stroke={
+                          seleccionPedidoId === pedido.id
+                            ? "#f97316"
+                            : "#ffffff"
+                        }
                         strokeWidth={
-                          1
+                          seleccionPedidoId === pedido.id
+                            ? 3
+                            : 1
                         }
                         opacity={
                           pedido.estado ===
@@ -1216,6 +1328,49 @@ export function MapaOperacion({
                     almacen.tipo ===
                     "CENTRAL";
 
+                  const porcentaje =
+                    porcentajeAlmacen(
+                      almacen,
+                    );
+
+                  const nivel =
+                    nivelSemaforoStock(
+                      porcentaje,
+                      configuracion.almacenVerdeHasta,
+                      configuracion.almacenAmbarHasta,
+                    );
+
+                  if (
+                    !central &&
+                    filtroStockAlmacenes !== "TODOS" &&
+                    filtroStockAlmacenes !== nivel
+                  ) {
+                    return null;
+                  }
+
+                  const color =
+                    central
+                      ? "#2563eb"
+                      : colorSemaforo(nivel);
+
+                  const seleccionado =
+                    seleccionAlmacenId ===
+                    almacen.id;
+
+                  const textoStock =
+                    central
+                      ? "Stock ilimitado"
+                      : `${almacen.stock ?? 0}/${almacen.capacidad ?? 0} · ${porcentaje.toFixed(0)}%`;
+
+                  const lineas = [
+                    `ID: ${almacen.id}`,
+                    `Coordenadas: (${almacen.x}, ${almacen.y})`,
+                    textoStock,
+                    central
+                      ? "Tipo: Central"
+                      : `Semáforo: ${nombreNivel(nivel)}`,
+                  ];
+
                   return (
                     <Group
                       key={
@@ -1227,25 +1382,23 @@ export function MapaOperacion({
                       y={geometria.y(
                         almacen.y,
                       )}
-                      onClick={() => onSeleccionarAlmacen?.(almacen.id)}
-                      onTap={() => onSeleccionarAlmacen?.(almacen.id)}
+                      onClick={() =>
+                        onSeleccionarAlmacen?.(
+                          almacen.id,
+                        )
+                      }
+                      onTap={() =>
+                        onSeleccionarAlmacen?.(
+                          almacen.id,
+                        )
+                      }
                       onMouseEnter={(
                         event,
                       ) =>
                         mostrarTooltip(
                           event,
-
                           `Almacén ${almacen.nombre}`,
-
-                          [
-                            `ID: ${almacen.id}`,
-
-                            `Coordenadas: (${almacen.x}, ${almacen.y})`,
-
-                            central
-                              ? "Inventario ilimitado"
-                              : `Stock: ${almacen.stock ?? 0} / ${almacen.capacidad ?? 1000}`,
-                          ],
+                          lineas,
                         )
                       }
                       onMouseMove={(
@@ -1253,24 +1406,27 @@ export function MapaOperacion({
                       ) =>
                         mostrarTooltip(
                           event,
-
                           `Almacén ${almacen.nombre}`,
-
-                          [
-                            `ID: ${almacen.id}`,
-
-                            `Coordenadas: (${almacen.x}, ${almacen.y})`,
-
-                            central
-                              ? "Inventario ilimitado"
-                              : `Stock: ${almacen.stock ?? 0} / ${almacen.capacidad ?? 1000}`,
-                          ],
+                          lineas,
                         )
                       }
                       onMouseLeave={
                         ocultarTooltip
                       }
                     >
+                      {seleccionado && (
+                        <Rect
+                          x={-24}
+                          y={-24}
+                          width={48}
+                          height={48}
+                          cornerRadius={10}
+                          stroke="#f97316"
+                          strokeWidth={3}
+                          opacity={0.8}
+                        />
+                      )}
+
                       <Rect
                         x={-19}
                         y={-19}
@@ -1286,12 +1442,10 @@ export function MapaOperacion({
                         fill={
                           central
                             ? "#1e3a8a"
-                            : "#ffffff"
+                            : `${color}22`
                         }
                         stroke={
-                          central
-                            ? "#2563eb"
-                            : "#22c55e"
+                          color
                         }
                         strokeWidth={
                           2.5
@@ -1326,15 +1480,15 @@ export function MapaOperacion({
                         fill={
                           central
                             ? "#ffffff"
-                            : "#16a34a"
+                            : color
                         }
                       />
 
                       <Text
-                        x={-46}
+                        x={-48}
                         y={25}
                         width={
-                          92
+                          96
                         }
                         align="center"
                         text={
@@ -1345,6 +1499,22 @@ export function MapaOperacion({
                         }
                         fontStyle="bold"
                         fill="#0f172a"
+                      />
+
+                      <Text
+                        x={-58}
+                        y={40}
+                        width={
+                          116
+                        }
+                        align="center"
+                        text={
+                          textoStock
+                        }
+                        fontSize={
+                          9
+                        }
+                        fill="#475569"
                       />
                     </Group>
                   );
@@ -1358,14 +1528,34 @@ export function MapaOperacion({
                     grupo.filter(
                       (
                         item,
-                      ) =>
-                        filtroVehiculoActivo(
-                          item
-                            .vehiculo
-                            .tipo,
+                      ) => {
+                        if (
+                          !filtroVehiculoActivo(
+                            item.vehiculo.tipo,
+                            filtros,
+                          )
+                        ) {
+                          return false;
+                        }
 
-                          filtros,
-                        ),
+                        const capacidad =
+                          capacidadPorTipo.get(
+                            item.vehiculo.tipo,
+                          ) ?? 0;
+
+                        const nivel =
+                          nivelSemaforoCarga(
+                            item.vehiculo.cargaActual,
+                            capacidad,
+                            configuracion.vehiculoVerdeHasta,
+                            configuracion.vehiculoAmbarHasta,
+                          );
+
+                        return (
+                          filtroCargaVehiculos === "TODOS" ||
+                          filtroCargaVehiculos === nivel
+                        );
+                      },
                     );
 
                   if (
@@ -1399,6 +1589,19 @@ export function MapaOperacion({
                             item,
                           ) =>
                             item.vehiculo,
+                        )}
+                        cargaTotal={visibles.reduce(
+                          (total, item) =>
+                            total + item.vehiculo.cargaActual,
+                          0,
+                        )}
+                        capacidadTotal={visibles.reduce(
+                          (total, item) =>
+                            total +
+                            (capacidadPorTipo.get(
+                              item.vehiculo.tipo,
+                            ) ?? 0),
+                          0,
                         )}
                         x={geometria.x(
                           visibles[0].x,
@@ -1472,6 +1675,24 @@ export function MapaOperacion({
                           progresoTramo={
                             item.progresoTramo
                           }
+                          capacidad={
+                            capacidadPorTipo.get(
+                              item.vehiculo.tipo,
+                            ) ?? 0
+                          }
+                          direccionGrados={
+                            item.direccionGrados
+                          }
+                          nivelCarga={
+                            nivelSemaforoCarga(
+                              item.vehiculo.cargaActual,
+                              capacidadPorTipo.get(
+                                item.vehiculo.tipo,
+                              ) ?? 0,
+                              configuracion.vehiculoVerdeHasta,
+                              configuracion.vehiculoAmbarHasta,
+                            )
+                          }
                           x={
                             geometria.x(
                               item.x,
@@ -1510,102 +1731,87 @@ export function MapaOperacion({
               {/* AVERÍAS */}
               {filtros.AVERIAS &&
                 averias.map(
-                  (averia) => (
-                    <Group
-                      key={`averia-${averia.id}`}
-                      x={geometria.x(
-                        averia.x,
-                      )}
-                      y={geometria.y(
-                        averia.y,
-                      )}
-                      onMouseEnter={(
-                        event,
-                      ) =>
-                        mostrarTooltip(
+                  (averia) => {
+                    const estilo =
+                      estiloAveria(
+                        averia.tipo,
+                      );
+
+                    return (
+                      <Group
+                        key={`averia-${averia.id}`}
+                        x={geometria.x(
+                          averia.x,
+                        )}
+                        y={geometria.y(
+                          averia.y,
+                        )}
+                        onMouseEnter={(
                           event,
-
-                          `Avería ${averia.tipo}`,
-
-                          [
-                            `Vehículo: ${averia.vehiculoId}`,
-
-                            `Coordenadas: (${averia.x}, ${averia.y})`,
-
-                            `Hasta: ${formatearFecha(
-                              averia.indisponibleHasta,
-                            )}`,
-                          ],
-                        )
-                      }
-                      onMouseMove={(
-                        event,
-                      ) =>
-                        mostrarTooltip(
+                        ) =>
+                          mostrarTooltip(
+                            event,
+                            `Avería ${estilo.nombre}`,
+                            [
+                              `Vehículo: ${averia.vehiculoId}`,
+                              `Tipo: ${estilo.nombre}`,
+                              `Coordenadas: (${averia.x}, ${averia.y})`,
+                              `Hasta: ${formatearFecha(
+                                averia.indisponibleHasta,
+                              )}`,
+                            ],
+                          )
+                        }
+                        onMouseMove={(
                           event,
-
-                          `Avería ${averia.tipo}`,
-
-                          [
-                            `Vehículo: ${averia.vehiculoId}`,
-
-                            `Coordenadas: (${averia.x}, ${averia.y})`,
-
-                            `Hasta: ${formatearFecha(
-                              averia.indisponibleHasta,
-                            )}`,
-                          ],
-                        )
-                      }
-                      onMouseLeave={
-                        ocultarTooltip
-                      }
-                    >
-                      <Circle
-                        radius={
-                          10
+                        ) =>
+                          mostrarTooltip(
+                            event,
+                            `Avería ${estilo.nombre}`,
+                            [
+                              `Vehículo: ${averia.vehiculoId}`,
+                              `Tipo: ${estilo.nombre}`,
+                              `Coordenadas: (${averia.x}, ${averia.y})`,
+                              `Hasta: ${formatearFecha(
+                                averia.indisponibleHasta,
+                              )}`,
+                            ],
+                          )
                         }
-                        fill="#fee2e2"
-                        stroke="#dc2626"
-                        strokeWidth={
-                          2
+                        onMouseLeave={
+                          ocultarTooltip
                         }
-                      />
+                      >
+                        <Circle
+                          radius={12}
+                          fill={estilo.fondo}
+                          stroke={estilo.color}
+                          strokeWidth={3}
+                          shadowColor={estilo.color}
+                          shadowBlur={6}
+                          shadowOpacity={0.35}
+                        />
 
-                      <Line
-                        points={[
-                          -4,
-                          -4,
-                          4,
-                          4,
-                        ]}
-                        stroke="#dc2626"
-                        strokeWidth={
-                          2.5
-                        }
-                      />
-
-                      <Line
-                        points={[
-                          4,
-                          -4,
-                          -4,
-                          4,
-                        ]}
-                        stroke="#dc2626"
-                        strokeWidth={
-                          2.5
-                        }
-                      />
-                    </Group>
-                  ),
+                        <Text
+                          x={-10}
+                          y={-6}
+                          width={20}
+                          align="center"
+                          text={estilo.codigo}
+                          fontSize={10}
+                          fontStyle="bold"
+                          fill={estilo.color}
+                        />
+                      </Group>
+                    );
+                  },
                 )}
             </Layer>
           </Stage>
         )}
 
       {/* FILTROS */}
-      <div className="absolute left-[340px] top-3 z-20 flex max-w-[calc(100%-520px)] flex-wrap gap-2">
+      <div className="absolute left-[470px] top-3 z-20 flex max-w-[calc(100%-640px)] flex-wrap items-center gap-2">
 
         {(
           Object.keys(
@@ -1640,6 +1846,46 @@ export function MapaOperacion({
             </button>
           ),
         )}
+
+        <label className="flex items-center gap-1 rounded-full bg-slate-800/95 px-2 py-1 text-[10px] text-slate-300 shadow-sm">
+          Carga
+          <select
+            value={filtroCargaVehiculos}
+            onChange={(event) =>
+              setFiltroCargaVehiculos(
+                event.target.value as NivelSemaforo,
+              )
+            }
+            className="bg-transparent font-semibold text-white outline-none"
+            aria-label="Filtrar vehículos por semáforo de carga"
+          >
+            <option value="TODOS">Todos</option>
+            <option value="VACIO">Sin carga</option>
+            <option value="VERDE">Verde</option>
+            <option value="AMBAR">Ámbar</option>
+            <option value="ROJO">Rojo</option>
+          </select>
+        </label>
+
+        <label className="flex items-center gap-1 rounded-full bg-slate-800/95 px-2 py-1 text-[10px] text-slate-300 shadow-sm">
+          Stock
+          <select
+            value={filtroStockAlmacenes}
+            onChange={(event) =>
+              setFiltroStockAlmacenes(
+                event.target.value as NivelSemaforo,
+              )
+            }
+            className="bg-transparent font-semibold text-white outline-none"
+            aria-label="Filtrar almacenes por semáforo de stock"
+          >
+            <option value="TODOS">Todos</option>
+            <option value="VACIO">Vacío</option>
+            <option value="VERDE">Verde</option>
+            <option value="AMBAR">Ámbar</option>
+            <option value="ROJO">Rojo</option>
+          </select>
+        </label>
       </div>
 
       {/* ZOOM */}
@@ -1678,8 +1924,9 @@ export function MapaOperacion({
       </div>
 
       {/* DETALLE DEL VEHÍCULO */}
-      {visualSeleccionado
-        ?.ruta &&
+      {!onSeleccionarVehiculo &&
+        visualSeleccionado
+          ?.ruta &&
         visualSeleccionado
           .seguimiento && (
           <PanelVehiculoSeleccionado
@@ -1756,6 +2003,32 @@ export function MapaOperacion({
         <Leyenda
           color="#dc2626"
           texto="Pedido vencido / incidencia"
+        />
+
+        <div className="my-2 border-t border-slate-700" />
+
+        <p className="mb-1.5 text-[10px] uppercase text-slate-500">
+          Semáforo carga / stock
+        </p>
+
+        <Leyenda
+          color="#64748b"
+          texto="Vacío"
+        />
+
+        <Leyenda
+          color="#16a34a"
+          texto="Verde"
+        />
+
+        <Leyenda
+          color="#d97706"
+          texto="Ámbar"
+        />
+
+        <Leyenda
+          color="#dc2626"
+          texto="Rojo"
         />
       </div>
 
@@ -2262,6 +2535,9 @@ function VehiculoMarker({
   y,
   posicionVisual,
   progresoTramo,
+  capacidad,
+  nivelCarga,
+  direccionGrados,
   onSeleccionar,
   onTooltip,
   onLeave,
@@ -2283,6 +2559,15 @@ function VehiculoMarker({
   progresoTramo:
     number;
 
+  capacidad:
+    number;
+
+  nivelCarga:
+    Exclude<NivelSemaforo, "TODOS">;
+
+  direccionGrados:
+    number | null;
+
   x: number;
   y: number;
 
@@ -2303,13 +2588,31 @@ function VehiculoMarker({
   onLeave:
     () => void;
 }) {
+  const colorTipo =
+    COLORES_VEHICULO[
+      vehiculo.tipo
+    ];
+
   const color =
     vehiculo.estado ===
     "NO_DISPONIBLE"
       ? "#64748b"
-      : COLORES_VEHICULO[
-          vehiculo.tipo
-        ];
+      : colorSemaforo(
+          nivelCarga,
+        );
+
+  const porcentajeCarga =
+    capacidad > 0
+      ? Math.min(
+          100,
+          Math.max(
+            0,
+            (vehiculo.cargaActual /
+              capacidad) *
+              100,
+          ),
+        )
+      : 0;
 
   const letra =
     vehiculo.tipo ===
@@ -2338,7 +2641,8 @@ function VehiculoMarker({
       100
     ).toFixed(0)}%`,
 
-    `Carga: ${vehiculo.cargaActual}`,
+    `Carga: ${vehiculo.cargaActual}/${capacidad || "—"} (${porcentajeCarga.toFixed(0)}%)`,
+    `Semáforo de carga: ${nombreNivel(nivelCarga)}`,
 
     vehiculo.motivoDetencion
       ? `Motivo de detención: ${nombreMotivoDetencion(vehiculo.motivoDetencion)}`
@@ -2409,6 +2713,20 @@ function VehiculoMarker({
         />
       )}
 
+      {direccionGrados !== null && vehiculo.estado === "EN_RUTA" && (
+        <Arrow
+          points={[0, 0, 17, 0]}
+          rotation={direccionGrados}
+          stroke={colorTipo}
+          fill={colorTipo}
+          strokeWidth={2}
+          pointerLength={5}
+          pointerWidth={5}
+          opacity={0.9}
+          listening={false}
+        />
+      )}
+
       <Circle
         radius={
           10
@@ -2448,7 +2766,7 @@ function VehiculoMarker({
         }
         fontStyle="bold"
         fill={
-          color
+          colorTipo
         }
       />
 
@@ -2461,6 +2779,16 @@ function VehiculoMarker({
         fontSize={8}
         fontStyle="bold"
         fill="#0f172a"
+      />
+
+      <Text
+        x={-30}
+        y={23}
+        width={60}
+        align="center"
+        text={`${vehiculo.cargaActual}/${capacidad || "—"}`}
+        fontSize={7}
+        fill="#475569"
       />
 
       {vehiculo.motivoDetencion && (
@@ -2490,6 +2818,8 @@ function VehiculoMarker({
 
 function GrupoVehiculosMarker({
   vehiculos,
+  cargaTotal,
+  capacidadTotal,
   x,
   y,
   onTooltip,
@@ -2497,6 +2827,12 @@ function GrupoVehiculosMarker({
 }: {
   vehiculos:
     VehiculoMapa[];
+
+  cargaTotal:
+    number;
+
+  capacidadTotal:
+    number;
 
   x: number;
   y: number;
@@ -2536,6 +2872,24 @@ function GrupoVehiculosMarker({
         "BICICLETA",
     ).length;
 
+  const porcentajeCarga =
+    capacidadTotal > 0
+      ? (cargaTotal / capacidadTotal) * 100
+      : 0;
+
+  const nivel =
+    nivelSemaforoCarga(
+      cargaTotal,
+      capacidadTotal,
+      60,
+      85,
+    );
+
+  const color =
+    colorSemaforo(
+      nivel,
+    );
+
   return (
     <Group
       x={x}
@@ -2554,6 +2908,8 @@ function GrupoVehiculosMarker({
             `Motos: ${motos}`,
 
             `Bicicletas: ${bicicletas}`,
+
+            `Carga: ${cargaTotal}/${capacidadTotal || "—"} (${porcentajeCarga.toFixed(0)}%)`,
 
             `Coordenadas: (${vehiculos[0].x}, ${vehiculos[0].y})`,
           ],
@@ -2574,6 +2930,8 @@ function GrupoVehiculosMarker({
 
             `Bicicletas: ${bicicletas}`,
 
+            `Carga: ${cargaTotal}/${capacidadTotal || "—"} (${porcentajeCarga.toFixed(0)}%)`,
+
             `Coordenadas: (${vehiculos[0].x}, ${vehiculos[0].y})`,
           ],
         )
@@ -2587,7 +2945,9 @@ function GrupoVehiculosMarker({
           16
         }
         fill="#0f172a"
-        stroke="#f97316"
+        stroke={
+          color
+        }
         strokeWidth={
           2.5
         }
@@ -2615,6 +2975,17 @@ function GrupoVehiculosMarker({
         }
         fontStyle="bold"
         fill="#ffffff"
+      />
+
+      <Text
+        x={-18}
+        y={18}
+        width={36}
+        align="center"
+        text={`${porcentajeCarga.toFixed(0)}%`}
+        fontSize={7}
+        fontStyle="bold"
+        fill="#334155"
       />
     </Group>
   );
@@ -3048,6 +3419,145 @@ function LeyendaLinea({
       </span>
     </div>
   );
+}
+
+function adaptarTipoVehiculo(
+  tipo: TipoVehiculoResponseDto["tipo"],
+): TipoVehiculo {
+  switch (tipo) {
+    case "CAR":
+      return "AUTO";
+    case "MOTORCYCLE":
+      return "MOTO";
+    case "BICYCLE":
+      return "BICICLETA";
+  }
+}
+
+function porcentajeAlmacen(
+  almacen: AlmacenMapa,
+) {
+  if (
+    almacen.tipo === "CENTRAL" ||
+    !almacen.capacidad ||
+    almacen.capacidad <= 0
+  ) {
+    return 100;
+  }
+
+  return Math.min(
+    100,
+    Math.max(
+      0,
+      ((almacen.stock ?? 0) /
+        almacen.capacidad) *
+        100,
+    ),
+  );
+}
+
+function nivelSemaforoStock(
+  porcentaje: number,
+  verdeDesde: number,
+  ambarDesde: number,
+): Exclude<NivelSemaforo, "TODOS"> {
+  if (porcentaje <= 0) {
+    return "VACIO";
+  }
+
+  if (porcentaje >= ambarDesde) {
+    return "VERDE";
+  }
+
+  if (porcentaje >= verdeDesde) {
+    return "AMBAR";
+  }
+
+  return "ROJO";
+}
+
+function nivelSemaforoCarga(
+  carga: number,
+  capacidad: number,
+  verdeHasta: number,
+  ambarHasta: number,
+): Exclude<NivelSemaforo, "TODOS"> {
+  const porcentaje =
+    capacidad > 0
+      ? (carga / capacidad) * 100
+      : 0;
+
+  if (carga <= 0) {
+    return "VACIO";
+  }
+
+  if (porcentaje <= verdeHasta) {
+    return "VERDE";
+  }
+
+  if (porcentaje <= ambarHasta) {
+    return "AMBAR";
+  }
+
+  return "ROJO";
+}
+
+function colorSemaforo(
+  nivel: Exclude<NivelSemaforo, "TODOS">,
+) {
+  switch (nivel) {
+    case "VACIO":
+      return "#64748b";
+    case "VERDE":
+      return "#16a34a";
+    case "AMBAR":
+      return "#d97706";
+    case "ROJO":
+      return "#dc2626";
+  }
+}
+
+function nombreNivel(
+  nivel: Exclude<NivelSemaforo, "TODOS">,
+) {
+  switch (nivel) {
+    case "VACIO":
+      return "Vacío";
+    case "VERDE":
+      return "Verde";
+    case "AMBAR":
+      return "Ámbar";
+    case "ROJO":
+      return "Rojo";
+  }
+}
+
+function estiloAveria(
+  tipo: AveriaResponseDto["tipo"],
+) {
+  switch (tipo) {
+    case "MINOR":
+      return {
+        nombre: "leve",
+        codigo: "L",
+        color: "#d97706",
+        fondo: "#fffbeb",
+      };
+    case "INTERMEDIATE":
+      return {
+        nombre: "intermedia",
+        codigo: "I",
+        color: "#ea580c",
+        fondo: "#fff7ed",
+      };
+    case "MAJOR":
+      return {
+        nombre: "grave",
+        codigo: "G",
+        color: "#dc2626",
+        fondo: "#fef2f2",
+      };
+  }
 }
 
 function filtroVehiculoActivo(

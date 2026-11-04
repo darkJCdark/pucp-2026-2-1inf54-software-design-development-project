@@ -4,6 +4,7 @@ import type {
   PaginaResponseDto,
   PedidoDetalleResponseDto,
   PedidoResponseDto,
+  PeriodoCargadoResponseDto,
   RegistrarPedidoRequestDto,
   TipoEntregaBackend,
 } from "@/api/pedidos.dto";
@@ -137,6 +138,12 @@ export const pedidosService = {
     }
 
     return acumulados;
+  },
+
+  periodosCargados(): Promise<PeriodoCargadoResponseDto[]> {
+    return apiRequest<PeriodoCargadoResponseDto[]>(
+      "/api/pedidos/periodos-cargados",
+    );
   },
 
   obtener(

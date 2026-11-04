@@ -19,12 +19,14 @@ export function SemaforoConfiguracion() {
       <div className="grid gap-8 md:grid-cols-2">
         <div>
           <h3 className="mb-4 text-sm font-medium">
-            Porcentaje despachado de almacenes intermedios
+            Nivel de stock de almacenes intermedios
           </h3>
 
           <CampoConfiguracion label="Verde — hasta">
             <Input
               type="number"
+              min="0"
+              max="100"
               value={
                 configuracion.almacenVerdeHasta
               }
@@ -42,6 +44,8 @@ export function SemaforoConfiguracion() {
             <CampoConfiguracion label="Ámbar — hasta">
               <Input
                 type="number"
+                min="0"
+                max="100"
                 value={
                   configuracion.almacenAmbarHasta
                 }
@@ -59,18 +63,20 @@ export function SemaforoConfiguracion() {
 
         <div>
           <h3 className="mb-4 text-sm font-medium">
-            Estado de pedidos respecto a su plazo
+            Ocupación de unidades de transporte
           </h3>
 
-          <CampoConfiguracion label="Verde — tiempo transcurrido ≤">
+          <CampoConfiguracion label="Verde — ocupación ≤">
             <Input
               type="number"
+              min="0"
+              max="100"
               value={
-                configuracion.pedidoVerdeHasta
+                configuracion.vehiculoVerdeHasta
               }
               onChange={(event) =>
                 actualizarConfiguracion({
-                  pedidoVerdeHasta: Number(
+                  vehiculoVerdeHasta: Number(
                     event.target.value,
                   ),
                 })
@@ -79,15 +85,17 @@ export function SemaforoConfiguracion() {
           </CampoConfiguracion>
 
           <div className="mt-4">
-            <CampoConfiguracion label="Ámbar — tiempo transcurrido ≤">
+            <CampoConfiguracion label="Ámbar — ocupación ≤">
               <Input
                 type="number"
+                min="0"
+                max="100"
                 value={
-                  configuracion.pedidoAmbarHasta
+                  configuracion.vehiculoAmbarHasta
                 }
                 onChange={(event) =>
                   actualizarConfiguracion({
-                    pedidoAmbarHasta: Number(
+                    vehiculoAmbarHasta: Number(
                       event.target.value,
                     ),
                   })

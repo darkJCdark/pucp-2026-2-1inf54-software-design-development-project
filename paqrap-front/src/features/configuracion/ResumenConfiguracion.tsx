@@ -1,24 +1,37 @@
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useConfiguracion } from "@/context/ConfiguracionContext";
-import type { Escenario } from "./configuracion.types";
 
-export function ResumenConfiguracion() {
+import type { Escenario } from "./configuracion.types";
+import { periodoLegible } from "./periodos";
+
+interface ResumenConfiguracionProps {
+  mesesRequeridos: string[];
+  mesesFaltantes: string[];
+}
+
+export function ResumenConfiguracion({
+  mesesRequeridos,
+  mesesFaltantes,
+}: ResumenConfiguracionProps) {
   const { configuracion, archivoPedidos, archivoBloqueos } = useConfiguracion();
+
+  const fuentePedidos =
+    configuracion.escenario === "DIA_A_DIA"
+      ? "Registro en línea"
+      : archivoPedidos?.name ??
+        (mesesFaltantes.length === 0 && mesesRequeridos.length > 0
+          ? `Base de datos · ${mesesRequeridos.map(periodoLegible).join(", ")}`
+          : mesesFaltantes.length > 0
+            ? `Falta ${mesesFaltantes.map(periodoLegible).join(", ")}`
+            : "Selecciona una fecha");
 
   return (
     <Card className="h-fit border-slate-800 bg-[#151b23] p-4">
       <h2 className="mb-5 font-semibold">Resumen de configuración</h2>
 
       <Fila label="Escenario" value={nombreEscenario(configuracion.escenario)} />
-      <Fila
-        label="Pedidos"
-        value={
-          configuracion.escenario === "DIA_A_DIA"
-            ? "Registro en línea"
-            : archivoPedidos?.name ?? "—"
-        }
-      />
+      <Fila label="Pedidos" value={fuentePedidos} />
 
       {configuracion.escenario !== "DIA_A_DIA" && (
         <>
@@ -27,15 +40,12 @@ export function ResumenConfiguracion() {
         </>
       )}
 
-      <Fila label="Planificador" value="Simulated Annealing" />
-      <Fila
-        label="Parámetros SA"
-        value={
-          configuracion.usarConfiguracionSa
-            ? `Semilla ${configuracion.saSemilla || "aleatoria"} · T₀ ${configuracion.saTemperaturaInicial} · α ${configuracion.saFactorEnfriamiento}`
-            : "Valores por defecto"
-        }
-      />
+      {configuracion.usarConfiguracionSa && (
+        <Fila
+          label="Configuración avanzada"
+          value={`Semilla ${configuracion.saSemilla || "aleatoria"} · T₀ ${configuracion.saTemperaturaInicial} · α ${configuracion.saFactorEnfriamiento}`}
+        />
+      )}
 
       <Separator className="my-4 bg-slate-800" />
 
@@ -55,9 +65,15 @@ export function ResumenConfiguracion() {
 
       <Separator className="my-4 bg-slate-800" />
       <p className="mb-2 text-xs uppercase text-slate-500">Semáforo de inventario</p>
-      <Fila label="Nivel verde" value={`≥ ${configuracion.almacenAmbarHasta}%`} />
-      <Fila label="Nivel ámbar" value={`≥ ${configuracion.almacenVerdeHasta}%`} />
-      <Fila label="Nivel rojo" value={`< ${configuracion.almacenVerdeHasta}%`} />
+      <Fila label="Stock verde" value={`≥ ${configuracion.almacenAmbarHasta}%`} />
+      <Fila label="Stock ámbar" value={`≥ ${configuracion.almacenVerdeHasta}%`} />
+      <Fila label="Stock rojo" value={`< ${configuracion.almacenVerdeHasta}%`} />
+
+      <Separator className="my-4 bg-slate-800" />
+      <p className="mb-2 text-xs uppercase text-slate-500">Semáforo de carga</p>
+      <Fila label="Carga verde" value={`≤ ${configuracion.vehiculoVerdeHasta}%`} />
+      <Fila label="Carga ámbar" value={`≤ ${configuracion.vehiculoAmbarHasta}%`} />
+      <Fila label="Carga roja" value={`> ${configuracion.vehiculoAmbarHasta}%`} />
     </Card>
   );
 }

@@ -24,6 +24,7 @@ export interface SeguimientoRuta {
   refrigerioHasta: string | null;
   progresoTramo: number;
   progresoRuta: number;
+  direccionGrados: number | null;
   siguienteParada: ParadaMapa | null;
   paradaEnServicio: ParadaMapa | null;
   paradaEnRefrigerio: ParadaMapa | null;
@@ -41,6 +42,18 @@ export function obtenerSeguimientoRuta(
   instanteMs: number,
 ): SeguimientoRuta {
   const posicion = calcularPosicionVehiculoAnimada(vehiculo, ruta, instanteMs);
+  const posicionSiguiente = calcularPosicionVehiculoAnimada(
+    vehiculo,
+    ruta,
+    instanteMs + 1_000,
+  );
+  const deltaX = posicionSiguiente.x - posicion.x;
+  const deltaY = posicionSiguiente.y - posicion.y;
+  const direccionGrados =
+    posicion.enMovimiento && (Math.abs(deltaX) > 1e-6 || Math.abs(deltaY) > 1e-6)
+      ? (Math.atan2(-deltaY, deltaX) * 180) / Math.PI
+      : null;
+
   const paradasOrdenadas = [...ruta.paradas].sort((a, b) => a.orden - b.orden);
 
   const paradaEnRefrigerio =
@@ -113,6 +126,7 @@ export function obtenerSeguimientoRuta(
         : paradaEnRefrigerio?.llegada ?? null,
     progresoTramo: posicion.progresoTramo,
     progresoRuta,
+    direccionGrados,
     siguienteParada,
     paradaEnServicio,
     paradaEnRefrigerio,

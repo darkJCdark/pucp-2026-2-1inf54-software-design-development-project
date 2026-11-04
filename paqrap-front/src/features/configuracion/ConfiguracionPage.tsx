@@ -19,6 +19,7 @@ import type {
   TipoVehiculoBackend,
   VehiculoResponseDto,
 } from "@/api/flota.dto";
+import type { PeriodoCargadoResponseDto } from "@/api/pedidos.dto";
 import { escenariosService } from "@/services/escenarios.service";
 import { pedidosService } from "@/services/pedidos.service";
 import { bloqueosService } from "@/services/bloqueos.service";
@@ -31,6 +32,13 @@ import { FlotaConfiguracion } from "./FlotaConfiguracion";
 import { SemaforoConfiguracion } from "./SemaforoConfiguracion";
 import { ResumenConfiguracion } from "./ResumenConfiguracion";
 import { ConfirmarInicioModal } from "./ConfirmarInicioModal";
+import {
+  archivoVentasEsperado,
+  periodoDesdeArchivoBloqueos,
+  periodoDesdeArchivoVentas,
+  periodoLegible,
+  periodosRequeridos,
+} from "./periodos";
 
 export default function ConfiguracionPage() {
   const navigate = useNavigate();
@@ -49,23 +57,36 @@ export default function ConfiguracionPage() {
   const [verificandoActivo, setVerificandoActivo] = useState(true);
   const [deteniendo, setDeteniendo] = useState(false);
   const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
+  const [periodosCargados, setPeriodosCargados] =
+    useState<PeriodoCargadoResponseDto[]>([]);
+  const [consultandoPeriodos, setConsultandoPeriodos] = useState(true);
 
-  const necesitaArchivo = configuracion.escenario !== "DIA_A_DIA";
+  const usaDatosHistoricos = configuracion.escenario !== "DIA_A_DIA";
+  const mesesRequeridos = periodosRequeridos(
+    configuracion.escenario,
+    configuracion.inicioSimulado,
+  );
+  const periodoArchivoPedidos = periodoDesdeArchivoVentas(archivoPedidos?.name ?? "");
+  const periodosDisponibles = new Set(periodosCargados.map((item) => item.periodo));
+  if (periodoArchivoPedidos) periodosDisponibles.add(periodoArchivoPedidos);
+  const mesesFaltantes = mesesRequeridos.filter((periodo) => !periodosDisponibles.has(periodo));
 
   useEffect(() => {
     let vigente = true;
 
     async function inicializar() {
       try {
-        const [activo, tipos, vehiculos] = await Promise.all([
+        const [activo, tipos, vehiculos, periodos] = await Promise.all([
           buscarEscenarioActivo(),
           flotaService.listarTipos(),
           flotaService.listarVehiculos(),
+          pedidosService.periodosCargados(),
         ]);
 
         if (!vigente) return;
 
         setEscenarioActivo(activo);
+        setPeriodosCargados(periodos);
         const porTipo = new Map(tipos.map((tipo) => [tipo.tipo, tipo]));
 
         actualizarConfiguracion({
@@ -87,7 +108,10 @@ export default function ConfiguracionPage() {
           );
         }
       } finally {
-        if (vigente) setVerificandoActivo(false);
+        if (vigente) {
+          setVerificandoActivo(false);
+          setConsultandoPeriodos(false);
+        }
       }
     }
 
@@ -150,11 +174,22 @@ export default function ConfiguracionPage() {
       return "Todas las velocidades deben ser mayores que cero.";
     }
 
+    const umbrales = [
+      configuracion.almacenVerdeHasta,
+      configuracion.almacenAmbarHasta,
+      configuracion.vehiculoVerdeHasta,
+      configuracion.vehiculoAmbarHasta,
+    ];
+
+    if (umbrales.some((valor) => valor < 0 || valor > 100)) {
+      return "Los umbrales de semáforo deben estar entre 0 y 100%.";
+    }
+
     if (
       configuracion.almacenVerdeHasta >= configuracion.almacenAmbarHasta ||
-      configuracion.pedidoVerdeHasta >= configuracion.pedidoAmbarHasta
+      configuracion.vehiculoVerdeHasta >= configuracion.vehiculoAmbarHasta
     ) {
-      return "Los límites verdes deben ser menores que los límites ámbar.";
+      return "El límite verde debe ser menor que el límite ámbar.";
     }
 
     if (configuracion.usarConfiguracionSa) {
@@ -163,7 +198,7 @@ export default function ConfiguracionPage() {
         configuracion.saTemperaturaMinima <= 0 ||
         configuracion.saTemperaturaMinima >= configuracion.saTemperaturaInicial
       ) {
-        return "Los parámetros de SA requieren temperaturas positivas y Tmin menor que T0.";
+        return "La configuración avanzada requiere temperaturas positivas y Tmin menor que T0.";
       }
 
       if (
@@ -185,38 +220,14 @@ export default function ConfiguracionPage() {
       }
     }
 
-    if (configuracion.escenario === "DIA_A_DIA") {
-      return null;
-    }
+    if (configuracion.escenario === "DIA_A_DIA") return null;
 
-    if (!archivoPedidos) {
-      return "Selecciona el archivo de pedidos antes de iniciar.";
-    }
-
-    const ventas = /^ventas\.(\d{4})(\d{2})\.txt$/i.exec(archivoPedidos.name);
-    if (!ventas) {
-      return "El archivo de pedidos debe llamarse ventas.AAAAMM.txt.";
+    if (consultandoPeriodos) {
+      return "Espera mientras se verifican los meses de pedidos cargados.";
     }
 
     if (!configuracion.inicioSimulado) {
       return "Selecciona la fecha y hora inicial de la simulación.";
-    }
-
-    if (archivoBloqueos) {
-      const bloqueos = /^bloqueo\.(\d{2})(\d{2})\.txt$/i.exec(
-        archivoBloqueos.name,
-      );
-
-      if (!bloqueos) {
-        return "El archivo de bloqueos debe llamarse bloqueo.AAMM.txt.";
-      }
-
-      if (
-        2000 + Number(bloqueos[1]) !== Number(ventas[1]) ||
-        Number(bloqueos[2]) !== Number(ventas[2])
-      ) {
-        return "Los archivos de pedidos y bloqueos deben corresponder al mismo periodo.";
-      }
     }
 
     const fecha = new Date(
@@ -227,17 +238,38 @@ export default function ConfiguracionPage() {
       return "La fecha inicial no es válida.";
     }
 
-    const partes = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "America/Lima",
-      year: "numeric",
-      month: "2-digit",
-    }).formatToParts(fecha);
+    if (archivoPedidos) {
+      if (!periodoArchivoPedidos) {
+        return "El archivo de pedidos debe llamarse ventas.AAAAMM.txt.";
+      }
 
-    const anio = Number(partes.find((parte) => parte.type === "year")?.value);
-    const mes = Number(partes.find((parte) => parte.type === "month")?.value);
+      if (!mesesRequeridos.includes(periodoArchivoPedidos)) {
+        return `El archivo ${archivoPedidos.name} no corresponde a los meses requeridos por el escenario.`;
+      }
+    }
 
-    if (anio !== Number(ventas[1]) || mes !== Number(ventas[2])) {
-      return `La simulación debe comenzar dentro del periodo ${ventas[1]}-${ventas[2]}.`;
+    if (archivoBloqueos) {
+      const periodoBloqueo = periodoDesdeArchivoBloqueos(archivoBloqueos.name);
+      if (!periodoBloqueo) {
+        return "El archivo de bloqueos debe llamarse bloqueo.AAMM.txt.";
+      }
+
+      if (archivoPedidos && periodoArchivoPedidos !== periodoBloqueo) {
+        return "Los archivos de pedidos y bloqueos deben corresponder al mismo periodo.";
+      }
+
+      if (!archivoPedidos && !mesesRequeridos.includes(periodoBloqueo)) {
+        return `El archivo ${archivoBloqueos.name} no corresponde a los meses requeridos por el escenario.`;
+      }
+    }
+
+    if (mesesFaltantes.length > 0) {
+      return mesesFaltantes
+        .map(
+          (periodo) =>
+            `Falta ${periodoLegible(periodo)}: carga ${archivoVentasEsperado(periodo)}.`,
+        )
+        .join("\n");
     }
 
     return null;
@@ -269,17 +301,18 @@ export default function ConfiguracionPage() {
       await reconciliarCantidadFlota();
       await actualizarParametrosFlota();
 
-      if (necesitaArchivo && archivoPedidos) {
+      if (usaDatosHistoricos && archivoPedidos) {
         const carga = await pedidosService.cargarArchivo(archivoPedidos);
         mostrarToast({
           titulo: "Pedidos cargados",
           descripcion: `${carga.registrados} registrados · ${carga.omitidos} omitidos`,
           variante: "success",
         });
+        setPeriodosCargados(await pedidosService.periodosCargados());
       }
 
-      if (necesitaArchivo && archivoBloqueos) {
-        const periodo = periodoDesdeVentas(archivoPedidos?.name ?? "");
+      if (usaDatosHistoricos && archivoBloqueos) {
+        const periodo = periodoDesdeArchivoBloqueos(archivoBloqueos.name);
         const carga = await bloqueosService.cargarArchivo(
           archivoBloqueos,
           periodo ?? undefined,
@@ -384,13 +417,19 @@ export default function ConfiguracionPage() {
   const puedeIniciar =
     !iniciando &&
     !verificandoActivo &&
+    !(usaDatosHistoricos && consultandoPeriodos) &&
     !escenarioActivo &&
     validarConfiguracion() === null;
 
   return (
     <div className="flex min-h-full flex-col">
       <div className="grid flex-1 gap-3 p-4 xl:grid-cols-[250px_minmax(0,1fr)_270px]">
-        <OrigenDatos />
+        <OrigenDatos
+          periodosCargados={periodosCargados}
+          mesesRequeridos={mesesRequeridos}
+          mesesFaltantes={mesesFaltantes}
+          consultandoPeriodos={consultandoPeriodos}
+        />
 
         <section className="space-y-3">
           <ParametrosOperacion />
@@ -398,7 +437,10 @@ export default function ConfiguracionPage() {
           <SemaforoConfiguracion />
         </section>
 
-        <ResumenConfiguracion />
+        <ResumenConfiguracion
+          mesesRequeridos={mesesRequeridos}
+          mesesFaltantes={mesesFaltantes}
+        />
       </div>
 
       {verificandoActivo && (
@@ -487,10 +529,14 @@ export default function ConfiguracionPage() {
       <ConfirmarInicioModal
         abierto={mostrarConfirmacion}
         configuracion={configuracion}
-        archivoPedidos={archivoPedidos}
         archivoBloqueos={archivoBloqueos}
         confirmando={iniciando}
         onCancelar={() => setMostrarConfirmacion(false)}
+        fuentePedidos={
+          configuracion.escenario === "DIA_A_DIA"
+            ? "Registro en línea"
+            : archivoPedidos?.name ?? `Base de datos · ${mesesRequeridos.join(", ")}`
+        }
         onConfirmar={() => void handleIniciarSimulacion()}
       />
     </div>
@@ -507,11 +553,6 @@ function ordenarParaBaja(vehiculos: VehiculoResponseDto[]) {
     const prioridadB = b.estado === "AVAILABLE" ? 0 : 1;
     return prioridadA - prioridadB || b.id.localeCompare(a.id, undefined, { numeric: true });
   });
-}
-
-function periodoDesdeVentas(nombre: string) {
-  const match = /^ventas\.(\d{4})(\d{2})\.txt$/i.exec(nombre);
-  return match ? `${match[1]}-${match[2]}` : null;
 }
 
 function convertirEscenario(
