@@ -152,7 +152,7 @@ export default function ConfiguracionPage() {
 
     if (
       configuracion.almacenVerdeHasta >= configuracion.almacenAmbarHasta ||
-      configuracion.pedidoVerdeHasta >= configuracion.pedidoAmbarHasta
+      configuracion.vehiculoVerdeHasta >= configuracion.vehiculoAmbarHasta
     ) {
       return "Los límites verdes deben ser menores que los límites ámbar.";
     }

@@ -1,0 +1,20 @@
+﻿{
+    "executionId":  23,
+    "tipo":  "FIVE_DAY",
+    "estado":  "COMPLETED",
+    "inicioSimulado":  "2026-02-28T05:00:00Z",
+    "finSimulado":  "2026-03-05T05:00:00Z",
+    "inicioReal":  "2026-11-05T00:23:19.684525Z",
+    "finReal":  "2026-11-05T01:08:20.323775Z",
+    "colapsoEn":  null,
+    "totalOrders":  215,
+    "deliveredOrders":  212,
+    "onTimeOrders":  212,
+    "undeliveredOrders":  3,
+    "totalDistanceKm":  15227.60,
+    "totalCost":  68734.80,
+    "computationTimeMs":  312488,
+    "breakdownCount":  0,
+    "roadBlockCount":  89,
+    "replanningCount":  367
+}
