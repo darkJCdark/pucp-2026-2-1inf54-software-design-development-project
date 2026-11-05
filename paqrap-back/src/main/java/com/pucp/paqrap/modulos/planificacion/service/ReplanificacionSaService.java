@@ -27,6 +27,7 @@ import com.pucp.paqrap.modulos.flota.entity.VehicleOperationalState;
 import com.pucp.paqrap.modulos.flota.entity.VehicleStatus;
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
+import com.pucp.paqrap.modulos.incidencias.entity.BreakdownType;
 import com.pucp.paqrap.modulos.incidencias.entity.BreakdownResolution;
 import com.pucp.paqrap.modulos.incidencias.service.BreakdownAvailabilityCalculator;
 import com.pucp.paqrap.modulos.pedidos.entity.Order;
@@ -100,7 +101,7 @@ public class ReplanificacionSaService implements ReplanificacionService {
         // Igual que el plan sin replanificación: las averías ya registradas cuentan desde el inicio.
         estado.averias = new ArrayList<>(fuente.averias(ejecucionId));
         ReplanificacionResponse respuesta = replanificar(estado, MotivoReplanificacion.INICIO,
-                solicitud.horaPlanificacion(), List.of(), List.of(), List.of(), false, Set.of());
+                solicitud.horaPlanificacion(), List.of(), List.of(), List.of(), List.of(), false, Set.of());
         ejecuciones.put(ejecucionId, estado);
         return respuesta;
     }
@@ -149,7 +150,7 @@ public class ReplanificacionSaService implements ReplanificacionService {
                 : !eventos.pedidos().isEmpty() ? MotivoReplanificacion.NUEVO_PEDIDO
                 : MotivoReplanificacion.PERIODICO;
         ReplanificacionResponse respuesta = replanificar(estado, motivo, ahora, List.copyOf(nuevos.values()),
-                bloqueos, eventos.averias(), bloqueoIniciado || bloqueoTerminado,
+                bloqueos, eventos.averias(), eventos.averiasTerminadas(), bloqueoIniciado || bloqueoTerminado,
                 Set.copyOf(eventos.tiposFlotaActualizados()));
         estado.bloqueosConocidos.addAll(recibidos);
         return respuesta;
@@ -198,7 +199,8 @@ public class ReplanificacionSaService implements ReplanificacionService {
 
     private ReplanificacionResponse replanificar(EstadoEjecucion estado, MotivoReplanificacion motivo, Instant ahora,
                                                  List<Order> nuevosPedidos, List<RoadBlock> nuevosBloqueos,
-                                                 List<BreakdownEvent> nuevasAverias, boolean cambioBloqueo,
+                                                 List<BreakdownEvent> nuevasAverias, List<BreakdownEvent> averiasTerminadas,
+                                                 boolean cambioBloqueo,
                                                  Set<VehicleType> tiposFlotaActualizados) {
         // 1. Datos con los eventos aplicados (el estado se confirma recién al final).
         Map<String, Order> pedidos = new LinkedHashMap<>(estado.pedidos);
@@ -229,10 +231,12 @@ public class ReplanificacionSaService implements ReplanificacionService {
         }
 
         // 3. Conserved routes are rescheduled when their road path or fleet parameters change.
-        List<RutaVigente> conservadas = corte.conservadas().stream()
+        List<RutaVigente> conservadas = new ArrayList<>(corte.conservadas().stream()
                 .map(ruta -> cambioBloqueo || tiposFlotaActualizados.contains(ruta.ruta().vehicle().type())
                         ? reprogramar(ruta, bloqueos, !tiposFlotaActualizados.isEmpty()) : ruta)
-                .toList();
+                .toList());
+        agregarRegresosAlCentral(averiasTerminadas, ahora, central, almacenes, conservadas, forzados, averias, retiros,
+                bloqueos);
 
         // 4. Pendiente = pedido menos lo entregado y lo que llevan las rutas conservadas.
         Map<String, Integer> cubiertos = new HashMap<>(entregados);
@@ -326,6 +330,34 @@ public class ReplanificacionSaService implements ReplanificacionService {
         estado.ultimaHora = ahora;
         estado.ultimaRespuesta = respuesta;
         return respuesta;
+    }
+
+    /**
+     * Supuesto del equipo: al terminar una avería menor, la unidad cuya ruta se interrumpió regresa vacía al central
+     * por las calles (el caso no define qué hace, y el planificador solo asigna unidades que están en el central). Sus
+     * pedidos ya se reasignaron; queda ocupada hasta llegar.
+     */
+    private void agregarRegresosAlCentral(List<BreakdownEvent> averiasTerminadas, Instant ahora, Warehouse central,
+                                          Collection<Warehouse> almacenes, List<RutaVigente> conservadas,
+                                          Map<String, VehicleOperationalState> forzados, List<BreakdownEvent> averias,
+                                          Map<String, Integer> retiros, List<RoadBlock> bloqueos) {
+        for (BreakdownEvent averia : averiasTerminadas) {
+            String vehiculoId = averia.vehicleId();
+            VehicleOperationalState detenido = forzados.get(vehiculoId);
+            if (averia.type() != BreakdownType.MINOR || detenido == null
+                    || conservadas.stream().anyMatch(ruta -> ruta.vehiculoId().equals(vehiculoId))) {
+                continue;
+            }
+            forzados.remove(vehiculoId);
+            if (averia.location().equals(central.location())) {
+                continue;
+            }
+            DeliveryRoute regreso = DeliveryRoute.replanFromCurrentLocation("REGRESO-" + vehiculoId, detenido.vehicle(),
+                    averia.location(), 0, ahora).returningTo(central);
+            OperationalSnapshot snapshot = construirSnapshot(ahora, central, almacenes, conservadas, forzados, averias,
+                    retiros);
+            conservadas.add(reprogramar(new RutaVigente(regreso, snapshot, null, List.of()), bloqueos, false));
+        }
     }
 
     private RutaVigente reprogramar(RutaVigente ruta, List<RoadBlock> bloqueos, boolean perfilFlotaActualizado) {

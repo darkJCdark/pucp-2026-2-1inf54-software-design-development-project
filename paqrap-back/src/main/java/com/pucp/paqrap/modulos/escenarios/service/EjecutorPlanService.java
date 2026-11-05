@@ -167,8 +167,9 @@ public class EjecutorPlanService {
     /**
      * Dónde está un vehículo en ruta en {@code instante}, con el mismo cálculo que dibuja el front
      * ({@code calcularPosicionVehiculoAnimada} en paqrap-front/src/features/ejecucion/movimientoVehiculos.ts):
-     * quieto en la parada mientras hace el servicio, o avanzando sobre un camino en L entre la parada anterior y la
-     * siguiente según la fracción del tiempo del tramo. Se redondea al nodo más cercano de la cuadrícula. Vacío si el
+     * quieto en la parada mientras hace el servicio, o avanzando entre la parada anterior y la siguiente según la
+     * fracción del tiempo del tramo, por el camino real del plan (que rodea los bloqueos) o, si la parada no lo trae,
+     * por un camino en L. Se redondea al nodo más cercano de la cuadrícula. Vacío si el
      * vehículo no está en ruta en el plan que se ejecuta.
      */
     public Optional<Location> posicionEstimada(long ejecucionId, String vehiculoId, Instant instante) {
@@ -241,8 +242,26 @@ public class EjecutorPlanService {
         }
         double progreso = Math.min(1.0, (double) Duration.between(inicioTramo, instante).toMillis()
                 / Duration.between(inicioTramo, finTramo).toMillis());
+        if (siguiente.camino() != null && siguiente.camino().size() >= 2) {
+            return interpolarEnCamino(siguiente.camino(), progreso);
+        }
         return interpolarOrtogonal(origen, new Location(siguiente.x(), siguiente.y()), progreso,
                 horizontalPrimero(ruta.vehiculoId()));
+    }
+
+    /**
+     * Recorre {@code progreso} (0 a 1) del camino real del planificador (calles de 1 km, a velocidad pareja en el
+     * tramo) y redondea al nodo más cercano. Mismo cálculo que interpolarEnCamino del front.
+     */
+    static Location interpolarEnCamino(List<ParadaResponse.Punto> camino, double progreso) {
+        int calles = camino.size() - 1;
+        double recorrido = Math.max(0, Math.min(1, progreso)) * calles;
+        int indice = Math.min((int) Math.floor(recorrido), calles - 1);
+        double fraccion = recorrido - indice;
+        ParadaResponse.Punto desde = camino.get(indice);
+        ParadaResponse.Punto hasta = camino.get(indice + 1);
+        return new Location((int) Math.round(desde.x() + (hasta.x() - desde.x()) * fraccion),
+                (int) Math.round(desde.y() + (hasta.y() - desde.y()) * fraccion));
     }
 
     /** Cuándo el vehículo llega físicamente a la parada: antes del refrigerio, si lo toma ahí. */

@@ -63,10 +63,80 @@ export function interpolarOrtogonal(
   return { x: origen.x + signoX * (recorrido - largoY), y: destino.y };
 }
 
+/** Camino real informado por el backend, si tiene al menos un tramo. */
+export function caminoValido(
+  camino: PosicionMapa[] | null | undefined,
+): camino is PosicionMapa[] {
+  return Array.isArray(camino) && camino.length >= 2;
+}
+
+/**
+ * Recorre `progreso` (0 a 1) del camino real (calles de 1 km a velocidad pareja).
+ * Mismo cálculo que EjecutorPlanService.interpolarEnCamino del backend, sin redondear.
+ */
+export function interpolarEnCamino(
+  camino: PosicionMapa[],
+  progreso: number,
+): PosicionMapa {
+  const calles = camino.length - 1;
+  const recorrido = clamp01(progreso) * calles;
+  const indice = Math.min(Math.floor(recorrido), calles - 1);
+  const fraccion = recorrido - indice;
+  const desde = camino[indice];
+  const hasta = camino[indice + 1];
+  return {
+    x: desde.x + (hasta.x - desde.x) * fraccion,
+    y: desde.y + (hasta.y - desde.y) * fraccion,
+  };
+}
+
+/** Posición continua de `punto` a lo largo del camino (índice de calle + fracción). */
+function avanceEnCamino(camino: PosicionMapa[], punto: PosicionMapa): number {
+  let mejor = 0;
+  let menorDistancia = Number.POSITIVE_INFINITY;
+  for (let indice = 0; indice < camino.length - 1; indice += 1) {
+    const a = camino[indice];
+    const b = camino[indice + 1];
+    const largo = Math.abs(b.x - a.x) + Math.abs(b.y - a.y);
+    const t = largo === 0
+      ? 0
+      : clamp01(((punto.x - a.x) * (b.x - a.x) + (punto.y - a.y) * (b.y - a.y)) / (largo * largo));
+    const x = a.x + (b.x - a.x) * t;
+    const y = a.y + (b.y - a.y) * t;
+    const distancia = Math.hypot(punto.x - x, punto.y - y);
+    if (distancia < menorDistancia - 1e-9) {
+      menorDistancia = distancia;
+      mejor = indice + t;
+    }
+  }
+  return mejor;
+}
+
+/**
+ * Nodos del camino que hay que recorrer para ir de `desde` a `hasta`, ambos sobre el camino
+ * (p. ej. la posición actual del vehículo y la siguiente parada). Incluye los extremos.
+ */
+export function tramoDeCamino(
+  camino: PosicionMapa[],
+  desde: PosicionMapa,
+  hasta: PosicionMapa,
+): PosicionMapa[] {
+  const inicio = avanceEnCamino(camino, desde);
+  const fin = avanceEnCamino(camino, hasta);
+  if (fin < inicio) {
+    return [desde, hasta];
+  }
+  const intermedios = camino.filter(
+    (_, indice) => indice > inicio + 1e-9 && indice < fin - 1e-9,
+  );
+  return [desde, ...intermedios, hasta];
+}
+
 /**
  * Posición únicamente visual. Replica el criterio del backend:
  * - usa inicioRefrigerio como arribo físico si existe;
  * - mantiene el vehículo quieto durante refrigerio/servicio;
+ * - avanza por el camino real de la parada (`camino`) o, si no viene, en L;
  * - no reemplaza el estado operacional persistido.
  */
 export function calcularPosicionVehiculoAnimada(
@@ -132,12 +202,15 @@ export function calcularPosicionVehiculoAnimada(
   }
 
   const progreso = clamp01((instanteSimuladoMs - inicioTramo) / (finTramo - inicioTramo));
-  const posicion = interpolarOrtogonal(
-    origen,
-    destino,
-    progreso,
-    horizontalPrimeroParaVehiculo(vehiculo.id),
-  );
+  // Con el camino real del plan rodea los bloqueos; sin él (planes antiguos), camino en L.
+  const posicion = caminoValido(siguiente.camino)
+    ? interpolarEnCamino(siguiente.camino, progreso)
+    : interpolarOrtogonal(
+        origen,
+        destino,
+        progreso,
+        horizontalPrimeroParaVehiculo(vehiculo.id),
+      );
 
   return {
     ...posicion,

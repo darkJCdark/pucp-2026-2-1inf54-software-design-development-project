@@ -59,7 +59,9 @@ import type {
 } from "./ejecucion.types";
 
 import {
+  caminoValido,
   horizontalPrimeroParaVehiculo,
+  tramoDeCamino,
 } from "./movimientoVehiculos";
 
 import {
@@ -1028,6 +1030,9 @@ export function MapaOperacion({
 
                                 y:
                                   parada.y,
+
+                                camino:
+                                  parada.camino,
                               }),
                             ),
                           ],
@@ -1934,6 +1939,9 @@ function RutaSeleccionada({
 
           y:
             parada.y,
+
+          camino:
+            parada.camino,
         }),
       ),
 
@@ -1958,8 +1966,13 @@ function RutaSeleccionada({
             vehiculo.y,
         },
 
-        seguimiento
-          .posicionVisual,
+        {
+          ...seguimiento
+            .posicionVisual,
+
+          camino:
+            siguiente?.camino,
+        },
       ],
 
       convertirX,
@@ -1985,6 +1998,9 @@ function RutaSeleccionada({
 
               y:
                 siguiente.y,
+
+              camino:
+                siguiente.camino,
             },
           ],
 
@@ -2024,6 +2040,9 @@ function RutaSeleccionada({
 
                   y:
                     parada.y,
+
+                  camino:
+                    parada.camino,
                 }),
               ),
           ],
@@ -3173,10 +3192,16 @@ function obtenerParadasPendientes(
   );
 }
 
+/**
+ * Une los puntos por la cuadrícula. Si un punto trae `camino` (el camino real
+ * del plan para llegar a él, que rodea los bloqueos), el tramo hacia ese punto
+ * lo sigue; si no, se dibuja en L.
+ */
 function construirPuntosOrtogonales(
   puntos: Array<{
     x: number;
     y: number;
+    camino?: Array<{ x: number; y: number }> | null;
   }>,
 
   convertirX:
@@ -3222,6 +3247,30 @@ function construirPuntosOrtogonales(
 
     const actual =
       puntos[index];
+
+    if (
+      caminoValido(
+        actual.camino,
+      )
+    ) {
+      for (const nodo of tramoDeCamino(
+        actual.camino,
+        anterior,
+        actual,
+      ).slice(1)) {
+        resultado.push(
+          convertirX(
+            nodo.x,
+          ),
+
+          convertirY(
+            nodo.y,
+          ),
+        );
+      }
+
+      continue;
+    }
 
     if (
       horizontalPrimero
