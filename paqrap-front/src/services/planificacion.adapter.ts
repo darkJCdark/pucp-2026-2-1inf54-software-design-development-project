@@ -1,4 +1,3 @@
-
 import type {
   PlanResponseDto,
   RutaResponseDto,
@@ -10,7 +9,10 @@ import type {
 } from "@/features/ejecucion/ejecucion.types";
 
 function adaptarTipoVehiculo(
-  tipo: RutaResponseDto["tipoVehiculo"],
+  tipo:
+    RutaResponseDto[
+      "tipoVehiculo"
+    ],
 ): TipoVehiculo {
   switch (tipo) {
     case "CAR":
@@ -25,45 +27,91 @@ function adaptarTipoVehiculo(
 }
 
 export function adaptarRuta(
-  dto: RutaResponseDto,
+  dto:
+    RutaResponseDto,
 ): RutaMapa {
   return {
-    id: dto.id,
-    vehiculoId: dto.vehiculoId,
+    id:
+      dto.id,
+
+    vehiculoId:
+      dto.vehiculoId,
+
     tipoVehiculo:
       adaptarTipoVehiculo(
         dto.tipoVehiculo,
       ),
-    salida: dto.salida,
-    llegadaFinal: dto.llegadaFinal,
-    distanciaKm: dto.distanciaKm,
-    costo: dto.costo,
 
-    paradas: dto.paradas.map((parada) => ({
-      ...parada,
-      inicioRefrigerio:
-        parada.inicioRefrigerio ?? null,
-    })),
+    salida:
+      dto.salida,
 
-    // Utilizar la geometría real del backend.
-    // No reconstruir rutas artificiales.
-    tramos: (dto.tramos ?? []).map((tramo) => ({
-      ...tramo,
-    })),
+    llegadaFinal:
+      dto.llegadaFinal,
+
+    distanciaKm:
+      dto.distanciaKm,
+
+    costo:
+      dto.costo,
+
+    /*
+     * Conservamos camino de develop,
+     * pero normalizando undefined -> null
+     * porque ParadaMapa exige null cuando
+     * no existe.
+     */
+    paradas:
+      dto.paradas.map(
+        (parada) => ({
+          ...parada,
+
+          inicioRefrigerio:
+            parada.inicioRefrigerio ??
+            null,
+
+          camino:
+            parada.camino ??
+            null,
+        }),
+      ),
+
+    /*
+     * Los RoadLeg/tramos temporizados
+     * continúan siendo la fuente principal
+     * para dibujar y animar las rutas.
+     */
+    tramos:
+      (
+        dto.tramos ??
+        []
+      ).map(
+        (tramo) => ({
+          ...tramo,
+        }),
+      ),
 
     almacenInicialId:
-      dto.almacenInicialId ?? null,
+      dto.almacenInicialId ??
+      null,
 
     planPersistedId:
-      dto.planPersistedId ?? null,
+      dto.planPersistedId ??
+      null,
 
     routePersistedId:
-      dto.routePersistedId ?? null,
+      dto.routePersistedId ??
+      null,
   };
 }
 
 export function adaptarRutas(
-  plan: PlanResponseDto | null,
+  plan:
+    PlanResponseDto | null,
 ): RutaMapa[] {
-  return plan?.rutas.map(adaptarRuta) ?? [];
+  return (
+    plan?.rutas.map(
+      adaptarRuta,
+    ) ??
+    []
+  );
 }
