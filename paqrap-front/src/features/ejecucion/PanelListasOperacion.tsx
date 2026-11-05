@@ -7,6 +7,7 @@ import type { PlanResponseDto } from "@/api/planificacion.dto";
 
 import type { SeleccionDetalleOperacion } from "./DetalleOperacionPanel";
 import { ListaAlmacenes } from "./ListaAlmacenes";
+import { ListaDistanciasVehiculos } from "./ListaDistanciasVehiculos";
 import { ListaPedidosEjecucion, type SeleccionLista } from "./ListaPedidosEjecucion";
 import { ListaVehiculos } from "./ListaVehiculos";
 
@@ -45,7 +46,7 @@ export function PanelListasOperacion({
   }, [seleccion]);
 
   return (
-    <aside className="absolute left-5 top-[250px] z-50 w-[410px] overflow-hidden rounded-xl border border-slate-700 bg-[#11161d]/97 text-white shadow-2xl">
+    <aside className="w-full shrink-0 overflow-hidden rounded-xl border border-slate-700 bg-[#11161d]/97 text-white shadow-2xl">
       <button
         type="button"
         onClick={() => setAbierto((actual) => !actual)}
@@ -72,8 +73,9 @@ export function PanelListasOperacion({
             <Pestana activa={pestana === "ALMACENES"} icono={<Warehouse className="size-3.5" />} texto="Almacenes" onClick={() => setPestana("ALMACENES")} />
           </div>
 
-          <div className="max-h-[calc(100vh-330px)] overflow-y-auto p-2 pt-0">
+          <div className="space-y-2 p-2 pt-0">
             {pestana === "VEHICULOS" && <ListaVehiculos monitoreo={monitoreo} ejecucionId={ejecucionId} tiposFlota={tiposFlota} plan={plan} seleccionId={seleccion?.tipo === "VEHICULO" ? seleccion.id : null} onSeleccionar={onSeleccionar} />}
+            {pestana === "VEHICULOS" && <ListaDistanciasVehiculos monitoreo={monitoreo} plan={plan} seleccionId={seleccion?.tipo === "VEHICULO" ? seleccion.id : null} onSeleccionar={onSeleccionar} />}
             {pestana === "PEDIDOS" && <ListaPedidosEjecucion monitoreo={monitoreo} ejecucionId={ejecucionId} seleccionId={seleccion?.tipo === "PEDIDO" ? seleccion.id : null} onSeleccionar={onSeleccionar} />}
             {pestana === "ALMACENES" && <ListaAlmacenes monitoreo={monitoreo} ejecucionId={ejecucionId} plan={plan} seleccionId={seleccion?.tipo === "ALMACEN" ? seleccion.id : null} onSeleccionar={onSeleccionar} />}
           </div>

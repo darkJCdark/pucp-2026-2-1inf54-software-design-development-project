@@ -1064,6 +1064,8 @@ export default function EjecucionPage() {
           onSeleccionarAlmacen={(id) => setSeleccionDetalle({ tipo: "ALMACEN", id })}
         />
 
+        {/* Columna izquierda: el reloj va arriba (orden invertido) y el panel de listas debajo, sin superponerse. */}
+        <div className="absolute left-5 top-16 z-50 flex max-h-[calc(100%-5rem)] w-[410px] flex-col-reverse justify-end gap-3 overflow-y-auto">
         <PanelListasOperacion
           monitoreo={monitoreo}
           ejecucionId={ejecucionId}
@@ -1095,6 +1097,7 @@ export default function EjecucionPage() {
             setConfirmarDetencion(true)
           }
         />
+        </div>
 
         {/* ACCIONES */}
         <div className="absolute right-5 top-16 z-40 flex flex-col gap-2">
@@ -1332,7 +1335,7 @@ function PanelEscenario({
       .estado;
 
   return (
-    <div className="absolute left-5 top-5 z-50 min-w-80 rounded-lg border border-slate-700 bg-[#11161d]/95 p-4 text-white shadow-xl">
+    <div className="shrink-0 rounded-lg border border-slate-700 bg-[#11161d]/95 p-4 text-white shadow-xl">
 
       <div className="flex items-start justify-between gap-4">
 
