@@ -123,6 +123,15 @@ class EjecutorPlanServiceTest {
                 new ParadaResponse(3, ParadaResponse.ALMACEN, null, "CENTRAL", 27, 14, 0, hora("14:00"), hora("14:00"), 0, 0)));
         return plan(salida, List.of(ruta));
     }
+
+    private PlanResponse planConRutaTa01CompletamenteEntregada() {
+        RutaResponse ruta = new RutaResponse("SA-TA01-COMPLETA", "TA01", "CAR", SALIDA, hora("14:00"), 14.0, 112.0, List.of(
+                new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 5, hora("10:30"), hora("11:30"), 8, 3),
+                new ParadaResponse(2, ParadaResponse.ENTREGA, "P2", null, 30, 18, 3, hora("12:00"), hora("13:00"), 3, 0),
+                new ParadaResponse(3, ParadaResponse.ALMACEN, null, "CENTRAL", 27, 14, 0, hora("14:00"), hora("14:00"), 0, 0)));
+        return plan(SALIDA, List.of(ruta));
+    }
+
     private static PlanResponse plan(Instant planificadoEn, List<RutaResponse> rutas) {
         return new PlanResponse(ModoOperacion.SIMULACION_5D, planificadoEn, true, false, 0, 0, 1L, 0, 1500, false,
                 rutas, List.of(), List.of());
@@ -293,6 +302,18 @@ class EjecutorPlanServiceTest {
         assertEquals(14, vehiculo("TA01").getCurrentY());
         assertEquals(0, vehiculo("TA01").getCurrentLoad());
     }
+    @Test
+    void unaAveriaMayorEnRutaDevuelveLaUnidadAlCentralTrasCuatroHoras() {
+        planes.planes.put(ejecucion, planConRutaTa01());
+        averiaRepository.save(new BreakdownEventEntity(ejecucion,
+                new BreakdownEvent("TA01", BreakdownType.MAJOR, hora("11:40"), new Location(30, 15))));
+        ejecutor.avanzar(ejecucion, SALIDA, hora("16:00"));
+        assertEquals(OrderStatus.DELIVERED, pedido("P1").getStatus());
+        assertEquals(OrderStatus.REGISTERED, pedido("P2").getStatus());
+        assertEquals(27, vehiculo("TA01").getCurrentX());
+        assertEquals(14, vehiculo("TA01").getCurrentY());
+        assertEquals(0, vehiculo("TA01").getCurrentLoad());
+    }
 
     @Test
     void unaAveriaDespuesDeTerminarLaRutaNoCambiaLoEntregado() {
@@ -309,6 +330,22 @@ class EjecutorPlanServiceTest {
         assertEquals(VehicleOperationalStatus.AVAILABLE, vehiculo("TA01").getOperationalStatus());
     }
 
+    @Test
+    void unaAveriaPosteriorARutaCompletamenteTerminadaNoModificaEntregasRutaNiMetricas() {
+        PlanResponse planTerminado = planConRutaTa01CompletamenteEntregada();
+        planes.planes.put(ejecucion, planTerminado);
+        ejecutor.avanzar(ejecucion, SALIDA, hora("14:05"));
+        EjecutorPlanService.Metricas metricasAntes = ejecutor.metricas(ejecucion).orElseThrow();
+        averiaRepository.save(new BreakdownEventEntity(ejecucion, new BreakdownEvent("TA01", BreakdownType.MINOR, hora("14:10"), new Location(27, 14))));
+        ejecutor.avanzar(ejecucion, hora("14:05"), hora("14:30"));
+        EjecutorPlanService.Metricas metricasDespues = ejecutor.metricas(ejecucion).orElseThrow();
+        assertEquals(OrderStatus.DELIVERED, pedido("P1").getStatus());
+        assertEquals(OrderStatus.DELIVERED, pedido("P2").getStatus());
+        assertEquals(planTerminado.rutas(), planes.planes.get(ejecucion).rutas());
+        assertEquals(metricasAntes.paquetesEntregados(), metricasDespues.paquetesEntregados());
+        assertEquals(metricasAntes.distanciaKm(), metricasDespues.distanciaKm());
+        assertEquals(metricasAntes.costo(), metricasDespues.costo());
+    }
     @Test
     void informaElRefrigerioDelConductorMientrasDura() {
         // Llega a P1 a las 10:20 y descansa hasta las 10:30, cuando lo atiende.
