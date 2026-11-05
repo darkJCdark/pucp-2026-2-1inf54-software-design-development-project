@@ -119,3 +119,63 @@ La ejecución FIVE_DAY también finalizó correctamente, cruzó de febrero a mar
 Sin embargo, el presupuesto máximo de 1500 ms por ciclo de planificación no se cumple de manera estricta. De los 295 planes observados, 135 presentaron un `duracionMs` superior a 1500 ms. El mayor valor registrado fue 1557 ms, es decir, 57 ms por encima del límite establecido.
 
 Por este motivo, el criterio de rendimiento del planificador queda registrado como hallazgo y debe ser revisado en la tarea de optimización correspondiente.
+
+## 8. Validación en despliegue
+
+La prueba fue repetida sobre el despliegue del proyecto disponible en `http://1inf54-983-4d.inf.pucp.edu.pe`.
+
+### 8.1. Precarga desplegada
+
+Se procesaron nuevamente los 36 archivos de ventas y los 36 archivos de bloqueos correspondientes al periodo enero de 2026 a diciembre de 2028.
+
+| Tipo | Archivos | Promedio | Mínimo | Máximo |
+|---|---:|---:|---:|---:|
+| Ventas | 36 | 7316.64 ms | 143 ms | 10314 ms |
+| Bloqueos | 36 | 1514.58 ms | 1068 ms | 3691 ms |
+
+La base de datos desplegada se encontraba parcialmente precargada. Algunos meses de ventas devolvieron `registrados = 0`, mientras que otros incorporaron los registros faltantes. Luego de la ejecución se completó la carga de los 36 meses considerados.
+
+Estos tiempos corresponden únicamente a las solicitudes de carga de archivos y no se comparan con el presupuesto de 1500 ms establecido para cada ciclo del planificador.
+
+Los resultados se encuentran en `R3_precarga_desplegado.csv`.
+
+### 8.2. Ejecución FIVE_DAY desplegada
+
+Se ejecutó el escenario FIVE_DAY número 23 con inicio simulado el 28/02/2026 a las 00:00.
+
+Resultados:
+
+- Estado final: COMPLETED
+- Fin simulado: 05/03/2026 a las 00:00
+- Duración real aproximada: 45 minutos
+- Pedidos considerados: 215
+- Pedidos entregados: 212
+- Pedidos entregados a tiempo: 212
+- Pedidos no entregados: 3
+- Bloqueos considerados: 89
+- Replanificaciones reportadas: 367
+- Tiempo acumulado de cómputo: 312488 ms
+- Colapso: no se produjo
+
+La ejecución completó correctamente los cinco días simulados y cruzó de febrero a marzo utilizando la información previamente cargada.
+
+### 8.3. Tiempo de planificación en despliegue
+
+Durante la ejecución se observaron 238 planes distintos mediante consultas periódicas al campo `duracionMs`.
+
+- Promedio observado: 780.19 ms
+- Mínimo observado: 0 ms
+- Máximo observado: 1535 ms
+- Planes observados con `duracionMs > 1500`: 117
+
+El backend reportó 367 replanificaciones totales. Debido a que el monitoreo se realizó mediante polling, no todos los ciclos fueron capturados individualmente.
+
+El resultado confirma el hallazgo obtenido en la prueba local: el presupuesto máximo de 1500 ms por ciclo no se cumple de manera estricta. El máximo observado en el despliegue fue de 1535 ms y 117 de los 238 planes observados superaron el límite.
+
+Los datos se encuentran en `R3_planes_fiveday_desplegado.csv` y `R3_resultado_fiveday_desplegado.json`.
+
+### 8.4. Conclusión de la validación desplegada
+
+La precarga de datos y la ejecución FIVE_DAY funcionan correctamente en el entorno desplegado. La simulación completó el periodo establecido, procesó información de dos meses consecutivos y no presentó colapso.
+
+Sin embargo, se reproduce el incumplimiento del presupuesto de 1500 ms por ciclo de planificación observado localmente. Por ello, el rendimiento del planificador queda registrado como hallazgo para revisión y optimización.
