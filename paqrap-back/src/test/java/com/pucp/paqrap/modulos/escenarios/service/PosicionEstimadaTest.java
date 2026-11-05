@@ -84,6 +84,34 @@ class PosicionEstimadaTest {
     }
 
     @Test
+    void conCaminoRealAvanzaPorElRodeoYNoPorLaL() {
+        // De (27,14) a (30,14) rodeando por arriba un bloqueo en (28,14)-(29,14): 5 calles en 30 min.
+        List<ParadaResponse.Punto> rodeo = List.of(new ParadaResponse.Punto(27, 14), new ParadaResponse.Punto(27, 15),
+                new ParadaResponse.Punto(28, 15), new ParadaResponse.Punto(29, 15), new ParadaResponse.Punto(30, 15),
+                new ParadaResponse.Punto(30, 14));
+        RutaResponse conRodeo = new RutaResponse("SA-TA01", "TA01", "CAR", hora("10:00"), hora("11:30"), 5.0, 40.0,
+                List.of(new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 5, hora("10:30"),
+                        hora("11:30"), 7, 2, null, rodeo)));
+
+        // 10:15 = mitad: 2,5 de 5 calles, entre (28,15) y (29,15).
+        Location aMitad = EjecutorPlanService.posicionEnRuta(conRodeo, 27, 14, hora("10:15"));
+        assertEquals(15, aMitad.y(), "va por el rodeo, no por la calle bloqueada");
+        assertEquals(new Location(27, 15), EjecutorPlanService.posicionEnRuta(conRodeo, 27, 14, hora("10:06")));
+        assertEquals(new Location(30, 14), EjecutorPlanService.posicionEnRuta(conRodeo, 27, 14, hora("10:45")));
+    }
+
+    @Test
+    void interpolaElCaminoPorCallesYRedondeaAlNodo() {
+        List<ParadaResponse.Punto> camino = List.of(new ParadaResponse.Punto(0, 0), new ParadaResponse.Punto(0, 1),
+                new ParadaResponse.Punto(1, 1));
+
+        assertEquals(new Location(0, 0), EjecutorPlanService.interpolarEnCamino(camino, 0));
+        assertEquals(new Location(0, 1), EjecutorPlanService.interpolarEnCamino(camino, 0.5));
+        assertEquals(new Location(1, 1), EjecutorPlanService.interpolarEnCamino(camino, 1));
+        assertEquals(new Location(1, 1), EjecutorPlanService.interpolarEnCamino(camino, 1.5));
+    }
+
+    @Test
     void despuesDeLaUltimaParadaUsaLaPosicionConfirmada() {
         assertEquals(new Location(30, 18), EjecutorPlanService.posicionEnRuta(ruta("TA01"), 30, 18, hora("13:30")));
     }

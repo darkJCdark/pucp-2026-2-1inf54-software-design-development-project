@@ -40,6 +40,7 @@ export function adaptarRuta(
     paradas: dto.paradas.map((parada) => ({
       ...parada,
       inicioRefrigerio: parada.inicioRefrigerio ?? null,
+      camino: parada.camino ?? null,
     })),
     almacenInicialId: dto.almacenInicialId ?? null,
     planPersistedId: dto.planPersistedId ?? null,

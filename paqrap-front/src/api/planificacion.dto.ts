@@ -34,6 +34,14 @@ export interface ParadaResponseDto {
 
   /** Hora física de llegada a la parada antes de iniciar el refrigerio. */
   inicioRefrigerio?: string | null;
+
+  /** Nodos del camino real hacia esta parada (rodea los bloqueos), desde la parada anterior hasta esta. */
+  camino?: PuntoCaminoDto[] | null;
+}
+
+export interface PuntoCaminoDto {
+  x: number;
+  y: number;
 }
 
 export interface RutaResponseDto {
