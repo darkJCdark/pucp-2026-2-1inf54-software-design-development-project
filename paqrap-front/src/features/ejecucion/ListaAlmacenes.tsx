@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import type { MonitoreoResponseDto } from "@/api/monitoreo.dto";
+import type { PlanResponseDto } from "@/api/planificacion.dto";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useConfiguracion } from "@/context/ConfiguracionContext";
+
+import type { SeleccionLista } from "./ListaPedidosEjecucion";
 
 const ALMACENES_ORDENADOS = [
   "CENTRAL",
@@ -23,15 +26,16 @@ const NOMBRES_ALMACEN: Record<
 interface ListaAlmacenesProps {
   monitoreo: MonitoreoResponseDto;
   ejecucionId: number;
-  onSeleccionar: (sel: {
-    tipo: "VEHICULO" | "PEDIDO" | "ALMACEN";
-    id: string;
-  }) => void;
+  plan: PlanResponseDto | null;
+  seleccionId?: string | null;
+  onSeleccionar: (sel: SeleccionLista) => void;
 }
 
 export function ListaAlmacenes({
   monitoreo,
   ejecucionId,
+  plan,
+  seleccionId,
   onSeleccionar,
 }: ListaAlmacenesProps) {
   const [busqueda, setBusqueda] = useState("");
@@ -47,6 +51,54 @@ export function ListaAlmacenes({
     almacen.nombre.toLocaleLowerCase("es-PE").includes(termino),
   );
   const inputId = `busqueda-almacenes-${ejecucionId}`;
+  const ahora = new Date(monitoreo.instante).getTime();
+  const cuatroHoras = 4 * 60 * 60 * 1000;
+
+  const estadisticas = useMemo(() => {
+    const resultado = new Map<string, {
+      enTransito: number;
+      paquetesEnTransito: number;
+      proximas4h: number;
+      paquetesProximas4h: number;
+      atendidas4h: number;
+      paquetesAtendidas4h: number;
+    }>();
+
+    for (const ruta of plan?.rutas ?? []) {
+      const salida = new Date(ruta.salida).getTime();
+
+      for (const parada of ruta.paradas) {
+        if (parada.tipo !== "ALMACEN" || !parada.almacenId || !parada.llegada) continue;
+
+        const llegada = new Date(parada.llegada).getTime();
+        const actual = resultado.get(parada.almacenId) ?? {
+          enTransito: 0,
+          paquetesEnTransito: 0,
+          proximas4h: 0,
+          paquetesProximas4h: 0,
+          atendidas4h: 0,
+          paquetesAtendidas4h: 0,
+        };
+        const paquetes = Math.max(0, parada.paquetes);
+
+        if (salida <= ahora && llegada > ahora) {
+          actual.enTransito += 1;
+          actual.paquetesEnTransito += paquetes;
+        }
+        if (llegada >= ahora && llegada <= ahora + cuatroHoras) {
+          actual.proximas4h += 1;
+          actual.paquetesProximas4h += paquetes;
+        }
+        if (llegada < ahora && llegada >= ahora - cuatroHoras) {
+          actual.atendidas4h += 1;
+          actual.paquetesAtendidas4h += paquetes;
+        }
+        resultado.set(parada.almacenId, actual);
+      }
+    }
+
+    return resultado;
+  }, [ahora, plan]);
 
   return (
     <Card className="border-slate-800 bg-[#151b23] p-4">
@@ -86,6 +138,15 @@ export function ListaAlmacenes({
             configuracion.almacenVerdeHasta,
             configuracion.almacenAmbarHasta,
           );
+          const estadistica = estadisticas.get(almacen.id) ?? {
+            enTransito: 0,
+            paquetesEnTransito: 0,
+            proximas4h: 0,
+            paquetesProximas4h: 0,
+            atendidas4h: 0,
+            paquetesAtendidas4h: 0,
+          };
+          const seleccionado = seleccionId === almacen.id;
 
           return (
             <button
@@ -97,7 +158,12 @@ export function ListaAlmacenes({
                   id: almacen.id,
                 })
               }
-              className="w-full rounded-md p-3 text-left transition hover:bg-slate-800/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+              className={[
+                "w-full rounded-md border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500",
+                seleccionado
+                  ? "border-orange-500 bg-orange-950/25 ring-1 ring-orange-500/30"
+                  : "border-slate-800 hover:bg-slate-800/60",
+              ].join(" ")}
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -132,6 +198,12 @@ export function ListaAlmacenes({
                   </div>
                 </>
               )}
+
+              <div className="mt-3 grid grid-cols-3 gap-1 text-center text-[9px]">
+                <MiniDato label="En tránsito" envios={estadistica.enTransito} paquetes={estadistica.paquetesEnTransito} />
+                <MiniDato label="Próx. 4 h" envios={estadistica.proximas4h} paquetes={estadistica.paquetesProximas4h} />
+                <MiniDato label="Últ. 4 h" envios={estadistica.atendidas4h} paquetes={estadistica.paquetesAtendidas4h} />
+              </div>
             </button>
           );
         })}
@@ -143,6 +215,24 @@ export function ListaAlmacenes({
         )}
       </div>
     </Card>
+  );
+}
+
+function MiniDato({
+  label,
+  envios,
+  paquetes,
+}: {
+  label: string;
+  envios: number;
+  paquetes: number;
+}) {
+  return (
+    <div className="rounded bg-slate-800/70 px-1 py-1.5">
+      <p className="font-semibold text-slate-200">{envios} env.</p>
+      <p className="mt-0.5 text-slate-400">{paquetes} paq.</p>
+      <p className="mt-0.5 text-slate-500">{label}</p>
+    </div>
   );
 }
 

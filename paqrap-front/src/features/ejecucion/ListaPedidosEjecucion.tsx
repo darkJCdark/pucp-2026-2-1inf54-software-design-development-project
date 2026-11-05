@@ -36,22 +36,30 @@ import {
 } from "@/services/planificacion.service";
 
 /** Selección común de los componentes de lista (contrato del plan de la semana 12). */
-export interface SeleccionLista {
-  tipo: "VEHICULO" | "PEDIDO" | "ALMACEN";
-  id: string;
-}
+export type SeleccionLista =
+  | { tipo: "VEHICULO"; id: string }
+  | { tipo: "PEDIDO"; id: string }
+  | { tipo: "ALMACEN"; id: string };
 
 interface ListaPedidosEjecucionProps {
   monitoreo: MonitoreoResponseDto;
   ejecucionId: number;
+  seleccionId?: string | null;
   onSeleccionar: (seleccion: SeleccionLista) => void;
 }
 
 type Pestana = "PLANIFICADOS" | "ENTREGADOS" | "TODOS";
 
+interface RutaAsignada {
+  id: string;
+  vehiculoId: string;
+  salida: string;
+  llegada: string | null;
+}
+
 interface Asignacion {
   unidades: string[];
-  rutas: string[];
+  rutas: RutaAsignada[];
 }
 
 /** Cada cuánto se vuelven a pedir los pedidos y el plan (no hace falta cada segundo). */
@@ -74,6 +82,7 @@ const PESTANAS: { valor: Pestana; etiqueta: string }[] = [
 export function ListaPedidosEjecucion({
   monitoreo,
   ejecucionId,
+  seleccionId,
   onSeleccionar,
 }: ListaPedidosEjecucionProps) {
   const [pedidos, setPedidos] = useState<PedidoResponseDto[]>([]);
@@ -94,6 +103,12 @@ export function ListaPedidosEjecucion({
       hasta: monitoreo.instante,
     };
   }, [monitoreo.escenario.inicioSimulado, monitoreo.instante]);
+
+  useEffect(() => {
+    if (!seleccionId) return;
+    setPestana("TODOS");
+    setBusqueda(seleccionId);
+  }, [seleccionId]);
 
   useEffect(() => {
     let activo = true;
@@ -142,7 +157,14 @@ export function ListaPedidosEjecucion({
 
         const actual = mapa.get(parada.pedidoId) ?? { unidades: [], rutas: [] };
         if (!actual.unidades.includes(ruta.vehiculoId)) actual.unidades.push(ruta.vehiculoId);
-        if (!actual.rutas.includes(ruta.id)) actual.rutas.push(ruta.id);
+        if (!actual.rutas.some((item) => item.id === ruta.id)) {
+          actual.rutas.push({
+            id: ruta.id,
+            vehiculoId: ruta.vehiculoId,
+            salida: ruta.salida,
+            llegada: parada.llegada,
+          });
+        }
         mapa.set(parada.pedidoId, actual);
       }
     }
@@ -236,7 +258,12 @@ export function ListaPedidosEjecucion({
               <button
                 type="button"
                 onClick={() => onSeleccionar({ tipo: "PEDIDO", id: pedido.id })}
-                className="w-full rounded-md border border-slate-800 bg-[#11161d] p-2 text-left hover:border-orange-500/60"
+                className={[
+                  "w-full rounded-md border p-2 text-left transition",
+                  seleccionId === pedido.id
+                    ? "border-orange-500 bg-orange-950/25 ring-1 ring-orange-500/30"
+                    : "border-slate-800 bg-[#11161d] hover:border-orange-500/60",
+                ].join(" ")}
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono text-xs text-white">{pedido.id}</span>
@@ -246,14 +273,25 @@ export function ListaPedidosEjecucion({
                 <div className="mt-1 flex flex-wrap gap-x-3 text-[11px] text-slate-400">
                   <span>Cliente {pedido.clienteId}</span>
                   <span>{pedido.paquetes} paq.</span>
+                  <span>Destino ({pedido.x}, {pedido.y})</span>
                   <span>Vence {formatearFecha(pedido.vence)}</span>
                 </div>
 
                 {asignacion && (
-                  <div className="mt-1 text-[11px] text-slate-300">
-                    {asignacion.unidades.join(" · ")}
+                  <div className="mt-2 space-y-1">
+                    {asignacion.rutas.map((ruta) => (
+                      <div
+                        key={ruta.id}
+                        className="flex items-center justify-between gap-2 rounded bg-slate-800/60 px-2 py-1 text-[10px] text-slate-300"
+                      >
+                        <span>{ruta.vehiculoId} · {ruta.id}</span>
+                        <span className="text-slate-500">
+                          {formatearHora(ruta.salida)} → {ruta.llegada ? formatearHora(ruta.llegada) : "—"}
+                        </span>
+                      </div>
+                    ))}
                     {asignacion.rutas.length > 1 && (
-                      <span className="ml-1 text-amber-400">(fraccionado)</span>
+                      <p className="text-[10px] text-amber-400">Pedido fraccionado en {asignacion.rutas.length} rutas.</p>
                     )}
                   </div>
                 )}
@@ -293,6 +331,15 @@ function formatearFecha(valor: string) {
     timeZone: "America/Lima",
     day: "2-digit",
     month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(valor));
+}
+
+function formatearHora(valor: string) {
+  return new Intl.DateTimeFormat("es-PE", {
+    timeZone: "America/Lima",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
