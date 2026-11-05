@@ -1,5 +1,23 @@
 package com.pucp.paqrap.modulos.escenarios.service;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.pucp.paqrap.comun.error.ReglaNegocioException;
 import com.pucp.paqrap.modulos.almacenes.persistence.WarehouseEntity;
 import com.pucp.paqrap.modulos.almacenes.persistence.WarehouseKind;
@@ -25,23 +43,6 @@ import com.pucp.paqrap.modulos.planificacion.entity.ShiftSchedule;
 import com.pucp.paqrap.modulos.planificacion.service.PlanVigente;
 import com.pucp.paqrap.modulos.planificacion.service.PosicionRuta;
 import com.pucp.paqrap.modulos.redvial.entity.Location;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.time.Duration;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Ejecuta en el tiempo simulado el plan vigente de SA: en cada tick aplica, en orden cronológico, lo que ocurrió en

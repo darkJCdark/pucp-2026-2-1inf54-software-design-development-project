@@ -22,6 +22,8 @@ import com.pucp.paqrap.modulos.planificacion.entity.DeliveryRoute;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryStop;
 import com.pucp.paqrap.modulos.planificacion.entity.RouteStop;
 import com.pucp.paqrap.modulos.planificacion.entity.WarehouseVisit;
+import com.pucp.paqrap.modulos.redvial.entity.RoadLeg;
+import com.pucp.paqrap.modulos.redvial.entity.RoadPath;
 
 /** Convierte el resultado interno del algoritmo en el DTO que consumen controllers y frontend. */
 final class PlanResponseMapper {
@@ -70,12 +72,12 @@ final class PlanResponseMapper {
                         tramo.from().x(), tramo.from().y(), tramo.to().x(), tramo.to().y(),
                         tramo.departsAt(), tramo.arrivesAt())));
                 paradas.add(aParada(orden++, parada.stop(), parada.arrivedAt(), parada.completedAt(),
-                        parada.loadBefore(), parada.loadAfter(), inicioRefrigerio));
+                        parada.loadBefore(), parada.loadAfter(), inicioRefrigerio, camino(parada.approach())));
             }
         } else {
             int orden = 1;
             for (RouteStop parada : ruta.stops()) {
-                paradas.add(aParada(orden++, parada, null, null, null, null, null));
+                paradas.add(aParada(orden++, parada, null, null, null, null, null, null));
             }
         }
         return new RutaResponse(ruta.id(), ruta.vehicle().id(), ruta.vehicle().type().name(), ruta.departureAt(),
@@ -99,15 +101,26 @@ final class PlanResponseMapper {
                 respuesta.noAtendidos());
     }
     private ParadaResponse aParada(int orden, RouteStop parada, Instant llegada, Instant fin,
-                                   Integer cargaAntes, Integer cargaDespues, Instant inicioRefrigerio) {
+                                   Integer cargaAntes, Integer cargaDespues, Instant inicioRefrigerio,
+                                   List<ParadaResponse.Punto> camino) {
         return switch (parada) {
             case DeliveryStop entrega -> new ParadaResponse(orden, ParadaResponse.ENTREGA,
                     entrega.order().id(), null, entrega.location().x(), entrega.location().y(),
-                    entrega.deliveredPackages(), llegada, fin, cargaAntes, cargaDespues, inicioRefrigerio);
+                    entrega.deliveredPackages(), llegada, fin, cargaAntes, cargaDespues, inicioRefrigerio, camino);
             case WarehouseVisit almacen -> new ParadaResponse(orden, ParadaResponse.ALMACEN,
                     null, almacen.warehouse().id(), almacen.location().x(), almacen.location().y(),
-                    almacen.pickupPackages(), llegada, fin, cargaAntes, cargaDespues, inicioRefrigerio);
+                    almacen.pickupPackages(), llegada, fin, cargaAntes, cargaDespues, inicioRefrigerio, camino);
         };
+    }
+
+    /** Nodos del camino real hacia la parada (el que rodea los bloqueos), del origen del tramo a la parada. */
+    private static List<ParadaResponse.Punto> camino(RoadPath tramo) {
+        List<ParadaResponse.Punto> nodos = new ArrayList<>(tramo.legs().size() + 1);
+        nodos.add(new ParadaResponse.Punto(tramo.origin().x(), tramo.origin().y()));
+        for (RoadLeg calle : tramo.legs()) {
+            nodos.add(new ParadaResponse.Punto(calle.to().x(), calle.to().y()));
+        }
+        return List.copyOf(nodos);
     }
 
     private ViolacionResponse aViolacion(PlanViolation violacion) {

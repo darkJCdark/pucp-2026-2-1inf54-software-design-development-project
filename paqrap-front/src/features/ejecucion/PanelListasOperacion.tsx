@@ -7,6 +7,7 @@ import type { PlanResponseDto } from "@/api/planificacion.dto";
 
 import type { SeleccionDetalleOperacion } from "./DetalleOperacionPanel";
 import { ListaAlmacenes } from "./ListaAlmacenes";
+import { ListaDistanciasVehiculos } from "./ListaDistanciasVehiculos";
 import { ListaPedidosEjecucion, type SeleccionLista } from "./ListaPedidosEjecucion";
 import { ListaVehiculos } from "./ListaVehiculos";
 
@@ -45,7 +46,7 @@ export function PanelListasOperacion({
   }, [seleccion]);
 
   return (
-    <aside className="absolute left-5 top-[250px] z-50 w-[410px] overflow-hidden rounded-xl border border-slate-700 bg-[#11161d]/97 text-white shadow-2xl">
+    <aside className="w-full shrink-0 overflow-hidden rounded-xl border border-slate-700 bg-[#11161d]/97 text-white shadow-2xl">
       <button
         type="button"
         onClick={() => setAbierto((actual) => !actual)}

@@ -30,9 +30,8 @@ public final class RoadNetwork {
         Objects.requireNonNull(departureAt, "departureAt is required");
         validateTravelTime(travelTimePerStreet);
         BlockIndex activeBlocks = BlockIndex.of(Objects.requireNonNull(blocks, "blocks are required"));
-        if (activeBlocks.isNodeBlockedDuring(origin, departureAt, departureAt.plusNanos(1))) {
-            return Optional.empty();
-        }
+        // Un vehículo que ya está en un nodo cuando lo bloquean (p. ej. atendiendo a un cliente) no queda sin camino:
+        // espera en él hasta que termine el bloqueo, porque firstLegalDeparture también revisa el nodo de salida.
         if (origin.equals(destination)) {
             return Optional.of(new RoadPath(origin, destination, departureAt, List.of()));
         }
@@ -112,10 +111,6 @@ public final class RoadNetwork {
                 }
             }
             return new BlockIndex(byNode);
-        }
-
-        boolean isNodeBlockedDuring(Location node, Instant from, Instant to) {
-            return blocksByNode.getOrDefault(node, List.of()).stream().anyMatch(block -> block.overlaps(from, to));
         }
 
         boolean blocksTraversal(Location from, Location to, Instant departure, Instant arrival) {

@@ -56,6 +56,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.hasSize;
@@ -285,12 +286,15 @@ class ReplanificacionFlujoApiTest {
         assertEquals("TA01", vehiculoQueEntrega(inicial, "P1"));
         assertEquals("TA01", vehiculoQueEntrega(inicial, "P2"));
 
+        // La semilla es aleatoria: el SA puede visitar cualquiera de los dos primero.
         for (int tick = 0; tick < 45
-                && pedidoRepository.findById("P1").orElseThrow().getStatus() != OrderStatus.IN_TRANSIT; tick++) {
+                && pedidoRepository.findById("P1").orElseThrow().getStatus() != OrderStatus.IN_TRANSIT
+                && pedidoRepository.findById("P2").orElseThrow().getStatus() != OrderStatus.IN_TRANSIT; tick++) {
             avanzar(Duration.ofSeconds(1));
         }
-        assertEquals(OrderStatus.IN_TRANSIT, pedidoRepository.findById("P1").orElseThrow().getStatus());
-        assertEquals(OrderStatus.ASSIGNED, pedidoRepository.findById("P2").orElseThrow().getStatus());
+        assertEquals(Set.of(OrderStatus.IN_TRANSIT, OrderStatus.ASSIGNED),
+                Set.of(pedidoRepository.findById("P1").orElseThrow().getStatus(),
+                        pedidoRepository.findById("P2").orElseThrow().getStatus()));
 
         VehicleEntity sustituto = vehiculoRepository.findById("TA02").orElseThrow();
         sustituto.setOperationalStatus(VehicleOperationalStatus.AVAILABLE);

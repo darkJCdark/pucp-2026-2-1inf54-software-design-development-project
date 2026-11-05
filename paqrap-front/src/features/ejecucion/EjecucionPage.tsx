@@ -615,6 +615,12 @@ export default function EjecucionPage() {
     );
   }
 
+  /*
+   * =====================================================
+   * PEDIDOS
+   * =====================================================
+   */
+
   async function handleRegistrarPedido(
     request:
       RegistrarPedidoRequestDto,
@@ -671,6 +677,12 @@ export default function EjecucionPage() {
     );
   }
 
+  /*
+   * =====================================================
+   * AVERÍAS
+   * =====================================================
+   */
+
   async function handleRegistrarAveria(
     request:
       RegistrarAveriaRequestDto,
@@ -706,6 +718,12 @@ export default function EjecucionPage() {
       1200,
     );
   }
+
+  /*
+   * =====================================================
+   * CONTROLES DEL ESCENARIO
+   * =====================================================
+   */
 
   async function ejecutarAccion(
     accion:
@@ -898,6 +916,12 @@ export default function EjecucionPage() {
     }
   }
 
+  /*
+   * =====================================================
+   * DATOS DERIVADOS
+   * =====================================================
+   */
+
   const eventos =
     useEventosEjecucion(
       monitoreo,
@@ -915,6 +939,12 @@ export default function EjecucionPage() {
 
       [plan],
     );
+
+  /*
+   * =====================================================
+   * CARGA
+   * =====================================================
+   */
 
   if (
     cargando
@@ -964,6 +994,12 @@ export default function EjecucionPage() {
   ) {
     return null;
   }
+
+  /*
+   * =====================================================
+   * PERMISOS
+   * =====================================================
+   */
 
   const estado =
     monitoreo
@@ -1025,6 +1061,12 @@ export default function EjecucionPage() {
           .pedidos
           .vencidosSinEntregar,
     };
+
+  /*
+   * =====================================================
+   * UI
+   * =====================================================
+   */
 
   return (
     <div className="grid h-screen grid-cols-[minmax(0,1fr)_360px] overflow-hidden bg-[#0d1117]">
@@ -1108,51 +1150,63 @@ export default function EjecucionPage() {
           }
         />
 
-        <PanelEscenario
-          monitoreo={
-            monitoreo
-          }
-          accionando={
-            accionando
-          }
-          onPausar={() =>
-            void ejecutarAccion(
-              "PAUSAR",
-            )
-          }
-          onReanudar={() =>
-            void ejecutarAccion(
-              "REANUDAR",
-            )
-          }
-          onDetener={() =>
-            setConfirmarDetencion(
-              true,
-            )
-          }
-        />
+        {/*
+         * Columna izquierda única.
+         *
+         * Antes PanelEscenario y PanelListasOperacion
+         * estaban posicionados independientemente y podían
+         * superponerse.
+         *
+         * Ahora comparten un contenedor.
+         */}
+        <div className="absolute left-5 top-5 z-50 flex max-h-[calc(100%-5rem)] w-[430px] flex-col gap-3 overflow-y-auto pr-1">
+          <PanelEscenario
+            monitoreo={
+              monitoreo
+            }
+            accionando={
+              accionando
+            }
+            onPausar={() =>
+              void ejecutarAccion(
+                "PAUSAR",
+              )
+            }
+            onReanudar={() =>
+              void ejecutarAccion(
+                "REANUDAR",
+              )
+            }
+            onDetener={() =>
+              setConfirmarDetencion(
+                true,
+              )
+            }
+          />
 
-        <PanelListasOperacion
-          monitoreo={
-            monitoreo
-          }
-          ejecucionId={
-            ejecucionId
-          }
-          tiposFlota={
-            tiposFlota
-          }
-          plan={
-            plan
-          }
-          seleccion={
-            seleccionDetalle
-          }
-          onSeleccionar={
-            setSeleccionDetalle
-          }
-        />
+          <PanelListasOperacion
+            monitoreo={
+              monitoreo
+            }
+            ejecucionId={
+              ejecucionId
+            }
+            tiposFlota={
+              tiposFlota
+            }
+            plan={
+              plan
+            }
+            seleccion={
+              seleccionDetalle
+            }
+            onSeleccionar={
+              setSeleccionDetalle
+            }
+          />
+        </div>
 
+        {/* ACCIONES */}
         <div className="absolute right-5 top-16 z-40 flex flex-col gap-2">
           {puedeRegistrarPedido && (
             <button
@@ -1218,6 +1272,7 @@ export default function EjecucionPage() {
           )}
         </div>
 
+        {/* FORM PEDIDO */}
         {mostrarFormularioPedido &&
           puedeRegistrarPedido && (
             <RegistrarPedidoForm
@@ -1232,6 +1287,7 @@ export default function EjecucionPage() {
             />
           )}
 
+        {/* FORM AVERÍA */}
         {mostrarFormularioAveria &&
           puedeRegistrarAveria && (
             <RegistrarAveriaForm
@@ -1269,12 +1325,14 @@ export default function EjecucionPage() {
           }
         />
 
+        {/* ERROR */}
         {error && (
           <div className="absolute left-5 top-44 z-50 max-w-sm rounded-md border border-red-900 bg-[#11161d] px-3 py-2 text-xs text-red-400 shadow">
             {error}
           </div>
         )}
 
+        {/* COLAPSO */}
         {monitoreo.colapso && (
           <div className="absolute left-5 top-44 z-40 max-w-md rounded-md border border-red-700 bg-red-950/90 p-3 text-xs text-red-100 shadow-xl">
             <div className="flex items-center gap-2 font-semibold">
@@ -1399,6 +1457,12 @@ export default function EjecucionPage() {
   );
 }
 
+/*
+ * =========================================================
+ * PANEL ESCENARIO
+ * =========================================================
+ */
+
 function PanelEscenario({
   monitoreo,
   accionando,
@@ -1427,7 +1491,7 @@ function PanelEscenario({
       .estado;
 
   return (
-    <div className="absolute left-5 top-5 z-50 w-[430px] rounded-lg border border-slate-700 bg-[#11161d]/95 p-4 text-white shadow-xl">
+    <div className="w-full shrink-0 rounded-lg border border-slate-700 bg-[#11161d]/95 p-4 text-white shadow-xl">
       <div className="mb-3 flex items-start justify-between gap-4">
         <div>
           <p className="text-[10px] uppercase text-slate-500">
@@ -1525,6 +1589,12 @@ function PanelEscenario({
     </div>
   );
 }
+
+/*
+ * =========================================================
+ * ESTADO OPERATIVO
+ * =========================================================
+ */
 
 function EstadoOperativo({
   monitoreo,
@@ -1648,6 +1718,12 @@ function EstadoOperativo({
     </div>
   );
 }
+
+/*
+ * =========================================================
+ * BADGE
+ * =========================================================
+ */
 
 function EstadoBadge({
   estado,

@@ -93,6 +93,9 @@ export interface ParadaMapa {
   cargaAntes: number | null;
   cargaDespues: number | null;
   inicioRefrigerio: string | null;
+
+  /** Camino real hacia la parada; null si el backend no lo informa (se dibuja en L). */
+  camino: Array<{ x: number; y: number }> | null;
 }
 
 export type TramoRutaMapa = TramoRutaResponseDto;
