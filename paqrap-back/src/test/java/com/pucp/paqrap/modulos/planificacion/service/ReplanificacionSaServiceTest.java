@@ -473,6 +473,22 @@ class ReplanificacionSaServiceTest {
 
         assertEquals(MotivoReplanificacion.AVERIA, luego.motivo());
         assertFalse(luego.vehiculosNoDisponibles().contains(afectada.vehiculoId()));
+        // Regresa vacía al central por las calles, desde donde se averió.
+        RutaResponse regreso = luego.plan().rutas().stream()
+                .filter(ruta -> ruta.vehiculoId().equals(afectada.vehiculoId())).findFirst().orElseThrow();
+        assertEquals("REGRESO-" + afectada.vehiculoId(), regreso.id());
+        assertEquals(despues, regreso.salida());
+        assertEquals(1, regreso.paradas().size());
+        assertEquals(0, regreso.paradas().getFirst().cargaAntes());
+        assertEquals(new ParadaResponse.Punto(28, 14), regreso.paradas().getFirst().camino().getFirst());
+        assertTrue(luego.rutasConservadas().contains(regreso.id()));
+
+        // Al llegar, vuelve a ser planificable.
+        ReplanificacionResponse alLlegar = servicio.replanificar(EJECUCION,
+                new ReplanificacionService.Eventos(List.of(), List.of(), List.of(), List.of(), List.of(), List.of()),
+                regreso.llegadaFinal().plusSeconds(60));
+        assertFalse(alLlegar.rutasConservadas().contains(regreso.id()));
+        assertFalse(alLlegar.vehiculosNoDisponibles().contains(afectada.vehiculoId()));
     }
 
     @Test
