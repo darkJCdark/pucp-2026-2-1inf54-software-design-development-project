@@ -1,4 +1,4 @@
-import { BrainCircuit, Boxes, CalendarClock, FileText, Route } from "lucide-react";
+import { Boxes, CalendarClock, FileText, Route, Settings2 } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import type { ConfiguracionPlanificador } from "./configuracion.types";
@@ -6,9 +6,9 @@ import type { ConfiguracionPlanificador } from "./configuracion.types";
 interface ConfirmarInicioModalProps {
   abierto: boolean;
   configuracion: ConfiguracionPlanificador;
-  archivoPedidos: File | null;
   archivoBloqueos: File | null;
   confirmando: boolean;
+  fuentePedidos: string;
   onConfirmar: () => void;
   onCancelar: () => void;
 }
@@ -16,9 +16,9 @@ interface ConfirmarInicioModalProps {
 export function ConfirmarInicioModal({
   abierto,
   configuracion,
-  archivoPedidos,
   archivoBloqueos,
   confirmando,
+  fuentePedidos,
   onConfirmar,
   onCancelar,
 }: ConfirmarInicioModalProps) {
@@ -50,7 +50,7 @@ export function ConfirmarInicioModal({
         <ResumenDato
           icono={<FileText className="size-4" />}
           label="Archivo de pedidos"
-          value={archivoPedidos?.name ?? "Registro en línea"}
+          value={fuentePedidos}
         />
         <ResumenDato
           icono={<FileText className="size-4" />}
@@ -62,15 +62,13 @@ export function ConfirmarInicioModal({
           label="Flota"
           value={`${configuracion.autosCantidad} autos · ${configuracion.motosCantidad} motos · ${configuracion.bicicletasCantidad} bicicletas`}
         />
-        <ResumenDato
-          icono={<BrainCircuit className="size-4" />}
-          label="Simulated Annealing"
-          value={
-            configuracion.usarConfiguracionSa
-              ? `Semilla ${configuracion.saSemilla || "aleatoria"} · T0 ${configuracion.saTemperaturaInicial}`
-              : "Parámetros por defecto"
-          }
-        />
+        {configuracion.usarConfiguracionSa && (
+          <ResumenDato
+            icono={<Settings2 className="size-4" />}
+            label="Configuración avanzada"
+            value={`Semilla ${configuracion.saSemilla || "aleatoria"} · T0 ${configuracion.saTemperaturaInicial}`}
+          />
+        )}
       </div>
 
       <div className="mt-4 rounded-md border border-amber-800/60 bg-amber-950/25 p-3 text-xs leading-5 text-amber-200">

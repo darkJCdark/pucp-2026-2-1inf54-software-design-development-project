@@ -134,19 +134,22 @@ import {
   PanelListasOperacion,
 } from "./PanelListasOperacion";
 
-import { ResultadoEscenarioModal } from "../ejecuciones/ResultadoEscenarioModal";
+import {
+  ResultadoEscenarioModal,
+} from "../ejecuciones/ResultadoEscenarioModal";
 
 export default function EjecucionPage() {
   const {
     ejecucionId:
       ejecucionIdParam,
-  } =
-    useParams();
+  } = useParams();
 
   const navigate =
     useNavigate();
 
-  const { mostrarToast } = useToast();
+  const {
+    mostrarToast,
+  } = useToast();
 
   const ejecucionId =
     Number(
@@ -257,16 +260,32 @@ export default function EjecucionPage() {
       false,
     );
 
-  const [seleccionDetalle, setSeleccionDetalle] =
-    useState<SeleccionDetalleOperacion | null>(null);
+  const [
+    seleccionDetalle,
+    setSeleccionDetalle,
+  ] =
+    useState<
+      SeleccionDetalleOperacion | null
+    >(null);
 
-  const [tipoActualizando, setTipoActualizando] =
-    useState<TipoVehiculoBackend | null>(null);
+  const [
+    tipoActualizando,
+    setTipoActualizando,
+  ] =
+    useState<
+      TipoVehiculoBackend | null
+    >(null);
 
-  const [confirmarDetencion, setConfirmarDetencion] =
+  const [
+    confirmarDetencion,
+    setConfirmarDetencion,
+  ] =
     useState(false);
 
-  const [mostrarResultado, setMostrarResultado] =
+  const [
+    mostrarResultado,
+    setMostrarResultado,
+  ] =
     useState(false);
 
   const estadoEnCursoRef =
@@ -304,11 +323,6 @@ export default function EjecucionPage() {
 
     void cargarDatosIniciales();
 
-    /*
-     * Monitoreo:
-     * reloj, vehículos, almacenes,
-     * métricas, incidencias.
-     */
     const intervaloEstado =
       window.setInterval(
         () => {
@@ -319,10 +333,6 @@ export default function EjecucionPage() {
         1000,
       );
 
-    /*
-     * Plan SA y última
-     * replanificación.
-     */
     const intervaloPlan =
       window.setInterval(
         () => {
@@ -438,10 +448,6 @@ export default function EjecucionPage() {
       const ahora =
         Date.now();
 
-      /*
-       * Pedidos no necesitan
-       * polling cada segundo.
-       */
       if (
         forzarPedidos ||
         ahora -
@@ -451,11 +457,6 @@ export default function EjecucionPage() {
         const respuestaPedidos =
           await pedidosService.listarTodos(
             {
-              /*
-               * Evita mostrar pedidos
-               * históricos de otras
-               * simulaciones.
-               */
               registradoDesde:
                 respuesta
                   .escenario
@@ -563,7 +564,6 @@ export default function EjecucionPage() {
           setErrorPlan(
             mensajeError(
               motivo,
-
               "No fue posible consultar el plan.",
             ),
           );
@@ -610,7 +610,6 @@ export default function EjecucionPage() {
     setError(
       mensajeError(
         error,
-
         "No fue posible consultar el estado de la ejecución.",
       ),
     );
@@ -652,9 +651,14 @@ export default function EjecucionPage() {
     );
 
     mostrarToast({
-      titulo: "Pedido registrado",
-      descripcion: `El pedido ${respuesta.id} fue guardado y provocará una replanificación.`,
-      variante: "success",
+      titulo:
+        "Pedido registrado",
+
+      descripcion:
+        `El pedido ${respuesta.id} fue guardado y provocará una replanificación.`,
+
+      variante:
+        "success",
     });
 
     ultimoRefrescoPedidosRef.current =
@@ -665,14 +669,6 @@ export default function EjecucionPage() {
       true,
     );
 
-    /*
-     * Backend dispara
-     * NUEVO_PEDIDO → SA.
-     *
-     * Esperamos un poco
-     * antes de refrescar
-     * el plan visual.
-     */
     window.setTimeout(
       () => {
         void cargarPlan();
@@ -700,9 +696,14 @@ export default function EjecucionPage() {
     );
 
     mostrarToast({
-      titulo: "Avería registrada",
-      descripcion: "El backend calculó la posición real de la unidad y solicitó una replanificación.",
-      variante: "warning",
+      titulo:
+        "Avería registrada",
+
+      descripcion:
+        "La avería fue registrada en la posición actual de la unidad y las rutas afectadas fueron actualizadas.",
+
+      variante:
+        "warning",
     });
 
     await cargarEstado(
@@ -720,7 +721,7 @@ export default function EjecucionPage() {
 
   /*
    * =====================================================
-   * CONTROLES DE ESCENARIO
+   * CONTROLES DEL ESCENARIO
    * =====================================================
    */
 
@@ -761,8 +762,13 @@ export default function EjecucionPage() {
           break;
       }
 
-      if (accion === "DETENER") {
-        setConfirmarDetencion(false);
+      if (
+        accion ===
+        "DETENER"
+      ) {
+        setConfirmarDetencion(
+          false,
+        );
       }
 
       mostrarToast({
@@ -772,7 +778,9 @@ export default function EjecucionPage() {
             : accion === "REANUDAR"
               ? "Simulación reanudada"
               : "Simulación detenida",
-        variante: "success",
+
+        variante:
+          "success",
       });
 
       await cargarEstado(
@@ -784,12 +792,26 @@ export default function EjecucionPage() {
     } catch (
       error
     ) {
-      const mensaje = mensajeDeError(
-        error,
-        "No fue posible cambiar el estado del escenario.",
+      const mensaje =
+        mensajeDeError(
+          error,
+          "No fue posible cambiar el estado del escenario.",
+        );
+
+      setError(
+        mensaje,
       );
-      setError(mensaje);
-      mostrarToast({ titulo: "No se pudo completar la acción", descripcion: mensaje, variante: "error" });
+
+      mostrarToast({
+        titulo:
+          "No se pudo completar la acción",
+
+        descripcion:
+          mensaje,
+
+        variante:
+          "error",
+      });
     } finally {
       setAccionando(
         false,
@@ -798,47 +820,105 @@ export default function EjecucionPage() {
   }
 
   async function handleActualizarVelocidad(
-    tipoVehiculo: TipoVehiculoBackend,
-    velocidadKmh: number,
+    tipoVehiculo:
+      TipoVehiculoBackend,
+
+    velocidadKmh:
+      number,
   ) {
-    const actual = tiposFlota.find((tipoFlota) => tipoFlota.tipo === tipoVehiculo);
+    const actual =
+      tiposFlota.find(
+        (tipoFlota) =>
+          tipoFlota.tipo ===
+          tipoVehiculo,
+      );
+
     if (!actual) {
-      throw new Error("No se encontró la configuración del tipo de vehículo.");
+      throw new Error(
+        "No se encontró la configuración del tipo de vehículo.",
+      );
     }
 
     try {
-      setTipoActualizando(tipoVehiculo);
-      const actualizado = await flotaService.actualizarTipo(tipoVehiculo, {
-        capacidadPaquetes: actual.capacidadPaquetes,
-        velocidadKmh,
-        costoPorKm: actual.costoPorKm,
-      });
+      setTipoActualizando(
+        tipoVehiculo,
+      );
 
-      setTiposFlota((tipos) =>
-        tipos.map((tipoFlota) =>
-          tipoFlota.tipo === tipoVehiculo ? actualizado : tipoFlota,
-        ),
+      const actualizado =
+        await flotaService.actualizarTipo(
+          tipoVehiculo,
+          {
+            capacidadPaquetes:
+              actual.capacidadPaquetes,
+
+            velocidadKmh,
+
+            costoPorKm:
+              actual.costoPorKm,
+          },
+        );
+
+      setTiposFlota(
+        (tipos) =>
+          tipos.map(
+            (tipoFlota) =>
+              tipoFlota.tipo ===
+              tipoVehiculo
+                ? actualizado
+                : tipoFlota,
+          ),
       );
 
       mostrarToast({
-        titulo: "Velocidad actualizada",
-        descripcion: `${nombreTipoVehiculo(tipoVehiculo)}: ${velocidadKmh} km/h. El backend replanificará con el nuevo perfil.`,
-        variante: "success",
+        titulo:
+          "Velocidad actualizada",
+
+        descripcion:
+          `${nombreTipoVehiculo(
+            tipoVehiculo,
+          )}: ${velocidadKmh} km/h. La velocidad fue actualizada y la planificación se ajustará al nuevo valor.`,
+
+        variante:
+          "success",
       });
 
-      window.setTimeout(() => void cargarPlan(), 1200);
-    } catch (cause) {
-      const mensaje = mensajeDeError(cause, "No fue posible actualizar la velocidad.");
-      mostrarToast({ titulo: "Velocidad rechazada", descripcion: mensaje, variante: "error" });
+      window.setTimeout(
+        () => {
+          void cargarPlan();
+        },
+        1200,
+      );
+    } catch (
+      cause
+    ) {
+      const mensaje =
+        mensajeDeError(
+          cause,
+          "No fue posible actualizar la velocidad.",
+        );
+
+      mostrarToast({
+        titulo:
+          "Velocidad rechazada",
+
+        descripcion:
+          mensaje,
+
+        variante:
+          "error",
+      });
+
       throw cause;
     } finally {
-      setTipoActualizando(null);
+      setTipoActualizando(
+        null,
+      );
     }
   }
 
   /*
    * =====================================================
-   * FEED DE EVENTOS
+   * DATOS DERIVADOS
    * =====================================================
    */
 
@@ -850,14 +930,6 @@ export default function EjecucionPage() {
       replanificacion,
     );
 
-  /*
-   * El mapa necesita TODAS
-   * las paradas del plan,
-   * incluso las ya visitadas,
-   * para diferenciar:
-   *
-   * realizado / actual / futuro.
-   */
   const rutas =
     useMemo(
       () =>
@@ -870,7 +942,7 @@ export default function EjecucionPage() {
 
   /*
    * =====================================================
-   * ESTADOS DE CARGA
+   * CARGA
    * =====================================================
    */
 
@@ -879,7 +951,6 @@ export default function EjecucionPage() {
   ) {
     return (
       <div className="flex h-full min-h-[600px] items-center justify-center bg-[#0d1117] text-slate-300">
-
         <Loader2 className="mr-3 size-5 animate-spin" />
 
         Cargando escenario...
@@ -893,7 +964,6 @@ export default function EjecucionPage() {
   ) {
     return (
       <div className="flex h-full min-h-[600px] flex-col items-center justify-center bg-[#0d1117] text-white">
-
         <ServerCrash className="mb-4 size-10 text-red-400" />
 
         <p className="font-semibold">
@@ -927,7 +997,7 @@ export default function EjecucionPage() {
 
   /*
    * =====================================================
-   * PERMISOS POR ESCENARIO
+   * PERMISOS
    * =====================================================
    */
 
@@ -957,12 +1027,6 @@ export default function EjecucionPage() {
         "FIVE_DAY"
     );
 
-  /*
-   * =====================================================
-   * INDICADORES REALES DEL BACKEND
-   * =====================================================
-   */
-
   const indicadores:
     IndicadoresOperacion =
     {
@@ -989,7 +1053,8 @@ export default function EjecucionPage() {
       paquetesEntregados:
         monitoreo
           .ejecucion
-          .paquetesEntregados ?? 0,
+          .paquetesEntregados ??
+        0,
 
       pedidosRiesgo:
         monitoreo
@@ -999,16 +1064,13 @@ export default function EjecucionPage() {
 
   /*
    * =====================================================
-   * PANTALLA
+   * UI
    * =====================================================
    */
 
   return (
     <div className="grid h-screen grid-cols-[minmax(0,1fr)_360px] overflow-hidden bg-[#0d1117]">
-
       <div className="relative min-w-0">
-
-        {/* MAPA KONVA */}
         <MapaOperacion
           pedidos={
             pedidos
@@ -1044,64 +1106,108 @@ export default function EjecucionPage() {
               .escenario
               .estado
           }
+          tiposFlota={
+            tiposFlota
+          }
           seleccionVehiculoId={
-            seleccionDetalle?.tipo === "VEHICULO"
+            seleccionDetalle?.tipo ===
+              "VEHICULO"
               ? seleccionDetalle.id
               : null
           }
           seleccionPedidoId={
-            seleccionDetalle?.tipo === "PEDIDO"
+            seleccionDetalle?.tipo ===
+              "PEDIDO"
               ? seleccionDetalle.id
               : null
           }
           seleccionAlmacenId={
-            seleccionDetalle?.tipo === "ALMACEN"
+            seleccionDetalle?.tipo ===
+              "ALMACEN"
               ? seleccionDetalle.id
               : null
           }
-          onSeleccionarVehiculo={(id) => setSeleccionDetalle({ tipo: "VEHICULO", id })}
-          onSeleccionarPedido={(id) => setSeleccionDetalle({ tipo: "PEDIDO", id })}
-          onSeleccionarAlmacen={(id) => setSeleccionDetalle({ tipo: "ALMACEN", id })}
+          onSeleccionarVehiculo={(id) =>
+            setSeleccionDetalle({
+              tipo:
+                "VEHICULO",
+              id,
+            })
+          }
+          onSeleccionarPedido={(id) =>
+            setSeleccionDetalle({
+              tipo:
+                "PEDIDO",
+              id,
+            })
+          }
+          onSeleccionarAlmacen={(id) =>
+            setSeleccionDetalle({
+              tipo:
+                "ALMACEN",
+              id,
+            })
+          }
         />
 
-        {/* Columna izquierda: el reloj va arriba (orden invertido) y el panel de listas debajo, sin superponerse. */}
-        <div className="absolute left-5 top-16 z-50 flex max-h-[calc(100%-5rem)] w-[410px] flex-col-reverse justify-end gap-3 overflow-y-auto">
-        <PanelListasOperacion
-          monitoreo={monitoreo}
-          ejecucionId={ejecucionId}
-          tiposFlota={tiposFlota}
-          plan={plan}
-          seleccion={seleccionDetalle}
-          onSeleccionar={setSeleccionDetalle}
-        />
+        {/*
+         * Columna izquierda única.
+         *
+         * Antes PanelEscenario y PanelListasOperacion
+         * estaban posicionados independientemente y podían
+         * superponerse.
+         *
+         * Ahora comparten un contenedor.
+         */}
+        <div className="absolute left-5 top-5 z-50 flex max-h-[calc(100%-5rem)] w-[430px] flex-col gap-3 overflow-y-auto pr-1">
+          <PanelEscenario
+            monitoreo={
+              monitoreo
+            }
+            accionando={
+              accionando
+            }
+            onPausar={() =>
+              void ejecutarAccion(
+                "PAUSAR",
+              )
+            }
+            onReanudar={() =>
+              void ejecutarAccion(
+                "REANUDAR",
+              )
+            }
+            onDetener={() =>
+              setConfirmarDetencion(
+                true,
+              )
+            }
+          />
 
-        {/* RELOJ + CONTROLES */}
-        <PanelEscenario
-          monitoreo={
-            monitoreo
-          }
-          accionando={
-            accionando
-          }
-          onPausar={() =>
-            void ejecutarAccion(
-              "PAUSAR",
-            )
-          }
-          onReanudar={() =>
-            void ejecutarAccion(
-              "REANUDAR",
-            )
-          }
-          onDetener={() =>
-            setConfirmarDetencion(true)
-          }
-        />
+          <PanelListasOperacion
+            monitoreo={
+              monitoreo
+            }
+            ejecucionId={
+              ejecucionId
+            }
+            tiposFlota={
+              tiposFlota
+            }
+            plan={
+              plan
+            }
+            seleccion={
+              seleccionDetalle
+            }
+            onSeleccionar={
+              setSeleccionDetalle
+            }
+          />
         </div>
 
         {/* ACCIONES */}
         <div className="absolute right-5 top-16 z-40 flex flex-col gap-2">
-
           {puedeRegistrarPedido && (
             <button
               type="button"
@@ -1142,13 +1248,25 @@ export default function EjecucionPage() {
             </button>
           )}
 
-          {["STOPPED", "COMPLETED", "COLLAPSED", "FAILED"].includes(estado) && (
+          {[
+            "STOPPED",
+            "COMPLETED",
+            "COLLAPSED",
+            "FAILED",
+          ].includes(
+            estado,
+          ) && (
             <button
               type="button"
-              onClick={() => setMostrarResultado(true)}
+              onClick={() =>
+                setMostrarResultado(
+                  true,
+                )
+              }
               className="flex items-center justify-center gap-2 rounded-md border border-orange-700 bg-[#11161d] px-4 py-2 text-sm font-semibold text-orange-300 shadow hover:bg-orange-950/50"
             >
               <BarChart3 className="size-4" />
+
               Ver resultado
             </button>
           )}
@@ -1191,10 +1309,20 @@ export default function EjecucionPage() {
           )}
 
         <DetalleOperacionPanel
-          seleccion={seleccionDetalle}
-          ejecucionId={ejecucionId}
-          instante={monitoreo.instante}
-          onCerrar={() => setSeleccionDetalle(null)}
+          seleccion={
+            seleccionDetalle
+          }
+          ejecucionId={
+            ejecucionId
+          }
+          instante={
+            monitoreo.instante
+          }
+          onCerrar={() =>
+            setSeleccionDetalle(
+              null,
+            )
+          }
         />
 
         {/* ERROR */}
@@ -1205,10 +1333,8 @@ export default function EjecucionPage() {
         )}
 
         {/* COLAPSO */}
-        {monitoreo
-          .colapso && (
+        {monitoreo.colapso && (
           <div className="absolute left-5 top-44 z-40 max-w-md rounded-md border border-red-700 bg-red-950/90 p-3 text-xs text-red-100 shadow-xl">
-
             <div className="flex items-center gap-2 font-semibold">
               <AlertTriangle className="size-4" />
 
@@ -1232,14 +1358,12 @@ export default function EjecucionPage() {
           </div>
         )}
 
-        {/* FEED DE EVENTOS */}
         <FeedEventos
           eventos={
             eventos
           }
         />
 
-        {/* RESUMEN OPERATIVO */}
         <EstadoOperativo
           monitoreo={
             monitoreo
@@ -1253,7 +1377,6 @@ export default function EjecucionPage() {
         />
       </div>
 
-      {/* PANEL DERECHO */}
       <PanelIndicadores
         indicadores={
           indicadores
@@ -1276,26 +1399,59 @@ export default function EjecucionPage() {
         errorPlan={
           errorPlan
         }
-        permitirCambioVelocidad={estado === "RUNNING" || estado === "PAUSED"}
-        tipoActualizando={tipoActualizando}
-        onActualizarVelocidad={handleActualizarVelocidad}
-        onSeleccionarAlmacen={(id) => setSeleccionDetalle({ tipo: "ALMACEN", id })}
+        permitirCambioVelocidad={
+          estado === "RUNNING" ||
+          estado === "PAUSED"
+        }
+        tipoActualizando={
+          tipoActualizando
+        }
+        onActualizarVelocidad={
+          handleActualizarVelocidad
+        }
+        onSeleccionarAlmacen={(id) =>
+          setSeleccionDetalle({
+            tipo:
+              "ALMACEN",
+            id,
+          })
+        }
       />
 
       <ConfirmDialog
-        abierto={confirmarDetencion}
+        abierto={
+          confirmarDetencion
+        }
         titulo="Detener simulación"
-        descripcion="El escenario se cerrará y el backend consolidará el resultado final."
+        descripcion="El escenario se cerrará y se generará el resultado final."
         textoConfirmar="Detener"
         variante="danger"
-        confirmando={accionando}
-        onCancelar={() => setConfirmarDetencion(false)}
-        onConfirmar={() => void ejecutarAccion("DETENER")}
+        confirmando={
+          accionando
+        }
+        onCancelar={() =>
+          setConfirmarDetencion(
+            false,
+          )
+        }
+        onConfirmar={() =>
+          void ejecutarAccion(
+            "DETENER",
+          )
+        }
       />
 
       <ResultadoEscenarioModal
-        ejecucionId={mostrarResultado ? ejecucionId : null}
-        onCerrar={() => setMostrarResultado(false)}
+        ejecucionId={
+          mostrarResultado
+            ? ejecucionId
+            : null
+        }
+        onCerrar={() =>
+          setMostrarResultado(
+            false,
+          )
+        }
       />
     </div>
   );
@@ -1335,10 +1491,8 @@ function PanelEscenario({
       .estado;
 
   return (
-    <div className="shrink-0 rounded-lg border border-slate-700 bg-[#11161d]/95 p-4 text-white shadow-xl">
-
-      <div className="flex items-start justify-between gap-4">
-
+    <div className="w-full shrink-0 rounded-lg border border-slate-700 bg-[#11161d]/95 p-4 text-white shadow-xl">
+      <div className="mb-3 flex items-start justify-between gap-4">
         <div>
           <p className="text-[10px] uppercase text-slate-500">
             {nombreTipoEscenario(
@@ -1348,11 +1502,14 @@ function PanelEscenario({
             )}
           </p>
 
-          <p className="mt-1 text-lg font-semibold">
-            {formatearInstante(
+          <p className="mt-1 text-[10px] text-slate-500">
+            Factor{" "}
+            {
               monitoreo
-                .instante,
-            )}
+                .escenario
+                .factorAceleracion
+            }
+            ×
           </p>
         </div>
 
@@ -1364,22 +1521,15 @@ function PanelEscenario({
       </div>
 
       <BloqueTiempos
-        escenario={monitoreo.escenario}
-        instante={monitoreo.instante}
+        escenario={
+          monitoreo.escenario
+        }
+        instante={
+          monitoreo.instante
+        }
       />
 
-      <p className="mt-1 text-[10px] text-slate-500">
-        Hora simulada · Lima ·{" "}
-        {
-          monitoreo
-            .escenario
-            .factorAceleracion
-        }
-        ×
-      </p>
-
       <div className="mt-4 flex gap-2">
-
         {estado ===
           "RUNNING" && (
           <button
@@ -1416,10 +1566,10 @@ function PanelEscenario({
           </button>
         )}
 
-        {(estado ===
-            "RUNNING" ||
-          estado ===
-            "PAUSED") && (
+        {(
+          estado === "RUNNING" ||
+          estado === "PAUSED"
+        ) && (
           <button
             type="button"
             disabled={
@@ -1462,9 +1612,7 @@ function EstadoOperativo({
 }) {
   return (
     <div className="absolute bottom-5 left-5 z-40 w-[410px] rounded-lg border border-slate-700 bg-[#11161d]/95 p-4 text-white shadow-xl">
-
       <div className="flex items-center justify-between gap-3">
-
         <div>
           <h3 className="font-semibold">
             Estado operativo
@@ -1491,7 +1639,6 @@ function EstadoOperativo({
       </div>
 
       <div className="mt-4 grid grid-cols-4 gap-2 text-xs">
-
         <Dato
           label="Llegados"
           value={String(
@@ -1564,10 +1711,9 @@ function EstadoOperativo({
       </div>
 
       <p className="mt-3 rounded-md bg-slate-800 p-2 text-[11px] text-slate-400">
-        El mapa combina
-        monitoreo, pedidos del
-        periodo y el último
-        plan vigente de SA.
+        El mapa combina monitoreo,
+        pedidos del periodo y el
+        último plan vigente de SA.
       </p>
     </div>
   );
@@ -1593,17 +1739,14 @@ function EstadoBadge({
     estado ===
     "RUNNING"
       ? "bg-green-500/15 text-green-400"
-
       : estado ===
         "PAUSED"
         ? "bg-amber-500/15 text-amber-400"
-
         : estado ===
             "COLLAPSED" ||
           estado ===
             "FAILED"
           ? "bg-red-500/15 text-red-400"
-
           : "bg-slate-500/15 text-slate-300";
 
   return (
@@ -1617,12 +1760,6 @@ function EstadoBadge({
   );
 }
 
-/*
- * =========================================================
- * DATO PEQUEÑO
- * =========================================================
- */
-
 function Dato({
   label,
   value,
@@ -1635,7 +1772,6 @@ function Dato({
 }) {
   return (
     <div className="rounded-md bg-[#1b222c] p-2">
-
       <p className="text-[9px] uppercase text-slate-500">
         {label}
       </p>
@@ -1647,12 +1783,6 @@ function Dato({
   );
 }
 
-/*
- * =========================================================
- * LABELS
- * =========================================================
- */
-
 function nombreTipoEscenario(
   tipo:
     MonitoreoResponseDto[
@@ -1661,9 +1791,7 @@ function nombreTipoEscenario(
       "tipo"
     ],
 ) {
-  switch (
-    tipo
-  ) {
+  switch (tipo) {
     case "DAY_TO_DAY":
       return "Día a Día";
 
@@ -1683,9 +1811,7 @@ function nombreEstado(
       "estado"
     ],
 ) {
-  switch (
-    estado
-  ) {
+  switch (estado) {
     case "CREATED":
       return "Creado";
 
@@ -1719,9 +1845,7 @@ function nombreCausaColapso(
       "causa"
     ],
 ) {
-  switch (
-    causa
-  ) {
+  switch (causa) {
     case "PLAZO_VENCIDO":
       return "plazo vencido";
 
@@ -1730,62 +1854,17 @@ function nombreCausaColapso(
   }
 }
 
-/*
- * =========================================================
- * FORMATOS
- * =========================================================
- */
-
-function formatearInstante(
-  instante:
-    string,
+function nombreTipoVehiculo(
+  tipo:
+    TipoVehiculoBackend,
 ) {
-  return new Intl.DateTimeFormat(
-    "es-PE",
-    {
-      timeZone:
-        "America/Lima",
-
-      day:
-        "2-digit",
-
-      month:
-        "2-digit",
-
-      year:
-        "numeric",
-
-      hour:
-        "2-digit",
-
-      minute:
-        "2-digit",
-
-      second:
-        "2-digit",
-
-      hour12:
-        false,
-    },
-  ).format(
-    new Date(
-      instante,
-    ),
-  );
-}
-
-/*
- * =========================================================
- * ERROR
- * =========================================================
- */
-
-function nombreTipoVehiculo(tipo: TipoVehiculoBackend) {
   switch (tipo) {
     case "CAR":
       return "Autos";
+
     case "MOTORCYCLE":
       return "Motos";
+
     case "BICYCLE":
       return "Bicicletas";
   }

@@ -96,7 +96,12 @@ export function ListaVehiculos({
 
         <label className="relative">
           <ArrowDownUp className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-slate-500" />
-          <select value={orden} onChange={(event) => setOrden(event.target.value as OrdenVehiculos)} aria-label="Ordenar unidades" className="w-full rounded-md border border-slate-700 bg-[#11161d] py-1.5 pl-7 pr-2 text-xs text-slate-200">
+          <select
+            value={orden}
+            onChange={(event) => setOrden(event.target.value as OrdenVehiculos)}
+            aria-label="Ordenar unidades"
+            className="w-full rounded-md border border-slate-700 bg-[#11161d] py-1.5 pl-7 pr-2 text-xs text-slate-200"
+          >
             <option value="OCUPACION_DESC">Ocupación ↓</option>
             <option value="OCUPACION_ASC">Ocupación ↑</option>
             <option value="SALIDA_ASC">Salida ↑</option>
@@ -133,7 +138,9 @@ export function ListaVehiculos({
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-mono text-xs font-semibold text-white">{vehiculo.id}</p>
-                    <p className="mt-0.5 text-[10px] text-slate-500">{nombreTipo(vehiculo.tipo)} · {nombreEstado(vehiculo.estado)}</p>
+                    <p className="mt-0.5 text-[10px] text-slate-500">
+                      {nombreTipo(vehiculo.tipo)} · {nombreEstado(vehiculo.estado)}
+                    </p>
                   </div>
                   <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${claseNivel(nivel)}`}>
                     {vehiculo.cargaActual}/{capacidad || "—"} · {ocupacion.toFixed(0)}%
@@ -142,7 +149,8 @@ export function ListaVehiculos({
 
                 {vehiculo.motivoDetencion && (
                   <p className="mt-1 text-[10px] text-amber-300">
-                    {nombreMotivo(vehiculo.motivoDetencion)}{vehiculo.detenidoHasta ? ` hasta ${formatearHora(vehiculo.detenidoHasta)}` : ""}
+                    {nombreMotivo(vehiculo.motivoDetencion)}
+                    {vehiculo.detenidoHasta ? ` hasta ${formatearHora(vehiculo.detenidoHasta)}` : ""}
                   </p>
                 )}
 
@@ -167,13 +175,20 @@ function compararVehiculos(
   orden: OrdenVehiculos,
 ) {
   switch (orden) {
-    case "OCUPACION_ASC": return a.ocupacion - b.ocupacion || a.vehiculo.id.localeCompare(b.vehiculo.id);
-    case "OCUPACION_DESC": return b.ocupacion - a.ocupacion || a.vehiculo.id.localeCompare(b.vehiculo.id);
-    case "SALIDA_ASC": return fechaOrden(a.ruta?.salida) - fechaOrden(b.ruta?.salida) || a.vehiculo.id.localeCompare(b.vehiculo.id);
-    case "SALIDA_DESC": return fechaOrdenDesc(a.ruta?.salida) - fechaOrdenDesc(b.ruta?.salida) || a.vehiculo.id.localeCompare(b.vehiculo.id);
-    case "LLEGADA_ASC": return fechaOrden(a.ruta?.llegadaFinal) - fechaOrden(b.ruta?.llegadaFinal) || a.vehiculo.id.localeCompare(b.vehiculo.id);
-    case "LLEGADA_DESC": return fechaOrdenDesc(a.ruta?.llegadaFinal) - fechaOrdenDesc(b.ruta?.llegadaFinal) || a.vehiculo.id.localeCompare(b.vehiculo.id);
-    case "CODIGO": return a.vehiculo.id.localeCompare(b.vehiculo.id, undefined, { numeric: true });
+    case "OCUPACION_ASC":
+      return a.ocupacion - b.ocupacion || a.vehiculo.id.localeCompare(b.vehiculo.id);
+    case "OCUPACION_DESC":
+      return b.ocupacion - a.ocupacion || a.vehiculo.id.localeCompare(b.vehiculo.id);
+    case "SALIDA_ASC":
+      return fechaOrden(a.ruta?.salida) - fechaOrden(b.ruta?.salida) || a.vehiculo.id.localeCompare(b.vehiculo.id);
+    case "SALIDA_DESC":
+      return fechaOrdenDesc(a.ruta?.salida) - fechaOrdenDesc(b.ruta?.salida) || a.vehiculo.id.localeCompare(b.vehiculo.id);
+    case "LLEGADA_ASC":
+      return fechaOrden(a.ruta?.llegadaFinal) - fechaOrden(b.ruta?.llegadaFinal) || a.vehiculo.id.localeCompare(b.vehiculo.id);
+    case "LLEGADA_DESC":
+      return fechaOrdenDesc(a.ruta?.llegadaFinal) - fechaOrdenDesc(b.ruta?.llegadaFinal) || a.vehiculo.id.localeCompare(b.vehiculo.id);
+    case "CODIGO":
+      return a.vehiculo.id.localeCompare(b.vehiculo.id, undefined, { numeric: true });
   }
 }
 
@@ -189,7 +204,12 @@ function fechaOrdenDesc(valor: string | null | undefined) {
   return Number.isFinite(fecha) ? -fecha : Number.POSITIVE_INFINITY;
 }
 
-function nivelOcupacion(porcentaje: number, carga: number, verdeHasta: number, ambarHasta: number) {
+function nivelOcupacion(
+  porcentaje: number,
+  carga: number,
+  verdeHasta: number,
+  ambarHasta: number,
+) {
   if (carga === 0) return "VACIO" as const;
   if (porcentaje <= verdeHasta) return "VERDE" as const;
   if (porcentaje <= ambarHasta) return "AMBAR" as const;
@@ -198,34 +218,47 @@ function nivelOcupacion(porcentaje: number, carga: number, verdeHasta: number, a
 
 function claseNivel(nivel: ReturnType<typeof nivelOcupacion>) {
   switch (nivel) {
-    case "VACIO": return "bg-slate-700 text-slate-200";
-    case "VERDE": return "bg-green-500/15 text-green-400";
-    case "AMBAR": return "bg-amber-500/15 text-amber-300";
-    case "ROJO": return "bg-red-500/15 text-red-300";
+    case "VACIO":
+      return "bg-slate-700 text-slate-200";
+    case "VERDE":
+      return "bg-green-500/15 text-green-400";
+    case "AMBAR":
+      return "bg-amber-500/15 text-amber-300";
+    case "ROJO":
+      return "bg-red-500/15 text-red-300";
   }
 }
 
 function nombreTipo(tipo: MonitoreoResponseDto["vehiculos"][number]["tipo"]) {
   switch (tipo) {
-    case "CAR": return "Auto";
-    case "MOTORCYCLE": return "Moto";
-    case "BICYCLE": return "Bicicleta";
+    case "CAR":
+      return "Auto";
+    case "MOTORCYCLE":
+      return "Moto";
+    case "BICYCLE":
+      return "Bicicleta";
   }
 }
 
 function nombreEstado(estado: MonitoreoResponseDto["vehiculos"][number]["estado"]) {
   switch (estado) {
-    case "AVAILABLE": return "Disponible";
-    case "IN_ROUTE": return "En ruta";
-    case "UNAVAILABLE": return "No disponible";
+    case "AVAILABLE":
+      return "Disponible";
+    case "IN_ROUTE":
+      return "En ruta";
+    case "UNAVAILABLE":
+      return "No disponible";
   }
 }
 
 function nombreMotivo(motivo: NonNullable<MonitoreoResponseDto["vehiculos"][number]["motivoDetencion"]>) {
   switch (motivo) {
-    case "AVERIA": return "Avería";
-    case "MANTENIMIENTO": return "Mantenimiento";
-    case "REFRIGERIO": return "Refrigerio";
+    case "AVERIA":
+      return "Avería";
+    case "MANTENIMIENTO":
+      return "Mantenimiento";
+    case "REFRIGERIO":
+      return "Refrigerio";
   }
 }
 

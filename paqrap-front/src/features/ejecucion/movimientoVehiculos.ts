@@ -1,221 +1,459 @@
-import type { ParadaMapa, RutaMapa, VehiculoMapa } from "./ejecucion.types";
+import type {
+  ParadaMapa,
+  RutaMapa,
+  VehiculoMapa,
+} from "./ejecucion.types";
+
+import {
+  buscarTramoPendiente,
+  obtenerTramosTemporizados,
+  puntoEnTramo,
+} from "./geometriaRutas";
 
 export interface PosicionMapa {
   x: number;
   y: number;
 }
 
-export interface PosicionVehiculoAnimada extends PosicionMapa {
+export interface PosicionVehiculoAnimada
+  extends PosicionMapa {
   enMovimiento: boolean;
   progresoTramo: number;
   destino: PosicionMapa | null;
+  direccionGrados: number | null;
 }
 
-export function fechaMs(valor: string | null | undefined) {
-  return valor ? new Date(valor).getTime() : Number.NaN;
+export function fechaMs(
+  valor: string | null | undefined,
+) {
+  return valor
+    ? Date.parse(valor)
+    : Number.NaN;
 }
 
-export function arriboFisicoMs(parada: ParadaMapa) {
-  return fechaMs(parada.inicioRefrigerio ?? parada.llegada);
+export function arriboFisicoMs(
+  parada: ParadaMapa,
+) {
+  return fechaMs(
+    parada.inicioRefrigerio ??
+      parada.llegada,
+  );
 }
 
-function clamp01(valor: number) {
-  return Math.min(1, Math.max(0, valor));
-}
-
-export function horizontalPrimeroParaVehiculo(vehiculoId: string) {
-  let hash = 0;
-  for (let index = 0; index < vehiculoId.length; index += 1) {
-    hash = (hash * 31 + vehiculoId.charCodeAt(index)) | 0;
-  }
-  return Math.abs(hash) % 2 === 0;
-}
-
-export function interpolarOrtogonal(
-  origen: PosicionMapa,
-  destino: PosicionMapa,
-  progreso: number,
-  horizontalPrimero: boolean,
-): PosicionMapa {
-  const p = clamp01(progreso);
-  const dx = destino.x - origen.x;
-  const dy = destino.y - origen.y;
-  const largoX = Math.abs(dx);
-  const largoY = Math.abs(dy);
-  const total = largoX + largoY;
-
-  if (total === 0) return { ...destino };
-
-  const recorrido = total * p;
-  const signoX = Math.sign(dx);
-  const signoY = Math.sign(dy);
-
-  if (horizontalPrimero) {
-    if (recorrido <= largoX) {
-      return { x: origen.x + signoX * recorrido, y: origen.y };
-    }
-    return { x: destino.x, y: origen.y + signoY * (recorrido - largoX) };
-  }
-
-  if (recorrido <= largoY) {
-    return { x: origen.x, y: origen.y + signoY * recorrido };
-  }
-  return { x: origen.x + signoX * (recorrido - largoY), y: destino.y };
-}
-
-/** Camino real informado por el backend, si tiene al menos un tramo. */
-export function caminoValido(
-  camino: PosicionMapa[] | null | undefined,
-): camino is PosicionMapa[] {
-  return Array.isArray(camino) && camino.length >= 2;
+function detenido(
+  posicion: PosicionMapa,
+  destino: PosicionMapa | null = null,
+  progresoTramo = 0,
+): PosicionVehiculoAnimada {
+  return {
+    ...posicion,
+    enMovimiento: false,
+    progresoTramo,
+    destino,
+    direccionGrados: null,
+  };
 }
 
 /**
- * Recorre `progreso` (0 a 1) del camino real (calles de 1 km a velocidad pareja).
- * Mismo cálculo que EjecutorPlanService.interpolarEnCamino del backend, sin redondear.
+ * Verifica que exista un camino con
+ * al menos origen y destino.
+ *
+ * Se conserva porque develop también
+ * publica camino a nivel de parada.
+ */
+export function caminoValido(
+  camino:
+    | PosicionMapa[]
+    | null
+    | undefined,
+): camino is PosicionMapa[] {
+  return (
+    Array.isArray(camino) &&
+    camino.length >= 2
+  );
+}
+
+/**
+ * Recorre un camino real usando un
+ * progreso continuo entre 0 y 1.
+ *
+ * Esta función queda disponible para
+ * compatibilidad con el nuevo campo
+ * `camino`, aunque el movimiento visual
+ * principal utiliza los RoadLeg/tramos
+ * temporizados del backend.
  */
 export function interpolarEnCamino(
   camino: PosicionMapa[],
   progreso: number,
 ): PosicionMapa {
-  const calles = camino.length - 1;
-  const recorrido = clamp01(progreso) * calles;
-  const indice = Math.min(Math.floor(recorrido), calles - 1);
-  const fraccion = recorrido - indice;
-  const desde = camino[indice];
-  const hasta = camino[indice + 1];
+  const calles =
+    camino.length - 1;
+
+  const recorrido =
+    clamp01(progreso) *
+    calles;
+
+  const indice =
+    Math.min(
+      Math.floor(recorrido),
+      calles - 1,
+    );
+
+  const fraccion =
+    recorrido - indice;
+
+  const desde =
+    camino[indice];
+
+  const hasta =
+    camino[indice + 1];
+
   return {
-    x: desde.x + (hasta.x - desde.x) * fraccion,
-    y: desde.y + (hasta.y - desde.y) * fraccion,
+    x:
+      desde.x +
+      (hasta.x - desde.x) *
+        fraccion,
+
+    y:
+      desde.y +
+      (hasta.y - desde.y) *
+        fraccion,
   };
 }
 
-/** Posición continua de `punto` a lo largo del camino (índice de calle + fracción). */
-function avanceEnCamino(camino: PosicionMapa[], punto: PosicionMapa): number {
+/**
+ * Devuelve la posición continua de un
+ * punto dentro de un camino.
+ */
+function avanceEnCamino(
+  camino: PosicionMapa[],
+  punto: PosicionMapa,
+): number {
   let mejor = 0;
-  let menorDistancia = Number.POSITIVE_INFINITY;
-  for (let indice = 0; indice < camino.length - 1; indice += 1) {
-    const a = camino[indice];
-    const b = camino[indice + 1];
-    const largo = Math.abs(b.x - a.x) + Math.abs(b.y - a.y);
-    const t = largo === 0
-      ? 0
-      : clamp01(((punto.x - a.x) * (b.x - a.x) + (punto.y - a.y) * (b.y - a.y)) / (largo * largo));
-    const x = a.x + (b.x - a.x) * t;
-    const y = a.y + (b.y - a.y) * t;
-    const distancia = Math.hypot(punto.x - x, punto.y - y);
-    if (distancia < menorDistancia - 1e-9) {
-      menorDistancia = distancia;
-      mejor = indice + t;
+
+  let menorDistancia =
+    Number.POSITIVE_INFINITY;
+
+  for (
+    let indice = 0;
+    indice < camino.length - 1;
+    indice += 1
+  ) {
+    const a =
+      camino[indice];
+
+    const b =
+      camino[indice + 1];
+
+    const dx =
+      b.x - a.x;
+
+    const dy =
+      b.y - a.y;
+
+    const largoCuadrado =
+      dx * dx +
+      dy * dy;
+
+    const t =
+      largoCuadrado === 0
+        ? 0
+        : clamp01(
+            (
+              (punto.x - a.x) * dx +
+              (punto.y - a.y) * dy
+            ) /
+              largoCuadrado,
+          );
+
+    const x =
+      a.x + dx * t;
+
+    const y =
+      a.y + dy * t;
+
+    const distancia =
+      Math.hypot(
+        punto.x - x,
+        punto.y - y,
+      );
+
+    if (
+      distancia <
+      menorDistancia - 1e-9
+    ) {
+      menorDistancia =
+        distancia;
+
+      mejor =
+        indice + t;
     }
   }
+
   return mejor;
 }
 
 /**
- * Nodos del camino que hay que recorrer para ir de `desde` a `hasta`, ambos sobre el camino
- * (p. ej. la posición actual del vehículo y la siguiente parada). Incluye los extremos.
+ * Obtiene la parte de un camino comprendida
+ * entre dos puntos.
  */
 export function tramoDeCamino(
   camino: PosicionMapa[],
   desde: PosicionMapa,
   hasta: PosicionMapa,
 ): PosicionMapa[] {
-  const inicio = avanceEnCamino(camino, desde);
-  const fin = avanceEnCamino(camino, hasta);
-  if (fin < inicio) {
-    return [desde, hasta];
+  const inicio =
+    avanceEnCamino(
+      camino,
+      desde,
+    );
+
+  const fin =
+    avanceEnCamino(
+      camino,
+      hasta,
+    );
+
+  if (
+    fin < inicio
+  ) {
+    return [
+      desde,
+      hasta,
+    ];
   }
-  const intermedios = camino.filter(
-    (_, indice) => indice > inicio + 1e-9 && indice < fin - 1e-9,
-  );
-  return [desde, ...intermedios, hasta];
+
+  const intermedios =
+    camino.filter(
+      (_, indice) =>
+        indice >
+          inicio + 1e-9 &&
+        indice <
+          fin - 1e-9,
+    );
+
+  return [
+    desde,
+    ...intermedios,
+    hasta,
+  ];
 }
 
 /**
- * Posición únicamente visual. Replica el criterio del backend:
- * - usa inicioRefrigerio como arribo físico si existe;
- * - mantiene el vehículo quieto durante refrigerio/servicio;
- * - avanza por el camino real de la parada (`camino`) o, si no viene, en L;
- * - no reemplaza el estado operacional persistido.
+ * Calcula únicamente la posición visual.
+ *
+ * La fuente de verdad son los tramos reales
+ * temporizados enviados por el backend.
+ *
+ * Los huecos entre RoadLeg representan
+ * esperas: el vehículo permanece detenido.
+ *
+ * Si no hay geometría real válida, se usa
+ * la posición confirmada por monitoreo.
+ * No se inventa una ruta en L.
  */
 export function calcularPosicionVehiculoAnimada(
   vehiculo: VehiculoMapa,
   ruta: RutaMapa | undefined,
   instanteSimuladoMs: number,
 ): PosicionVehiculoAnimada {
-  const posicionBackend = { x: vehiculo.x, y: vehiculo.y };
+  const posicionBackend = {
+    x: vehiculo.x,
+    y: vehiculo.y,
+  };
 
   if (
-    vehiculo.estado !== "EN_RUTA" ||
+    vehiculo.estado !==
+      "EN_RUTA" ||
     !ruta ||
-    ruta.paradas.length === 0 ||
-    !Number.isFinite(instanteSimuladoMs)
+    !Number.isFinite(
+      instanteSimuladoMs,
+    )
   ) {
-    return { ...posicionBackend, enMovimiento: false, progresoTramo: 0, destino: null };
+    return detenido(
+      posicionBackend,
+    );
   }
 
-  const paradas = [...ruta.paradas].sort((a, b) => a.orden - b.orden);
+  const salida =
+    fechaMs(
+      ruta.salida,
+    );
 
-  for (const parada of paradas) {
-    const enElLugar = arriboFisicoMs(parada);
-    const fin = fechaMs(parada.fin);
+  if (
+    !Number.isFinite(
+      salida,
+    ) ||
+    instanteSimuladoMs <
+      salida
+  ) {
+    return detenido(
+      posicionBackend,
+    );
+  }
+
+  /*
+   * Durante refrigerio o servicio,
+   * el vehículo permanece en la parada.
+   */
+  for (
+    const parada of
+      ruta.paradas
+  ) {
+    const arribo =
+      arriboFisicoMs(
+        parada,
+      );
+
+    const fin =
+      fechaMs(
+        parada.fin,
+      );
+
     if (
-      Number.isFinite(enElLugar) &&
-      Number.isFinite(fin) &&
-      instanteSimuladoMs >= enElLugar &&
-      instanteSimuladoMs < fin
+      Number.isFinite(
+        arribo,
+      ) &&
+      Number.isFinite(
+        fin,
+      ) &&
+      instanteSimuladoMs >=
+        arribo &&
+      instanteSimuladoMs <
+        fin
     ) {
-      return {
+      const lugar = {
         x: parada.x,
         y: parada.y,
-        enMovimiento: false,
-        progresoTramo: 1,
-        destino: { x: parada.x, y: parada.y },
       };
+
+      return detenido(
+        lugar,
+        lugar,
+        1,
+      );
     }
   }
 
-  const indiceSiguiente = paradas.findIndex(
-    (parada) => Number.isFinite(arriboFisicoMs(parada)) && arriboFisicoMs(parada) > instanteSimuladoMs,
-  );
+  /*
+   * RoadLeg reales publicados por backend.
+   */
+  const tramos =
+    obtenerTramosTemporizados(
+      ruta,
+    );
 
-  if (indiceSiguiente < 0) {
-    return { ...posicionBackend, enMovimiento: false, progresoTramo: 1, destino: null };
+  if (
+    tramos.length === 0
+  ) {
+    return detenido(
+      posicionBackend,
+    );
   }
 
-  const siguiente = paradas[indiceSiguiente];
-  const anterior = indiceSiguiente > 0 ? paradas[indiceSiguiente - 1] : null;
-  const inicioTramo = anterior
-    ? fechaMs(anterior.fin ?? anterior.llegada)
-    : fechaMs(ruta.salida);
-  const finTramo = arriboFisicoMs(siguiente);
-  const origen = anterior ? { x: anterior.x, y: anterior.y } : posicionBackend;
-  const destino = { x: siguiente.x, y: siguiente.y };
+  const indice =
+    buscarTramoPendiente(
+      tramos,
+      instanteSimuladoMs,
+    );
 
-  if (!Number.isFinite(inicioTramo) || !Number.isFinite(finTramo) || finTramo <= inicioTramo) {
-    return { ...posicionBackend, enMovimiento: false, progresoTramo: 0, destino };
+  const tramo =
+    tramos[indice];
+
+  /*
+   * Ya terminó todos los tramos.
+   */
+  if (!tramo) {
+    const ultimo =
+      tramos[
+        tramos.length - 1
+      ];
+
+    return detenido(
+      {
+        x: ultimo.hastaX,
+        y: ultimo.hastaY,
+      },
+      null,
+      1,
+    );
   }
 
-  if (instanteSimuladoMs <= inicioTramo) {
-    return { ...origen, enMovimiento: false, progresoTramo: 0, destino };
+  const destino = {
+    x: tramo.hastaX,
+    y: tramo.hastaY,
+  };
+
+  /*
+   * Existe un hueco temporal antes del
+   * siguiente RoadLeg: es una espera.
+   */
+  if (
+    instanteSimuladoMs <
+    tramo.salidaMs
+  ) {
+    return detenido(
+      {
+        x: tramo.desdeX,
+        y: tramo.desdeY,
+      },
+      destino,
+    );
   }
 
-  const progreso = clamp01((instanteSimuladoMs - inicioTramo) / (finTramo - inicioTramo));
-  // Con el camino real del plan rodea los bloqueos; sin él (planes antiguos), camino en L.
-  const posicion = caminoValido(siguiente.camino)
-    ? interpolarEnCamino(siguiente.camino, progreso)
-    : interpolarOrtogonal(
-        origen,
-        destino,
-        progreso,
-        horizontalPrimeroParaVehiculo(vehiculo.id),
-      );
+  const duracion =
+    tramo.llegadaMs -
+    tramo.salidaMs;
+
+  const progreso =
+    duracion > 0
+      ? clamp01(
+          (
+            instanteSimuladoMs -
+            tramo.salidaMs
+          ) /
+            duracion,
+        )
+      : 1;
 
   return {
-    ...posicion,
-    enMovimiento: progreso > 0 && progreso < 1,
-    progresoTramo: progreso,
+    ...puntoEnTramo(
+      tramo,
+      instanteSimuladoMs,
+    ),
+
+    enMovimiento:
+      duracion > 0 &&
+      progreso < 1,
+
+    progresoTramo:
+      progreso,
+
     destino,
+
+    direccionGrados:
+      Math.atan2(
+        -(
+          tramo.hastaY -
+          tramo.desdeY
+        ),
+        tramo.hastaX -
+          tramo.desdeX,
+      ) *
+      180 /
+      Math.PI,
   };
+}
+
+function clamp01(
+  valor: number,
+) {
+  return Math.min(
+    1,
+    Math.max(
+      0,
+      valor,
+    ),
+  );
 }

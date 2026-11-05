@@ -4,6 +4,7 @@ import type {
 
 import type {
   TipoParadaBackend,
+  TramoRutaResponseDto,
 } from "@/api/planificacion.dto";
 
 export type TipoVehiculo =
@@ -97,6 +98,8 @@ export interface ParadaMapa {
   camino: Array<{ x: number; y: number }> | null;
 }
 
+export type TramoRutaMapa = TramoRutaResponseDto;
+
 export interface RutaMapa {
   id: string;
   vehiculoId: string;
@@ -109,6 +112,7 @@ export interface RutaMapa {
   costo: number;
 
   paradas: ParadaMapa[];
+  tramos: TramoRutaMapa[];
 
   almacenInicialId: string | null;
   planPersistedId: number | null;
