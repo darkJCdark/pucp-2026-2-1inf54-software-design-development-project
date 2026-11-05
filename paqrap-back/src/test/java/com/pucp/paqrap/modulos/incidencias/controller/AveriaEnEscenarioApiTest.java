@@ -133,9 +133,12 @@ class AveriaEnEscenarioApiTest {
 
     @Test
     void rechazaAveriasDeUnEscenarioQueNoEstaEnCurso() throws Exception {
+        long averiasAntes = averiaRepository.count();
+
         registrar("{\"vehiculoId\": \"TA01\", \"tipo\": \"MINOR\", \"ejecucionId\": 78}")
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.mensaje").value(containsString("no está en curso")));
+        assertEquals(averiasAntes, averiaRepository.count(), "el rechazo no debe persistir una averia");
     }
 
     @Test

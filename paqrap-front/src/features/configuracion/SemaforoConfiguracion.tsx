@@ -66,11 +66,11 @@ export function SemaforoConfiguracion() {
             <Input
               type="number"
               value={
-                configuracion.pedidoVerdeHasta
+                configuracion.vehiculoVerdeHasta
               }
               onChange={(event) =>
                 actualizarConfiguracion({
-                  pedidoVerdeHasta: Number(
+                  vehiculoVerdeHasta: Number(
                     event.target.value,
                   ),
                 })
@@ -83,11 +83,11 @@ export function SemaforoConfiguracion() {
               <Input
                 type="number"
                 value={
-                  configuracion.pedidoAmbarHasta
+                configuracion.vehiculoAmbarHasta
                 }
                 onChange={(event) =>
                   actualizarConfiguracion({
-                    pedidoAmbarHasta: Number(
+                  vehiculoAmbarHasta: Number(
                       event.target.value,
                     ),
                   })

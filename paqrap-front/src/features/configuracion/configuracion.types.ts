@@ -18,8 +18,8 @@ export interface ConfiguracionPlanificador {
 
   almacenVerdeHasta: number;
   almacenAmbarHasta: number;
-  pedidoVerdeHasta: number;
-  pedidoAmbarHasta: number;
+  vehiculoVerdeHasta: number;
+  vehiculoAmbarHasta: number;
 
   usarConfiguracionSa: boolean;
   saSemilla: string;

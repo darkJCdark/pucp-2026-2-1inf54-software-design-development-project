@@ -126,6 +126,14 @@ import {
   type SeleccionDetalleOperacion,
 } from "./DetalleOperacionPanel";
 
+import {
+  BloqueTiempos,
+} from "./BloqueTiempos";
+
+import {
+  PanelListasOperacion,
+} from "./PanelListasOperacion";
+
 import { ResultadoEscenarioModal } from "../ejecuciones/ResultadoEscenarioModal";
 
 export default function EjecucionPage() {
@@ -1036,9 +1044,33 @@ export default function EjecucionPage() {
               .escenario
               .estado
           }
+          seleccionVehiculoId={
+            seleccionDetalle?.tipo === "VEHICULO"
+              ? seleccionDetalle.id
+              : null
+          }
+          seleccionPedidoId={
+            seleccionDetalle?.tipo === "PEDIDO"
+              ? seleccionDetalle.id
+              : null
+          }
+          seleccionAlmacenId={
+            seleccionDetalle?.tipo === "ALMACEN"
+              ? seleccionDetalle.id
+              : null
+          }
           onSeleccionarVehiculo={(id) => setSeleccionDetalle({ tipo: "VEHICULO", id })}
           onSeleccionarPedido={(id) => setSeleccionDetalle({ tipo: "PEDIDO", id })}
           onSeleccionarAlmacen={(id) => setSeleccionDetalle({ tipo: "ALMACEN", id })}
+        />
+
+        <PanelListasOperacion
+          monitoreo={monitoreo}
+          ejecucionId={ejecucionId}
+          tiposFlota={tiposFlota}
+          plan={plan}
+          seleccion={seleccionDetalle}
+          onSeleccionar={setSeleccionDetalle}
         />
 
         {/* RELOJ + CONTROLES */}
@@ -1327,6 +1359,11 @@ function PanelEscenario({
           }
         />
       </div>
+
+      <BloqueTiempos
+        escenario={monitoreo.escenario}
+        instante={monitoreo.instante}
+      />
 
       <p className="mt-1 text-[10px] text-slate-500">
         Hora simulada · Lima ·{" "}

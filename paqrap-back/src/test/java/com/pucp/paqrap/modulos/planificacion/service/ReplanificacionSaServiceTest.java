@@ -511,6 +511,33 @@ class ReplanificacionSaServiceTest {
         assertTrue(antes.vehiculosNoDisponibles().contains(afectada.vehiculoId()));
         assertFalse(despues.vehiculosNoDisponibles().contains(afectada.vehiculoId()));
     }
+    @Test
+    void unaAveriaMayorExcluyeHastaElTurnoPosteriorYLuegoVuelveASerElegible() {
+        ReplanificacionResponse inicio = servicio.iniciar(EJECUCION, solicitud());
+        RutaResponse afectada = rutaQueAunNoLlegaASuPrimeraEntrega(inicio);
+        Instant t = H.plusSeconds(60);
+        BreakdownEvent averia = new BreakdownEvent(afectada.vehiculoId(), BreakdownType.MAJOR, t, new Location(28, 14));
+        BreakdownResolution resolucion = new BreakdownAvailabilityCalculator(ShiftSchedule.defaultSchedule()).resolve(averia);
+        Instant disponible = resolucion.unavailableUntil().isAfter(resolucion.returnsToCentralAt())
+                ? resolucion.unavailableUntil() : resolucion.returnsToCentralAt();
+        ReplanificacionResponse enAveria = servicio.registrarAveria(EJECUCION, averia, t);
+        ReplanificacionResponse antes = servicio.registrarPedido(
+        EJECUCION,
+        p04(disponible.minusSeconds(60)),
+        disponible.minusSeconds(60));
+        ReplanificacionResponse despues = servicio.registrarPedido(
+        EJECUCION,
+        new Order(
+                "P-MAJOR-DESPUES",
+                new Location(22, 10),
+                2,
+                disponible.plusSeconds(60),
+                disponible.plusSeconds(10 * 3600)),
+        disponible.plusSeconds(60));
+        assertTrue(enAveria.vehiculosNoDisponibles().contains(afectada.vehiculoId()));
+        assertTrue(antes.vehiculosNoDisponibles().contains(afectada.vehiculoId()));
+        assertFalse(despues.vehiculosNoDisponibles().contains(afectada.vehiculoId()));
+    }
 
     @Test
     void unaAveriaDeUnVehiculoLibreNoTocaLasRutasYLoDejaFueraSoloDuranteLaIndisponibilidad() {

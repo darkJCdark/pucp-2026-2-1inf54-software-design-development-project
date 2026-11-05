@@ -1,0 +1,49 @@
+<mxfile host="app.diagrams.net" agent="ChatGPT">
+  <diagram id="A23-multi-browser" name="A23 - Multiples navegadores">
+    <mxGraphModel grid="1" page="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;align=center;verticalAlign=middle;fontSize=24;fontStyle=1;" value="A23 - Multiples navegadores sobre una misma ejecucion" vertex="1">
+          <mxGeometry height="50" width="900" x="310" as="geometry" />
+        </mxCell>
+        <mxCell id="browserA" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=12;fontSize=14;strokeWidth=2;" value="&lt;b&gt;Navegador / Dispositivo A&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;Estado local:&lt;/b&gt;&lt;br&gt;• Seleccion de vehiculo / pedido / almacen&lt;br&gt;• Zoom y posicion del mapa&lt;br&gt;• Filtros&lt;br&gt;&lt;br&gt;&lt;b&gt;Visualiza:&lt;/b&gt;&lt;br&gt;• Ejecucion FIVE_DAY&lt;br&gt;• Monitoreo operativo&lt;br&gt;• Plan actual" vertex="1">
+          <mxGeometry height="280" width="290" x="90" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="browserB" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=12;fontSize=14;strokeWidth=2;" value="&lt;b&gt;Navegador / Dispositivo B&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;Estado local:&lt;/b&gt;&lt;br&gt;• Seleccion de vehiculo / pedido / almacen&lt;br&gt;• Zoom y posicion del mapa&lt;br&gt;• Filtros&lt;br&gt;&lt;br&gt;&lt;b&gt;Visualiza:&lt;/b&gt;&lt;br&gt;• Ejecucion FIVE_DAY&lt;br&gt;• Monitoreo operativo&lt;br&gt;• Plan actual" vertex="1">
+          <mxGeometry height="240" width="290" x="90" y="500" as="geometry" />
+        </mxCell>
+        <mxCell id="backend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=12;fontSize=15;strokeWidth=2;" value="&lt;b&gt;Backend PaqRap&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;Estado compartido de la simulacion:&lt;/b&gt;&lt;br&gt;• Ejecucion activa&lt;br&gt;• Instante simulado&lt;br&gt;• Estado de vehiculos&lt;br&gt;• Pedidos&lt;br&gt;• Almacenes&lt;br&gt;• Bloqueos&lt;br&gt;• Planificacion" vertex="1">
+          <mxGeometry height="300" width="310" x="650" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="engine" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=12;fontSize=14;strokeWidth=2;" value="&lt;b&gt;Motor de simulacion y planificacion&lt;/b&gt;&lt;br&gt;&lt;br&gt;• Avanza el reloj simulado&lt;br&gt;• Ejecuta planificacion / replanificacion&lt;br&gt;• Actualiza el estado operativo" vertex="1">
+          <mxGeometry height="130" width="280" x="1110" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="db" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;align=left;verticalAlign=top;spacing=12;fontSize=14;strokeWidth=2;" value="&lt;b&gt;Base de datos MySQL&lt;/b&gt;&lt;br&gt;&lt;br&gt;• Ejecuciones&lt;br&gt;• Pedidos&lt;br&gt;• Bloqueos&lt;br&gt;• Planes y rutas&lt;br&gt;• Inventario" vertex="1">
+          <mxGeometry height="210" width="210" x="1140" y="500" as="geometry" />
+        </mxCell>
+        <mxCell id="noteLocal" parent="1" style="shape=note;whiteSpace=wrap;html=1;size=20;align=left;verticalAlign=middle;spacing=10;fontSize=13;" value="Las interacciones visuales de un navegador no modifican la seleccion, zoom ni filtros del otro navegador." vertex="1">
+          <mxGeometry height="110" width="520" x="455" y="650" as="geometry" />
+        </mxCell>
+        <mxCell id="noteShared" parent="1" style="shape=note;whiteSpace=wrap;html=1;size=20;align=left;verticalAlign=middle;spacing=10;fontSize=13;" value="Ambos visualizadores consultan la misma ejecucion activa. El estado de la simulacion reside en el servidor." vertex="1">
+          <mxGeometry height="100" width="450" x="1030" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="edgeA" edge="1" parent="1" source="browserA" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;fontSize=12;" target="backend" value="GET /api/monitoreo/{ejecucionId}&lt;br&gt;GET /api/planificacion/{ejecucionId}/plan">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edgeB" edge="1" parent="1" source="browserB" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;fontSize=12;entryX=-0.007;entryY=0.567;entryDx=0;entryDy=0;entryPerimeter=0;" target="backend" value="GET /api/monitoreo/{ejecucionId}&lt;br&gt;GET /api/planificacion/{ejecucionId}/plan">
+          <mxGeometry relative="1" x="0.057" as="geometry" />
+        </mxCell>
+        <mxCell id="edgeEngine" edge="1" parent="1" source="backend" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;fontSize=12;startArrow=block;startFill=1;exitX=0.999;exitY=0.417;exitDx=0;exitDy=0;exitPerimeter=0;" target="engine" value="Actualizacion del estado">
+          <mxGeometry relative="1" x="-0.1477" as="geometry" />
+        </mxCell>
+        <mxCell id="edgeDb" edge="1" parent="1" source="backend" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;startArrow=block;startFill=1;strokeWidth=2;fontSize=12;" target="db" value="Lectura / persistencia">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="executionTag" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=13;fontStyle=1;" value="Ejecucion de referencia: FIVE_DAY #23" vertex="1">
+          <mxGeometry height="45" width="290" x="690" y="575" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -134,6 +135,10 @@ interface MapaOperacionProps {
   estadoEscenario:
     EstadoEscenarioBackend;
 
+  seleccionVehiculoId?: string | null;
+  seleccionPedidoId?: string | null;
+  seleccionAlmacenId?: string | null;
+
   onSeleccionarVehiculo?: (id: string) => void;
   onSeleccionarPedido?: (id: string) => void;
   onSeleccionarAlmacen?: (id: string) => void;
@@ -168,6 +173,9 @@ export function MapaOperacion({
   instanteSimulado,
   factorAceleracion,
   estadoEscenario,
+  seleccionVehiculoId = null,
+  seleccionPedidoId = null,
+  seleccionAlmacenId = null,
   onSeleccionarVehiculo,
   onSeleccionarPedido,
   onSeleccionarAlmacen,
@@ -204,6 +212,10 @@ export function MapaOperacion({
     useState<
       string | null
     >(null);
+
+  useEffect(() => {
+    setVehiculoSeleccionadoId(seleccionVehiculoId);
+  }, [seleccionVehiculoId]);
 
   const [
     filtros,
@@ -324,6 +336,23 @@ export function MapaOperacion({
         ),
       );
     }, [rutas]);
+
+  const rutasSeleccionadasPorPedido =
+    useMemo(
+      () =>
+        new Set(
+          seleccionPedidoId
+            ? rutas
+                .filter((ruta) =>
+                  ruta.paradas.some(
+                    (parada) => parada.pedidoId === seleccionPedidoId,
+                  ),
+                )
+                .map((ruta) => ruta.id)
+            : [],
+        ),
+      [rutas, seleccionPedidoId],
+    );
 
   /*
    * Posición visual animada
@@ -960,12 +989,12 @@ export function MapaOperacion({
                       ];
 
                     const seleccionada =
-                      ruta.vehiculoId ===
-                      vehiculoSeleccionadoId;
+                      ruta.vehiculoId === vehiculoSeleccionadoId ||
+                      rutasSeleccionadasPorPedido.has(ruta.id);
 
                     const haySeleccion =
-                      vehiculoSeleccionadoId !==
-                      null;
+                      vehiculoSeleccionadoId !== null ||
+                      seleccionPedidoId !== null;
 
                     /*
                      * Para rutas no seleccionadas
@@ -1060,16 +1089,14 @@ export function MapaOperacion({
                           hitStrokeWidth={
                             18
                           }
-                          onClick={() =>
-                            setVehiculoSeleccionadoId(
-                              ruta.vehiculoId,
-                            )
-                          }
-                          onTap={() =>
-                            setVehiculoSeleccionadoId(
-                              ruta.vehiculoId,
-                            )
-                          }
+                          onClick={() => {
+                            setVehiculoSeleccionadoId(ruta.vehiculoId);
+                            onSeleccionarVehiculo?.(ruta.vehiculoId);
+                          }}
+                          onTap={() => {
+                            setVehiculoSeleccionadoId(ruta.vehiculoId);
+                            onSeleccionarVehiculo?.(ruta.vehiculoId);
+                          }}
                         />
                       );
                     }
@@ -1138,16 +1165,12 @@ export function MapaOperacion({
                         y={geometria.y(
                           pedido.y,
                         )}
-                        radius={
-                          5.5
-                        }
+                        radius={seleccionPedidoId === pedido.id ? 8 : 5.5}
                         fill={
                           color
                         }
-                        stroke="#ffffff"
-                        strokeWidth={
-                          1
-                        }
+                        stroke={seleccionPedidoId === pedido.id ? "#f97316" : "#ffffff"}
+                        strokeWidth={seleccionPedidoId === pedido.id ? 3 : 1}
                         opacity={
                           pedido.estado ===
                           "ENTREGADO"
@@ -1221,6 +1244,8 @@ export function MapaOperacion({
                     almacen.tipo ===
                     "CENTRAL";
 
+                  const seleccionado = seleccionAlmacenId === almacen.id;
+
                   return (
                     <Group
                       key={
@@ -1276,6 +1301,18 @@ export function MapaOperacion({
                         ocultarTooltip
                       }
                     >
+                      {seleccionado && (
+                        <Rect
+                          x={-24}
+                          y={-24}
+                          width={48}
+                          height={48}
+                          cornerRadius={10}
+                          stroke="#f97316"
+                          strokeWidth={3}
+                          opacity={0.8}
+                        />
+                      )}
                       <Rect
                         x={-19}
                         y={-19}
