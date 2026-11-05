@@ -23,6 +23,7 @@ import com.pucp.paqrap.modulos.planificacion.dto.PlanResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.RutaResponse;
 import com.pucp.paqrap.modulos.planificacion.entity.ShiftSchedule;
 import com.pucp.paqrap.modulos.planificacion.service.PlanVigente;
+import com.pucp.paqrap.modulos.planificacion.service.PosicionRuta;
 import com.pucp.paqrap.modulos.redvial.entity.Location;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -165,11 +166,8 @@ public class EjecutorPlanService {
     }
 
     /**
-     * Dónde está un vehículo en ruta en {@code instante}, con el mismo cálculo que dibuja el front
-     * ({@code calcularPosicionVehiculoAnimada} en paqrap-front/src/features/ejecucion/movimientoVehiculos.ts):
-     * quieto en la parada mientras hace el servicio, o avanzando sobre un camino en L entre la parada anterior y la
-     * siguiente según la fracción del tiempo del tramo. Se redondea al nodo más cercano de la cuadrícula. Vacío si el
-     * vehículo no está en ruta en el plan que se ejecuta.
+     * Posición sobre los RoadLeg reales del plan, redondeada al nodo más cercano.
+     * Usa la misma geometría temporal que el frontend, también al registrar una avería.
      */
     public Optional<Location> posicionEstimada(long ejecucionId, String vehiculoId, Instant instante) {
         EstadoEjecucion estado = estados.get(ejecucionId);
@@ -199,93 +197,9 @@ public class EjecutorPlanService {
                 .findFirst();
     }
 
-    /**
-     * Réplica de calcularPosicionVehiculoAnimada; (xActual, yActual) es la posición confirmada del vehículo. Si en
-     * una parada hay refrigerio, el vehículo llega al lugar en {@code inicioRefrigerio} y queda ahí hasta {@code fin}.
-     */
+    /** Mantiene este punto de entrada para el ejecutor; el cálculo puro se comparte en PosicionRuta. */
     static Location posicionEnRuta(RutaResponse ruta, int xActual, int yActual, Instant instante) {
-        Location actual = new Location(xActual, yActual);
-        List<ParadaResponse> paradas = ruta.paradas().stream()
-                .sorted(Comparator.comparingInt(ParadaResponse::orden))
-                .toList();
-        for (ParadaResponse parada : paradas) {
-            Instant enElLugar = arriboAlLugar(parada);
-            if (enElLugar != null && parada.fin() != null
-                    && !instante.isBefore(enElLugar) && instante.isBefore(parada.fin())) {
-                return new Location(parada.x(), parada.y()); // en refrigerio o haciendo el servicio en la parada
-            }
-        }
-        int indiceSiguiente = -1;
-        for (int i = 0; i < paradas.size(); i++) {
-            Instant enElLugar = arriboAlLugar(paradas.get(i));
-            if (enElLugar != null && enElLugar.isAfter(instante)) {
-                indiceSiguiente = i;
-                break;
-            }
-        }
-        if (indiceSiguiente < 0) {
-            return actual;
-        }
-        ParadaResponse siguiente = paradas.get(indiceSiguiente);
-        ParadaResponse anterior = indiceSiguiente > 0 ? paradas.get(indiceSiguiente - 1) : null;
-        Instant inicioTramo = anterior != null
-                ? (anterior.fin() != null ? anterior.fin() : anterior.llegada())
-                : ruta.salida();
-        Instant finTramo = arriboAlLugar(siguiente);
-        Location origen = anterior != null ? new Location(anterior.x(), anterior.y()) : actual;
-        if (inicioTramo == null || !finTramo.isAfter(inicioTramo)) {
-            return actual;
-        }
-        if (!instante.isAfter(inicioTramo)) {
-            return origen;
-        }
-        double progreso = Math.min(1.0, (double) Duration.between(inicioTramo, instante).toMillis()
-                / Duration.between(inicioTramo, finTramo).toMillis());
-        return interpolarOrtogonal(origen, new Location(siguiente.x(), siguiente.y()), progreso,
-                horizontalPrimero(ruta.vehiculoId()));
-    }
-
-    /** Cuándo el vehículo llega físicamente a la parada: antes del refrigerio, si lo toma ahí. */
-    private static Instant arriboAlLugar(ParadaResponse parada) {
-        return parada.inicioRefrigerio() != null ? parada.inicioRefrigerio() : parada.llegada();
-    }
-
-    /** Recorre {@code progreso} (0 a 1) del camino en L de origen a destino y redondea al nodo más cercano. */
-    static Location interpolarOrtogonal(Location origen, Location destino, double progreso, boolean horizontalPrimero) {
-        int dx = destino.x() - origen.x();
-        int dy = destino.y() - origen.y();
-        int largoX = Math.abs(dx);
-        int largoY = Math.abs(dy);
-        if (largoX + largoY == 0) {
-            return destino;
-        }
-        double recorrido = (largoX + largoY) * progreso;
-        double x;
-        double y;
-        if (horizontalPrimero) {
-            if (recorrido <= largoX) {
-                x = origen.x() + Math.signum(dx) * recorrido;
-                y = origen.y();
-            } else {
-                x = destino.x();
-                y = origen.y() + Math.signum(dy) * (recorrido - largoX);
-            }
-        } else if (recorrido <= largoY) {
-            x = origen.x();
-            y = origen.y() + Math.signum(dy) * recorrido;
-        } else {
-            x = origen.x() + Math.signum(dx) * (recorrido - largoY);
-            y = destino.y();
-        }
-        return new Location((int) Math.round(x), (int) Math.round(y));
-    }
-
-    /**
-     * Mismo criterio que horizontalPrimeroParaVehiculo del front: su hash (h = h * 31 + carácter, en 32 bits) es el
-     * de {@link String#hashCode()}; si es par, el vehículo avanza primero en horizontal.
-     */
-    static boolean horizontalPrimero(String vehiculoId) {
-        return Math.abs(vehiculoId.hashCode()) % 2 == 0;
+        return PosicionRuta.estimar(ruta, xActual, yActual, instante);
     }
 
     /** Se conservan al terminar la ejecución, hasta que el backend se reinicie. */

@@ -1,3 +1,4 @@
+
 import type {
   PlanResponseDto,
   RutaResponseDto,
@@ -37,13 +38,27 @@ export function adaptarRuta(
     llegadaFinal: dto.llegadaFinal,
     distanciaKm: dto.distanciaKm,
     costo: dto.costo,
+
     paradas: dto.paradas.map((parada) => ({
       ...parada,
-      inicioRefrigerio: parada.inicioRefrigerio ?? null,
+      inicioRefrigerio:
+        parada.inicioRefrigerio ?? null,
     })),
-    almacenInicialId: dto.almacenInicialId ?? null,
-    planPersistedId: dto.planPersistedId ?? null,
-    routePersistedId: dto.routePersistedId ?? null,
+
+    // Utilizar la geometría real del backend.
+    // No reconstruir rutas artificiales.
+    tramos: (dto.tramos ?? []).map((tramo) => ({
+      ...tramo,
+    })),
+
+    almacenInicialId:
+      dto.almacenInicialId ?? null,
+
+    planPersistedId:
+      dto.planPersistedId ?? null,
+
+    routePersistedId:
+      dto.routePersistedId ?? null,
   };
 }
 

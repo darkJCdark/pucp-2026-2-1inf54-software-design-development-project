@@ -67,8 +67,11 @@ import type {
 } from "./ejecucion.types";
 
 import {
-  horizontalPrimeroParaVehiculo,
-} from "./movimientoVehiculos";
+  convertirTrazoAPixeles,
+  obtenerTrazosRuta,
+  obtenerTramosTemporizados,
+} from "./geometriaRutas";
+import { claveGrupoVehiculo, debeAgruparVehiculos } from "./agrupamientoVehiculos";
 
 import {
   nombreParada,
@@ -391,6 +394,11 @@ export function MapaOperacion({
       );
     }, [rutas]);
 
+  const rutasSinGeometria = useMemo(
+    () => rutas.filter((ruta) => ruta.distanciaKm > 0 && obtenerTramosTemporizados(ruta).length === 0).length,
+    [rutas],
+  );
+
   const rutasSeleccionadasPorPedido =
     useMemo(
       () =>
@@ -522,15 +530,9 @@ export function MapaOperacion({
             .id ===
           vehiculoSeleccionadoId;
 
-        const clave =
-          visual.enMovimiento ||
-          seleccionado
-            ? `individual-${visual.vehiculo.id}`
-            : `fijo-${visual.x.toFixed(
-                3,
-              )},${visual.y.toFixed(
-                3,
-              )}`;
+        const clave = claveGrupoVehiculo(
+          visual.vehiculo.id, visual.x, visual.y, visual.enMovimiento, seleccionado,
+        );
 
         const grupo =
           grupos.get(
@@ -737,6 +739,12 @@ export function MapaOperacion({
       }
       className="relative h-full min-h-[720px] overflow-hidden bg-slate-100"
     >
+      {rutasSinGeometria > 0 && (
+        <div role="status" className="absolute bottom-3 left-3 z-20 max-w-md rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow">
+          {rutasSinGeometria} ruta(s) sin tramos válidos. Se mantiene la posición de monitoreo sin inventar recorridos.
+          Comprueba que el backend esté actualizado e inicia una ejecución nueva.
+        </div>
+      )}
       {width > 0 &&
         height > 0 && (
           <Stage
@@ -1071,105 +1079,34 @@ export function MapaOperacion({
                     if (
                       !seleccionada
                     ) {
-                      const pendientes =
-                        obtenerParadasPendientes(
-                          ruta,
-                          instanteAnimadoMs,
-                        );
-
-                      const puntos =
-                        construirPuntosOrtogonales(
-                          [
-                            {
-                              x:
-                                visual.x,
-
-                              y:
-                                visual.y,
-                            },
-
-                            ...pendientes.map(
-                              (
-                                parada,
-                              ) => ({
-                                x:
-                                  parada.x,
-
-                                y:
-                                  parada.y,
-                              }),
-                            ),
-                          ],
-
-                          geometria.x,
-                          geometria.y,
-
-                          horizontalPrimeroParaVehiculo(
-                            ruta.vehiculoId,
-                          ),
-                        );
-
-                      if (
-                        puntos.length <
-                        4
-                      ) {
-                        return null;
-                      }
-
+                      const trazos = obtenerTrazosRuta(ruta, instanteAnimadoMs).pendientes;
                       return (
-                        <Arrow
-                          key={
-                            ruta.id
-                          }
-                          points={
-                            puntos
-                          }
-                          stroke={
-                            color
-                          }
-                          fill={
-                            color
-                          }
-                          strokeWidth={
-                            2.5
-                          }
-                          opacity={
-                            haySeleccion
-                              ? 0.12
-                              : 0.55
-                          }
-                          dash={[
-                            9,
-                            6,
-                          ]}
-                          lineCap="round"
-                          lineJoin="round"
-                          pointerLength={
-                            6
-                          }
-                          pointerWidth={
-                            6
-                          }
-                          hitStrokeWidth={
-                            18
-                          }
-                          onClick={() => {
-                            setVehiculoSeleccionadoId(
-                              ruta.vehiculoId,
-                            );
-                            onSeleccionarVehiculo?.(
-                              ruta.vehiculoId,
-                            );
-                          }}
-                          onTap={() => {
-                            setVehiculoSeleccionadoId(
-                              ruta.vehiculoId,
-                            );
-                            onSeleccionarVehiculo?.(
-                              ruta.vehiculoId,
-                            );
-                          }}
-                        />
+                        <Group key={ruta.id}>
+                          {trazos.map((trazo, indice) => (
+                            <Arrow
+                              key={`${ruta.id}-pendiente-${indice}`}
+                              points={convertirTrazoAPixeles(trazo, geometria.x, geometria.y)}
+                              stroke={color}
+                              fill={color}
+                              strokeWidth={2.5}
+                              opacity={haySeleccion ? 0.12 : 0.55}
+                              dash={[9, 6]}
+                              lineCap="round"
+                              lineJoin="round"
+                              pointerLength={6}
+                              pointerWidth={6}
+                              hitStrokeWidth={18}
+                              onClick={() => {
+                                setVehiculoSeleccionadoId(ruta.vehiculoId);
+                                onSeleccionarVehiculo?.(ruta.vehiculoId);
+                              }}
+                              onTap={() => {
+                                setVehiculoSeleccionadoId(ruta.vehiculoId);
+                                onSeleccionarVehiculo?.(ruta.vehiculoId);
+                              }}
+                            />
+                          ))}
+                        </Group>
                       );
                     }
 
@@ -1191,9 +1128,6 @@ export function MapaOperacion({
                         <RutaSeleccionada
                           ruta={
                             ruta
-                          }
-                          vehiculo={
-                            visual.vehiculo
                           }
                           seguimiento={
                             seguimiento
@@ -1577,9 +1511,7 @@ export function MapaOperacion({
                     );
 
                   if (
-                    visibles.length >
-                      6 &&
-                    !contieneSeleccionado
+                    debeAgruparVehiculos(visibles.length, contieneSeleccionado)
                   ) {
                     return (
                       <GrupoVehiculosMarker
@@ -2094,7 +2026,6 @@ export function MapaOperacion({
 
 function RutaSeleccionada({
   ruta,
-  vehiculo,
   seguimiento,
   instanteMs,
   color,
@@ -2102,292 +2033,60 @@ function RutaSeleccionada({
   convertirY,
 }: {
   ruta: RutaMapa;
-
-  vehiculo:
-    VehiculoMapa;
-
-  seguimiento:
-    SeguimientoRuta;
-
-  instanteMs:
-    number;
-
-  color:
-    string;
-
-  convertirX:
-    (
-      valor: number,
-    ) => number;
-
-  convertirY:
-    (
-      valor: number,
-    ) => number;
+  seguimiento: SeguimientoRuta;
+  instanteMs: number;
+  color: string;
+  convertirX: (valor: number) => number;
+  convertirY: (valor: number) => number;
 }) {
-  const horizontalPrimero =
-    horizontalPrimeroParaVehiculo(
-      ruta.vehiculoId,
-    );
-
-  const siguiente =
-    seguimiento
-      .siguienteParada;
-
-  const completadas =
-    seguimiento.paradas
-      .filter(
-        (item) =>
-          item.estado ===
-          "COMPLETADA",
-      )
-      .map(
-        (item) =>
-          item.parada,
-      );
-
-  const futuras =
-    seguimiento.paradas
-      .filter(
-        (item) =>
-          item.estado ===
-          "FUTURA",
-      )
-      .map(
-        (item) =>
-          item.parada,
-      );
-
-  /*
-   * Parte histórica.
-   */
-  const historial =
-    construirPuntosOrtogonales(
-      completadas.map(
-        (parada) => ({
-          x:
-            parada.x,
-
-          y:
-            parada.y,
-        }),
-      ),
-
-      convertirX,
-      convertirY,
-
-      horizontalPrimero,
-    );
-
-  /*
-   * Parte del tramo ya recorrida
-   * hasta la posición visual actual.
-   */
-  const recorridoActual =
-    construirPuntosOrtogonales(
-      [
-        {
-          x:
-            vehiculo.x,
-
-          y:
-            vehiculo.y,
-        },
-
-        seguimiento
-          .posicionVisual,
-      ],
-
-      convertirX,
-      convertirY,
-
-      horizontalPrimero,
-    );
-
-  /*
-   * Desde posición visual
-   * hasta la siguiente parada.
-   */
-  const tramoActual =
-    siguiente
-      ? construirPuntosOrtogonales(
-          [
-            seguimiento
-              .posicionVisual,
-
-            {
-              x:
-                siguiente.x,
-
-              y:
-                siguiente.y,
-            },
-          ],
-
-          convertirX,
-          convertirY,
-
-          horizontalPrimero,
-        )
-      : [];
-
-  /*
-   * Futuro después de la
-   * próxima parada.
-   */
-  const rutaFutura =
-    siguiente
-      ? construirPuntosOrtogonales(
-          [
-            {
-              x:
-                siguiente.x,
-
-              y:
-                siguiente.y,
-            },
-
-            ...futuras
-              .filter(
-                (parada) =>
-                  parada.orden !==
-                  siguiente.orden,
-              )
-              .map(
-                (parada) => ({
-                  x:
-                    parada.x,
-
-                  y:
-                    parada.y,
-                }),
-              ),
-          ],
-
-          convertirX,
-          convertirY,
-
-          horizontalPrimero,
-        )
-      : [];
-
+  const trazos = obtenerTrazosRuta(ruta, instanteMs, seguimiento.siguienteParada?.orden);
   return (
     <>
-      {/* RECORRIDO HISTÓRICO */}
-      {historial.length >=
-        4 && (
+      {/* Historial completo, incluido el trayecto desde el almacén de salida. */}
+      {trazos.recorridos.map((trazo, indice) => (
         <Line
-          points={
-            historial
-          }
-          stroke={
-            color
-          }
-          strokeWidth={
-            3
-          }
-          opacity={
-            0.3
-          }
+          key={`recorrido-${indice}`}
+          points={convertirTrazoAPixeles(trazo, convertirX, convertirY)}
+          stroke={color}
+          strokeWidth={3}
+          opacity={0.4}
           lineCap="round"
           lineJoin="round"
         />
-      )}
-
-      {/* PARTE YA RECORRIDA DEL TRAMO ACTUAL */}
-      {recorridoActual.length >=
-          4 &&
-        seguimiento.enMovimiento && (
-          <Line
-            points={
-              recorridoActual
-            }
-            stroke={
-              color
-            }
-            strokeWidth={
-              4
-            }
-            opacity={
-              0.55
-            }
-            lineCap="round"
-            lineJoin="round"
-          />
-        )}
-
-      {/* TRAMO ACTUAL */}
-      {tramoActual.length >=
-        4 && (
+      ))}
+      {/* Calles reales pendientes hasta la próxima parada. */}
+      {trazos.actuales.map((trazo, indice) => (
         <Arrow
-          points={
-            tramoActual
-          }
-          stroke={
-            color
-          }
-          fill={
-            color
-          }
-          strokeWidth={
-            6
-          }
-          opacity={
-            1
-          }
+          key={`actual-${indice}`}
+          points={convertirTrazoAPixeles(trazo, convertirX, convertirY)}
+          stroke={color}
+          fill={color}
+          strokeWidth={6}
+          opacity={1}
           lineCap="round"
           lineJoin="round"
-          pointerLength={
-            9
-          }
-          pointerWidth={
-            9
-          }
-          shadowColor={
-            color
-          }
-          shadowBlur={
-            7
-          }
-          shadowOpacity={
-            0.35
-          }
+          pointerLength={9}
+          pointerWidth={9}
+          shadowColor={color}
+          shadowBlur={7}
+          shadowOpacity={0.35}
         />
-      )}
-
-      {/* RUTA FUTURA */}
-      {rutaFutura.length >=
-        4 && (
+      ))}
+      {trazos.futuros.map((trazo, indice) => (
         <Arrow
-          points={
-            rutaFutura
-          }
-          stroke={
-            color
-          }
-          fill={
-            color
-          }
-          strokeWidth={
-            3
-          }
-          opacity={
-            0.65
-          }
-          dash={[
-            10,
-            6,
-          ]}
+          key={`futuro-${indice}`}
+          points={convertirTrazoAPixeles(trazo, convertirX, convertirY)}
+          stroke={color}
+          fill={color}
+          strokeWidth={3}
+          opacity={0.65}
+          dash={[10, 6]}
           lineCap="round"
           lineJoin="round"
-          pointerLength={
-            7
-          }
-          pointerWidth={
-            7
-          }
+          pointerLength={7}
+          pointerWidth={7}
         />
-      )}
+      ))}
 
       {/* PARADAS */}
       {seguimiento.paradas.map(
@@ -3615,123 +3314,6 @@ function colorPedido(
     case "PENDIENTE":
       return "#8b5cf6";
   }
-}
-
-function obtenerParadasPendientes(
-  ruta:
-    RutaMapa,
-
-  instanteMs:
-    number,
-) {
-  return ruta.paradas.filter(
-    (parada) => {
-      const referencia =
-        parada.fin ??
-        parada.llegada;
-
-      if (
-        !referencia
-      ) {
-        return true;
-      }
-
-      return (
-        new Date(
-          referencia,
-        ).getTime() >=
-        instanteMs
-      );
-    },
-  );
-}
-
-function construirPuntosOrtogonales(
-  puntos: Array<{
-    x: number;
-    y: number;
-  }>,
-
-  convertirX:
-    (
-      valor: number,
-    ) => number,
-
-  convertirY:
-    (
-      valor: number,
-    ) => number,
-
-  horizontalPrimero:
-    boolean,
-) {
-  if (
-    puntos.length ===
-    0
-  ) {
-    return [];
-  }
-
-  const resultado = [
-    convertirX(
-      puntos[0].x,
-    ),
-
-    convertirY(
-      puntos[0].y,
-    ),
-  ];
-
-  for (
-    let index = 1;
-    index <
-    puntos.length;
-    index += 1
-  ) {
-    const anterior =
-      puntos[
-        index - 1
-      ];
-
-    const actual =
-      puntos[index];
-
-    if (
-      horizontalPrimero
-    ) {
-      resultado.push(
-        convertirX(
-          actual.x,
-        ),
-
-        convertirY(
-          anterior.y,
-        ),
-      );
-    } else {
-      resultado.push(
-        convertirX(
-          anterior.x,
-        ),
-
-        convertirY(
-          actual.y,
-        ),
-      );
-    }
-
-    resultado.push(
-      convertirX(
-        actual.x,
-      ),
-
-      convertirY(
-        actual.y,
-      ),
-    );
-  }
-
-  return resultado;
 }
 
 function nombreMotivoDetencion(motivo: VehiculoMapa["motivoDetencion"]) {

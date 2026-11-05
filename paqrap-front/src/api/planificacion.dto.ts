@@ -36,6 +36,17 @@ export interface ParadaResponseDto {
   inicioRefrigerio?: string | null;
 }
 
+/** Calle real y temporizada; las esperas se conservan como huecos entre salida/llegada. */
+export interface TramoRutaResponseDto {
+  ordenParada: number;
+  desdeX: number;
+  desdeY: number;
+  hastaX: number;
+  hastaY: number;
+  salida: string;
+  llegada: string;
+}
+
 export interface RutaResponseDto {
   id: string;
   vehiculoId: string;
@@ -52,6 +63,8 @@ export interface RutaResponseDto {
   costo: number;
 
   paradas: ParadaResponseDto[];
+  /** Opcional únicamente para detectar respuestas de un backend anterior. */
+  tramos?: TramoRutaResponseDto[] | null;
 
   almacenInicialId?: string | null;
   planPersistedId?: number | null;

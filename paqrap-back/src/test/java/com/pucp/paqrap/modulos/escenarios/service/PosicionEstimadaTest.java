@@ -1,90 +1,48 @@
 package com.pucp.paqrap.modulos.escenarios.service;
 
-import com.pucp.paqrap.modulos.planificacion.dto.ParadaResponse;
-import com.pucp.paqrap.modulos.planificacion.dto.RutaResponse;
-import com.pucp.paqrap.modulos.redvial.entity.Location;
-import org.junit.jupiter.api.Test;
-
 import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
 
-/**
- * La posición estimada debe coincidir con la que dibuja el front (calcularPosicionVehiculoAnimada). Ruta de prueba:
- * sale de (27,14) a las 10:00; P1 en (30,14) llega 10:30 y termina 11:30; P2 en (30,18) llega 12:00 y termina 13:00.
- */
+import com.pucp.paqrap.modulos.planificacion.dto.ParadaResponse;
+import com.pucp.paqrap.modulos.planificacion.dto.RutaResponse;
+import com.pucp.paqrap.modulos.planificacion.dto.TramoRutaResponse;
+import com.pucp.paqrap.modulos.redvial.entity.Location;
+
+/** El ejecutor delega en la misma secuencia temporal de calles que se publica al frontend. */
 class PosicionEstimadaTest {
-
-    private static Instant hora(String hhmm) {
-        return Instant.parse("2026-01-01T" + hhmm + ":00Z");
+    private static final Instant INICIO = Instant.parse("2026-09-10T12:00:00Z");
+    private static Instant t(int segundos) { return INICIO.plusSeconds(segundos); }
+    private static RutaResponse ruta() {
+        return new RutaResponse("SA-TM06", "TM06", "MOTORCYCLE", t(0), t(600), 3, 3,
+                List.of(new ParadaResponse(1,"ENTREGA","P1",null,11,12,1,t(400),t(600),1,0,t(360))),
+                "CENTRAL",null,null,List.of(
+                new TramoRutaResponse(1,10,10,11,10,t(0),t(60)),
+                new TramoRutaResponse(1,11,10,11,11,t(180),t(240)),
+                new TramoRutaResponse(1,11,11,11,12,t(240),t(360))));
     }
-
-    private static RutaResponse ruta(String vehiculoId) {
-        return new RutaResponse("SA-" + vehiculoId, vehiculoId, "CAR", hora("10:00"), hora("13:00"), 7.0, 56.0, List.of(
-                new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 5, hora("10:30"), hora("11:30"), 7, 2),
-                new ParadaResponse(2, ParadaResponse.ENTREGA, "P2", null, 30, 18, 2, hora("12:00"), hora("13:00"), 2, 0)));
+    @Test void avanzaPorLaCalleRealNoPorUnaL() {
+        assertEquals(new Location(11,11), EjecutorPlanService.posicionEnRuta(ruta(),10,10,t(220)));
     }
-
-    /** Mismo cálculo que horizontalPrimeroParaVehiculo del front, en aritmética de 32 bits. */
-    private static boolean horizontalPrimeroComoElFront(String id) {
-        int hash = 0;
-        for (int i = 0; i < id.length(); i++) {
-            hash = hash * 31 + id.charAt(i);
-        }
-        return Math.abs(hash) % 2 == 0;
+    @Test void esperaEnElNodoAntesDeSalir() {
+        assertEquals(new Location(11,10), EjecutorPlanService.posicionEnRuta(ruta(),10,10,t(120)));
     }
-
-    @Test
-    void decideElPrimerEjeIgualQueElFront() {
-        for (String id : List.of("TA01", "TA02", "TA10", "TM01", "TM07", "TM15", "TB01", "TB12")) {
-            assertEquals(horizontalPrimeroComoElFront(id), EjecutorPlanService.horizontalPrimero(id), id);
-        }
+    @Test void respetaRefrigerioYServicio() {
+        assertEquals(new Location(11,12), EjecutorPlanService.posicionEnRuta(ruta(),10,10,t(380)));
+        assertEquals(new Location(11,12), EjecutorPlanService.posicionEnRuta(ruta(),10,10,t(500)));
     }
-
-    @Test
-    void recorreElCaminoEnLSegunElEjeYRedondeaAlNodo() {
-        Location origen = new Location(27, 14);
-        Location destino = new Location(30, 18);
-
-        // 7 km en total; a la mitad lleva 3,5 km.
-        assertEquals(new Location(30, 15), EjecutorPlanService.interpolarOrtogonal(origen, destino, 0.5, true));
-        assertEquals(new Location(27, 18), EjecutorPlanService.interpolarOrtogonal(origen, destino, 0.5, false));
-        assertEquals(origen, EjecutorPlanService.interpolarOrtogonal(origen, destino, 0, true));
-        assertEquals(destino, EjecutorPlanService.interpolarOrtogonal(origen, destino, 1, false));
+    @Test void noRetrocedeAlTerminar() {
+        assertEquals(new Location(11,12), EjecutorPlanService.posicionEnRuta(ruta(),10,10,t(700)));
     }
-
-    @Test
-    void aMitadDelPrimerTramoAvanzaDesdeSuPosicionConfirmada() {
-        // 10:15 = mitad de 10:00-10:30: 1,5 de 3 km hacia P1 (solo eje X).
-        assertEquals(new Location(29, 14), EjecutorPlanService.posicionEnRuta(ruta("TA01"), 27, 14, hora("10:15")));
+    @Test void antesDeLaSalidaUsaLaPosicionConfirmada() {
+        assertEquals(new Location(9,10), EjecutorPlanService.posicionEnRuta(ruta(),9,10,t(-1)));
     }
-
-    @Test
-    void mientrasHaceElServicioSeQuedaEnLaParada() {
-        assertEquals(new Location(30, 14), EjecutorPlanService.posicionEnRuta(ruta("TA01"), 27, 14, hora("11:00")));
-    }
-
-    @Test
-    void entreParadasSaleDelFinDelServicioAnterior() {
-        // 11:45 = mitad de 11:30 (fin en P1) - 12:00 (llegada a P2): 2 de 4 km hacia arriba.
-        assertEquals(new Location(30, 16), EjecutorPlanService.posicionEnRuta(ruta("TA01"), 30, 14, hora("11:45")));
-    }
-
-    @Test
-    void durantElRefrigerioYaEstaEnLaParada() {
-        // Llega a P1 a las 10:20, descansa hasta las 10:30 (llegada registrada) y atiende hasta las 11:30.
-        RutaResponse conRefrigerio = new RutaResponse("SA-TA01", "TA01", "CAR", hora("10:00"), hora("11:30"), 3.0, 24.0,
-                List.of(new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 5, hora("10:30"),
-                        hora("11:30"), 7, 2, hora("10:20"))));
-
-        assertEquals(new Location(30, 14), EjecutorPlanService.posicionEnRuta(conRefrigerio, 27, 14, hora("10:25")));
-        // 10:10 = mitad del viaje real (10:00-10:20): 1,5 de 3 km.
-        assertEquals(new Location(29, 14), EjecutorPlanService.posicionEnRuta(conRefrigerio, 27, 14, hora("10:10")));
-    }
-
-    @Test
-    void despuesDeLaUltimaParadaUsaLaPosicionConfirmada() {
-        assertEquals(new Location(30, 18), EjecutorPlanService.posicionEnRuta(ruta("TA01"), 30, 18, hora("13:30")));
+    @Test void rutaAntiguaSinTramosNoInventaMovimiento() {
+        RutaResponse r = ruta();
+        RutaResponse legado = new RutaResponse(r.id(),r.vehiculoId(),r.tipoVehiculo(),r.salida(),r.llegadaFinal(),
+                r.distanciaKm(),r.costo(),r.paradas());
+        assertEquals(new Location(10,10), EjecutorPlanService.posicionEnRuta(legado,10,10,t(220)));
     }
 }

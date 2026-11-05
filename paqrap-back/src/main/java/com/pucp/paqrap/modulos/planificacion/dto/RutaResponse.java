@@ -15,8 +15,22 @@ public record RutaResponse(
         List<ParadaResponse> paradas,
         String almacenInicialId,
         Long planPersistedId,
-        Long routePersistedId
+        Long routePersistedId,
+        List<TramoRutaResponse> tramos
 ) {
+    public RutaResponse {
+        // JSON/constructores anteriores pueden no incluir geometría.
+        tramos = tramos == null ? List.of() : List.copyOf(tramos);
+    }
+
+    /** Compatibilidad con rutas anteriores a la publicación de los RoadLeg. */
+    public RutaResponse(String id, String vehiculoId, String tipoVehiculo, Instant salida, Instant llegadaFinal,
+                        double distanciaKm, double costo, List<ParadaResponse> paradas, String almacenInicialId,
+                        Long planPersistedId, Long routePersistedId) {
+        this(id, vehiculoId, tipoVehiculo, salida, llegadaFinal, distanciaKm, costo, paradas, almacenInicialId,
+                planPersistedId, routePersistedId, List.of());
+    }
+
     /** Constructor legado para clientes que todavía no reciben el almacén de origen. */
     public RutaResponse(String id, String vehiculoId, String tipoVehiculo, Instant salida, Instant llegadaFinal,
                         double distanciaKm, double costo, List<ParadaResponse> paradas) {

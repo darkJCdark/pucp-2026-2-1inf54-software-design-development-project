@@ -1,5 +1,10 @@
 package com.pucp.paqrap.modulos.planificacion.service;
 
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+
 import com.pucp.paqrap.modulos.pedidos.entity.Order;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.PlanEvaluation;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.PlanViolation;
@@ -11,16 +16,12 @@ import com.pucp.paqrap.modulos.planificacion.dto.NoAtendidoResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.ParadaResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.PlanResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.RutaResponse;
+import com.pucp.paqrap.modulos.planificacion.dto.TramoRutaResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.ViolacionResponse;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryRoute;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryStop;
 import com.pucp.paqrap.modulos.planificacion.entity.RouteStop;
 import com.pucp.paqrap.modulos.planificacion.entity.WarehouseVisit;
-
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
 
 /** Convierte el resultado interno del algoritmo en el DTO que consumen controllers y frontend. */
 final class PlanResponseMapper {
@@ -56,12 +57,18 @@ final class PlanResponseMapper {
 
     private RutaResponse aRuta(DeliveryRoute ruta, ScheduledDeliveryRoute programada) {
         List<ParadaResponse> paradas = new ArrayList<>();
+        List<TramoRutaResponse> tramos = new ArrayList<>();
         if (programada != null) {
             int orden = 1;
             for (ScheduledRouteStop parada : programada.scheduledStops()) {
                 // RouteScheduler corre la llegada una hora cuando el conductor toma ahí su refrigerio.
                 Instant arriboReal = parada.approach().arrivesAt();
                 Instant inicioRefrigerio = parada.arrivedAt().isAfter(arriboReal) ? arriboReal : null;
+                // No recalcular ni simplificar: conservar coordenadas y tiempos exactos de RoadNetwork.
+                final int ordenParada = orden;
+                parada.approach().legs().forEach(tramo -> tramos.add(new TramoRutaResponse(ordenParada,
+                        tramo.from().x(), tramo.from().y(), tramo.to().x(), tramo.to().y(),
+                        tramo.departsAt(), tramo.arrivesAt())));
                 paradas.add(aParada(orden++, parada.stop(), parada.arrivedAt(), parada.completedAt(),
                         parada.loadBefore(), parada.loadAfter(), inicioRefrigerio));
             }
@@ -75,7 +82,7 @@ final class PlanResponseMapper {
                 programada == null ? null : programada.completedAt(),
                 programada == null ? 0 : programada.totalDistanceKm(),
                 programada == null ? 0 : programada.totalCost(), paradas,
-                ruta.initialWarehouse().map(almacen -> almacen.id()).orElse(null), null, null);
+                ruta.initialWarehouse().map(almacen -> almacen.id()).orElse(null), null, null, tramos);
     }
 
 
@@ -84,7 +91,7 @@ final class PlanResponseMapper {
         List<RutaResponse> rutas = respuesta.rutas().stream()
                 .map(ruta -> new RutaResponse(ruta.id(), ruta.vehiculoId(), ruta.tipoVehiculo(), ruta.salida(),
                         ruta.llegadaFinal(), ruta.distanciaKm(), ruta.costo(), ruta.paradas(), ruta.almacenInicialId(),
-                        planPersistedId, routeIdsPorRutaOperacional.get(ruta.id())))
+                        planPersistedId, routeIdsPorRutaOperacional.get(ruta.id()), ruta.tramos()))
                 .toList();
         return new PlanResponse(respuesta.modo(), respuesta.planificadoEn(), respuesta.factible(), respuesta.colapso(),
                 respuesta.costoTotal(), respuesta.distanciaTotalKm(), respuesta.semilla(), respuesta.duracionMs(),

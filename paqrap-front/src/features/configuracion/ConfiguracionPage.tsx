@@ -10,20 +10,27 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useConfiguracion } from "@/context/ConfiguracionContext";
+
 import type {
   CrearEscenarioRequestDto,
   EscenarioResponseDto,
   TipoEscenarioBackend,
 } from "@/api/escenarios.dto";
+
 import type {
   TipoVehiculoBackend,
   VehiculoResponseDto,
 } from "@/api/flota.dto";
-import type { PeriodoCargadoResponseDto } from "@/api/pedidos.dto";
+
+import type {
+  PeriodoCargadoResponseDto,
+} from "@/api/pedidos.dto";
+
 import { escenariosService } from "@/services/escenarios.service";
 import { pedidosService } from "@/services/pedidos.service";
 import { bloqueosService } from "@/services/bloqueos.service";
 import { flotaService } from "@/services/flota.service";
+
 import { mensajeDeError } from "@/lib/api-error";
 
 import { OrigenDatos } from "./OrigenDatos";
@@ -32,6 +39,7 @@ import { FlotaConfiguracion } from "./FlotaConfiguracion";
 import { SemaforoConfiguracion } from "./SemaforoConfiguracion";
 import { ResumenConfiguracion } from "./ResumenConfiguracion";
 import { ConfirmarInicioModal } from "./ConfirmarInicioModal";
+
 import {
   archivoVentasEsperado,
   periodoDesdeArchivoBloqueos,
@@ -40,9 +48,14 @@ import {
   periodosRequeridos,
 } from "./periodos";
 
+const INTERVALO_VERIFICACION_ACTIVO_MS = 1000;
+
 export default function ConfiguracionPage() {
   const navigate = useNavigate();
-  const { mostrarToast } = useToast();
+
+  const { mostrarToast } =
+    useToast();
+
   const {
     configuracion,
     actualizarConfiguracion,
@@ -50,67 +63,183 @@ export default function ConfiguracionPage() {
     archivoBloqueos,
   } = useConfiguracion();
 
-  const [iniciando, setIniciando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [escenarioActivo, setEscenarioActivo] =
-    useState<EscenarioResponseDto | null>(null);
-  const [verificandoActivo, setVerificandoActivo] = useState(true);
-  const [deteniendo, setDeteniendo] = useState(false);
-  const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
-  const [periodosCargados, setPeriodosCargados] =
-    useState<PeriodoCargadoResponseDto[]>([]);
-  const [consultandoPeriodos, setConsultandoPeriodos] = useState(true);
+  const [iniciando, setIniciando] =
+    useState(false);
 
-  const usaDatosHistoricos = configuracion.escenario !== "DIA_A_DIA";
-  const mesesRequeridos = periodosRequeridos(
-    configuracion.escenario,
-    configuracion.inicioSimulado,
-  );
-  const periodoArchivoPedidos = periodoDesdeArchivoVentas(archivoPedidos?.name ?? "");
-  const periodosDisponibles = new Set(periodosCargados.map((item) => item.periodo));
-  if (periodoArchivoPedidos) periodosDisponibles.add(periodoArchivoPedidos);
-  const mesesFaltantes = mesesRequeridos.filter((periodo) => !periodosDisponibles.has(periodo));
+  const [error, setError] =
+    useState<string | null>(null);
+
+  const [
+    escenarioActivo,
+    setEscenarioActivo,
+  ] =
+    useState<EscenarioResponseDto | null>(
+      null,
+    );
+
+  const [
+    verificandoActivo,
+    setVerificandoActivo,
+  ] =
+    useState(true);
+
+  const [deteniendo, setDeteniendo] =
+    useState(false);
+
+  const [
+    mostrarConfirmacion,
+    setMostrarConfirmacion,
+  ] =
+    useState(false);
+
+  const [
+    periodosCargados,
+    setPeriodosCargados,
+  ] =
+    useState<
+      PeriodoCargadoResponseDto[]
+    >([]);
+
+  const [
+    consultandoPeriodos,
+    setConsultandoPeriodos,
+  ] =
+    useState(true);
+
+  const usaDatosHistoricos =
+    configuracion.escenario !==
+    "DIA_A_DIA";
+
+  const mesesRequeridos =
+    periodosRequeridos(
+      configuracion.escenario,
+      configuracion.inicioSimulado,
+    );
+
+  const periodoArchivoPedidos =
+    periodoDesdeArchivoVentas(
+      archivoPedidos?.name ?? "",
+    );
+
+  const periodosDisponibles =
+    new Set(
+      periodosCargados.map(
+        (item) => item.periodo,
+      ),
+    );
+
+  if (periodoArchivoPedidos) {
+    periodosDisponibles.add(
+      periodoArchivoPedidos,
+    );
+  }
+
+  const mesesFaltantes =
+    mesesRequeridos.filter(
+      (periodo) =>
+        !periodosDisponibles.has(
+          periodo,
+        ),
+    );
+
+  /*
+   * =======================================================
+   * CARGA INICIAL
+   * =======================================================
+   */
 
   useEffect(() => {
     let vigente = true;
 
     async function inicializar() {
       try {
-        const [activo, tipos, vehiculos, periodos] = await Promise.all([
+        const [
+          activo,
+          tipos,
+          vehiculos,
+          periodos,
+        ] = await Promise.all([
           buscarEscenarioActivo(),
           flotaService.listarTipos(),
           flotaService.listarVehiculos(),
           pedidosService.periodosCargados(),
         ]);
 
-        if (!vigente) return;
+        if (!vigente) {
+          return;
+        }
 
         setEscenarioActivo(activo);
-        setPeriodosCargados(periodos);
-        const porTipo = new Map(tipos.map((tipo) => [tipo.tipo, tipo]));
+
+        setPeriodosCargados(
+          periodos,
+        );
+
+        const porTipo =
+          new Map(
+            tipos.map(
+              (tipo) => [
+                tipo.tipo,
+                tipo,
+              ],
+            ),
+          );
 
         actualizarConfiguracion({
-          autosCantidad: contar(vehiculos, "CAR"),
+          autosCantidad:
+            contar(
+              vehiculos,
+              "CAR",
+            ),
+
           autosVelocidad:
-            porTipo.get("CAR")?.velocidadKmh ?? configuracion.autosVelocidad,
-          motosCantidad: contar(vehiculos, "MOTORCYCLE"),
+            porTipo.get("CAR")
+              ?.velocidadKmh ??
+            configuracion.autosVelocidad,
+
+          motosCantidad:
+            contar(
+              vehiculos,
+              "MOTORCYCLE",
+            ),
+
           motosVelocidad:
-            porTipo.get("MOTORCYCLE")?.velocidadKmh ?? configuracion.motosVelocidad,
-          bicicletasCantidad: contar(vehiculos, "BICYCLE"),
+            porTipo.get(
+              "MOTORCYCLE",
+            )?.velocidadKmh ??
+            configuracion.motosVelocidad,
+
+          bicicletasCantidad:
+            contar(
+              vehiculos,
+              "BICYCLE",
+            ),
+
           bicicletasVelocidad:
-            porTipo.get("BICYCLE")?.velocidadKmh ??
-            configuracion.bicicletasVelocidad,
+            porTipo.get(
+              "BICYCLE",
+            )?.velocidadKmh ??
+            configuracion
+              .bicicletasVelocidad,
         });
       } catch (error) {
         if (vigente) {
           setError(
-            mensajeDeError(error, "No fue posible cargar la configuración inicial."),
+            mensajeDeError(
+              error,
+              "No fue posible cargar la configuración inicial.",
+            ),
           );
         }
       } finally {
         if (vigente) {
-          setVerificandoActivo(false);
-          setConsultandoPeriodos(false);
+          setVerificandoActivo(
+            false,
+          );
+
+          setConsultandoPeriodos(
+            false,
+          );
         }
       }
     }
@@ -122,152 +251,395 @@ export default function ConfiguracionPage() {
     };
   }, []);
 
-  async function buscarEscenarioActivo(): Promise<EscenarioResponseDto | null> {
-    const pagina = await escenariosService.listar(0, 100);
+  /*
+   * =======================================================
+   * ACTUALIZACIÓN AUTOMÁTICA DE EJECUCIÓN ACTIVA
+   * =======================================================
+   *
+   * Antes:
+   * Configuración consultaba una sola vez.
+   *
+   * Ahora:
+   * Si encuentra una ejecución RUNNING o PAUSED,
+   * vuelve a verificar cada segundo.
+   *
+   * En cuanto backend deja de considerarla activa,
+   * escenarioActivo pasa a null y el botón para iniciar
+   * otra simulación se habilita automáticamente.
+   *
+   * No hay polling cuando no existe ejecución activa.
+   */
+
+  useEffect(() => {
+    if (!escenarioActivo) {
+      return;
+    }
+
+    let cancelado = false;
+
+    let temporizador:
+      number | undefined;
+
+    async function verificar() {
+      try {
+        const activo =
+          await buscarEscenarioActivo();
+
+        if (cancelado) {
+          return;
+        }
+
+        setEscenarioActivo(
+          activo,
+        );
+
+        /*
+         * Si ya terminó, no programamos
+         * otra consulta.
+         */
+        if (!activo) {
+          return;
+        }
+
+        temporizador =
+          window.setTimeout(
+            () => {
+              void verificar();
+            },
+            INTERVALO_VERIFICACION_ACTIVO_MS,
+          );
+      } catch {
+        /*
+         * Un fallo temporal de red no debe
+         * bloquear permanentemente la página.
+         *
+         * Se vuelve a intentar después.
+         */
+        if (
+          !cancelado
+        ) {
+          temporizador =
+            window.setTimeout(
+              () => {
+                void verificar();
+              },
+              INTERVALO_VERIFICACION_ACTIVO_MS,
+            );
+        }
+      }
+    }
+
+    temporizador =
+      window.setTimeout(
+        () => {
+          void verificar();
+        },
+        INTERVALO_VERIFICACION_ACTIVO_MS,
+      );
+
+    return () => {
+      cancelado = true;
+
+      if (
+        temporizador !==
+        undefined
+      ) {
+        window.clearTimeout(
+          temporizador,
+        );
+      }
+    };
+  }, [escenarioActivo?.id]);
+
+  /*
+   * =======================================================
+   * EJECUCIÓN ACTIVA
+   * =======================================================
+   */
+
+  async function buscarEscenarioActivo():
+    Promise<
+      EscenarioResponseDto | null
+    > {
+    const pagina =
+      await escenariosService.listar(
+        0,
+        100,
+      );
+
     return (
       pagina.contenido.find(
         (escenario) =>
-          escenario.estado === "RUNNING" || escenario.estado === "PAUSED",
+          escenario.estado ===
+            "RUNNING" ||
+          escenario.estado ===
+            "PAUSED",
       ) ?? null
     );
   }
 
   async function handleDetenerActivo() {
-    if (!escenarioActivo) return;
+    if (!escenarioActivo) {
+      return;
+    }
 
     try {
       setDeteniendo(true);
+
       setError(null);
-      await escenariosService.detener(escenarioActivo.id);
+
+      await escenariosService.detener(
+        escenarioActivo.id,
+      );
+
       mostrarToast({
-        titulo: "Simulación detenida",
-        descripcion: `La ejecución #${escenarioActivo.id} fue detenida correctamente.`,
+        titulo:
+          "Simulación detenida",
+
+        descripcion:
+          `La ejecución #${escenarioActivo.id} fue detenida correctamente.`,
+
         variante: "success",
       });
+
+      /*
+       * No necesitamos esperar al siguiente
+       * ciclo del polling.
+       */
       setEscenarioActivo(null);
     } catch (error) {
-      const mensaje = mensajeDeError(
-        error,
-        "No fue posible detener la simulación activa.",
-      );
+      const mensaje =
+        mensajeDeError(
+          error,
+          "No fue posible detener la simulación activa.",
+        );
+
       setError(mensaje);
-      mostrarToast({ titulo: "No se pudo detener", descripcion: mensaje, variante: "error" });
+
+      mostrarToast({
+        titulo:
+          "No se pudo detener",
+
+        descripcion: mensaje,
+
+        variante: "error",
+      });
     } finally {
       setDeteniendo(false);
     }
   }
 
-  function validarConfiguracion(): string | null {
+  /*
+   * =======================================================
+   * VALIDACIÓN
+   * =======================================================
+   */
+
+  function validarConfiguracion():
+    string | null {
     if (
-      configuracion.autosCantidad < 1 ||
-      configuracion.motosCantidad < 1 ||
-      configuracion.bicicletasCantidad < 1
+      configuracion.autosCantidad <
+        1 ||
+      configuracion.motosCantidad <
+        1 ||
+      configuracion
+        .bicicletasCantidad < 1
     ) {
       return "La flota debe tener al menos una unidad de cada tipo.";
     }
 
     if (
-      configuracion.autosVelocidad <= 0 ||
-      configuracion.motosVelocidad <= 0 ||
-      configuracion.bicicletasVelocidad <= 0
+      configuracion.autosVelocidad <=
+        0 ||
+      configuracion.motosVelocidad <=
+        0 ||
+      configuracion
+        .bicicletasVelocidad <= 0
     ) {
       return "Todas las velocidades deben ser mayores que cero.";
     }
 
     const umbrales = [
-      configuracion.almacenVerdeHasta,
-      configuracion.almacenAmbarHasta,
-      configuracion.vehiculoVerdeHasta,
-      configuracion.vehiculoAmbarHasta,
+      configuracion
+        .almacenVerdeHasta,
+
+      configuracion
+        .almacenAmbarHasta,
+
+      configuracion
+        .vehiculoVerdeHasta,
+
+      configuracion
+        .vehiculoAmbarHasta,
     ];
 
-    if (umbrales.some((valor) => valor < 0 || valor > 100)) {
+    if (
+      umbrales.some(
+        (valor) =>
+          valor < 0 ||
+          valor > 100,
+      )
+    ) {
       return "Los umbrales de semáforo deben estar entre 0 y 100%.";
     }
 
     if (
-      configuracion.almacenVerdeHasta >= configuracion.almacenAmbarHasta ||
-      configuracion.vehiculoVerdeHasta >= configuracion.vehiculoAmbarHasta
+      configuracion
+        .almacenVerdeHasta >=
+        configuracion
+          .almacenAmbarHasta ||
+      configuracion
+        .vehiculoVerdeHasta >=
+        configuracion
+          .vehiculoAmbarHasta
     ) {
       return "El límite verde debe ser menor que el límite ámbar.";
     }
 
-    if (configuracion.usarConfiguracionSa) {
+    /*
+     * Configuración avanzada
+     * de Simulated Annealing.
+     */
+
+    if (
+      configuracion
+        .usarConfiguracionSa
+    ) {
       if (
-        configuracion.saTemperaturaInicial <= 0 ||
-        configuracion.saTemperaturaMinima <= 0 ||
-        configuracion.saTemperaturaMinima >= configuracion.saTemperaturaInicial
+        configuracion
+          .saTemperaturaInicial <=
+          0 ||
+        configuracion
+          .saTemperaturaMinima <=
+          0 ||
+        configuracion
+          .saTemperaturaMinima >=
+          configuracion
+            .saTemperaturaInicial
       ) {
         return "La configuración avanzada requiere temperaturas positivas y Tmin menor que T0.";
       }
 
       if (
-        configuracion.saFactorEnfriamiento < 0.8 ||
-        configuracion.saFactorEnfriamiento > 0.99
+        configuracion
+          .saFactorEnfriamiento <
+          0.8 ||
+        configuracion
+          .saFactorEnfriamiento >
+          0.99
       ) {
         return "El factor de enfriamiento debe estar entre 0.80 y 0.99.";
       }
 
-      if (configuracion.saIteracionesPorTemperatura <= 0) {
+      if (
+        configuracion
+          .saIteracionesPorTemperatura <=
+        0
+      ) {
         return "Las iteraciones por temperatura deben ser mayores que cero.";
       }
 
       if (
         configuracion.saSemilla.trim() &&
-        !/^-?\d+$/.test(configuracion.saSemilla.trim())
+        !/^-?\d+$/.test(
+          configuracion
+            .saSemilla
+            .trim(),
+        )
       ) {
         return "La semilla debe ser un número entero.";
       }
     }
 
-    if (configuracion.escenario === "DIA_A_DIA") return null;
+    if (
+      configuracion.escenario ===
+      "DIA_A_DIA"
+    ) {
+      return null;
+    }
 
     if (consultandoPeriodos) {
       return "Espera mientras se verifican los meses de pedidos cargados.";
     }
 
-    if (!configuracion.inicioSimulado) {
+    if (
+      !configuracion.inicioSimulado
+    ) {
       return "Selecciona la fecha y hora inicial de la simulación.";
     }
 
-    const fecha = new Date(
-      `${normalizarFechaLocal(configuracion.inicioSimulado)}-05:00`,
-    );
+    const fecha =
+      new Date(
+        `${normalizarFechaLocal(
+          configuracion
+            .inicioSimulado,
+        )}-05:00`,
+      );
 
-    if (Number.isNaN(fecha.getTime())) {
+    if (
+      Number.isNaN(
+        fecha.getTime(),
+      )
+    ) {
       return "La fecha inicial no es válida.";
     }
 
     if (archivoPedidos) {
-      if (!periodoArchivoPedidos) {
+      if (
+        !periodoArchivoPedidos
+      ) {
         return "El archivo de pedidos debe llamarse ventas.AAAAMM.txt.";
       }
 
-      if (!mesesRequeridos.includes(periodoArchivoPedidos)) {
+      if (
+        !mesesRequeridos.includes(
+          periodoArchivoPedidos,
+        )
+      ) {
         return `El archivo ${archivoPedidos.name} no corresponde a los meses requeridos por el escenario.`;
       }
     }
 
     if (archivoBloqueos) {
-      const periodoBloqueo = periodoDesdeArchivoBloqueos(archivoBloqueos.name);
+      const periodoBloqueo =
+        periodoDesdeArchivoBloqueos(
+          archivoBloqueos.name,
+        );
+
       if (!periodoBloqueo) {
         return "El archivo de bloqueos debe llamarse bloqueo.AAMM.txt.";
       }
 
-      if (archivoPedidos && periodoArchivoPedidos !== periodoBloqueo) {
+      if (
+        archivoPedidos &&
+        periodoArchivoPedidos !==
+          periodoBloqueo
+      ) {
         return "Los archivos de pedidos y bloqueos deben corresponder al mismo periodo.";
       }
 
-      if (!archivoPedidos && !mesesRequeridos.includes(periodoBloqueo)) {
+      if (
+        !archivoPedidos &&
+        !mesesRequeridos.includes(
+          periodoBloqueo,
+        )
+      ) {
         return `El archivo ${archivoBloqueos.name} no corresponde a los meses requeridos por el escenario.`;
       }
     }
 
-    if (mesesFaltantes.length > 0) {
+    if (
+      mesesFaltantes.length >
+      0
+    ) {
       return mesesFaltantes
         .map(
           (periodo) =>
-            `Falta ${periodoLegible(periodo)}: carga ${archivoVentasEsperado(periodo)}.`,
+            `Falta ${periodoLegible(
+              periodo,
+            )}: carga ${archivoVentasEsperado(
+              periodo,
+            )}.`,
         )
         .join("\n");
     }
@@ -275,177 +647,456 @@ export default function ConfiguracionPage() {
     return null;
   }
 
+  /*
+   * =======================================================
+   * PREPARACIÓN DEL INICIO
+   * =======================================================
+   */
+
   function prepararInicio() {
-    const validacion = validarConfiguracion();
+    const validacion =
+      validarConfiguracion();
+
     if (validacion) {
       setError(validacion);
-      mostrarToast({ titulo: "Revisa la configuración", descripcion: validacion, variante: "warning" });
+
+      mostrarToast({
+        titulo:
+          "Revisa la configuración",
+
+        descripcion:
+          validacion,
+
+        variante:
+          "warning",
+      });
+
       return;
     }
 
     setError(null);
-    setMostrarConfirmacion(true);
+
+    setMostrarConfirmacion(
+      true,
+    );
   }
+
+  /*
+   * =======================================================
+   * INICIAR SIMULACIÓN
+   * =======================================================
+   */
 
   async function handleIniciarSimulacion() {
     try {
       setIniciando(true);
+
       setError(null);
 
-      const activo = await buscarEscenarioActivo();
+      /*
+       * Última comprobación antes
+       * de crear la ejecución.
+       */
+      const activo =
+        await buscarEscenarioActivo();
+
       if (activo) {
-        setEscenarioActivo(activo);
-        throw new Error("Ya existe una simulación activa; deténla antes de iniciar otra.");
+        setEscenarioActivo(
+          activo,
+        );
+
+        throw new Error(
+          "Ya existe una simulación activa; deténla antes de iniciar otra.",
+        );
       }
 
       await reconciliarCantidadFlota();
+
       await actualizarParametrosFlota();
 
-      if (usaDatosHistoricos && archivoPedidos) {
-        const carga = await pedidosService.cargarArchivo(archivoPedidos);
-        mostrarToast({
-          titulo: "Pedidos cargados",
-          descripcion: `${carga.registrados} registrados · ${carga.omitidos} omitidos`,
-          variante: "success",
-        });
-        setPeriodosCargados(await pedidosService.periodosCargados());
-      }
+      /*
+       * Pedidos históricos.
+       */
+      if (
+        usaDatosHistoricos &&
+        archivoPedidos
+      ) {
+        const carga =
+          await pedidosService.cargarArchivo(
+            archivoPedidos,
+          );
 
-      if (usaDatosHistoricos && archivoBloqueos) {
-        const periodo = periodoDesdeArchivoBloqueos(archivoBloqueos.name);
-        const carga = await bloqueosService.cargarArchivo(
-          archivoBloqueos,
-          periodo ?? undefined,
+        mostrarToast({
+          titulo:
+            "Pedidos cargados",
+
+          descripcion:
+            `${carga.registrados} registrados · ${carga.omitidos} omitidos`,
+
+          variante:
+            "success",
+        });
+
+        setPeriodosCargados(
+          await pedidosService.periodosCargados(),
         );
+      }
+
+      /*
+       * Bloqueos históricos.
+       */
+      if (
+        usaDatosHistoricos &&
+        archivoBloqueos
+      ) {
+        const periodo =
+          periodoDesdeArchivoBloqueos(
+            archivoBloqueos.name,
+          );
+
+        const carga =
+          await bloqueosService.cargarArchivo(
+            archivoBloqueos,
+            periodo ??
+              undefined,
+          );
+
         mostrarToast({
-          titulo: "Bloqueos cargados",
-          descripcion: `${carga.registrados} registrados · ${carga.reemplazados} reemplazados en ${carga.periodo}`,
-          variante: "success",
+          titulo:
+            "Bloqueos cargados",
+
+          descripcion:
+            `${carga.registrados} registrados · ${carga.reemplazados} reemplazados en ${carga.periodo}`,
+
+          variante:
+            "success",
         });
       }
 
-      const request = construirRequestEscenario();
-      const creado = await escenariosService.crear(request);
-      const iniciado = await escenariosService.iniciar(creado.id);
+      /*
+       * Crear e iniciar escenario.
+       */
+      const request =
+        construirRequestEscenario();
+
+      const creado =
+        await escenariosService.crear(
+          request,
+        );
+
+      const iniciado =
+        await escenariosService.iniciar(
+          creado.id,
+        );
 
       mostrarToast({
-        titulo: "Simulación iniciada",
-        descripcion: `Ejecución #${iniciado.id} · ${nombreTipoEscenario(iniciado.tipo)}`,
-        variante: "success",
+        titulo:
+          "Simulación iniciada",
+
+        descripcion:
+          `Ejecución #${iniciado.id} · ${nombreTipoEscenario(
+            iniciado.tipo,
+          )}`,
+
+        variante:
+          "success",
       });
 
-      setMostrarConfirmacion(false);
-      navigate(`/ejecucion/${iniciado.id}`);
+      setMostrarConfirmacion(
+        false,
+      );
+
+      navigate(
+        `/ejecucion/${iniciado.id}`,
+      );
     } catch (error) {
-      const mensaje = mensajeDeError(error, "No fue posible iniciar la simulación.");
+      const mensaje =
+        mensajeDeError(
+          error,
+          "No fue posible iniciar la simulación.",
+        );
+
       setError(mensaje);
-      mostrarToast({ titulo: "No se pudo iniciar", descripcion: mensaje, variante: "error" });
+
+      mostrarToast({
+        titulo:
+          "No se pudo iniciar",
+
+        descripcion:
+          mensaje,
+
+        variante:
+          "error",
+      });
     } finally {
       setIniciando(false);
     }
   }
 
+  /*
+   * =======================================================
+   * FLOTA
+   * =======================================================
+   */
+
   async function reconciliarCantidadFlota() {
-    const vehiculos = await flotaService.listarVehiculos();
-    const objetivos: Record<TipoVehiculoBackend, number> = {
-      CAR: configuracion.autosCantidad,
-      MOTORCYCLE: configuracion.motosCantidad,
-      BICYCLE: configuracion.bicicletasCantidad,
+    const vehiculos =
+      await flotaService.listarVehiculos();
+
+    const objetivos:
+      Record<
+        TipoVehiculoBackend,
+        number
+      > = {
+      CAR:
+        configuracion.autosCantidad,
+
+      MOTORCYCLE:
+        configuracion.motosCantidad,
+
+      BICYCLE:
+        configuracion
+          .bicicletasCantidad,
     };
 
-    for (const tipo of Object.keys(objetivos) as TipoVehiculoBackend[]) {
-      const existentes = vehiculos
-        .filter((vehiculo) => vehiculo.tipo === tipo)
-        .sort((a, b) => b.id.localeCompare(a.id, undefined, { numeric: true }));
-      const diferencia = objetivos[tipo] - existentes.length;
+    for (
+      const tipo of Object.keys(
+        objetivos,
+      ) as TipoVehiculoBackend[]
+    ) {
+      const existentes =
+        vehiculos
+          .filter(
+            (vehiculo) =>
+              vehiculo.tipo ===
+              tipo,
+          )
+          .sort(
+            (a, b) =>
+              b.id.localeCompare(
+                a.id,
+                undefined,
+                {
+                  numeric:
+                    true,
+                },
+              ),
+          );
 
-      if (diferencia > 0) {
-        for (let i = 0; i < diferencia; i += 1) {
-          await flotaService.altaVehiculo(tipo);
+      const diferencia =
+        objetivos[tipo] -
+        existentes.length;
+
+      if (
+        diferencia > 0
+      ) {
+        for (
+          let i = 0;
+          i < diferencia;
+          i += 1
+        ) {
+          await flotaService.altaVehiculo(
+            tipo,
+          );
         }
-      } else if (diferencia < 0) {
-        const candidatos = ordenarParaBaja(existentes).slice(0, Math.abs(diferencia));
-        for (const vehiculo of candidatos) {
-          await flotaService.bajaVehiculo(vehiculo.id);
+      } else if (
+        diferencia < 0
+      ) {
+        const candidatos =
+          ordenarParaBaja(
+            existentes,
+          ).slice(
+            0,
+            Math.abs(
+              diferencia,
+            ),
+          );
+
+        for (
+          const vehiculo of
+            candidatos
+        ) {
+          await flotaService.bajaVehiculo(
+            vehiculo.id,
+          );
         }
       }
     }
   }
 
   async function actualizarParametrosFlota() {
-    const tipos = await flotaService.listarTipos();
-    const velocidad: Record<TipoVehiculoBackend, number> = {
-      CAR: configuracion.autosVelocidad,
-      MOTORCYCLE: configuracion.motosVelocidad,
-      BICYCLE: configuracion.bicicletasVelocidad,
+    const tipos =
+      await flotaService.listarTipos();
+
+    const velocidad:
+      Record<
+        TipoVehiculoBackend,
+        number
+      > = {
+      CAR:
+        configuracion.autosVelocidad,
+
+      MOTORCYCLE:
+        configuracion.motosVelocidad,
+
+      BICYCLE:
+        configuracion
+          .bicicletasVelocidad,
     };
 
     await Promise.all(
-      tipos.map((tipo) =>
-        flotaService.actualizarTipo(tipo.tipo, {
-          capacidadPaquetes: tipo.capacidadPaquetes,
-          velocidadKmh: velocidad[tipo.tipo],
-          costoPorKm: tipo.costoPorKm,
-        }),
+      tipos.map(
+        (tipo) =>
+          flotaService.actualizarTipo(
+            tipo.tipo,
+            {
+              capacidadPaquetes:
+                tipo.capacidadPaquetes,
+
+              velocidadKmh:
+                velocidad[
+                  tipo.tipo
+                ],
+
+              costoPorKm:
+                tipo.costoPorKm,
+            },
+          ),
       ),
     );
   }
 
-  function construirRequestEscenario(): CrearEscenarioRequestDto {
-    const tipo = convertirEscenario(configuracion.escenario);
-    const request: CrearEscenarioRequestDto = { tipo };
+  /*
+   * =======================================================
+   * REQUEST DEL ESCENARIO
+   * =======================================================
+   */
 
-    if (tipo !== "DAY_TO_DAY") {
-      request.inicioSimulado = convertirHoraLimaAIso(configuracion.inicioSimulado);
+  function construirRequestEscenario():
+    CrearEscenarioRequestDto {
+    const tipo =
+      convertirEscenario(
+        configuracion.escenario,
+      );
+
+    const request:
+      CrearEscenarioRequestDto = {
+      tipo,
+    };
+
+    if (
+      tipo !==
+      "DAY_TO_DAY"
+    ) {
+      request.inicioSimulado =
+        convertirHoraLimaAIso(
+          configuracion
+            .inicioSimulado,
+        );
     }
 
-    if (configuracion.usarConfiguracionSa) {
+    if (
+      configuracion
+        .usarConfiguracionSa
+    ) {
       request.configuracionSa = {
-        ...(configuracion.saSemilla.trim()
-          ? { semilla: Number(configuracion.saSemilla.trim()) }
-          : {}),
-        temperaturaInicial: configuracion.saTemperaturaInicial,
-        temperaturaMinima: configuracion.saTemperaturaMinima,
-        factorEnfriamiento: configuracion.saFactorEnfriamiento,
-        iteracionesPorTemperatura: configuracion.saIteracionesPorTemperatura,
+        ...(
+          configuracion.saSemilla.trim()
+            ? {
+                semilla:
+                  Number(
+                    configuracion
+                      .saSemilla
+                      .trim(),
+                  ),
+              }
+            : {}
+        ),
+
+        temperaturaInicial:
+          configuracion
+            .saTemperaturaInicial,
+
+        temperaturaMinima:
+          configuracion
+            .saTemperaturaMinima,
+
+        factorEnfriamiento:
+          configuracion
+            .saFactorEnfriamiento,
+
+        iteracionesPorTemperatura:
+          configuracion
+            .saIteracionesPorTemperatura,
       };
     }
 
     return request;
   }
 
+  /*
+   * =======================================================
+   * ESTADO DEL BOTÓN
+   * =======================================================
+   */
+
   const puedeIniciar =
     !iniciando &&
     !verificandoActivo &&
-    !(usaDatosHistoricos && consultandoPeriodos) &&
+    !(
+      usaDatosHistoricos &&
+      consultandoPeriodos
+    ) &&
     !escenarioActivo &&
-    validarConfiguracion() === null;
+    validarConfiguracion() ===
+      null;
+
+  /*
+   * =======================================================
+   * UI
+   * =======================================================
+   */
 
   return (
     <div className="flex min-h-full flex-col">
       <div className="grid flex-1 gap-3 p-4 xl:grid-cols-[250px_minmax(0,1fr)_270px]">
         <OrigenDatos
-          periodosCargados={periodosCargados}
-          mesesRequeridos={mesesRequeridos}
-          mesesFaltantes={mesesFaltantes}
-          consultandoPeriodos={consultandoPeriodos}
+          periodosCargados={
+            periodosCargados
+          }
+          mesesRequeridos={
+            mesesRequeridos
+          }
+          mesesFaltantes={
+            mesesFaltantes
+          }
+          consultandoPeriodos={
+            consultandoPeriodos
+          }
         />
 
         <section className="space-y-3">
           <ParametrosOperacion />
+
           <FlotaConfiguracion />
+
           <SemaforoConfiguracion />
         </section>
 
         <ResumenConfiguracion
-          mesesRequeridos={mesesRequeridos}
-          mesesFaltantes={mesesFaltantes}
+          mesesRequeridos={
+            mesesRequeridos
+          }
+          mesesFaltantes={
+            mesesFaltantes
+          }
         />
       </div>
 
       {verificandoActivo && (
         <div className="mx-4 mb-3 flex items-center gap-2 rounded-md border border-slate-700 bg-[#151b23] px-4 py-3 text-sm text-slate-300">
           <Loader2 className="size-4 animate-spin" />
+
           Verificando si existe una simulación activa...
         </div>
       )}
@@ -455,15 +1106,29 @@ export default function ConfiguracionPage() {
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
             <div className="flex items-start gap-3">
               <TriangleAlert className="mt-0.5 size-5 shrink-0 text-amber-400" />
+
               <div>
                 <p className="font-semibold text-amber-300">
                   Ya existe una simulación activa
                 </p>
+
                 <p className="mt-1 text-sm text-slate-400">
-                  Ejecución #{escenarioActivo.id} · {nombreTipoEscenario(escenarioActivo.tipo)} · {nombreEstado(escenarioActivo.estado)}
+                  Ejecución #
+                  {
+                    escenarioActivo.id
+                  }
+                  {" · "}
+                  {nombreTipoEscenario(
+                    escenarioActivo.tipo,
+                  )}
+                  {" · "}
+                  {nombreEstado(
+                    escenarioActivo.estado,
+                  )}
                 </p>
+
                 <p className="mt-1 text-xs text-slate-500">
-                  Puedes volver a la ejecución actual o detenerla antes de iniciar otra.
+                  Esta información se actualiza automáticamente. Cuando la ejecución termine podrás iniciar otra.
                 </p>
               </div>
             </div>
@@ -471,17 +1136,26 @@ export default function ConfiguracionPage() {
             <div className="flex shrink-0 gap-2">
               <button
                 type="button"
-                onClick={() => navigate(`/ejecucion/${escenarioActivo.id}`)}
+                onClick={() =>
+                  navigate(
+                    `/ejecucion/${escenarioActivo.id}`,
+                  )
+                }
                 className="flex items-center gap-2 rounded-md border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
               >
                 <ExternalLink className="size-4" />
+
                 Ir a ejecución
               </button>
 
               <button
                 type="button"
-                disabled={deteniendo}
-                onClick={() => void handleDetenerActivo()}
+                disabled={
+                  deteniendo
+                }
+                onClick={() =>
+                  void handleDetenerActivo()
+                }
                 className="flex items-center gap-2 rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600 disabled:opacity-50"
               >
                 {deteniendo ? (
@@ -489,7 +1163,10 @@ export default function ConfiguracionPage() {
                 ) : (
                   <CircleStop className="size-4" />
                 )}
-                {deteniendo ? "Deteniendo..." : "Detener simulación"}
+
+                {deteniendo
+                  ? "Deteniendo..."
+                  : "Detener simulación"}
               </button>
             </div>
           </div>
@@ -505,19 +1182,24 @@ export default function ConfiguracionPage() {
       <div className="sticky bottom-0 flex items-center justify-between border-t border-slate-800 bg-[#0d1117] px-4 py-3">
         <div className="text-xs text-slate-500">
           {escenarioActivo
-            ? "Existe una ejecución activa."
+            ? "Existe una ejecución activa. Se verificará automáticamente hasta que termine."
             : "Listo para revisar e iniciar una ejecución."}
         </div>
 
         <Button
           type="button"
-          disabled={!puedeIniciar}
-          onClick={prepararInicio}
+          disabled={
+            !puedeIniciar
+          }
+          onClick={
+            prepararInicio
+          }
           className="bg-[#ff6b35] text-white hover:bg-[#ff7b4d]"
         >
           {iniciando ? (
             <>
               <Loader2 className="mr-2 size-4 animate-spin" />
+
               Iniciando...
             </>
           ) : (
@@ -527,85 +1209,187 @@ export default function ConfiguracionPage() {
       </div>
 
       <ConfirmarInicioModal
-        abierto={mostrarConfirmacion}
-        configuracion={configuracion}
-        archivoBloqueos={archivoBloqueos}
-        confirmando={iniciando}
-        onCancelar={() => setMostrarConfirmacion(false)}
-        fuentePedidos={
-          configuracion.escenario === "DIA_A_DIA"
-            ? "Registro en línea"
-            : archivoPedidos?.name ?? `Base de datos · ${mesesRequeridos.join(", ")}`
+        abierto={
+          mostrarConfirmacion
         }
-        onConfirmar={() => void handleIniciarSimulacion()}
+        configuracion={
+          configuracion
+        }
+        archivoBloqueos={
+          archivoBloqueos
+        }
+        confirmando={
+          iniciando
+        }
+        onCancelar={() =>
+          setMostrarConfirmacion(
+            false,
+          )
+        }
+        fuentePedidos={
+          configuracion.escenario ===
+          "DIA_A_DIA"
+            ? "Registro en línea"
+            : archivoPedidos?.name ??
+              `Base de datos · ${mesesRequeridos.join(
+                ", ",
+              )}`
+        }
+        onConfirmar={() =>
+          void handleIniciarSimulacion()
+        }
       />
     </div>
   );
 }
 
-function contar(vehiculos: VehiculoResponseDto[], tipo: TipoVehiculoBackend) {
-  return vehiculos.filter((vehiculo) => vehiculo.tipo === tipo).length;
+/*
+ * =========================================================
+ * HELPERS
+ * =========================================================
+ */
+
+function contar(
+  vehiculos:
+    VehiculoResponseDto[],
+  tipo:
+    TipoVehiculoBackend,
+) {
+  return vehiculos.filter(
+    (vehiculo) =>
+      vehiculo.tipo ===
+      tipo,
+  ).length;
 }
 
-function ordenarParaBaja(vehiculos: VehiculoResponseDto[]) {
-  return [...vehiculos].sort((a, b) => {
-    const prioridadA = a.estado === "AVAILABLE" ? 0 : 1;
-    const prioridadB = b.estado === "AVAILABLE" ? 0 : 1;
-    return prioridadA - prioridadB || b.id.localeCompare(a.id, undefined, { numeric: true });
-  });
+function ordenarParaBaja(
+  vehiculos:
+    VehiculoResponseDto[],
+) {
+  return [
+    ...vehiculos,
+  ].sort(
+    (a, b) => {
+      const prioridadA =
+        a.estado ===
+        "AVAILABLE"
+          ? 0
+          : 1;
+
+      const prioridadB =
+        b.estado ===
+        "AVAILABLE"
+          ? 0
+          : 1;
+
+      return (
+        prioridadA -
+          prioridadB ||
+        b.id.localeCompare(
+          a.id,
+          undefined,
+          {
+            numeric:
+              true,
+          },
+        )
+      );
+    },
+  );
 }
 
 function convertirEscenario(
-  escenario: "DIA_A_DIA" | "SIMULACION_5D" | "COLAPSO",
+  escenario:
+    | "DIA_A_DIA"
+    | "SIMULACION_5D"
+    | "COLAPSO",
 ): TipoEscenarioBackend {
   switch (escenario) {
     case "DIA_A_DIA":
       return "DAY_TO_DAY";
+
     case "SIMULACION_5D":
       return "FIVE_DAY";
+
     case "COLAPSO":
       return "COLLAPSE";
   }
 }
 
-function nombreTipoEscenario(tipo: TipoEscenarioBackend) {
+function nombreTipoEscenario(
+  tipo:
+    TipoEscenarioBackend,
+) {
   switch (tipo) {
     case "DAY_TO_DAY":
       return "Día a Día";
+
     case "FIVE_DAY":
       return "Simulación 5D";
+
     case "COLLAPSE":
       return "Colapso";
   }
 }
 
-function nombreEstado(estado: EscenarioResponseDto["estado"]) {
+function nombreEstado(
+  estado:
+    EscenarioResponseDto["estado"],
+) {
   switch (estado) {
     case "CREATED":
       return "Creado";
+
     case "RUNNING":
       return "En ejecución";
+
     case "PAUSED":
       return "Pausado";
+
     case "STOPPED":
       return "Detenido";
+
     case "COMPLETED":
       return "Completado";
+
     case "COLLAPSED":
       return "Colapsado";
+
     case "FAILED":
       return "Error";
   }
 }
 
-function normalizarFechaLocal(valor: string) {
-  return valor.length === 16 ? `${valor}:00` : valor;
+function normalizarFechaLocal(
+  valor:
+    string,
+) {
+  return valor.length ===
+    16
+    ? `${valor}:00`
+    : valor;
 }
 
-function convertirHoraLimaAIso(valor: string) {
-  const fecha = new Date(`${normalizarFechaLocal(valor)}-05:00`);
-  if (Number.isNaN(fecha.getTime())) {
-    throw new Error("La fecha inicial de la simulación no es válida.");
+function convertirHoraLimaAIso(
+  valor:
+    string,
+) {
+  const fecha =
+    new Date(
+      `${normalizarFechaLocal(
+        valor,
+      )}-05:00`,
+    );
+
+  if (
+    Number.isNaN(
+      fecha.getTime(),
+    )
+  ) {
+    throw new Error(
+      "La fecha inicial de la simulación no es válida.",
+    );
   }
+
   return fecha.toISOString();
 }
