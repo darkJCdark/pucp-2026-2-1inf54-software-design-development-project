@@ -10,6 +10,10 @@ export interface DistanciasVehiculo {
   kmDesdeOrigen: number;
   minutosDesdeOrigen: number;
   kmRestantes: number;
+  /** LLEGANDO: viaja hacia la parada. SALIENDO: está en ella (servicio o refrigerio) y aún no sale. */
+  fase: "LLEGANDO" | "SALIENDO";
+  /** Hora de llegada a la parada o, si ya está en ella, de salida. */
+  horaFase: string | null;
 }
 
 function ms(valor: string | null | undefined) {
@@ -69,5 +73,7 @@ export function calcularDistancias(
     kmDesdeOrigen: kmAnteriores + tramos[siguiente] * progreso,
     minutosDesdeOrigen: (instanteMs - salida) / 60_000,
     kmRestantes: kmAlDestino + kmPosteriores,
+    fase: instanteMs >= finTramo ? "SALIENDO" : "LLEGANDO",
+    horaFase: instanteMs >= finTramo ? parada.fin : parada.inicioRefrigerio ?? parada.llegada,
   };
 }

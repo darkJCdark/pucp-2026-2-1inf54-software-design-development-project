@@ -5,7 +5,7 @@ import type { MonitoreoResponseDto } from "@/api/monitoreo.dto";
 import type { PlanResponseDto } from "@/api/planificacion.dto";
 import { Card } from "@/components/ui/card";
 
-import { calcularDistancias, type DistanciasVehiculo } from "./distanciasVehiculo";
+import { calcularDistancias } from "./distanciasVehiculo";
 import type { SeleccionLista } from "./ListaPedidosEjecucion";
 
 interface ListaDistanciasVehiculosProps {
@@ -15,7 +15,26 @@ interface ListaDistanciasVehiculosProps {
   onSeleccionar: (seleccion: SeleccionLista) => void;
 }
 
-type Criterio = keyof DistanciasVehiculo;
+type Criterio = "minutosAlDestino" | "minutosDesdeOrigen" | "kmAlDestino" | "kmDesdeOrigen" | "kmRestantes";
+
+/** Rangos del filtro de distancia (AutoEVAL E11); el extremo superior no se incluye. */
+const RANGOS_KM: Array<{ etiqueta: string; desde: number; hasta: number }> = [
+  { etiqueta: "[0, 10[ km", desde: 0, hasta: 10 },
+  { etiqueta: "[10, 20[ km", desde: 10, hasta: 20 },
+  { etiqueta: "[20, 40[ km", desde: 20, hasta: 40 },
+  { etiqueta: "[40, 200[ km", desde: 40, hasta: 200 },
+];
+
+function formatearHora(valor: string | null) {
+  return valor
+    ? new Intl.DateTimeFormat("es-PE", {
+        timeZone: "America/Lima",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(new Date(valor))
+    : "—";
+}
 
 const CRITERIOS: Array<{ valor: Criterio; etiqueta: string; unidad: string }> = [
   { valor: "minutosAlDestino", etiqueta: "Minutos al destino", unidad: "min" },
@@ -41,6 +60,7 @@ export function ListaDistanciasVehiculos({
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [descendente, setDescendente] = useState(false);
+  const [rango, setRango] = useState("");
 
   const unidad = CRITERIOS.find((item) => item.valor === criterio)?.unidad ?? "";
 
@@ -57,13 +77,15 @@ export function ListaDistanciasVehiculos({
       })
       .filter(({ distancias }) => {
         const valor = distancias[criterio];
-        return (minimo === null || valor >= minimo) && (maximo === null || valor <= maximo);
+        const rangoKm = RANGOS_KM[Number(rango)];
+        return (minimo === null || valor >= minimo) && (maximo === null || valor <= maximo)
+          && (rango === "" || (distancias.kmAlDestino >= rangoKm.desde && distancias.kmAlDestino < rangoKm.hasta));
       })
       .sort((a, b) =>
         (descendente ? -1 : 1) * (a.distancias[criterio] - b.distancias[criterio])
           || a.id.localeCompare(b.id),
       );
-  }, [criterio, desde, descendente, hasta, monitoreo.instante, monitoreo.vehiculos, plan]);
+  }, [criterio, desde, descendente, hasta, monitoreo.instante, monitoreo.vehiculos, plan, rango]);
 
   const claseCampo =
     "rounded-md border border-slate-700 bg-[#11161d] px-2 py-1.5 text-xs text-slate-200";
@@ -117,6 +139,18 @@ export function ListaDistanciasVehiculos({
         </button>
       </div>
 
+      <select
+        value={rango}
+        onChange={(event) => setRango(event.target.value)}
+        aria-label="Filtrar por distancia al destino"
+        className={`${claseCampo} mb-3 w-full`}
+      >
+        <option value="">Distancia al destino: todas</option>
+        {RANGOS_KM.map((item, indice) => (
+          <option key={item.etiqueta} value={indice}>{item.etiqueta}</option>
+        ))}
+      </select>
+
       <ul className="max-h-[300px] space-y-1 overflow-y-auto pr-1">
         {filas.length === 0 && (
           <li className="py-3 text-center text-xs text-slate-500">
@@ -140,6 +174,9 @@ export function ListaDistanciasVehiculos({
                 <span>Destino: {distancias.kmAlDestino.toFixed(1)} km · {distancias.minutosAlDestino.toFixed(0)} min</span>
                 <span className="text-right">Origen: {distancias.kmDesdeOrigen.toFixed(1)} km · {distancias.minutosDesdeOrigen.toFixed(0)} min</span>
                 <span>Restante de ruta: {distancias.kmRestantes.toFixed(1)} km</span>
+                <span className="text-right">
+                  {distancias.fase === "LLEGANDO" ? "Llega" : "Sale"} {formatearHora(distancias.horaFase)}
+                </span>
               </div>
             </button>
           </li>
