@@ -11,9 +11,10 @@ import com.pucp.paqrap.modulos.redvial.entity.*;
 import com.pucp.paqrap.modulos.redvial.service.*;
 
 public enum VehicleType {
-    CAR("TA", new VehicleParameters(24, 40.0, 8.0)),
-    MOTORCYCLE("TM", new VehicleParameters(8, 25.0, 6.0)),
-    BICYCLE("TB", new VehicleParameters(4, 12.0, 3.0));
+    // Velocidades oficiales de la hoja Aux-Flota del Q&A publicado (Autos 20, Motos 40, Bicicletas 14 km/h).
+    CAR("TA", new VehicleParameters(24, 20.0, 8.0)),
+    MOTORCYCLE("TM", new VehicleParameters(8, 40.0, 6.0)),
+    BICYCLE("TB", new VehicleParameters(4, 14.0, 3.0));
 
     private final String fleetCode;
     private final VehicleParameters defaultParameters;

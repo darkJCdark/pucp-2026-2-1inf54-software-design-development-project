@@ -9,6 +9,7 @@ import com.pucp.paqrap.modulos.escenarios.dto.EscenarioResponse;
 import com.pucp.paqrap.modulos.escenarios.entity.ScenarioType;
 import com.pucp.paqrap.modulos.escenarios.persistence.ScenarioExecutionEntity;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
+import com.pucp.paqrap.modulos.pedidos.service.CoberturaPedidosService;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.AnnealingConfig;
 import com.pucp.paqrap.modulos.planificacion.service.PlanificadorSaService;
 import org.springframework.data.domain.PageRequest;
@@ -28,13 +29,16 @@ public class EscenarioService {
     private final MotorEscenarios motor;
     private final EscenariosProperties propiedades;
     private final Clock relojReal;
+    private final CoberturaPedidosService coberturaPedidos;
 
     public EscenarioService(ScenarioExecutionRepository ejecucionRepository, MotorEscenarios motor,
-                            EscenariosProperties propiedades, Clock relojReal) {
+                            EscenariosProperties propiedades, Clock relojReal,
+                            CoberturaPedidosService coberturaPedidos) {
         this.ejecucionRepository = ejecucionRepository;
         this.motor = motor;
         this.propiedades = propiedades;
         this.relojReal = relojReal;
+        this.coberturaPedidos = coberturaPedidos;
     }
 
     public EscenarioResponse crear(CrearEscenarioRequest request) {
@@ -49,6 +53,11 @@ public class EscenarioService {
                 throw new IllegalArgumentException(request.tipo() + " requiere 'inicioSimulado'");
             }
             inicio = request.inicioSimulado();
+            // 5D exige pedidos cargados en todos los meses que recorre; Colapso, en el mes de inicio.
+            Instant fin = request.tipo().duracionSimulada()
+                    .map(duracion -> request.inicioSimulado().plus(duracion).minusNanos(1))
+                    .orElse(request.inicioSimulado());
+            coberturaPedidos.validarCobertura(inicio, fin);
         }
         ConfiguracionSaRequest solicitada = request.configuracionSa();
         AnnealingConfig porDefecto = PlanificadorSaService.configuracionPorDefecto();
