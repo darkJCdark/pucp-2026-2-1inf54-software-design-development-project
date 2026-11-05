@@ -56,19 +56,16 @@ export function ListaAlmacenes({
           atendidas4h: 0,
           paquetesAtendidas4h: 0,
         };
-
         const paquetes = Math.max(0, parada.paquetes);
 
         if (salida <= ahora && llegada > ahora) {
           actual.enTransito += 1;
           actual.paquetesEnTransito += paquetes;
         }
-
         if (llegada >= ahora && llegada <= ahora + cuatroHoras) {
           actual.proximas4h += 1;
           actual.paquetesProximas4h += paquetes;
         }
-
         if (llegada < ahora && llegada >= ahora - cuatroHoras) {
           actual.atendidas4h += 1;
           actual.paquetesAtendidas4h += paquetes;

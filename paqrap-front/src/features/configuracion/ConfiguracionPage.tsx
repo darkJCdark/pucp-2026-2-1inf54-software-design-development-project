@@ -22,15 +22,12 @@ import type {
   VehiculoResponseDto,
 } from "@/api/flota.dto";
 
-import type {
-  PeriodoCargadoResponseDto,
-} from "@/api/pedidos.dto";
+import type { PeriodoCargadoResponseDto } from "@/api/pedidos.dto";
 
 import { escenariosService } from "@/services/escenarios.service";
 import { pedidosService } from "@/services/pedidos.service";
 import { bloqueosService } from "@/services/bloqueos.service";
 import { flotaService } from "@/services/flota.service";
-
 import { mensajeDeError } from "@/lib/api-error";
 
 import { OrigenDatos } from "./OrigenDatos";
@@ -52,9 +49,7 @@ const INTERVALO_VERIFICACION_ACTIVO_MS = 1000;
 
 export default function ConfiguracionPage() {
   const navigate = useNavigate();
-
-  const { mostrarToast } =
-    useToast();
+  const { mostrarToast } = useToast();
 
   const {
     configuracion,
@@ -63,58 +58,28 @@ export default function ConfiguracionPage() {
     archivoBloqueos,
   } = useConfiguracion();
 
-  const [iniciando, setIniciando] =
-    useState(false);
+  const [iniciando, setIniciando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [error, setError] =
-    useState<string | null>(null);
+  const [escenarioActivo, setEscenarioActivo] =
+    useState<EscenarioResponseDto | null>(null);
 
-  const [
-    escenarioActivo,
-    setEscenarioActivo,
-  ] =
-    useState<EscenarioResponseDto | null>(
-      null,
-    );
+  const [verificandoActivo, setVerificandoActivo] = useState(true);
+  const [deteniendo, setDeteniendo] = useState(false);
+  const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
 
-  const [
-    verificandoActivo,
-    setVerificandoActivo,
-  ] =
-    useState(true);
+  const [periodosCargados, setPeriodosCargados] =
+    useState<PeriodoCargadoResponseDto[]>([]);
 
-  const [deteniendo, setDeteniendo] =
-    useState(false);
-
-  const [
-    mostrarConfirmacion,
-    setMostrarConfirmacion,
-  ] =
-    useState(false);
-
-  const [
-    periodosCargados,
-    setPeriodosCargados,
-  ] =
-    useState<
-      PeriodoCargadoResponseDto[]
-    >([]);
-
-  const [
-    consultandoPeriodos,
-    setConsultandoPeriodos,
-  ] =
-    useState(true);
+  const [consultandoPeriodos, setConsultandoPeriodos] = useState(true);
 
   const usaDatosHistoricos =
-    configuracion.escenario !==
-    "DIA_A_DIA";
+    configuracion.escenario !== "DIA_A_DIA";
 
-  const mesesRequeridos =
-    periodosRequeridos(
-      configuracion.escenario,
-      configuracion.inicioSimulado,
-    );
+  const mesesRequeridos = periodosRequeridos(
+    configuracion.escenario,
+    configuracion.inicioSimulado,
+  );
 
   const periodoArchivoPedidos =
     periodoDesdeArchivoVentas(
@@ -137,16 +102,8 @@ export default function ConfiguracionPage() {
   const mesesFaltantes =
     mesesRequeridos.filter(
       (periodo) =>
-        !periodosDisponibles.has(
-          periodo,
-        ),
+        !periodosDisponibles.has(periodo),
     );
-
-  /*
-   * =======================================================
-   * CARGA INICIAL
-   * =======================================================
-   */
 
   useEffect(() => {
     let vigente = true;
@@ -170,10 +127,7 @@ export default function ConfiguracionPage() {
         }
 
         setEscenarioActivo(activo);
-
-        setPeriodosCargados(
-          periodos,
-        );
+        setPeriodosCargados(periodos);
 
         const porTipo =
           new Map(
@@ -204,9 +158,8 @@ export default function ConfiguracionPage() {
             ),
 
           motosVelocidad:
-            porTipo.get(
-              "MOTORCYCLE",
-            )?.velocidadKmh ??
+            porTipo.get("MOTORCYCLE")
+              ?.velocidadKmh ??
             configuracion.motosVelocidad,
 
           bicicletasCantidad:
@@ -216,11 +169,9 @@ export default function ConfiguracionPage() {
             ),
 
           bicicletasVelocidad:
-            porTipo.get(
-              "BICYCLE",
-            )?.velocidadKmh ??
-            configuracion
-              .bicicletasVelocidad,
+            porTipo.get("BICYCLE")
+              ?.velocidadKmh ??
+            configuracion.bicicletasVelocidad,
         });
       } catch (error) {
         if (vigente) {
@@ -233,13 +184,8 @@ export default function ConfiguracionPage() {
         }
       } finally {
         if (vigente) {
-          setVerificandoActivo(
-            false,
-          );
-
-          setConsultandoPeriodos(
-            false,
-          );
+          setVerificandoActivo(false);
+          setConsultandoPeriodos(false);
         }
       }
     }
@@ -252,35 +198,23 @@ export default function ConfiguracionPage() {
   }, []);
 
   /*
-   * =======================================================
-   * ACTUALIZACIÓN AUTOMÁTICA DE EJECUCIÓN ACTIVA
-   * =======================================================
+   * Mientras exista una ejecución RUNNING o PAUSED,
+   * verificamos cada segundo.
    *
-   * Antes:
-   * Configuración consultaba una sola vez.
-   *
-   * Ahora:
-   * Si encuentra una ejecución RUNNING o PAUSED,
-   * vuelve a verificar cada segundo.
-   *
-   * En cuanto backend deja de considerarla activa,
-   * escenarioActivo pasa a null y el botón para iniciar
-   * otra simulación se habilita automáticamente.
-   *
-   * No hay polling cuando no existe ejecución activa.
+   * Cuando termina:
+   * escenarioActivo -> null
+   * y se habilita automáticamente una nueva ejecución.
    */
-
   useEffect(() => {
     if (!escenarioActivo) {
       return;
     }
 
     let cancelado = false;
-
     let temporizador:
       number | undefined;
 
-    async function verificar() {
+    async function verificarActivo() {
       try {
         const activo =
           await buscarEscenarioActivo();
@@ -289,14 +223,8 @@ export default function ConfiguracionPage() {
           return;
         }
 
-        setEscenarioActivo(
-          activo,
-        );
+        setEscenarioActivo(activo);
 
-        /*
-         * Si ya terminó, no programamos
-         * otra consulta.
-         */
         if (!activo) {
           return;
         }
@@ -304,35 +232,29 @@ export default function ConfiguracionPage() {
         temporizador =
           window.setTimeout(
             () => {
-              void verificar();
+              void verificarActivo();
             },
             INTERVALO_VERIFICACION_ACTIVO_MS,
           );
       } catch {
-        /*
-         * Un fallo temporal de red no debe
-         * bloquear permanentemente la página.
-         *
-         * Se vuelve a intentar después.
-         */
-        if (
-          !cancelado
-        ) {
-          temporizador =
-            window.setTimeout(
-              () => {
-                void verificar();
-              },
-              INTERVALO_VERIFICACION_ACTIVO_MS,
-            );
+        if (cancelado) {
+          return;
         }
+
+        temporizador =
+          window.setTimeout(
+            () => {
+              void verificarActivo();
+            },
+            INTERVALO_VERIFICACION_ACTIVO_MS,
+          );
       }
     }
 
     temporizador =
       window.setTimeout(
         () => {
-          void verificar();
+          void verificarActivo();
         },
         INTERVALO_VERIFICACION_ACTIVO_MS,
       );
@@ -341,8 +263,7 @@ export default function ConfiguracionPage() {
       cancelado = true;
 
       if (
-        temporizador !==
-        undefined
+        temporizador !== undefined
       ) {
         window.clearTimeout(
           temporizador,
@@ -350,12 +271,6 @@ export default function ConfiguracionPage() {
       }
     };
   }, [escenarioActivo?.id]);
-
-  /*
-   * =======================================================
-   * EJECUCIÓN ACTIVA
-   * =======================================================
-   */
 
   async function buscarEscenarioActivo():
     Promise<
@@ -385,7 +300,6 @@ export default function ConfiguracionPage() {
 
     try {
       setDeteniendo(true);
-
       setError(null);
 
       await escenariosService.detener(
@@ -399,13 +313,10 @@ export default function ConfiguracionPage() {
         descripcion:
           `La ejecución #${escenarioActivo.id} fue detenida correctamente.`,
 
-        variante: "success",
+        variante:
+          "success",
       });
 
-      /*
-       * No necesitamos esperar al siguiente
-       * ciclo del polling.
-       */
       setEscenarioActivo(null);
     } catch (error) {
       const mensaje =
@@ -420,57 +331,40 @@ export default function ConfiguracionPage() {
         titulo:
           "No se pudo detener",
 
-        descripcion: mensaje,
+        descripcion:
+          mensaje,
 
-        variante: "error",
+        variante:
+          "error",
       });
     } finally {
       setDeteniendo(false);
     }
   }
 
-  /*
-   * =======================================================
-   * VALIDACIÓN
-   * =======================================================
-   */
-
   function validarConfiguracion():
     string | null {
     if (
-      configuracion.autosCantidad <
-        1 ||
-      configuracion.motosCantidad <
-        1 ||
-      configuracion
-        .bicicletasCantidad < 1
+      configuracion.autosCantidad < 1 ||
+      configuracion.motosCantidad < 1 ||
+      configuracion.bicicletasCantidad < 1
     ) {
       return "La flota debe tener al menos una unidad de cada tipo.";
     }
 
     if (
-      configuracion.autosVelocidad <=
-        0 ||
-      configuracion.motosVelocidad <=
-        0 ||
-      configuracion
-        .bicicletasVelocidad <= 0
+      configuracion.autosVelocidad <= 0 ||
+      configuracion.motosVelocidad <= 0 ||
+      configuracion.bicicletasVelocidad <= 0
     ) {
       return "Todas las velocidades deben ser mayores que cero.";
     }
 
     const umbrales = [
-      configuracion
-        .almacenVerdeHasta,
-
-      configuracion
-        .almacenAmbarHasta,
-
-      configuracion
-        .vehiculoVerdeHasta,
-
-      configuracion
-        .vehiculoAmbarHasta,
+      configuracion.almacenVerdeHasta,
+      configuracion.almacenAmbarHasta,
+      configuracion.vehiculoVerdeHasta,
+      configuracion.vehiculoAmbarHasta,
     ];
 
     if (
@@ -484,56 +378,39 @@ export default function ConfiguracionPage() {
     }
 
     if (
-      configuracion
-        .almacenVerdeHasta >=
-        configuracion
-          .almacenAmbarHasta ||
-      configuracion
-        .vehiculoVerdeHasta >=
-        configuracion
-          .vehiculoAmbarHasta
+      configuracion.almacenVerdeHasta >=
+        configuracion.almacenAmbarHasta ||
+      configuracion.vehiculoVerdeHasta >=
+        configuracion.vehiculoAmbarHasta
     ) {
       return "El límite verde debe ser menor que el límite ámbar.";
     }
 
-    /*
-     * Configuración avanzada
-     * de Simulated Annealing.
-     */
-
     if (
-      configuracion
-        .usarConfiguracionSa
+      configuracion.usarConfiguracionSa
     ) {
       if (
-        configuracion
-          .saTemperaturaInicial <=
+        configuracion.saTemperaturaInicial <=
           0 ||
-        configuracion
-          .saTemperaturaMinima <=
+        configuracion.saTemperaturaMinima <=
           0 ||
-        configuracion
-          .saTemperaturaMinima >=
-          configuracion
-            .saTemperaturaInicial
+        configuracion.saTemperaturaMinima >=
+          configuracion.saTemperaturaInicial
       ) {
         return "La configuración avanzada requiere temperaturas positivas y Tmin menor que T0.";
       }
 
       if (
-        configuracion
-          .saFactorEnfriamiento <
+        configuracion.saFactorEnfriamiento <
           0.8 ||
-        configuracion
-          .saFactorEnfriamiento >
+        configuracion.saFactorEnfriamiento >
           0.99
       ) {
         return "El factor de enfriamiento debe estar entre 0.80 y 0.99.";
       }
 
       if (
-        configuracion
-          .saIteracionesPorTemperatura <=
+        configuracion.saIteracionesPorTemperatura <=
         0
       ) {
         return "Las iteraciones por temperatura deben ser mayores que cero.";
@@ -542,9 +419,7 @@ export default function ConfiguracionPage() {
       if (
         configuracion.saSemilla.trim() &&
         !/^-?\d+$/.test(
-          configuracion
-            .saSemilla
-            .trim(),
+          configuracion.saSemilla.trim(),
         )
       ) {
         return "La semilla debe ser un número entero.";
@@ -571,8 +446,7 @@ export default function ConfiguracionPage() {
     const fecha =
       new Date(
         `${normalizarFechaLocal(
-          configuracion
-            .inicioSimulado,
+          configuracion.inicioSimulado,
         )}-05:00`,
       );
 
@@ -647,12 +521,6 @@ export default function ConfiguracionPage() {
     return null;
   }
 
-  /*
-   * =======================================================
-   * PREPARACIÓN DEL INICIO
-   * =======================================================
-   */
-
   function prepararInicio() {
     const validacion =
       validarConfiguracion();
@@ -675,35 +543,19 @@ export default function ConfiguracionPage() {
     }
 
     setError(null);
-
-    setMostrarConfirmacion(
-      true,
-    );
+    setMostrarConfirmacion(true);
   }
-
-  /*
-   * =======================================================
-   * INICIAR SIMULACIÓN
-   * =======================================================
-   */
 
   async function handleIniciarSimulacion() {
     try {
       setIniciando(true);
-
       setError(null);
 
-      /*
-       * Última comprobación antes
-       * de crear la ejecución.
-       */
       const activo =
         await buscarEscenarioActivo();
 
       if (activo) {
-        setEscenarioActivo(
-          activo,
-        );
+        setEscenarioActivo(activo);
 
         throw new Error(
           "Ya existe una simulación activa; deténla antes de iniciar otra.",
@@ -711,12 +563,8 @@ export default function ConfiguracionPage() {
       }
 
       await reconciliarCantidadFlota();
-
       await actualizarParametrosFlota();
 
-      /*
-       * Pedidos históricos.
-       */
       if (
         usaDatosHistoricos &&
         archivoPedidos
@@ -742,9 +590,6 @@ export default function ConfiguracionPage() {
         );
       }
 
-      /*
-       * Bloqueos históricos.
-       */
       if (
         usaDatosHistoricos &&
         archivoBloqueos
@@ -757,8 +602,7 @@ export default function ConfiguracionPage() {
         const carga =
           await bloqueosService.cargarArchivo(
             archivoBloqueos,
-            periodo ??
-              undefined,
+            periodo ?? undefined,
           );
 
         mostrarToast({
@@ -773,9 +617,6 @@ export default function ConfiguracionPage() {
         });
       }
 
-      /*
-       * Crear e iniciar escenario.
-       */
       const request =
         construirRequestEscenario();
 
@@ -802,9 +643,7 @@ export default function ConfiguracionPage() {
           "success",
       });
 
-      setMostrarConfirmacion(
-        false,
-      );
+      setMostrarConfirmacion(false);
 
       navigate(
         `/ejecucion/${iniciado.id}`,
@@ -833,12 +672,6 @@ export default function ConfiguracionPage() {
     }
   }
 
-  /*
-   * =======================================================
-   * FLOTA
-   * =======================================================
-   */
-
   async function reconciliarCantidadFlota() {
     const vehiculos =
       await flotaService.listarVehiculos();
@@ -855,8 +688,7 @@ export default function ConfiguracionPage() {
         configuracion.motosCantidad,
 
       BICYCLE:
-        configuracion
-          .bicicletasCantidad,
+        configuracion.bicicletasCantidad,
     };
 
     for (
@@ -940,8 +772,7 @@ export default function ConfiguracionPage() {
         configuracion.motosVelocidad,
 
       BICYCLE:
-        configuracion
-          .bicicletasVelocidad,
+        configuracion.bicicletasVelocidad,
     };
 
     await Promise.all(
@@ -966,12 +797,6 @@ export default function ConfiguracionPage() {
     );
   }
 
-  /*
-   * =======================================================
-   * REQUEST DEL ESCENARIO
-   * =======================================================
-   */
-
   function construirRequestEscenario():
     CrearEscenarioRequestDto {
     const tipo =
@@ -990,14 +815,12 @@ export default function ConfiguracionPage() {
     ) {
       request.inicioSimulado =
         convertirHoraLimaAIso(
-          configuracion
-            .inicioSimulado,
+          configuracion.inicioSimulado,
         );
     }
 
     if (
-      configuracion
-        .usarConfiguracionSa
+      configuracion.usarConfiguracionSa
     ) {
       request.configuracionSa = {
         ...(
@@ -1005,40 +828,28 @@ export default function ConfiguracionPage() {
             ? {
                 semilla:
                   Number(
-                    configuracion
-                      .saSemilla
-                      .trim(),
+                    configuracion.saSemilla.trim(),
                   ),
               }
             : {}
         ),
 
         temperaturaInicial:
-          configuracion
-            .saTemperaturaInicial,
+          configuracion.saTemperaturaInicial,
 
         temperaturaMinima:
-          configuracion
-            .saTemperaturaMinima,
+          configuracion.saTemperaturaMinima,
 
         factorEnfriamiento:
-          configuracion
-            .saFactorEnfriamiento,
+          configuracion.saFactorEnfriamiento,
 
         iteracionesPorTemperatura:
-          configuracion
-            .saIteracionesPorTemperatura,
+          configuracion.saIteracionesPorTemperatura,
       };
     }
 
     return request;
   }
-
-  /*
-   * =======================================================
-   * ESTADO DEL BOTÓN
-   * =======================================================
-   */
 
   const puedeIniciar =
     !iniciando &&
@@ -1050,12 +861,6 @@ export default function ConfiguracionPage() {
     !escenarioActivo &&
     validarConfiguracion() ===
       null;
-
-  /*
-   * =======================================================
-   * UI
-   * =======================================================
-   */
 
   return (
     <div className="flex min-h-full flex-col">
@@ -1077,9 +882,7 @@ export default function ConfiguracionPage() {
 
         <section className="space-y-3">
           <ParametrosOperacion />
-
           <FlotaConfiguracion />
-
           <SemaforoConfiguracion />
         </section>
 
@@ -1128,7 +931,7 @@ export default function ConfiguracionPage() {
                 </p>
 
                 <p className="mt-1 text-xs text-slate-500">
-                  Esta información se actualiza automáticamente. Cuando la ejecución termine podrás iniciar otra.
+                  Puedes volver a la ejecución actual o detenerla antes de iniciar otra.
                 </p>
               </div>
             </div>
@@ -1243,12 +1046,6 @@ export default function ConfiguracionPage() {
   );
 }
 
-/*
- * =========================================================
- * HELPERS
- * =========================================================
- */
-
 function contar(
   vehiculos:
     VehiculoResponseDto[],
@@ -1257,8 +1054,7 @@ function contar(
 ) {
   return vehiculos.filter(
     (vehiculo) =>
-      vehiculo.tipo ===
-      tipo,
+      vehiculo.tipo === tipo,
   ).length;
 }
 

@@ -240,6 +240,10 @@ export function MapaOperacion({
       string | null
     >(null);
 
+  useEffect(() => {
+    setVehiculoSeleccionadoId(seleccionVehiculoId);
+  }, [seleccionVehiculoId]);
+
   const [
     filtros,
     setFiltros,
@@ -1360,7 +1364,6 @@ export function MapaOperacion({
                           opacity={0.8}
                         />
                       )}
-
                       <Rect
                         x={-19}
                         y={-19}
