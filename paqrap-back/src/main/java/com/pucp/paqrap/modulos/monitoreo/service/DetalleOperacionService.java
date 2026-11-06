@@ -135,7 +135,7 @@ public class DetalleOperacionService {
         AlmacenDetalleResponse.NivelAlerta nivel = nivelAlerta(stock, almacen.capacidad());
         return new AlmacenDetalleResponse(id, almacen.tipo(), almacen.x(), almacen.y(), instante, stock,
                 almacen.capacidad(), ocupacion, horas, consumo, ultimaRecarga, proximaRecarga(instante), historial,
-                nivel == AlmacenDetalleResponse.NivelAlerta.ROJO, nivel, movimientos);
+                stock / (double) almacen.capacidad() <= 0.33, nivel, movimientos);
     }
 
     private List<AlmacenDetalleResponse.MovimientoInventarioResponse> movimientos(String almacenId, long ejecucionId,
@@ -154,15 +154,19 @@ public class DetalleOperacionService {
                 movimiento.getStockBefore(), movimiento.getStockAfter(), movimiento.getOrderId());
     }
 
+    /** Semáforo según el nivel de llenado (AutoEVAL): verde con mucho espacio, rojo casi lleno. */
     private static AlmacenDetalleResponse.NivelAlerta nivelAlerta(int stock, int capacidad) {
-        double disponibilidad = stock / (double) capacidad;
-        if (disponibilidad <= 0.33) {
-            return AlmacenDetalleResponse.NivelAlerta.ROJO;
+        double llenado = stock / (double) capacidad;
+        if (stock <= 0) {
+            return AlmacenDetalleResponse.NivelAlerta.VACIO;
         }
-        if (disponibilidad <= 0.66) {
+        if (llenado <= 0.33) {
+            return AlmacenDetalleResponse.NivelAlerta.VERDE;
+        }
+        if (llenado <= 0.66) {
             return AlmacenDetalleResponse.NivelAlerta.AMBAR;
         }
-        return AlmacenDetalleResponse.NivelAlerta.VERDE;
+        return AlmacenDetalleResponse.NivelAlerta.ROJO;
     }
 
     /** Stock de un intermedio en {@code instante}; mismo cálculo que {@code InventarioService} sobre el kardex. */

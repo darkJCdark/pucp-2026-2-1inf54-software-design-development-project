@@ -219,10 +219,10 @@ function nombreAlmacen(id: string) {
   }
 }
 
-function nivelStock(porcentaje: number, verdeDesde: number, ambarDesde: number) {
+function nivelStock(porcentaje: number, verdeHasta: number, ambarHasta: number) {
   if (porcentaje <= 0) return "VACIO" as const;
-  if (porcentaje >= ambarDesde) return "VERDE" as const;
-  if (porcentaje >= verdeDesde) return "AMBAR" as const;
+  if (porcentaje <= verdeHasta) return "VERDE" as const;
+  if (porcentaje <= ambarHasta) return "AMBAR" as const;
   return "ROJO" as const;
 }
 

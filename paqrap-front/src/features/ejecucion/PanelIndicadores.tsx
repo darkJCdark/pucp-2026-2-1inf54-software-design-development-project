@@ -141,7 +141,7 @@ export function PanelIndicadores({
         />
 
         <IndicadorSemaforo
-          label="Stock de almacenes intermedios"
+          label="Nivel de llenado de almacenes intermedios"
           porcentaje={ocupacionAlmacenes}
           nivel={nivelStockGlobal(
             ocupacionAlmacenes,
@@ -206,18 +206,22 @@ export function PanelIndicadores({
                 </div>
                 <span
                   className={
-                    porcentajeDisponible >= configuracion.almacenAmbarHasta
-                      ? "rounded-full bg-green-500 px-2 py-1 text-[10px] text-black"
-                      : porcentajeDisponible >= configuracion.almacenVerdeHasta
-                        ? "rounded-full bg-amber-500 px-2 py-1 text-[10px] text-black"
-                        : "rounded-full bg-red-500 px-2 py-1 text-[10px] text-white"
+                    porcentajeDisponible <= 0
+                      ? "rounded-full bg-slate-600 px-2 py-1 text-[10px] text-white"
+                      : porcentajeDisponible <= configuracion.almacenVerdeHasta
+                        ? "rounded-full bg-green-500 px-2 py-1 text-[10px] text-black"
+                        : porcentajeDisponible <= configuracion.almacenAmbarHasta
+                          ? "rounded-full bg-amber-500 px-2 py-1 text-[10px] text-black"
+                          : "rounded-full bg-red-500 px-2 py-1 text-[10px] text-white"
                   }
                 >
-                  {porcentajeDisponible >= configuracion.almacenAmbarHasta
-                    ? "Verde"
-                    : porcentajeDisponible >= configuracion.almacenVerdeHasta
-                      ? "Ámbar"
-                      : "Rojo"}
+                  {porcentajeDisponible <= 0
+                    ? "Vacío"
+                    : porcentajeDisponible <= configuracion.almacenVerdeHasta
+                      ? "Verde"
+                      : porcentajeDisponible <= configuracion.almacenAmbarHasta
+                        ? "Ámbar"
+                        : "Rojo"}
                 </span>
               </div>
 
@@ -357,7 +361,7 @@ function UsoFlota({ nombre, actual, total }: { nombre: string; actual: number; t
   );
 }
 
-type NivelIndicador = "VERDE" | "AMBAR" | "ROJO";
+type NivelIndicador = "VACIO" | "VERDE" | "AMBAR" | "ROJO";
 
 function IndicadorSemaforo({
   label,
@@ -371,7 +375,9 @@ function IndicadorSemaforo({
   detalle: string;
 }) {
   const clases =
-    nivel === "VERDE"
+    nivel === "VACIO"
+      ? "bg-slate-600 text-white"
+      : nivel === "VERDE"
       ? "bg-green-500 text-black"
       : nivel === "AMBAR"
         ? "bg-amber-500 text-black"
@@ -382,7 +388,7 @@ function IndicadorSemaforo({
       <div className="mb-1 flex items-center justify-between gap-3 text-xs">
         <span className="text-slate-400">{label}</span>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${clases}`}>
-          {nivel === "AMBAR" ? "Ámbar" : nivel.charAt(0) + nivel.slice(1).toLowerCase()}
+          {nivel === "AMBAR" ? "Ámbar" : nivel === "VACIO" ? "Vacío" : nivel.charAt(0) + nivel.slice(1).toLowerCase()}
         </span>
       </div>
       <Progress value={porcentaje} className="h-2" />
@@ -406,11 +412,12 @@ function nivelCargaGlobal(
 
 function nivelStockGlobal(
   porcentaje: number,
-  verdeDesde: number,
-  ambarDesde: number,
+  verdeHasta: number,
+  ambarHasta: number,
 ): NivelIndicador {
-  if (porcentaje >= ambarDesde) return "VERDE";
-  if (porcentaje >= verdeDesde) return "AMBAR";
+  if (porcentaje <= 0) return "VACIO";
+  if (porcentaje <= verdeHasta) return "VERDE";
+  if (porcentaje <= ambarHasta) return "AMBAR";
   return "ROJO";
 }
 

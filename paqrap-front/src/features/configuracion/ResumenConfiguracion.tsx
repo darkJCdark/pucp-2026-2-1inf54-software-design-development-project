@@ -65,9 +65,10 @@ export function ResumenConfiguracion({
 
       <Separator className="my-4 bg-slate-800" />
       <p className="mb-2 text-xs uppercase text-slate-500">Semáforo de inventario</p>
-      <Fila label="Stock verde" value={`≥ ${configuracion.almacenAmbarHasta}%`} />
-      <Fila label="Stock ámbar" value={`≥ ${configuracion.almacenVerdeHasta}%`} />
-      <Fila label="Stock rojo" value={`< ${configuracion.almacenVerdeHasta}%`} />
+      <Fila label="Llenado vacío" value="0%" />
+      <Fila label="Llenado verde" value={`≤ ${configuracion.almacenVerdeHasta}%`} />
+      <Fila label="Llenado ámbar" value={`≤ ${configuracion.almacenAmbarHasta}%`} />
+      <Fila label="Llenado rojo" value={`> ${configuracion.almacenAmbarHasta}%`} />
 
       <Separator className="my-4 bg-slate-800" />
       <p className="mb-2 text-xs uppercase text-slate-500">Semáforo de carga</p>

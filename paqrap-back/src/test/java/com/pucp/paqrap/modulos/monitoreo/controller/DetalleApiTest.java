@@ -350,7 +350,7 @@ class DetalleApiTest {
                 .andExpect(jsonPath("$.stock").value(1000))
                 .andExpect(jsonPath("$.ocupacionPct").value(100.0))
                 .andExpect(jsonPath("$.alertaBajoStock").value(false))
-                .andExpect(jsonPath("$.nivelAlerta").value("VERDE"))
+                .andExpect(jsonPath("$.nivelAlerta").value("ROJO"))
                 .andExpect(jsonPath("$.ultimaRecarga").value("2026-01-02T04:59:59Z"))
                 .andExpect(jsonPath("$.proximaRecarga").value("2026-01-03T04:59:59Z"));
     }
@@ -372,7 +372,7 @@ class DetalleApiTest {
 
 
     @Test
-    void elDetalleMarcaRojoCuandoLaDisponibilidadLlegaAlTreintaYTresPorCiento() throws Exception {
+    void elDetalleMarcaVerdeYAlertaDeBajoStockConTreintaYTresPorCiento() throws Exception {
         long id = iniciarCincoDias();
         inventario.registrarDespacho(id, "EAST", null, 670, hora("05:30"), "ALERTA-ROJA");
 
@@ -381,7 +381,7 @@ class DetalleApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.stock").value(330))
                 .andExpect(jsonPath("$.alertaBajoStock").value(true))
-                .andExpect(jsonPath("$.nivelAlerta").value("ROJO"));
+                .andExpect(jsonPath("$.nivelAlerta").value("VERDE"));
     }
 
     @Test
@@ -411,7 +411,7 @@ class DetalleApiTest {
     }
 
     @Test
-    void elDetalleMarcaVerdeConSeiscientosSesentaYUnoDisponibles() throws Exception {
+    void elDetalleMarcaRojoConSeiscientosSesentaYUnoDisponibles() throws Exception {
         long id = iniciarCincoDias();
         inventario.registrarDespacho(id, "EAST", null, 339, hora("05:30"), "ALERTA-VERDE-661");
 
@@ -420,7 +420,7 @@ class DetalleApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.stock").value(661))
                 .andExpect(jsonPath("$.alertaBajoStock").value(false))
-                .andExpect(jsonPath("$.nivelAlerta").value("VERDE"));
+                .andExpect(jsonPath("$.nivelAlerta").value("ROJO"));
     }
 
     @Test

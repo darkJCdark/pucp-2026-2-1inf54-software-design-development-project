@@ -38,6 +38,11 @@ export function DetalleOperacionPanel({ seleccion, ejecucionId, instante, onCerr
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Al cambiar de elemento se limpia; al refrescarlo cada segundo se conserva lo mostrado para que no parpadee.
+  useEffect(() => {
+    setRespuesta(null);
+  }, [seleccion]);
+
   useEffect(() => {
     if (!seleccion) {
       setRespuesta(null);
@@ -102,7 +107,7 @@ export function DetalleOperacionPanel({ seleccion, ejecucionId, instante, onCerr
       </div>
 
       <div className="max-h-[calc(100vh-150px)] overflow-y-auto p-4">
-        {cargando && (
+        {cargando && !respuesta && (
           <div className="flex items-center justify-center py-10 text-sm text-slate-400">
             <Loader2 className="mr-2 size-4 animate-spin" /> Cargando detalle...
           </div>
@@ -114,13 +119,13 @@ export function DetalleOperacionPanel({ seleccion, ejecucionId, instante, onCerr
           </div>
         )}
 
-        {!cargando && respuesta?.tipo === "VEHICULO" && (
+        {respuesta?.tipo === "VEHICULO" && (
           <DetalleVehiculo detalle={respuesta.data} />
         )}
-        {!cargando && respuesta?.tipo === "PEDIDO" && (
+        {respuesta?.tipo === "PEDIDO" && (
           <DetallePedido detalle={respuesta.data} />
         )}
-        {!cargando && respuesta?.tipo === "ALMACEN" && (
+        {respuesta?.tipo === "ALMACEN" && (
           <DetalleAlmacen detalle={respuesta.data} />
         )}
       </div>

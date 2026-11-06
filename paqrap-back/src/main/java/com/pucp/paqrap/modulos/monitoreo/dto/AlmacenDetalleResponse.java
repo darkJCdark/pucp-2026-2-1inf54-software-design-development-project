@@ -17,7 +17,7 @@ public record AlmacenDetalleResponse(String id, WarehouseKind tipo, int x, int y
                                      boolean alertaBajoStock, NivelAlerta nivelAlerta,
                                      List<MovimientoInventarioResponse> movimientos) {
 
-    public enum NivelAlerta { VERDE, AMBAR, ROJO }
+    public enum NivelAlerta { VACIO, VERDE, AMBAR, ROJO }
 
     public record PuntoStock(Instant instante, int stock) {
     }

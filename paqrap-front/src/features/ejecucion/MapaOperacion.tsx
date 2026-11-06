@@ -3160,18 +3160,18 @@ function porcentajeAlmacen(
 
 function nivelSemaforoStock(
   porcentaje: number,
-  verdeDesde: number,
-  ambarDesde: number,
+  verdeHasta: number,
+  ambarHasta: number,
 ): Exclude<NivelSemaforo, "TODOS"> {
   if (porcentaje <= 0) {
     return "VACIO";
   }
 
-  if (porcentaje >= ambarDesde) {
+  if (porcentaje <= verdeHasta) {
     return "VERDE";
   }
 
-  if (porcentaje >= verdeDesde) {
+  if (porcentaje <= ambarHasta) {
     return "AMBAR";
   }
 

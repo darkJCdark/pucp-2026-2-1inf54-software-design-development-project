@@ -19,7 +19,7 @@ export function SemaforoConfiguracion() {
       <div className="grid gap-8 md:grid-cols-2">
         <div>
           <h3 className="mb-4 text-sm font-medium">
-            Nivel de stock de almacenes intermedios
+            Nivel de llenado de almacenes intermedios
           </h3>
 
           <CampoConfiguracion label="Verde — hasta">

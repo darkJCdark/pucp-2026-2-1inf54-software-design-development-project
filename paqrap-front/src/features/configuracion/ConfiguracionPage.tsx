@@ -272,26 +272,33 @@ export default function ConfiguracionPage() {
     };
   }, [escenarioActivo?.id]);
 
-  async function buscarEscenarioActivo():
-    Promise<
-      EscenarioResponseDto | null
-    > {
-    const pagina =
-      await escenariosService.listar(
-        0,
-        100,
-      );
-
-    return (
-      pagina.contenido.find(
-        (escenario) =>
-          escenario.estado ===
-            "RUNNING" ||
-          escenario.estado ===
-            "PAUSED",
-      ) ?? null
+async function buscarEscenarioActivo():
+  Promise<EscenarioResponseDto | null> {
+  const pagina =
+    await escenariosService.listar(
+      0,
+      100,
     );
+
+  if (
+    !pagina ||
+    !Array.isArray(
+      pagina.contenido,
+    )
+  ) {
+    return null;
   }
+
+  return (
+    pagina.contenido.find(
+      (escenario) =>
+        escenario.estado ===
+          "RUNNING" ||
+        escenario.estado ===
+          "PAUSED",
+    ) ?? null
+  );
+}
 
   async function handleDetenerActivo() {
     if (!escenarioActivo) {
@@ -547,255 +554,336 @@ export default function ConfiguracionPage() {
   }
 
   async function handleIniciarSimulacion() {
-    try {
-      setIniciando(true);
-      setError(null);
+  let etapa = "verificar simulación activa";
 
-      const activo =
-        await buscarEscenarioActivo();
+  try {
+    setIniciando(true);
+    setError(null);
 
-      if (activo) {
-        setEscenarioActivo(activo);
+    etapa = "verificar simulación activa";
 
-        throw new Error(
-          "Ya existe una simulación activa; deténla antes de iniciar otra.",
-        );
-      }
+    const activo =
+      await buscarEscenarioActivo();
 
-      await reconciliarCantidadFlota();
-      await actualizarParametrosFlota();
+    if (activo) {
+      setEscenarioActivo(activo);
 
-      if (
-        usaDatosHistoricos &&
-        archivoPedidos
-      ) {
-        const carga =
-          await pedidosService.cargarArchivo(
-            archivoPedidos,
-          );
-
-        mostrarToast({
-          titulo:
-            "Pedidos cargados",
-
-          descripcion:
-            `${carga.registrados} registrados · ${carga.omitidos} omitidos`,
-
-          variante:
-            "success",
-        });
-
-        setPeriodosCargados(
-          await pedidosService.periodosCargados(),
-        );
-      }
-
-      if (
-        usaDatosHistoricos &&
-        archivoBloqueos
-      ) {
-        const periodo =
-          periodoDesdeArchivoBloqueos(
-            archivoBloqueos.name,
-          );
-
-        const carga =
-          await bloqueosService.cargarArchivo(
-            archivoBloqueos,
-            periodo ?? undefined,
-          );
-
-        mostrarToast({
-          titulo:
-            "Bloqueos cargados",
-
-          descripcion:
-            `${carga.registrados} registrados · ${carga.reemplazados} reemplazados en ${carga.periodo}`,
-
-          variante:
-            "success",
-        });
-      }
-
-      const request =
-        construirRequestEscenario();
-
-      const creado =
-        await escenariosService.crear(
-          request,
-        );
-
-      const iniciado =
-        await escenariosService.iniciar(
-          creado.id,
-        );
-
-      mostrarToast({
-        titulo:
-          "Simulación iniciada",
-
-        descripcion:
-          `Ejecución #${iniciado.id} · ${nombreTipoEscenario(
-            iniciado.tipo,
-          )}`,
-
-        variante:
-          "success",
-      });
-
-      setMostrarConfirmacion(false);
-
-      navigate(
-        `/ejecucion/${iniciado.id}`,
+      throw new Error(
+        "Ya existe una simulación activa; deténla antes de iniciar otra.",
       );
-    } catch (error) {
-      const mensaje =
-        mensajeDeError(
-          error,
-          "No fue posible iniciar la simulación.",
+    }
+
+    etapa = "verificar flota";
+
+    await reconciliarCantidadFlota();
+
+    etapa = "actualizar parámetros de flota";
+
+    await actualizarParametrosFlota();
+
+    if (
+      usaDatosHistoricos &&
+      archivoPedidos
+    ) {
+      etapa = "cargar archivo de pedidos";
+
+      const carga =
+        await pedidosService.cargarArchivo(
+          archivoPedidos,
         );
 
-      setError(mensaje);
+      if (!carga) {
+        throw new Error(
+          "El backend no devolvió el resultado de la carga de pedidos.",
+        );
+      }
 
       mostrarToast({
-        titulo:
-          "No se pudo iniciar",
-
+        titulo: "Pedidos cargados",
         descripcion:
-          mensaje,
-
-        variante:
-          "error",
+          `${carga.registrados} registrados · ${carga.omitidos} omitidos`,
+        variante: "success",
       });
-    } finally {
-      setIniciando(false);
-    }
-  }
 
-  async function reconciliarCantidadFlota() {
-    const vehiculos =
-      await flotaService.listarVehiculos();
+      etapa = "actualizar periodos cargados";
 
-    const objetivos:
-      Record<
-        TipoVehiculoBackend,
-        number
-      > = {
-      CAR:
-        configuracion.autosCantidad,
+      const periodos =
+        await pedidosService.periodosCargados();
 
-      MOTORCYCLE:
-        configuracion.motosCantidad,
-
-      BICYCLE:
-        configuracion.bicicletasCantidad,
-    };
-
-    for (
-      const tipo of Object.keys(
-        objetivos,
-      ) as TipoVehiculoBackend[]
-    ) {
-      const existentes =
-        vehiculos
-          .filter(
-            (vehiculo) =>
-              vehiculo.tipo ===
-              tipo,
-          )
-          .sort(
-            (a, b) =>
-              b.id.localeCompare(
-                a.id,
-                undefined,
-                {
-                  numeric:
-                    true,
-                },
-              ),
-          );
-
-      const diferencia =
-        objetivos[tipo] -
-        existentes.length;
-
-      if (
-        diferencia > 0
-      ) {
-        for (
-          let i = 0;
-          i < diferencia;
-          i += 1
-        ) {
-          await flotaService.altaVehiculo(
-            tipo,
-          );
-        }
-      } else if (
-        diferencia < 0
-      ) {
-        const candidatos =
-          ordenarParaBaja(
-            existentes,
-          ).slice(
-            0,
-            Math.abs(
-              diferencia,
-            ),
-          );
-
-        for (
-          const vehiculo of
-            candidatos
-        ) {
-          await flotaService.bajaVehiculo(
-            vehiculo.id,
-          );
-        }
+      if (!Array.isArray(periodos)) {
+        throw new Error(
+          "El backend no devolvió una lista válida de periodos cargados.",
+        );
       }
+
+      setPeriodosCargados(
+        periodos,
+      );
     }
+
+    if (
+      usaDatosHistoricos &&
+      archivoBloqueos
+    ) {
+      etapa = "cargar bloqueos";
+
+      const periodo =
+        periodoDesdeArchivoBloqueos(
+          archivoBloqueos.name,
+        );
+
+      const carga =
+        await bloqueosService.cargarArchivo(
+          archivoBloqueos,
+          periodo ?? undefined,
+        );
+
+      if (!carga) {
+        throw new Error(
+          "El backend no devolvió el resultado de la carga de bloqueos.",
+        );
+      }
+
+      mostrarToast({
+        titulo: "Bloqueos cargados",
+        descripcion:
+          `${carga.registrados} registrados · ${carga.reemplazados} reemplazados en ${carga.periodo}`,
+        variante: "success",
+      });
+    }
+
+    etapa = "construir escenario";
+
+    const request =
+      construirRequestEscenario();
+
+    etapa = "crear escenario";
+
+    const creado =
+      await escenariosService.crear(
+        request,
+      );
+
+    if (
+      !creado ||
+      typeof creado.id !== "number"
+    ) {
+      throw new Error(
+        "El backend no devolvió un escenario válido.",
+      );
+    }
+
+    etapa = "iniciar escenario";
+
+    const iniciado =
+      await escenariosService.iniciar(
+        creado.id,
+      );
+
+    if (
+      !iniciado ||
+      typeof iniciado.id !== "number"
+    ) {
+      throw new Error(
+        "El backend no devolvió la ejecución iniciada.",
+      );
+    }
+
+    mostrarToast({
+      titulo: "Simulación iniciada",
+      descripcion:
+        `Ejecución #${iniciado.id} · ${nombreTipoEscenario(
+          iniciado.tipo,
+        )}`,
+      variante: "success",
+    });
+
+    setMostrarConfirmacion(
+      false,
+    );
+
+    navigate(
+      `/ejecucion/${iniciado.id}`,
+    );
+  } catch (error) {
+    const mensajeOriginal =
+      mensajeDeError(
+        error,
+        "No fue posible iniciar la simulación.",
+      );
+
+    const mensaje =
+      `Etapa: ${etapa}\n${mensajeOriginal}`;
+
+    setError(
+      mensaje,
+    );
+
+    mostrarToast({
+      titulo: "No se pudo iniciar",
+      descripcion: mensaje,
+      variante: "error",
+    });
+  } finally {
+    setIniciando(false);
   }
+}
 
-  async function actualizarParametrosFlota() {
-    const tipos =
-      await flotaService.listarTipos();
+async function reconciliarCantidadFlota() {
+  const vehiculos =
+    await flotaService.listarVehiculos();
 
-    const velocidad:
-      Record<
-        TipoVehiculoBackend,
-        number
-      > = {
-      CAR:
-        configuracion.autosVelocidad,
-
-      MOTORCYCLE:
-        configuracion.motosVelocidad,
-
-      BICYCLE:
-        configuracion.bicicletasVelocidad,
-    };
-
-    await Promise.all(
-      tipos.map(
-        (tipo) =>
-          flotaService.actualizarTipo(
-            tipo.tipo,
-            {
-              capacidadPaquetes:
-                tipo.capacidadPaquetes,
-
-              velocidadKmh:
-                velocidad[
-                  tipo.tipo
-                ],
-
-              costoPorKm:
-                tipo.costoPorKm,
-            },
-          ),
-      ),
+  if (
+    !Array.isArray(
+      vehiculos,
+    )
+  ) {
+    throw new Error(
+      "La respuesta de /api/flota/vehiculos no es una lista válida.",
     );
   }
+
+  const objetivos:
+    Record<
+      TipoVehiculoBackend,
+      number
+    > = {
+    CAR:
+      configuracion.autosCantidad,
+
+    MOTORCYCLE:
+      configuracion.motosCantidad,
+
+    BICYCLE:
+      configuracion.bicicletasCantidad,
+  };
+
+  for (
+    const tipo of Object.keys(
+      objetivos,
+    ) as TipoVehiculoBackend[]
+  ) {
+    const existentes =
+      vehiculos
+        .filter(
+          (vehiculo) =>
+            vehiculo.tipo ===
+            tipo,
+        )
+        .sort(
+          (a, b) =>
+            b.id.localeCompare(
+              a.id,
+              undefined,
+              {
+                numeric: true,
+              },
+            ),
+        );
+
+    const diferencia =
+      objetivos[tipo] -
+      existentes.length;
+
+    /*
+     * En el seed actual:
+     *
+     * CAR        = 10
+     * MOTORCYCLE = 15
+     * BICYCLE    = 12
+     *
+     * Por lo tanto, con la configuración
+     * mostrada en pantalla, diferencia debe
+     * ser cero para los tres tipos.
+     */
+
+    if (
+      diferencia > 0
+    ) {
+      for (
+        let i = 0;
+        i < diferencia;
+        i += 1
+      ) {
+        await flotaService.altaVehiculo(
+          tipo,
+        );
+      }
+    } else if (
+      diferencia < 0
+    ) {
+      const candidatos =
+        ordenarParaBaja(
+          existentes,
+        ).slice(
+          0,
+          Math.abs(
+            diferencia,
+          ),
+        );
+
+      for (
+        const vehiculo of
+          candidatos
+      ) {
+        await flotaService.bajaVehiculo(
+          vehiculo.id,
+        );
+      }
+    }
+  }
+}
+
+async function actualizarParametrosFlota() {
+  const tipos =
+    await flotaService.listarTipos();
+
+  if (
+    !Array.isArray(
+      tipos,
+    )
+  ) {
+    throw new Error(
+      "La respuesta de /api/flota/tipos no es una lista válida.",
+    );
+  }
+
+  const velocidad:
+    Record<
+      TipoVehiculoBackend,
+      number
+    > = {
+    CAR:
+      configuracion.autosVelocidad,
+
+    MOTORCYCLE:
+      configuracion.motosVelocidad,
+
+    BICYCLE:
+      configuracion.bicicletasVelocidad,
+  };
+
+  await Promise.all(
+    tipos.map(
+      (tipo) =>
+        flotaService.actualizarTipo(
+          tipo.tipo,
+          {
+            capacidadPaquetes:
+              tipo.capacidadPaquetes,
+
+            velocidadKmh:
+              velocidad[
+                tipo.tipo
+              ],
+
+            costoPorKm:
+              tipo.costoPorKm,
+          },
+        ),
+    ),
+  );
+}
 
   function construirRequestEscenario():
     CrearEscenarioRequestDto {

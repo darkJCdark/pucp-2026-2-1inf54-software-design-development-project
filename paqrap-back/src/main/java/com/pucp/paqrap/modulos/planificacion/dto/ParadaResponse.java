@@ -4,51 +4,164 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Parada de una ruta. {@code tipo} es "ENTREGA" (usa {@code pedidoId}) o "ALMACEN" (usa
- * {@code almacenId}); el campo que no corresponde es null. En una entrega {@code paquetes} son los
- * paquetes entregados; en un almacén, los paquetes recargados. Los tiempos y cargas son null si la
- * ruta no pudo programarse.
+ * Parada de una ruta.
  *
- * <p>{@code inicioRefrigerio}: si el conductor toma su refrigerio al llegar a esta parada, la hora en que llegó
- * al lugar; descansa en la parada hasta {@code llegada} (una hora después). Null si aquí no hay refrigerio.
+ * {@code tipo} es:
  *
- * <p>{@code camino}: nodos de la cuadrícula por los que el vehículo llega a esta parada, desde la anterior (o el
- * origen de la ruta) hasta esta, incluidos ambos extremos. Es el camino real del planificador, que rodea los
- * bloqueos. Null si la ruta no pudo programarse.
+ * - ENTREGA: utiliza pedidoId.
+ * - ALMACEN: utiliza almacenId.
+ *
+ * El campo que no corresponde es null.
+ *
+ * En una entrega, {@code paquetes} representa
+ * paquetes entregados.
+ *
+ * En un almacén, representa paquetes recargados.
+ *
+ * Tiempos:
+ *
+ * {@code llegada}
+ *     Hora física en la que el vehículo llega
+ *     a la parada. Para un pedido, esta es la
+ *     hora utilizada para comprobar el SLA.
+ *
+ * {@code inicioRefrigerio}
+ *     Si el conductor toma refrigerio después
+ *     de atender esta parada, indica cuándo
+ *     comienza el refrigerio.
+ *
+ *     En una entrega normalmente equivale a:
+ *
+ *       llegada + 1 hora de servicio.
+ *
+ *     Es null cuando no se toma refrigerio.
+ *
+ * {@code fin}
+ *     Hora en la que el vehículo puede abandonar
+ *     la parada.
+ *
+ *     Incluye:
+ *
+ *       servicio
+ *       +
+ *       refrigerio, cuando corresponda.
+ *
+ * {@code camino}
+ *     Nodos reales de la cuadrícula utilizados
+ *     para llegar a esta parada. Incluye origen
+ *     y destino y respeta los bloqueos.
  */
 public record ParadaResponse(
+
         int orden,
+
         String tipo,
+
         String pedidoId,
+
         String almacenId,
+
         int x,
+
         int y,
+
         int paquetes,
+
         Instant llegada,
+
         Instant fin,
+
         Integer cargaAntes,
+
         Integer cargaDespues,
+
         Instant inicioRefrigerio,
+
         List<Punto> camino
+
 ) {
-    public static final String ENTREGA = "ENTREGA";
-    public static final String ALMACEN = "ALMACEN";
 
-    /** Nodo de la cuadrícula. */
-    public record Punto(int x, int y) {
+    public static final String ENTREGA =
+            "ENTREGA";
+
+    public static final String ALMACEN =
+            "ALMACEN";
+
+    /**
+     * Nodo de la cuadrícula.
+     */
+    public record Punto(
+            int x,
+            int y
+    ) {
     }
 
-    /** Parada sin refrigerio. */
-    public ParadaResponse(int orden, String tipo, String pedidoId, String almacenId, int x, int y, int paquetes,
-                          Instant llegada, Instant fin, Integer cargaAntes, Integer cargaDespues) {
-        this(orden, tipo, pedidoId, almacenId, x, y, paquetes, llegada, fin, cargaAntes, cargaDespues, null);
+    /**
+     * Parada sin refrigerio ni camino conocido.
+     */
+    public ParadaResponse(
+            int orden,
+            String tipo,
+            String pedidoId,
+            String almacenId,
+            int x,
+            int y,
+            int paquetes,
+            Instant llegada,
+            Instant fin,
+            Integer cargaAntes,
+            Integer cargaDespues
+    ) {
+
+        this(
+                orden,
+                tipo,
+                pedidoId,
+                almacenId,
+                x,
+                y,
+                paquetes,
+                llegada,
+                fin,
+                cargaAntes,
+                cargaDespues,
+                null,
+                null
+        );
     }
 
-    /** Parada sin camino conocido. */
-    public ParadaResponse(int orden, String tipo, String pedidoId, String almacenId, int x, int y, int paquetes,
-                          Instant llegada, Instant fin, Integer cargaAntes, Integer cargaDespues,
-                          Instant inicioRefrigerio) {
-        this(orden, tipo, pedidoId, almacenId, x, y, paquetes, llegada, fin, cargaAntes, cargaDespues,
-                inicioRefrigerio, null);
+    /**
+     * Parada sin camino conocido.
+     */
+    public ParadaResponse(
+            int orden,
+            String tipo,
+            String pedidoId,
+            String almacenId,
+            int x,
+            int y,
+            int paquetes,
+            Instant llegada,
+            Instant fin,
+            Integer cargaAntes,
+            Integer cargaDespues,
+            Instant inicioRefrigerio
+    ) {
+
+        this(
+                orden,
+                tipo,
+                pedidoId,
+                almacenId,
+                x,
+                y,
+                paquetes,
+                llegada,
+                fin,
+                cargaAntes,
+                cargaDespues,
+                inicioRefrigerio,
+                null
+        );
     }
 }

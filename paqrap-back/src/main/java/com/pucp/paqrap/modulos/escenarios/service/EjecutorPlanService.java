@@ -183,20 +183,76 @@ public class EjecutorPlanService {
                 .map(ruta -> posicionEnRuta(ruta, vehiculo.getCurrentX(), vehiculo.getCurrentY(), instante));
     }
 
-    /** Si el conductor está en su refrigerio en {@code instante}, hasta cuándo (la llegada registrada a la parada). */
-    public Optional<Instant> refrigerioHasta(long ejecucionId, String vehiculoId, Instant instante) {
-        EstadoEjecucion estado = estados.get(ejecucionId);
-        if (estado == null || estado.plan == null) {
-            return Optional.empty();
-        }
-        return estado.plan.rutas().stream()
-                .filter(ruta -> ruta.vehiculoId().equals(vehiculoId))
-                .flatMap(ruta -> ruta.paradas().stream())
-                .filter(parada -> parada.inicioRefrigerio() != null && parada.llegada() != null
-                        && !instante.isBefore(parada.inicioRefrigerio()) && instante.isBefore(parada.llegada()))
-                .map(ParadaResponse::llegada)
-                .findFirst();
+/**
+ * Si el conductor está tomando su refrigerio
+ * en {@code instante}, devuelve la hora en que
+ * termina ese refrigerio.
+ *
+ * Nueva semántica:
+ *
+ * llegada
+ *   -> servicio
+ * inicioRefrigerio
+ *   -> refrigerio
+ * fin
+ */
+public Optional<Instant> refrigerioHasta(
+        long ejecucionId,
+        String vehiculoId,
+        Instant instante
+) {
+
+    EstadoEjecucion estado =
+            estados.get(
+                    ejecucionId
+            );
+
+    if (
+            estado == null ||
+            estado.plan == null
+    ) {
+        return Optional.empty();
     }
+
+    return estado
+            .plan
+            .rutas()
+            .stream()
+
+            .filter(
+                    ruta ->
+                            ruta
+                                    .vehiculoId()
+                                    .equals(
+                                            vehiculoId
+                                    )
+            )
+
+            .flatMap(
+                    ruta ->
+                            ruta
+                                    .paradas()
+                                    .stream()
+            )
+
+            .filter(
+                    parada ->
+                            parada.inicioRefrigerio() != null &&
+                            parada.fin() != null &&
+                            !instante.isBefore(
+                                    parada.inicioRefrigerio()
+                            ) &&
+                            instante.isBefore(
+                                    parada.fin()
+                            )
+            )
+
+            .map(
+                    ParadaResponse::fin
+            )
+
+            .findFirst();
+}
 
     /** Mantiene este punto de entrada para el ejecutor; el cálculo puro se comparte en PosicionRuta. */
     static Location posicionEnRuta(RutaResponse ruta, int xActual, int yActual, Instant instante) {
