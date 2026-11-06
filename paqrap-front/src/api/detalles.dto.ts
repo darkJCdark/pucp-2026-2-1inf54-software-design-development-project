@@ -37,7 +37,7 @@ export interface VehiculoDetalleResponseDto {
   proximasEntregas: ProximaEntregaDto[];
 }
 
-export type NivelAlertaInventarioDto = "VERDE" | "AMBAR" | "ROJO";
+export type NivelAlertaInventarioDto = "VACIO" | "VERDE" | "AMBAR" | "ROJO";
 
 export interface PuntoStockDto {
   instante: string;
