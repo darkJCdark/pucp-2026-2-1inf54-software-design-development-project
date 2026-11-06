@@ -38,6 +38,7 @@ import com.pucp.paqrap.modulos.planificacion.algoritmo.common.PlanViolationType;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.ResultadoPlanificacion;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.RouteScheduler;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.ScheduledDeliveryRoute;
+import com.pucp.paqrap.modulos.planificacion.algoritmo.common.ScheduledRouteStop;
 import com.pucp.paqrap.modulos.planificacion.dto.MotivoReplanificacion;
 import com.pucp.paqrap.modulos.planificacion.dto.PlanResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.ReplanificacionResponse;
@@ -235,6 +236,8 @@ public class ReplanificacionSaService implements ReplanificacionService {
                 .map(ruta -> cambioBloqueo || tiposFlotaActualizados.contains(ruta.ruta().vehicle().type())
                         ? reprogramar(ruta, bloqueos, !tiposFlotaActualizados.isEmpty()) : ruta)
                 .toList());
+        agregarContinuaciones(corte.interrumpidas(), averiaPorVehiculo, ahora, central, almacenes, conservadas, forzados,
+                averias, retiros, bloqueos);
         agregarRegresosAlCentral(averiasTerminadas, ahora, central, almacenes, conservadas, forzados, averias, retiros,
                 bloqueos);
 
@@ -333,9 +336,52 @@ public class ReplanificacionSaService implements ReplanificacionService {
     }
 
     /**
-     * Supuesto del equipo: al terminar una avería menor, la unidad cuya ruta se interrumpió regresa vacía al central
-     * por las calles (el caso no define qué hace, y el planificador solo asigna unidades que están en el central). Sus
-     * pedidos ya se reasignaron; queda ocupada hasta llegar.
+     * Indicación del profesor: una avería menor se supera pronto y la unidad no tiene por qué volver al central. Pasadas
+     * las 2 horas continúa desde donde quedó con su carga y las paradas que le faltaban. Si ya no llegaría a tiempo a
+     * algún pedido, sus pedidos se reasignan a otras unidades.
+     */
+    private void agregarContinuaciones(List<RutaVigente> interrumpidas, Map<String, BreakdownEvent> averiaPorVehiculo,
+                                       Instant ahora, Warehouse central, Collection<Warehouse> almacenes,
+                                       List<RutaVigente> conservadas, Map<String, VehicleOperationalState> forzados,
+                                       List<BreakdownEvent> averias, Map<String, Integer> retiros,
+                                       List<RoadBlock> bloqueos) {
+        for (RutaVigente interrumpida : interrumpidas) {
+            BreakdownEvent averia = averiaPorVehiculo.get(interrumpida.vehiculoId());
+            if (averia.type() != BreakdownType.MINOR || interrumpida.programada() == null) {
+                continue;
+            }
+            List<ScheduledRouteStop> faltantes = interrumpida.programada().scheduledStops().stream()
+                    .filter(parada -> !parada.arrivedAt().isBefore(averia.occurredAt()))
+                    .toList();
+            if (faltantes.stream().noneMatch(parada -> parada.stop() instanceof DeliveryStop)) {
+                continue;
+            }
+            Instant reanuda = averia.occurredAt().plus(BreakdownType.MINOR.minimumUnavailable());
+            DeliveryRoute continuacion = DeliveryRoute.replanFromCurrentLocation(
+                    interrumpida.ruta().id() + CortePlan.SUFIJO_CONTINUACION, interrumpida.ruta().vehicle(),
+                    averia.location(), faltantes.getFirst().loadBefore(), reanuda.isAfter(ahora) ? reanuda : ahora)
+                    .withReplacedStops(faltantes.stream().map(ScheduledRouteStop::stop).toList());
+            Map<String, VehicleOperationalState> sinDetencion = new HashMap<>(forzados);
+            sinDetencion.remove(interrumpida.vehiculoId());
+            OperationalSnapshot snapshot = construirSnapshot(ahora, central, almacenes, conservadas, sinDetencion,
+                    averias, retiros);
+            RutaVigente vigente = reprogramar(new RutaVigente(continuacion, snapshot, null, List.of()), bloqueos, false);
+            if (vigente.programada() != null && llegaATiempo(vigente)) {
+                forzados.remove(interrumpida.vehiculoId());
+                conservadas.add(vigente);
+            }
+        }
+    }
+
+    private static boolean llegaATiempo(RutaVigente ruta) {
+        return ruta.programada().scheduledStops().stream().allMatch(parada ->
+                !(parada.stop() instanceof DeliveryStop entrega)
+                        || !parada.arrivedAt().isAfter(entrega.order().deadline()));
+    }
+
+    /**
+     * Unidad que no pudo continuar (sin entregas pendientes o sin llegar a tiempo): al terminar la avería menor regresa
+     * vacía al central, porque el planificador solo asigna unidades que están allí.
      */
     private void agregarRegresosAlCentral(List<BreakdownEvent> averiasTerminadas, Instant ahora, Warehouse central,
                                           Collection<Warehouse> almacenes, List<RutaVigente> conservadas,

@@ -226,7 +226,7 @@ class ReplanificacionFlujoApiTest {
         // Avería del vehículo de P2 un minuto después de que sale: su ruta se interrumpe y P2 va en otro.
         Instant instanteAveria = Instant.parse(leer(conPedido, "$.hora")).plusSeconds(60);
         mvc.perform(post("/api/incidencias/averias").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"vehiculoId\": \"" + vehiculoP2 + "\", \"tipo\": \"MINOR\", \"ocurridaEn\": \""
+                        .content("{\"vehiculoId\": \"" + vehiculoP2 + "\", \"tipo\": \"INTERMEDIATE\", \"ocurridaEn\": \""
                                 + instanteAveria + "\", \"ejecucionId\": " + id + "}"))
                 .andExpect(status().isCreated());
         avanzar(Duration.ofSeconds(1));
@@ -301,7 +301,7 @@ class ReplanificacionFlujoApiTest {
         vehiculoRepository.save(sustituto);
         Instant instanteAveria = motor.ejecutadoHasta(id).orElseThrow();
         mvc.perform(post("/api/incidencias/averias").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"vehiculoId\": \"TA01\", \"tipo\": \"MINOR\", \"ocurridaEn\": \""
+                        .content("{\"vehiculoId\": \"TA01\", \"tipo\": \"INTERMEDIATE\", \"ocurridaEn\": \""
                                 + instanteAveria + "\", \"ejecucionId\": " + id + "}"))
                 .andExpect(status().isCreated());
 

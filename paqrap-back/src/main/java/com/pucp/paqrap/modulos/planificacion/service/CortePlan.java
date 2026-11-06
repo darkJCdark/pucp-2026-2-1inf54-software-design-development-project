@@ -27,6 +27,9 @@ import java.util.Objects;
  */
 final class CortePlan {
 
+    /** Ruta que retoma una unidad tras una avería menor: sale en el futuro, pero sus pedidos ya están en el vehículo. */
+    static final String SUFIJO_CONTINUACION = "-CONT";
+
     private CortePlan() {
     }
 
@@ -47,7 +50,8 @@ final class CortePlan {
 
         for (RutaVigente ruta : rutas) {
             Instant averia = averias.get(ruta.vehiculoId());
-            if (ruta.programada() == null || !ruta.ruta().departureAt().isBefore(ahora)
+            boolean continuacion = ruta.ruta().id().endsWith(SUFIJO_CONTINUACION) && ruta.programada() != null;
+            if (ruta.programada() == null || (!continuacion && !ruta.ruta().departureAt().isBefore(ahora))
                     || (averia != null && !averia.isAfter(ruta.ruta().departureAt()))) {
                 liberadas.add(ruta);
             } else if (averia != null && averia.isBefore(ruta.programada().completedAt())) {

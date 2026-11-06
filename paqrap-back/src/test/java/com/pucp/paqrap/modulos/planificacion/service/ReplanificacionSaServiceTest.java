@@ -402,7 +402,10 @@ class ReplanificacionSaServiceTest {
         ReplanificacionResponse inicio = servicio.iniciar(EJECUCION, solicitud());
         RutaResponse afectada = rutaQueAunNoLlegaASuPrimeraEntrega(inicio);
         Instant t = H.plusSeconds(60);
-        BreakdownEvent averia = new BreakdownEvent(afectada.vehiculoId(), BreakdownType.MINOR, t, new Location(28, 14));
+        BreakdownEvent averia = new BreakdownEvent(afectada.vehiculoId(), BreakdownType.INTERMEDIATE, t, new Location(28, 14));
+        BreakdownResolution resolucion = new BreakdownAvailabilityCalculator(ShiftSchedule.defaultSchedule()).resolve(averia);
+        Instant disponible = resolucion.unavailableUntil().isAfter(resolucion.returnsToCentralAt())
+                ? resolucion.unavailableUntil() : resolucion.returnsToCentralAt();
 
         ReplanificacionResponse r = servicio.registrarAveria(EJECUCION, averia, t);
 
@@ -414,8 +417,7 @@ class ReplanificacionSaServiceTest {
         Map<String, VehicleOperationalState> forzados = new HashMap<>();
         otras.forEach(x -> forzados.put(x.vehiculoId(), enRuta(x.vehiculoId(), x.llegadaFinal())));
         forzados.put(afectada.vehiculoId(), new VehicleOperationalState(vehiculo(afectada.vehiculoId()),
-                VehicleStatus.AVAILABLE, averia.location(),
-                averia.occurredAt().plus(BreakdownType.MINOR.minimumUnavailable())));
+                VehicleStatus.AVAILABLE, new Location(27, 14), disponible));
         List<Order> pendientes = pendientes(pedidos(), entregas(otras, null));
         ResultadoPlanificacion esperado = directo(snapshotOriginal(t, forzados, List.of(averia)), pendientes, List.of(),
                 SEMILLA + 1);
@@ -453,15 +455,43 @@ class ReplanificacionSaServiceTest {
         assertTrue(r.plan().noAtendidos().isEmpty());
     }
 
-    /**
-     * Una MINOR no devuelve el vehículo al central: queda en el lugar de la avería durante dos horas y el fin de
-     * esa ventana provoca una replanificación en la que vuelve a formar parte de la flota utilizable.
-     */
+    /** Indicación del profesor: tras una MINOR la unidad espera 2 horas y sigue su ruta con su carga, sin volver antes. */
+    @Test
+    void trasUnaAveriaMenorLaUnidadContinuaSuRutaDesdeDondeQuedo() {
+        ReplanificacionResponse inicio = servicio.iniciar(EJECUCION, solicitud());
+        RutaResponse afectada = rutaQueAunNoLlegaASuPrimeraEntrega(inicio);
+        Instant t = H.plusSeconds(60);
+        BreakdownEvent averia = new BreakdownEvent(afectada.vehiculoId(), BreakdownType.MINOR, t, new Location(28, 14));
+
+        ReplanificacionResponse r = servicio.registrarAveria(EJECUCION, averia, t);
+
+        RutaResponse continuacion = r.plan().rutas().stream()
+                .filter(ruta -> ruta.vehiculoId().equals(afectada.vehiculoId())).findFirst().orElseThrow();
+        assertEquals(afectada.id() + "-CONT", continuacion.id());
+        assertEquals(t.plus(BreakdownType.MINOR.minimumUnavailable()), continuacion.salida());
+        assertEquals(afectada.paradas().size(), continuacion.paradas().size());
+        assertEquals(afectada.paradas().getFirst().cargaAntes(), continuacion.paradas().getFirst().cargaAntes());
+        assertEquals(new ParadaResponse.Punto(28, 14), continuacion.paradas().getFirst().camino().getFirst());
+        Map<String, Integer> total = entregas(r.plan().rutas(), null);
+        for (Order p : pedidos()) {
+            assertEquals(Integer.valueOf(p.packages()), total.get(p.id()), "paquetes de " + p.id());
+        }
+
+        // Una replanificación durante la espera no le quita la ruta.
+        ReplanificacionResponse durante = servicio.replanificar(EJECUCION,
+                new ReplanificacionService.Eventos(List.of(), List.of(), List.of(), List.of(), List.of(), List.of()),
+                t.plusSeconds(1800));
+        assertTrue(durante.rutasConservadas().contains(continuacion.id()));
+    }
+
+    /** Sin entregas pendientes (ya volvía al central), al terminar la avería retoma el regreso por las calles. */
     @Test
     void trasUnaAveriaMenorEnRutaElVehiculoVuelveAEstarDisponibleAlTerminarLaIndisponibilidad() {
         ReplanificacionResponse inicio = servicio.iniciar(EJECUCION, solicitud());
         RutaResponse afectada = rutaQueAunNoLlegaASuPrimeraEntrega(inicio);
-        Instant t = H.plusSeconds(60);
+        Instant t = afectada.paradas().stream().filter(p -> ParadaResponse.ENTREGA.equals(p.tipo()))
+                .reduce((a, b) -> b).orElseThrow().fin().plusSeconds(60);
+        assertTrue(t.isBefore(afectada.llegadaFinal()), "la avería debe caer durante el regreso");
         BreakdownEvent averia = new BreakdownEvent(
                 afectada.vehiculoId(), BreakdownType.MINOR, t, new Location(28, 14));
         servicio.registrarAveria(EJECUCION, averia, t);
@@ -580,9 +610,7 @@ class ReplanificacionSaServiceTest {
 
         Map<String, Integer> total = entregasAntesDe(List.of(afectada), instanteAveria);
         assertEquals(Integer.valueOf(entregasRuta.get(0).paquetes()), total.get(entregasRuta.get(0).pedidoId()));
-        CortePlan.sumar(total, entregas(inicio.plan().rutas().stream()
-                .filter(x -> !x.id().equals(afectada.id())).toList(), null));
-        CortePlan.sumar(total, entregas(rutas(r, r.rutasNuevas()), null));
+        CortePlan.sumar(total, entregas(r.plan().rutas(), null));
         for (Order p : pedidos()) {
             assertEquals(Integer.valueOf(p.packages()), total.get(p.id()), "paquetes de " + p.id());
         }
