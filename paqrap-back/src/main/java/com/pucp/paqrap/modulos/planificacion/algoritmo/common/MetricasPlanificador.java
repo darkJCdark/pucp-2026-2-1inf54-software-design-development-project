@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.LongAdder;
 /**
  * Contadores de costo del planificador (Semana 13): llamadas y tiempo de
  * {@link OperationalPlanEvaluator#evaluate} y de {@code RoadNetwork.shortestPath} dentro de
- * {@link RouteScheduler}, más los pares origen-destino distintos consultados.
+ * {@link RouteScheduler}, más los pares origen-destino distintos calculados y los aciertos del caché.
  *
  * <p>Producción usa {@link #NOOP}: no toma la hora ni guarda nada, por lo que el comportamiento y el
  * resultado del planificador no cambian. El banco de pruebas usa {@link #activas()}.
@@ -27,6 +27,7 @@ public final class MetricasPlanificador {
     private final LongAdder nanosEvaluaciones = new LongAdder();
     private final LongAdder caminos = new LongAdder();
     private final LongAdder nanosCaminos = new LongAdder();
+    private final LongAdder aciertosCache = new LongAdder();
     private final Set<ParOrigenDestino> pares = ConcurrentHashMap.newKeySet();
     private final Set<ParConHora> paresConHora = ConcurrentHashMap.newKeySet();
 
@@ -64,9 +65,16 @@ public final class MetricasPlanificador {
         }
     }
 
+    /** Consulta de camino resuelta por {@link CacheCaminosMinimos} sin recalcular. */
+    public void registrarAciertoCache() {
+        if (activas) {
+            aciertosCache.increment();
+        }
+    }
+
     public Resumen resumen() {
         return new Resumen(evaluaciones.sum(), nanosEvaluaciones.sum() / 1_000_000L, caminos.sum(),
-                nanosCaminos.sum() / 1_000_000L, pares.size(), paresConHora.size());
+                nanosCaminos.sum() / 1_000_000L, pares.size(), paresConHora.size(), aciertosCache.sum());
     }
 
     public void reiniciar() {
@@ -74,13 +82,17 @@ public final class MetricasPlanificador {
         nanosEvaluaciones.reset();
         caminos.reset();
         nanosCaminos.reset();
+        aciertosCache.reset();
         pares.clear();
         paresConHora.clear();
     }
 
-    /** Valores acumulados desde la creación o el último {@link #reiniciar()}. */
+    /**
+     * Valores acumulados desde la creación o el último {@link #reiniciar()}. {@code caminos} son cálculos reales
+     * de {@code shortestPath}; {@code aciertosCache}, consultas resueltas por {@link CacheCaminosMinimos}.
+     */
     public record Resumen(long evaluaciones, long msEvaluaciones, long caminos, long msCaminos,
-                          int paresUnicos, int paresConHoraUnicos) {
+                          int paresUnicos, int paresConHoraUnicos, long aciertosCache) {
     }
 
     private record ParOrigenDestino(Location origen, Location destino) {
