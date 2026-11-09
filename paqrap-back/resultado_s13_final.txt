@@ -1,0 +1,1224 @@
+﻿[INFO] Scanning for projects...
+[INFO] 
+[INFO] ------------------------< com.pucp:paqrap-back >------------------------
+[INFO] Building paqrap-back 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ paqrap-back ---
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.14.0:compile (default-compile) @ paqrap-back ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ paqrap-back ---
+[INFO] Copying 1 resource from src\test\resources to target\test-classes
+[INFO] 
+[INFO] --- compiler:3.14.0:testCompile (default-testCompile) @ paqrap-back ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- surefire:3.5.3:test (default-test) @ paqrap-back ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.pucp.paqrap.modulos.almacenes.controller.AlmacenApiTest
+16:36:04.554 [main] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.pucp.paqrap.modulos.almacenes.controller.AlmacenApiTest]: AlmacenApiTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+16:36:04.839 [main] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.almacenes.controller.AlmacenApiTest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.0)
+
+2026-11-09T16:36:05.540-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.a.controller.AlmacenApiTest      : Starting AlmacenApiTest using Java 21.0.6 with PID 35468 (started by josue in D:\Claude-DP1\pucp-2026-2-1inf54-software-design-development-project\paqrap-back)
+2026-11-09T16:36:05.544-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.a.controller.AlmacenApiTest      : The following 1 profile is active: "test"
+2026-11-09T16:36:08.835-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-11-09T16:36:09.020-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 174 ms. Found 14 JPA repository interfaces.
+2026-11-09T16:36:09.727-05:00  INFO 35468 --- [paqrap-back] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-11-09T16:36:09.820-05:00  INFO 35468 --- [paqrap-back] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.15.Final
+2026-11-09T16:36:09.882-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-11-09T16:36:10.294-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-09T16:36:10.341-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-11-09T16:36:10.530-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection conn0: url=jdbc:h2:mem:paqrap user=SA
+2026-11-09T16:36:10.542-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-11-09T16:36:10.611-05:00  INFO 35468 --- [paqrap-back] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 2.3.232
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-11-09T16:36:11.940-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-11-09T16:36:12.005-05:00  INFO 35468 --- [paqrap-back] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-11-09T16:36:12.340-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-11-09T16:36:15.007-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-11-09T16:36:15.007-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-11-09T16:36:15.015-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 8 ms
+2026-11-09T16:36:15.048-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.a.controller.AlmacenApiTest      : Started AlmacenApiTest in 10.017 seconds (process running for 14.228)
+mvn : Mockito is currently self-attaching to enable the inline-mock-maker. This will no longer work in future releases 
+of the JDK. Please add Mockito as an agent to your build as described in Mockito's documentation: 
+https://javadoc.io/doc/org.mockito/mockito-core/latest/org.mockito/org/mockito/Mockito.html#0.3
+En línea: 1 Carácter: 1
++ mvn -B test 2>&1 | Out-File -Encoding utf8 resultado_s13_final.txt
++ ~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Mockito is curr...ockito.html#0.3:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Java HotSpot(TM) 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap 
+classpath has been appended
+WARNING: A Java agent has been loaded dynamically 
+(C:\Users\josue\.m2\repository\net\bytebuddy\byte-buddy-agent\1.17.5\byte-buddy-agent-1.17.5.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 12.69 s -- in com.pucp.paqrap.modulos.almacenes.controller.AlmacenApiTest
+[INFO] Running com.pucp.paqrap.modulos.almacenes.service.InventarioServiceTest
+2026-11-09T16:36:17.086-05:00  INFO 35468 --- [paqrap-back] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.pucp.paqrap.modulos.almacenes.service.InventarioServiceTest]: InventarioServiceTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-11-09T16:36:17.178-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.almacenes.service.InventarioServiceTest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.0)
+
+2026-11-09T16:36:17.223-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.a.service.InventarioServiceTest  : Starting InventarioServiceTest using Java 21.0.6 with PID 35468 (started by josue in D:\Claude-DP1\pucp-2026-2-1inf54-software-design-development-project\paqrap-back)
+2026-11-09T16:36:17.223-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.a.service.InventarioServiceTest  : The following 1 profile is active: "test"
+2026-11-09T16:36:17.705-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-11-09T16:36:17.867-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 159 ms. Found 14 JPA repository interfaces.
+2026-11-09T16:36:18.019-05:00  INFO 35468 --- [paqrap-back] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-11-09T16:36:18.024-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-11-09T16:36:18.038-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-09T16:36:18.040-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-2 - Starting...
+2026-11-09T16:36:18.041-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-2 - Added connection conn10: url=jdbc:h2:mem:paqrap user=SA
+2026-11-09T16:36:18.042-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-2 - Start completed.
+2026-11-09T16:36:18.045-05:00  INFO 35468 --- [paqrap-back] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-2)']
+	Database driver: undefined/unknown
+	Database version: 2.3.232
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-11-09T16:36:18.248-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-11-09T16:36:18.304-05:00  INFO 35468 --- [paqrap-back] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-11-09T16:36:18.782-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.a.service.InventarioServiceTest  : Started InventarioServiceTest in 1.595 seconds (process running for 17.96)
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.947 s -- in com.pucp.paqrap.modulos.almacenes.service.InventarioServiceTest
+[INFO] Running com.pucp.paqrap.modulos.escenarios.controller.EscenarioApiTest
+2026-11-09T16:36:19.136-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.escenarios.controller.EscenarioApiTest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.0)
+
+2026-11-09T16:36:19.168-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.controller.EscenarioApiTest    : Starting EscenarioApiTest using Java 21.0.6 with PID 35468 (started by josue in D:\Claude-DP1\pucp-2026-2-1inf54-software-design-development-project\paqrap-back)
+2026-11-09T16:36:19.168-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.controller.EscenarioApiTest    : The following 1 profile is active: "test"
+2026-11-09T16:36:19.630-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-11-09T16:36:19.739-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 113 ms. Found 14 JPA repository interfaces.
+2026-11-09T16:36:19.864-05:00  INFO 35468 --- [paqrap-back] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-11-09T16:36:19.868-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-11-09T16:36:19.878-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-09T16:36:19.878-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-3 - Starting...
+2026-11-09T16:36:19.884-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-3 - Added connection conn20: url=jdbc:h2:mem:paqrap user=SA
+2026-11-09T16:36:19.884-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-3 - Start completed.
+2026-11-09T16:36:19.884-05:00  INFO 35468 --- [paqrap-back] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-3)']
+	Database driver: undefined/unknown
+	Database version: 2.3.232
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-11-09T16:36:20.031-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-11-09T16:36:20.059-05:00  INFO 35468 --- [paqrap-back] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-11-09T16:36:20.379-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-11-09T16:36:20.379-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-11-09T16:36:20.379-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 0 ms
+2026-11-09T16:36:20.384-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.controller.EscenarioApiTest    : Started EscenarioApiTest in 1.248 seconds (process running for 19.561)
+2026-11-09T16:36:20.726-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 4: no hay almacÚn central registrado; la flota no se reinicia
+2026-11-09T16:36:20.726-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 4: 0 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:20.823-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 5: no hay almacÚn central registrado; la flota no se reinicia
+2026-11-09T16:36:20.823-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 5: 0 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:20.909-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 6: no hay almacÚn central registrado; la flota no se reinicia
+2026-11-09T16:36:20.909-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 6: 0 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:21.014-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 10: no hay almacÚn central registrado; la flota no se reinicia
+2026-11-09T16:36:21.014-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 10: 0 vehÝculos al almacÚn central, 1 pedidos del periodo reiniciados
+2026-11-09T16:36:21.033-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.DetectorColapso        : Ejecuci¾n 10: colapso logÝstico en 2026-01-01T09:00:00Z (PLAZO_VENCIDO, pedido P1 con plazo 2026-01-01T09:00:00Z)
+2026-11-09T16:36:21.076-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 11: no hay almacÚn central registrado; la flota no se reinicia
+2026-11-09T16:36:21.076-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 11: 0 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:21.181-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 12: no hay almacÚn central registrado; la flota no se reinicia
+2026-11-09T16:36:21.182-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 12: 0 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:21.314-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 14: no hay almacÚn central registrado; la flota no se reinicia
+2026-11-09T16:36:21.314-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 14: 0 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.322 s -- in com.pucp.paqrap.modulos.escenarios.controller.EscenarioApiTest
+[INFO] Running com.pucp.paqrap.modulos.escenarios.controller.ParametrosFlotaReplanificacionApiTest
+2026-11-09T16:36:21.364-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.escenarios.controller.ParametrosFlotaReplanificacionApiTest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.0)
+
+2026-11-09T16:36:21.396-05:00  INFO 35468 --- [paqrap-back] [           main] .c.ParametrosFlotaReplanificacionApiTest : Starting ParametrosFlotaReplanificacionApiTest using Java 21.0.6 with PID 35468 (started by josue in D:\Claude-DP1\pucp-2026-2-1inf54-software-design-development-project\paqrap-back)
+2026-11-09T16:36:21.396-05:00  INFO 35468 --- [paqrap-back] [           main] .c.ParametrosFlotaReplanificacionApiTest : The following 1 profile is active: "test"
+2026-11-09T16:36:21.746-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-11-09T16:36:21.843-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 106 ms. Found 14 JPA repository interfaces.
+2026-11-09T16:36:21.940-05:00  INFO 35468 --- [paqrap-back] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-11-09T16:36:21.940-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-11-09T16:36:21.952-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-09T16:36:21.952-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-4 - Starting...
+2026-11-09T16:36:21.952-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-4 - Added connection conn30: url=jdbc:h2:mem:paqrap user=SA
+2026-11-09T16:36:21.952-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-4 - Start completed.
+2026-11-09T16:36:21.952-05:00  INFO 35468 --- [paqrap-back] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-4)']
+	Database driver: undefined/unknown
+	Database version: 2.3.232
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-11-09T16:36:22.065-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-11-09T16:36:22.095-05:00  INFO 35468 --- [paqrap-back] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-11-09T16:36:22.422-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-11-09T16:36:22.423-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-11-09T16:36:22.423-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 0 ms
+2026-11-09T16:36:22.431-05:00  INFO 35468 --- [paqrap-back] [           main] .c.ParametrosFlotaReplanificacionApiTest : Started ParametrosFlotaReplanificacionApiTest in 1.064 seconds (process running for 21.607)
+2026-11-09T16:36:22.496-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 1: 3 vehÝculos al almacÚn central, 1 pedidos del periodo reiniciados
+2026-11-09T16:36:22.774-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 1 (INICIAL -> INICIO n.║ 0 en 2026-01-01T05:00:00Z): 1 rutas (0 conservadas, 1 nuevas), 0 no atendidos, 201 ms
+2026-11-09T16:36:22.860-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 1 (PERIODICO -> PERIODICO n.║ 1 en 2026-01-01T05:02:40Z): 1 rutas (1 conservadas, 0 nuevas), 0 no atendidos, 0 ms
+2026-11-09T16:36:22.931-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 2: 3 vehÝculos al almacÚn central, 1 pedidos del periodo reiniciados
+2026-11-09T16:36:23.036-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 2 (INICIAL -> INICIO n.║ 0 en 2026-01-01T05:00:00Z): 1 rutas (0 conservadas, 1 nuevas), 0 no atendidos, 89 ms
+2026-11-09T16:36:23.119-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 3: 3 vehÝculos al almacÚn central, 1 pedidos del periodo reiniciados
+2026-11-09T16:36:23.198-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 3 (INICIAL -> INICIO n.║ 0 en 2026-01-01T05:00:00Z): 1 rutas (0 conservadas, 1 nuevas), 0 no atendidos, 56 ms
+2026-11-09T16:36:23.273-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 4: 3 vehÝculos al almacÚn central, 1 pedidos del periodo reiniciados
+2026-11-09T16:36:23.320-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 4 (INICIAL -> INICIO n.║ 0 en 2026-01-01T05:00:00Z): 1 rutas (0 conservadas, 1 nuevas), 0 no atendidos, 31 ms
+2026-11-09T16:36:23.440-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 5: 4 vehÝculos al almacÚn central, 1 pedidos del periodo reiniciados
+2026-11-09T16:36:23.516-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 5 (INICIAL -> INICIO n.║ 0 en 2026-01-01T05:00:00Z): 1 rutas (0 conservadas, 1 nuevas), 0 no atendidos, 55 ms
+2026-11-09T16:36:23.548-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 5 (PERIODICO -> PERIODICO n.║ 1 en 2026-01-01T05:02:40Z): 1 rutas (1 conservadas, 0 nuevas), 0 no atendidos, 0 ms
+2026-11-09T16:36:23.612-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 6: 3 vehÝculos al almacÚn central, 1 pedidos del periodo reiniciados
+2026-11-09T16:36:23.653-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 6 (INICIAL -> INICIO n.║ 0 en 2026-01-01T05:00:00Z): 1 rutas (0 conservadas, 1 nuevas), 0 no atendidos, 25 ms
+2026-11-09T16:36:23.690-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 6 (PERIODICO -> PERIODICO n.║ 1 en 2026-01-01T05:02:40Z): 1 rutas (1 conservadas, 0 nuevas), 0 no atendidos, 0 ms
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.361 s -- in com.pucp.paqrap.modulos.escenarios.controller.ParametrosFlotaReplanificacionApiTest
+[INFO] Running com.pucp.paqrap.modulos.escenarios.controller.ReplanificacionFlujoApiTest
+2026-11-09T16:36:23.722-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.escenarios.controller.ReplanificacionFlujoApiTest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.0)
+
+2026-11-09T16:36:23.737-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.c.ReplanificacionFlujoApiTest  : Starting ReplanificacionFlujoApiTest using Java 21.0.6 with PID 35468 (started by josue in D:\Claude-DP1\pucp-2026-2-1inf54-software-design-development-project\paqrap-back)
+2026-11-09T16:36:23.737-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.c.ReplanificacionFlujoApiTest  : The following 1 profile is active: "test"
+2026-11-09T16:36:24.085-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-11-09T16:36:24.198-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 109 ms. Found 14 JPA repository interfaces.
+2026-11-09T16:36:24.312-05:00  INFO 35468 --- [paqrap-back] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-11-09T16:36:24.312-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-11-09T16:36:24.332-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-09T16:36:24.334-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-5 - Starting...
+2026-11-09T16:36:24.334-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-5 - Added connection conn40: url=jdbc:h2:mem:paqrap user=SA
+2026-11-09T16:36:24.334-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-5 - Start completed.
+2026-11-09T16:36:24.336-05:00  INFO 35468 --- [paqrap-back] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-5)']
+	Database driver: undefined/unknown
+	Database version: 2.3.232
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-11-09T16:36:24.434-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-11-09T16:36:24.458-05:00  INFO 35468 --- [paqrap-back] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-11-09T16:36:24.690-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-11-09T16:36:24.690-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-11-09T16:36:24.691-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 1 ms
+2026-11-09T16:36:24.699-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.c.ReplanificacionFlujoApiTest  : Started ReplanificacionFlujoApiTest in 0.977 seconds (process running for 23.875)
+2026-11-09T16:36:24.748-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 1: 3 vehÝculos al almacÚn central, 2 pedidos del periodo reiniciados
+2026-11-09T16:36:24.794-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 1 (INICIAL -> INICIO n.║ 0 en 2026-01-01T05:00:00Z): 1 rutas (0 conservadas, 1 nuevas), 0 no atendidos, 25 ms
+2026-11-09T16:36:24.889-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 1 (NUEVO_PEDIDO -> NUEVO_PEDIDO n.║ 1 en 2026-01-01T05:26:40Z): 2 rutas (1 conservadas, 1 nuevas), 0 no atendidos, 24 ms
+2026-11-09T16:36:24.968-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 1 (INCIDENCIA -> AVERIA n.║ 2 en 2026-01-01T05:29:20Z): 2 rutas (1 conservadas, 1 nuevas), 0 no atendidos, 25 ms
+2026-11-09T16:36:25.031-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 1 (INCIDENCIA -> BLOQUEO n.║ 3 en 2026-01-01T05:32:00Z): 2 rutas (2 conservadas, 0 nuevas), 0 no atendidos, 0 ms
+2026-11-09T16:36:25.054-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 1 (PERIODICO -> PERIODICO n.║ 4 en 2026-01-01T06:33:20Z): 2 rutas (2 conservadas, 0 nuevas), 0 no atendidos, 0 ms
+2026-11-09T16:36:25.072-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 1 (INCIDENCIA -> AVERIA n.║ 5 en 2026-01-02T09:13:20Z): 0 rutas (0 conservadas, 0 nuevas), 0 no atendidos, 0 ms
+2026-11-09T16:36:25.185-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 2: 1 vehÝculos al almacÚn central, 2 pedidos del periodo reiniciados
+2026-11-09T16:36:25.284-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 2 (INICIAL -> INICIO n.║ 0 en 2026-01-01T05:00:00Z): 1 rutas (0 conservadas, 1 nuevas), 0 no atendidos, 88 ms
+2026-11-09T16:36:25.455-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 2 (PERIODICO -> PERIODICO n.║ 1 en 2026-01-01T06:01:20Z): 1 rutas (1 conservadas, 0 nuevas), 0 no atendidos, 0 ms
+2026-11-09T16:36:25.526-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 2 (INCIDENCIA -> AVERIA n.║ 2 en 2026-01-01T06:04:00Z): 1 rutas (0 conservadas, 1 nuevas), 0 no atendidos, 41 ms
+2026-11-09T16:36:25.573-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 3: 3 vehÝculos al almacÚn central, 2 pedidos del periodo reiniciados
+2026-11-09T16:36:25.603-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 3 (INICIAL -> INICIO n.║ 0 en 2026-01-01T05:00:00Z): 1 rutas (0 conservadas, 1 nuevas), 0 no atendidos, 20 ms
+2026-11-09T16:36:25.635-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 3 (NUEVO_PEDIDO -> NUEVO_PEDIDO n.║ 1 en 2026-01-01T05:26:40Z): 2 rutas (1 conservadas, 1 nuevas), 0 no atendidos, 14 ms
+2026-11-09T16:36:25.712-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 4: 3 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:25.717-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 4 (INICIAL -> INICIO n.║ 0 en 2026-01-01T05:00:00Z): 0 rutas (0 conservadas, 0 nuevas), 0 no atendidos, 0 ms
+2026-11-09T16:36:25.730-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 4 (INCIDENCIA -> BLOQUEO n.║ 1 en 2026-01-01T05:13:20Z): 0 rutas (0 conservadas, 0 nuevas), 0 no atendidos, 0 ms
+2026-11-09T16:36:25.755-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 4 (INCIDENCIA -> BLOQUEO n.║ 2 en 2026-01-01T05:32:00Z): 0 rutas (0 conservadas, 0 nuevas), 0 no atendidos, 0 ms
+2026-11-09T16:36:25.797-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 5: 3 vehÝculos al almacÚn central, 1 pedidos del periodo reiniciados
+2026-11-09T16:36:25.840-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 5 (INICIAL -> INICIO n.║ 0 en 2026-01-01T05:00:00Z): 1 rutas (0 conservadas, 1 nuevas), 0 no atendidos, 27 ms
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.161 s -- in com.pucp.paqrap.modulos.escenarios.controller.ReplanificacionFlujoApiTest
+[INFO] Running com.pucp.paqrap.modulos.escenarios.controller.ResultadoEscenarioApiTest
+2026-11-09T16:36:25.887-05:00  INFO 35468 --- [paqrap-back] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.pucp.paqrap.modulos.escenarios.controller.ResultadoEscenarioApiTest]: ResultadoEscenarioApiTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-11-09T16:36:25.890-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.escenarios.controller.ResultadoEscenarioApiTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.117 s -- in com.pucp.paqrap.modulos.escenarios.controller.ResultadoEscenarioApiTest
+[INFO] Running com.pucp.paqrap.modulos.escenarios.service.DetectorColapsoTest
+2026-11-09T16:36:26.002-05:00  INFO 35468 --- [paqrap-back] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.pucp.paqrap.modulos.escenarios.service.DetectorColapsoTest]: DetectorColapsoTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-11-09T16:36:26.061-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.escenarios.service.DetectorColapsoTest
+2026-11-09T16:36:26.089-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.DetectorColapso        : Ejecuci¾n 5001: colapso logÝstico en 2026-01-01T05:00:00Z (PLAZO_INALCANZABLE, pedido P1 con plazo 2026-01-01T09:00:00Z)
+2026-11-09T16:36:26.109-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.DetectorColapso        : Ejecuci¾n 5003: colapso logÝstico en 2026-01-01T08:00:00Z (PLAZO_INALCANZABLE, pedido P1 con plazo 2026-01-01T09:00:00Z)
+2026-11-09T16:36:26.121-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.DetectorColapso        : Ejecuci¾n 5004: colapso logÝstico en 2026-01-01T05:00:00Z (PLAZO_INALCANZABLE, pedido P1 con plazo 2026-01-01T09:00:00Z)
+2026-11-09T16:36:26.125-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.DetectorColapso        : Ejecuci¾n 5005: colapso logÝstico en 2026-01-01T09:00:00Z (PLAZO_VENCIDO, pedido P1 con plazo 2026-01-01T09:00:00Z)
+2026-11-09T16:36:26.141-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.DetectorColapso        : Ejecuci¾n 5006: colapso logÝstico en 2026-01-01T09:00:00Z (PLAZO_VENCIDO, pedido P1 con plazo 2026-01-01T09:00:00Z)
+2026-11-09T16:36:26.149-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.DetectorColapso        : Ejecuci¾n 5007: colapso logÝstico en 2026-01-01T09:00:00Z (PLAZO_VENCIDO, pedido P1 con plazo 2026-01-01T09:00:00Z)
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.170 s -- in com.pucp.paqrap.modulos.escenarios.service.DetectorColapsoTest
+[INFO] Running com.pucp.paqrap.modulos.escenarios.service.EjecutorPlanServiceTest
+2026-11-09T16:36:26.176-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.escenarios.service.EjecutorPlanServiceTest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.0)
+
+2026-11-09T16:36:26.204-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.s.EjecutorPlanServiceTest      : Starting EjecutorPlanServiceTest using Java 21.0.6 with PID 35468 (started by josue in D:\Claude-DP1\pucp-2026-2-1inf54-software-design-development-project\paqrap-back)
+2026-11-09T16:36:26.204-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.s.EjecutorPlanServiceTest      : The following 1 profile is active: "test"
+2026-11-09T16:36:26.459-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-11-09T16:36:26.555-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 95 ms. Found 14 JPA repository interfaces.
+2026-11-09T16:36:26.630-05:00  INFO 35468 --- [paqrap-back] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-11-09T16:36:26.630-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-11-09T16:36:26.646-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-09T16:36:26.650-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-6 - Starting...
+2026-11-09T16:36:26.650-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-6 - Added connection conn50: url=jdbc:h2:mem:paqrap user=SA
+2026-11-09T16:36:26.650-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-6 - Start completed.
+2026-11-09T16:36:26.650-05:00  INFO 35468 --- [paqrap-back] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-6)']
+	Database driver: undefined/unknown
+	Database version: 2.3.232
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-11-09T16:36:26.739-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-11-09T16:36:26.751-05:00  INFO 35468 --- [paqrap-back] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-11-09T16:36:26.992-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.s.EjecutorPlanServiceTest      : Started EjecutorPlanServiceTest in 0.816 seconds (process running for 26.169)
+2026-11-09T16:36:27.090-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 1007: El almacÚn EAST solo tiene 10 paquetes; no puede despachar 20
+2026-11-09T16:36:27.230-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 1021: 1 vehÝculos al almacÚn central, 2 pedidos del periodo reiniciados
+[ERROR] Tests run: 21, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 1.068 s <<< FAILURE! -- in com.pucp.paqrap.modulos.escenarios.service.EjecutorPlanServiceTest
+[ERROR] com.pucp.paqrap.modulos.escenarios.service.EjecutorPlanServiceTest.informaElRefrigerioDelConductorMientrasDura -- Time elapsed: 0.016 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: expected: <Optional[2026-01-01T10:30:00Z]> but was: <Optional[2026-01-01T11:30:00Z]>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertEquals.failNotEqual(AssertEquals.java:197)
+	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:182)
+	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:177)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:1145)
+	at com.pucp.paqrap.modulos.escenarios.service.EjecutorPlanServiceTest.informaElRefrigerioDelConductorMientrasDura(EjecutorPlanServiceTest.java:358)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+
+[INFO] Running com.pucp.paqrap.modulos.escenarios.service.PosicionEstimadaTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in com.pucp.paqrap.modulos.escenarios.service.PosicionEstimadaTest
+[INFO] Running com.pucp.paqrap.modulos.escenarios.service.ScenarioResultLifecycleTest
+2026-11-09T16:36:27.251-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.escenarios.service.ScenarioResultLifecycleTest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.0)
+
+2026-11-09T16:36:27.270-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.s.ScenarioResultLifecycleTest  : Starting ScenarioResultLifecycleTest using Java 21.0.6 with PID 35468 (started by josue in D:\Claude-DP1\pucp-2026-2-1inf54-software-design-development-project\paqrap-back)
+2026-11-09T16:36:27.270-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.s.ScenarioResultLifecycleTest  : The following 1 profile is active: "test"
+2026-11-09T16:36:27.499-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-11-09T16:36:27.594-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 85 ms. Found 14 JPA repository interfaces.
+2026-11-09T16:36:27.673-05:00  INFO 35468 --- [paqrap-back] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-11-09T16:36:27.673-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-11-09T16:36:27.673-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-09T16:36:27.673-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-7 - Starting...
+2026-11-09T16:36:27.689-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-7 - Added connection conn60: url=jdbc:h2:mem:paqrap user=SA
+2026-11-09T16:36:27.689-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-7 - Start completed.
+2026-11-09T16:36:27.689-05:00  INFO 35468 --- [paqrap-back] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-7)']
+	Database driver: undefined/unknown
+	Database version: 2.3.232
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-11-09T16:36:27.771-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-11-09T16:36:27.783-05:00  INFO 35468 --- [paqrap-back] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-11-09T16:36:27.986-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.s.ScenarioResultLifecycleTest  : Started ScenarioResultLifecycleTest in 0.733 seconds (process running for 27.162)
+2026-11-09T16:36:27.999-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 1: no hay almacÚn central registrado; la flota no se reinicia
+2026-11-09T16:36:27.999-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 1: 0 vehÝculos al almacÚn central, 1 pedidos del periodo reiniciados
+2026-11-09T16:36:28.020-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 2: no hay almacÚn central registrado; la flota no se reinicia
+2026-11-09T16:36:28.020-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 2: 0 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:28.034-05:00 ERROR 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.MotorEscenarios        : Fall¾ el escenario 2; se marca como FAILED
+
+java.lang.IllegalStateException: Fallo controlado del planificador
+	at com.pucp.paqrap.modulos.escenarios.service.ScenarioResultLifecycleTest$PlanificadorControlado.planificar(ScenarioResultLifecycleTest.java:87) ~[test-classes/:na]
+	at com.pucp.paqrap.modulos.escenarios.service.MotorEscenarios.planificar(MotorEscenarios.java:320) ~[classes/:na]
+	at com.pucp.paqrap.modulos.escenarios.service.MotorEscenarios.avanzar(MotorEscenarios.java:309) ~[classes/:na]
+	at com.pucp.paqrap.modulos.escenarios.service.MotorEscenarios.tick(MotorEscenarios.java:259) ~[classes/:na]
+	at com.pucp.paqrap.modulos.escenarios.service.ScenarioResultLifecycleTest.persisteResultadoAlFallarConEstadoActivoEnMemoria(ScenarioResultLifecycleTest.java:194) ~[test-classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.junit.platform.commons.util.ReflectionUtils.invokeMethod(ReflectionUtils.java:775) ~[junit-platform-commons-1.12.2.jar:1.12.2]
+	at org.junit.platform.commons.support.ReflectionSupport.invokeMethod(ReflectionSupport.java:479) ~[junit-platform-commons-1.12.2.jar:1.12.2]
+	at org.junit.jupiter.engine.execution.MethodInvocation.proceed(MethodInvocation.java:60) ~[junit-jupiter-engine-5.12.2.jar:5.12.2]
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$ValidatingInvocation.proceed(InvocationInterceptorChain.java:131) ~[junit-jupiter-engine-5.12.2.jar:5.12.2]
+	at org.junit.jupiter.engine.extension.TimeoutExtension.intercept(TimeoutExtension.java:161) ~[junit-jupiter-engine-5.12.2.jar:5.12.2]
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestableMethod(TimeoutExtension.java:152) ~[junit-jupiter-engine-5.12.2.jar:5.12.2]
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestMethod(TimeoutExtension.java:91) ~[junit-jupiter-engine-5.12.2.jar:5.12.2]
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker$ReflectiveInterceptorCall.lambda$ofVoidMethod$0(InterceptingExecutableInvoker.java:112) ~[junit-jupiter-engine-5.12.2.jar:5.12.2]
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.lambda$invoke$0(InterceptingExecutableInvoker.java:94) ~[junit-jupiter-engine-5.12.2.jar:5.12.2]
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$InterceptedInvocation.proceed(InvocationInterceptorChain.java:106) ~[junit-jupiter-engine-5.12.2.jar:5.12.2]
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.proceed(InvocationInterceptorChain.java:64) ~[junit-jupiter-engine-5.12.2.jar:5.12.2]
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.chainAndInvoke(InvocationInterceptorChain.java:45) ~[junit-jupiter-engine-5.12.2.jar:5.12.2]
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.invoke(InvocationInterceptorChain.java:37) ~[junit-jupiter-engine-5.12.2.jar:5.12.2]
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:93) ~[junit-jupiter-engine-5.12.2.jar:5.12.2]
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:87) ~[junit-jupiter-engine-5.12.2.jar:5.12.2]
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.lambda$invokeTestMethod$7(TestMethodTestDescriptor.java:216) ~[junit-jupiter-engine-5.12.2.jar:5.12.2]
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.invokeTestMethod(TestMethodTestDescriptor.java:212) ~[junit-jupiter-engine-5.12.2.jar:5.12.2]
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:137) ~[junit-jupiter-engine-5.12.2.jar:5.12.2]
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:69) ~[junit-jupiter-engine-5.12.2.jar:5.12.2]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:156) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596) ~[na:na]
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:160) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596) ~[na:na]
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:160) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.submit(SameThreadHierarchicalTestExecutorService.java:35) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestExecutor.execute(HierarchicalTestExecutor.java:57) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestEngine.execute(HierarchicalTestEngine.java:54) ~[junit-platform-engine-1.12.2.jar:1.12.2]
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:201) ~[junit-platform-launcher-1.12.2.jar:1.12.2]
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:170) ~[junit-platform-launcher-1.12.2.jar:1.12.2]
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:94) ~[junit-platform-launcher-1.12.2.jar:1.12.2]
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.lambda$execute$0(EngineExecutionOrchestrator.java:59) ~[junit-platform-launcher-1.12.2.jar:1.12.2]
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.withInterceptedStreams(EngineExecutionOrchestrator.java:142) ~[junit-platform-launcher-1.12.2.jar:1.12.2]
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:58) ~[junit-platform-launcher-1.12.2.jar:1.12.2]
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:103) ~[junit-platform-launcher-1.12.2.jar:1.12.2]
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:85) ~[junit-platform-launcher-1.12.2.jar:1.12.2]
+	at org.junit.platform.launcher.core.DelegatingLauncher.execute(DelegatingLauncher.java:47) ~[junit-platform-launcher-1.12.2.jar:1.12.2]
+	at org.junit.platform.launcher.core.InterceptingLauncher.lambda$execute$1(InterceptingLauncher.java:39) ~[junit-platform-launcher-1.12.2.jar:1.12.2]
+	at org.junit.platform.launcher.core.ClasspathAlignmentCheckingLauncherInterceptor.intercept(ClasspathAlignmentCheckingLauncherInterceptor.java:25) ~[junit-platform-launcher-1.12.2.jar:1.12.2]
+	at org.junit.platform.launcher.core.InterceptingLauncher.execute(InterceptingLauncher.java:38) ~[junit-platform-launcher-1.12.2.jar:1.12.2]
+	at org.junit.platform.launcher.core.DelegatingLauncher.execute(DelegatingLauncher.java:47) ~[junit-platform-launcher-1.12.2.jar:1.12.2]
+	at org.apache.maven.surefire.junitplatform.LazyLauncher.execute(LazyLauncher.java:56) ~[surefire-junit-platform-3.5.3.jar:3.5.3]
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.execute(JUnitPlatformProvider.java:194) ~[surefire-junit-platform-3.5.3.jar:3.5.3]
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invokeAllTests(JUnitPlatformProvider.java:150) ~[surefire-junit-platform-3.5.3.jar:3.5.3]
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invoke(JUnitPlatformProvider.java:124) ~[surefire-junit-platform-3.5.3.jar:3.5.3]
+	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385) ~[surefire-booter-3.5.3.jar:3.5.3]
+	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162) ~[surefire-booter-3.5.3.jar:3.5.3]
+	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507) ~[surefire-booter-3.5.3.jar:3.5.3]
+	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495) ~[surefire-booter-3.5.3.jar:3.5.3]
+
+2026-11-09T16:36:28.052-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.MotorEscenarios        : La ejecuci¾n 3 qued¾ activa antes de un reinicio; se marca como FAILED
+2026-11-09T16:36:28.068-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 4: no hay almacÚn central registrado; la flota no se reinicia
+2026-11-09T16:36:28.068-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 4: 0 vehÝculos al almacÚn central, 2 pedidos del periodo reiniciados
+2026-11-09T16:36:28.091-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 5: no hay almacÚn central registrado; la flota no se reinicia
+2026-11-09T16:36:28.091-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 5: 0 vehÝculos al almacÚn central, 1 pedidos del periodo reiniciados
+2026-11-09T16:36:28.099-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.DetectorColapso        : Ejecuci¾n 5: colapso logÝstico en 2026-01-01T09:00:00Z (PLAZO_VENCIDO, pedido P-COLAPSO con plazo 2026-01-01T09:00:00Z)
+2026-11-09T16:36:28.115-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 6: no hay almacÚn central registrado; la flota no se reinicia
+2026-11-09T16:36:28.115-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 6: 0 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:28.131-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 7: no hay almacÚn central registrado; la flota no se reinicia
+2026-11-09T16:36:28.131-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 7: 0 vehÝculos al almacÚn central, 1 pedidos del periodo reiniciados
+2026-11-09T16:36:28.144-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 8: no hay almacÚn central registrado; la flota no se reinicia
+2026-11-09T16:36:28.144-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 8: 0 vehÝculos al almacÚn central, 1 pedidos del periodo reiniciados
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.906 s -- in com.pucp.paqrap.modulos.escenarios.service.ScenarioResultLifecycleTest
+[INFO] Running com.pucp.paqrap.modulos.escenarios.service.ScenarioResultServiceTest
+2026-11-09T16:36:28.155-05:00  INFO 35468 --- [paqrap-back] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.pucp.paqrap.modulos.escenarios.service.ScenarioResultServiceTest]: ScenarioResultServiceTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-11-09T16:36:28.155-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.escenarios.service.ScenarioResultServiceTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.027 s -- in com.pucp.paqrap.modulos.escenarios.service.ScenarioResultServiceTest
+[INFO] Running com.pucp.paqrap.modulos.escenarios.service.SimulationClockTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in com.pucp.paqrap.modulos.escenarios.service.SimulationClockTest
+[INFO] Running com.pucp.paqrap.modulos.flota.controller.FlotaApiTest
+2026-11-09T16:36:28.187-05:00  INFO 35468 --- [paqrap-back] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.pucp.paqrap.modulos.flota.controller.FlotaApiTest]: FlotaApiTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-11-09T16:36:28.251-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.flota.controller.FlotaApiTest
+[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.214 s -- in com.pucp.paqrap.modulos.flota.controller.FlotaApiTest
+[INFO] Running com.pucp.paqrap.modulos.flota.controller.FlotaCantidadApiTest
+2026-11-09T16:36:28.401-05:00  INFO 35468 --- [paqrap-back] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.pucp.paqrap.modulos.flota.controller.FlotaCantidadApiTest]: FlotaCantidadApiTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-11-09T16:36:28.401-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.flota.controller.FlotaCantidadApiTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.064 s -- in com.pucp.paqrap.modulos.flota.controller.FlotaCantidadApiTest
+[INFO] Running com.pucp.paqrap.modulos.flota.service.MantenimientoRecuperacionTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in com.pucp.paqrap.modulos.flota.service.MantenimientoRecuperacionTest
+[INFO] Running com.pucp.paqrap.modulos.incidencias.controller.AveriaApiTest
+2026-11-09T16:36:28.527-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.incidencias.controller.AveriaApiTest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.0)
+
+2026-11-09T16:36:28.561-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.i.controller.AveriaApiTest       : Starting AveriaApiTest using Java 21.0.6 with PID 35468 (started by josue in D:\Claude-DP1\pucp-2026-2-1inf54-software-design-development-project\paqrap-back)
+2026-11-09T16:36:28.561-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.i.controller.AveriaApiTest       : The following 1 profile is active: "test"
+2026-11-09T16:36:28.859-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-11-09T16:36:28.938-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 77 ms. Found 14 JPA repository interfaces.
+2026-11-09T16:36:29.025-05:00  INFO 35468 --- [paqrap-back] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-11-09T16:36:29.034-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-11-09T16:36:29.034-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-09T16:36:29.034-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-8 - Starting...
+2026-11-09T16:36:29.034-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-8 - Added connection conn70: url=jdbc:h2:mem:paqrap user=SA
+2026-11-09T16:36:29.034-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-8 - Start completed.
+2026-11-09T16:36:29.034-05:00  INFO 35468 --- [paqrap-back] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-8)']
+	Database driver: undefined/unknown
+	Database version: 2.3.232
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-11-09T16:36:29.129-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-11-09T16:36:29.145-05:00  INFO 35468 --- [paqrap-back] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-11-09T16:36:29.359-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-11-09T16:36:29.359-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-11-09T16:36:29.359-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 0 ms
+2026-11-09T16:36:29.368-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.i.controller.AveriaApiTest       : Started AveriaApiTest in 0.828 seconds (process running for 28.546)
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.995 s -- in com.pucp.paqrap.modulos.incidencias.controller.AveriaApiTest
+[INFO] Running com.pucp.paqrap.modulos.incidencias.controller.AveriaEnEscenarioApiTest
+2026-11-09T16:36:29.467-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.incidencias.controller.AveriaEnEscenarioApiTest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.0)
+
+2026-11-09T16:36:29.493-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.i.c.AveriaEnEscenarioApiTest     : Starting AveriaEnEscenarioApiTest using Java 21.0.6 with PID 35468 (started by josue in D:\Claude-DP1\pucp-2026-2-1inf54-software-design-development-project\paqrap-back)
+2026-11-09T16:36:29.493-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.i.c.AveriaEnEscenarioApiTest     : The following 1 profile is active: "test"
+2026-11-09T16:36:29.749-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-11-09T16:36:29.824-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 76 ms. Found 14 JPA repository interfaces.
+2026-11-09T16:36:29.903-05:00  INFO 35468 --- [paqrap-back] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-11-09T16:36:29.903-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-11-09T16:36:29.903-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-09T16:36:29.903-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-9 - Starting...
+2026-11-09T16:36:29.903-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-9 - Added connection conn80: url=jdbc:h2:mem:paqrap user=SA
+2026-11-09T16:36:29.903-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-9 - Start completed.
+2026-11-09T16:36:29.903-05:00  INFO 35468 --- [paqrap-back] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-9)']
+	Database driver: undefined/unknown
+	Database version: 2.3.232
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-11-09T16:36:29.982-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-11-09T16:36:29.999-05:00  INFO 35468 --- [paqrap-back] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-11-09T16:36:30.218-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-11-09T16:36:30.218-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-11-09T16:36:30.218-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 0 ms
+2026-11-09T16:36:30.221-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.i.c.AveriaEnEscenarioApiTest     : Started AveriaEnEscenarioApiTest in 0.752 seconds (process running for 29.4)
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.831 s -- in com.pucp.paqrap.modulos.incidencias.controller.AveriaEnEscenarioApiTest
+[INFO] Running com.pucp.paqrap.modulos.monitoreo.controller.DetalleApiTest
+2026-11-09T16:36:30.365-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.monitoreo.controller.DetalleApiTest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.0)
+
+2026-11-09T16:36:30.381-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.m.controller.DetalleApiTest      : Starting DetalleApiTest using Java 21.0.6 with PID 35468 (started by josue in D:\Claude-DP1\pucp-2026-2-1inf54-software-design-development-project\paqrap-back)
+2026-11-09T16:36:30.381-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.m.controller.DetalleApiTest      : The following 1 profile is active: "test"
+2026-11-09T16:36:30.626-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-11-09T16:36:30.711-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 90 ms. Found 14 JPA repository interfaces.
+2026-11-09T16:36:30.794-05:00  INFO 35468 --- [paqrap-back] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-11-09T16:36:30.794-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-11-09T16:36:30.811-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-09T16:36:30.811-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-10 - Starting...
+2026-11-09T16:36:30.811-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-10 - Added connection conn90: url=jdbc:h2:mem:paqrap user=SA
+2026-11-09T16:36:30.811-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-10 - Start completed.
+2026-11-09T16:36:30.811-05:00  INFO 35468 --- [paqrap-back] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-10)']
+	Database driver: undefined/unknown
+	Database version: 2.3.232
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-11-09T16:36:30.923-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-11-09T16:36:30.937-05:00  INFO 35468 --- [paqrap-back] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-11-09T16:36:31.162-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-11-09T16:36:31.162-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-11-09T16:36:31.162-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 0 ms
+2026-11-09T16:36:31.162-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.m.controller.DetalleApiTest      : Started DetalleApiTest in 0.796 seconds (process running for 30.344)
+2026-11-09T16:36:31.199-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 1: 2 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+
+MockHttpServletRequest:
+      HTTP Method = POST
+      Request URI = /api/escenarios
+       Parameters = {}
+          Headers = [Content-Type:"application/json;charset=UTF-8", Content-Length:"62"]
+             Body = {"tipo": "FIVE_DAY", "inicioSimulado": "2026-01-01T05:00:00Z"}
+    Session Attrs = {}
+
+Handler:
+             Type = com.pucp.paqrap.modulos.escenarios.controller.EscenarioController
+           Method = com.pucp.paqrap.modulos.escenarios.controller.EscenarioController#crear(CrearEscenarioRequest)
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = null
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 201
+    Error message = null
+          Headers = [Content-Type:"application/json"]
+     Content type = application/json
+             Body = {"id":1,"tipo":"FIVE_DAY","estado":"CREATED","factorAceleracion":160.0,"inicioSimulado":"2026-01-01T05:00:00Z","instanteSimulado":null,"finSimulado":null,"colapsoEn":null,"inicioReal":null,"finReal":null,"configuracionSa":{"semilla":-983067797560945112,"temperaturaInicial":1000.0,"temperaturaMinima":1.0,"factorEnfriamiento":0.95,"iteracionesPorTemperatura":50}}
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+
+MockHttpServletRequest:
+      HTTP Method = POST
+      Request URI = /api/escenarios/1/iniciar
+       Parameters = {}
+          Headers = []
+             Body = null
+    Session Attrs = {}
+
+Handler:
+             Type = com.pucp.paqrap.modulos.escenarios.controller.EscenarioController
+           Method = com.pucp.paqrap.modulos.escenarios.controller.EscenarioController#iniciar(long)
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = null
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 200
+    Error message = null
+          Headers = [Content-Type:"application/json"]
+     Content type = application/json
+             Body = {"id":1,"tipo":"FIVE_DAY","estado":"RUNNING","factorAceleracion":160.0,"inicioSimulado":"2026-01-01T05:00:00Z","instanteSimulado":"2026-01-01T05:00:00Z","finSimulado":null,"colapsoEn":null,"inicioReal":"2026-10-08T12:00:00Z","finReal":null,"configuracionSa":{"semilla":-983067797560945112,"temperaturaInicial":1000.0,"temperaturaMinima":1.0,"factorEnfriamiento":0.95,"iteracionesPorTemperatura":50}}
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+
+MockHttpServletRequest:
+      HTTP Method = GET
+      Request URI = /api/flota/vehiculos/TA01/detalle
+       Parameters = {ejecucionId=[1]}
+          Headers = []
+             Body = null
+    Session Attrs = {}
+
+Handler:
+             Type = com.pucp.paqrap.modulos.monitoreo.controller.DetalleController
+           Method = com.pucp.paqrap.modulos.monitoreo.controller.DetalleController#vehiculo(String, long)
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = null
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 200
+    Error message = null
+          Headers = [Content-Type:"application/json"]
+     Content type = application/json
+             Body = {"id":"TA01","tipo":"CAR","estado":"IN_ROUTE","x":27,"y":14,"cargaActual":2,"capacidad":24,"disponibleDesde":null,"motivoDetencion":null,"detenidoHasta":null,"instante":"2026-01-01T05:00:00Z","turnoVigente":{"inicio":"2026-01-01T04:00:00Z","fin":"2026-01-01T12:00:00Z"},"ventanaAlimentacion":{"inicio":"2026-01-01T05:00:00Z","fin":"2026-01-01T11:00:00Z"},"rutaId":"SA-TA01","proximasEntregas":[{"orden":1,"pedidoId":"P1","x":30,"y":14,"paquetes":2,"llegadaPrevista":"2026-01-01T07:00:00Z"}]}
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+
+MockHttpServletRequest:
+      HTTP Method = GET
+      Request URI = /api/flota/vehiculos/TA01/detalle
+       Parameters = {ejecucionId=[1]}
+          Headers = []
+             Body = null
+    Session Attrs = {}
+
+Handler:
+             Type = com.pucp.paqrap.modulos.monitoreo.controller.DetalleController
+           Method = com.pucp.paqrap.modulos.monitoreo.controller.DetalleController#vehiculo(String, long)
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = null
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 200
+    Error message = null
+          Headers = [Content-Type:"application/json"]
+     Content type = application/json
+             Body = {"id":"TA01","tipo":"CAR","estado":"IN_ROUTE","x":27,"y":14,"cargaActual":2,"capacidad":24,"disponibleDesde":null,"motivoDetencion":"REFRIGERIO","detenidoHasta":"2026-01-01T08:00:00Z","instante":"2026-01-01T06:01:20Z","turnoVigente":{"inicio":"2026-01-01T04:00:00Z","fin":"2026-01-01T12:00:00Z"},"ventanaAlimentacion":{"inicio":"2026-01-01T05:00:00Z","fin":"2026-01-01T11:00:00Z"},"rutaId":"SA-TA01","proximasEntregas":[{"orden":1,"pedidoId":"P1","x":30,"y":14,"paquetes":2,"llegadaPrevista":"2026-01-01T07:00:00Z"}]}
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+2026-11-09T16:36:31.267-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 2: 2 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:31.313-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 3: 2 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:31.349-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 4: 2 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:31.391-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 5: 2 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:31.429-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 6: 2 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:31.478-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 7: 2 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:31.510-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 8: 2 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:31.558-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 9: 2 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:31.582-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 10: 2 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:31.659-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 11: 2 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:31.711-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 12: 2 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:31.745-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 13: 2 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+[ERROR] Tests run: 20, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 1.481 s <<< FAILURE! -- in com.pucp.paqrap.modulos.monitoreo.controller.DetalleApiTest
+[ERROR] com.pucp.paqrap.modulos.monitoreo.controller.DetalleApiTest.elDetalleExponeElRefrigerioSoloMientrasDura -- Time elapsed: 0.072 s <<< FAILURE!
+java.lang.AssertionError: JSON path "$.detenidoHasta" expected:<2026-01-01T07:00:00Z> but was:<2026-01-01T08:00:00Z>
+	at org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)
+	at org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)
+	at org.springframework.test.util.JsonPathExpectationsHelper.assertValue(JsonPathExpectationsHelper.java:172)
+	at org.springframework.test.web.servlet.result.JsonPathResultMatchers.lambda$value$2(JsonPathResultMatchers.java:112)
+	at org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)
+	at com.pucp.paqrap.modulos.monitoreo.controller.DetalleApiTest.elDetalleExponeElRefrigerioSoloMientrasDura(DetalleApiTest.java:240)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+
+[INFO] Running com.pucp.paqrap.modulos.monitoreo.controller.EventosYMonitoreoApiTest
+2026-11-09T16:36:31.777-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.monitoreo.controller.EventosYMonitoreoApiTest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.0)
+
+2026-11-09T16:36:31.811-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.m.c.EventosYMonitoreoApiTest     : Starting EventosYMonitoreoApiTest using Java 21.0.6 with PID 35468 (started by josue in D:\Claude-DP1\pucp-2026-2-1inf54-software-design-development-project\paqrap-back)
+2026-11-09T16:36:31.811-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.m.c.EventosYMonitoreoApiTest     : The following 1 profile is active: "test"
+2026-11-09T16:36:32.124-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-11-09T16:36:32.202-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 77 ms. Found 14 JPA repository interfaces.
+2026-11-09T16:36:32.274-05:00  INFO 35468 --- [paqrap-back] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-11-09T16:36:32.279-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-11-09T16:36:32.279-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-09T16:36:32.279-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-11 - Starting...
+2026-11-09T16:36:32.289-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-11 - Added connection conn100: url=jdbc:h2:mem:paqrap user=SA
+2026-11-09T16:36:32.289-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-11 - Start completed.
+2026-11-09T16:36:32.289-05:00  INFO 35468 --- [paqrap-back] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-11)']
+	Database driver: undefined/unknown
+	Database version: 2.3.232
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-11-09T16:36:32.352-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-11-09T16:36:32.368-05:00  INFO 35468 --- [paqrap-back] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-11-09T16:36:32.573-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-11-09T16:36:32.573-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-11-09T16:36:32.573-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 0 ms
+2026-11-09T16:36:32.573-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.m.c.EventosYMonitoreoApiTest     : Started EventosYMonitoreoApiTest in 0.778 seconds (process running for 31.757)
+2026-11-09T16:36:32.605-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 1: 2 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:32.653-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 2: 2 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:32.700-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 3: 2 vehÝculos al almacÚn central, 1 pedidos del periodo reiniciados
+2026-11-09T16:36:32.731-05:00  WARN 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.DetectorColapso        : Ejecuci¾n 3: colapso logÝstico en 2026-01-01T09:00:00Z (PLAZO_VENCIDO, pedido P1 con plazo 2026-01-01T09:00:00Z)
+2026-11-09T16:36:32.780-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 5: 2 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:32.811-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 6: 2 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:32.858-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 7: 2 vehÝculos al almacÚn central, 2 pedidos del periodo reiniciados
+2026-11-09T16:36:32.889-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 8: 2 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:32.945-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 9: 2 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.176 s -- in com.pucp.paqrap.modulos.monitoreo.controller.EventosYMonitoreoApiTest
+[INFO] Running com.pucp.paqrap.modulos.pedidos.controller.PedidoApiTest
+2026-11-09T16:36:32.953-05:00  INFO 35468 --- [paqrap-back] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.pucp.paqrap.modulos.pedidos.controller.PedidoApiTest]: PedidoApiTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-11-09T16:36:33.017-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.pedidos.controller.PedidoApiTest
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.191 s -- in com.pucp.paqrap.modulos.pedidos.controller.PedidoApiTest
+[INFO] Running com.pucp.paqrap.modulos.pedidos.controller.PedidoArchivoOficialApiTest
+2026-11-09T16:36:33.144-05:00  INFO 35468 --- [paqrap-back] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.pucp.paqrap.modulos.pedidos.controller.PedidoArchivoOficialApiTest]: PedidoArchivoOficialApiTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-11-09T16:36:33.144-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.pedidos.controller.PedidoArchivoOficialApiTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.287 s -- in com.pucp.paqrap.modulos.pedidos.controller.PedidoArchivoOficialApiTest
+[INFO] Running com.pucp.paqrap.modulos.pedidos.controller.PedidoCasosPruebaApiTest
+2026-11-09T16:36:33.437-05:00  INFO 35468 --- [paqrap-back] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.pucp.paqrap.modulos.pedidos.controller.PedidoCasosPruebaApiTest]: PedidoCasosPruebaApiTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-11-09T16:36:33.437-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.pedidos.controller.PedidoCasosPruebaApiTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.086 s -- in com.pucp.paqrap.modulos.pedidos.controller.PedidoCasosPruebaApiTest
+[INFO] Running com.pucp.paqrap.modulos.pedidos.controller.PedidoCoberturaArchivoApiTest
+2026-11-09T16:36:33.523-05:00  INFO 35468 --- [paqrap-back] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.pucp.paqrap.modulos.pedidos.controller.PedidoCoberturaArchivoApiTest]: PedidoCoberturaArchivoApiTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-11-09T16:36:33.528-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.pedidos.controller.PedidoCoberturaArchivoApiTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.047 s -- in com.pucp.paqrap.modulos.pedidos.controller.PedidoCoberturaArchivoApiTest
+[INFO] Running com.pucp.paqrap.modulos.pedidos.controller.PedidoCoherenciaApiTest
+2026-11-09T16:36:33.586-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.pedidos.controller.PedidoCoherenciaApiTest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.0)
+
+2026-11-09T16:36:33.602-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.c.PedidoCoherenciaApiTest      : Starting PedidoCoherenciaApiTest using Java 21.0.6 with PID 35468 (started by josue in D:\Claude-DP1\pucp-2026-2-1inf54-software-design-development-project\paqrap-back)
+2026-11-09T16:36:33.602-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.c.PedidoCoherenciaApiTest      : The following 1 profile is active: "test"
+2026-11-09T16:36:33.840-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-11-09T16:36:33.930-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 80 ms. Found 14 JPA repository interfaces.
+2026-11-09T16:36:34.015-05:00  INFO 35468 --- [paqrap-back] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-11-09T16:36:34.030-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-11-09T16:36:34.040-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-09T16:36:34.040-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-12 - Starting...
+2026-11-09T16:36:34.042-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-12 - Added connection conn110: url=jdbc:h2:mem:paqrap user=SA
+2026-11-09T16:36:34.042-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-12 - Start completed.
+2026-11-09T16:36:34.042-05:00  INFO 35468 --- [paqrap-back] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-12)']
+	Database driver: undefined/unknown
+	Database version: 2.3.232
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-11-09T16:36:34.135-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-11-09T16:36:34.143-05:00  INFO 35468 --- [paqrap-back] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-11-09T16:36:34.362-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-11-09T16:36:34.362-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-11-09T16:36:34.362-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 0 ms
+2026-11-09T16:36:34.377-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.c.PedidoCoherenciaApiTest      : Started PedidoCoherenciaApiTest in 0.791 seconds (process running for 33.553)
+2026-11-09T16:36:34.393-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 1: 1 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:34.441-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 2: 1 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:34.464-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 3: 1 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:34.495-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 4: 1 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:34.520-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 5: 1 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.966 s -- in com.pucp.paqrap.modulos.pedidos.controller.PedidoCoherenciaApiTest
+[INFO] Running com.pucp.paqrap.modulos.pedidos.controller.PedidoRegistroFeedbackApiTest
+2026-11-09T16:36:34.536-05:00  INFO 35468 --- [paqrap-back] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.pucp.paqrap.modulos.pedidos.controller.PedidoRegistroFeedbackApiTest]: PedidoRegistroFeedbackApiTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-11-09T16:36:34.536-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.pedidos.controller.PedidoRegistroFeedbackApiTest
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.057 s -- in com.pucp.paqrap.modulos.pedidos.controller.PedidoRegistroFeedbackApiTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.algoritmo.common.CacheCaminosMinimosTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.498 s -- in com.pucp.paqrap.modulos.planificacion.algoritmo.common.CacheCaminosMinimosTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.algoritmo.common.MetricasPlanificadorTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.036 s -- in com.pucp.paqrap.modulos.planificacion.algoritmo.common.MetricasPlanificadorTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.algoritmo.common.OperationalPlanEvaluatorLegDistanceTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.016 s -- in com.pucp.paqrap.modulos.planificacion.algoritmo.common.OperationalPlanEvaluatorLegDistanceTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.algoritmo.common.RouteSchedulerRefrigerioTest
+[ERROR] Tests run: 1, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0 s <<< FAILURE! -- in com.pucp.paqrap.modulos.planificacion.algoritmo.common.RouteSchedulerRefrigerioTest
+[ERROR] com.pucp.paqrap.modulos.planificacion.algoritmo.common.RouteSchedulerRefrigerioTest.elRefrigerioSeAgregaUnaVezDentroDeLaVentanaDelTurnoYNoSeRepite -- Time elapsed: 0 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: la primera parada debe incluir 1h de refrigerio ==> expected: <2026-09-09T14:30:00Z> but was: <2026-09-09T13:30:00Z>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertEquals.failNotEqual(AssertEquals.java:197)
+	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:182)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:1156)
+	at com.pucp.paqrap.modulos.planificacion.algoritmo.common.RouteSchedulerRefrigerioTest.elRefrigerioSeAgregaUnaVezDentroDeLaVentanaDelTurnoYNoSeRepite(RouteSchedulerRefrigerioTest.java:63)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+
+[INFO] Running com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.AnnealingConfigTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s -- in com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.AnnealingConfigTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.BancoPruebasPlanificadorTest
+[WARNING] Tests run: 13, Failures: 0, Errors: 0, Skipped: 1, Time elapsed: 1.381 s -- in com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.BancoPruebasPlanificadorTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.DemoIntegralSaTest
+
+============================================================
+          DEMOSTRACION INTEGRAL SA - PAQRAP
+============================================================
+CONFIGURACION SA
+------------------------------------------------------------
+Temperatura inicial: 100.00
+Temperatura minima: 1.00
+Cooling factor: 0.90
+Iteraciones: 30
+
+FLOTA DISPONIBLE
+------------------------------------------------------------
+TA01 | CAR | capacidad: 24 | velocidad: 40.0 km/h
+TA02 | CAR | capacidad: 24 | velocidad: 40.0 km/h
+TM01 | MOTORCYCLE | capacidad: 8 | velocidad: 25.0 km/h
+TB01 | BICYCLE | capacidad: 4 | velocidad: 12.0 km/h
+
+PEDIDOS
+------------------------------------------------------------
+P01 | destino (14,10) | cantidad 12 | plazo 2026-09-09T22:00:00Z
+P02 | destino (10,13) | cantidad 8 | plazo 2026-09-09T22:00:00Z
+P03 | destino (12,11) | cantidad 4 | plazo 2026-09-09T22:00:00Z
+
+PLANIFICACION INICIAL
+------------------------------------------------------------
+TA01:
+CENTRAL -> P01 -> CENTRAL
+Distancia: 8.0 km | Costo: S/ 64.00
+TB01:
+CENTRAL -> P03 -> CENTRAL
+Distancia: 6.0 km | Costo: S/ 18.00
+TM01:
+CENTRAL -> P02 -> CENTRAL
+Distancia: 6.0 km | Costo: S/ 36.00
+Costo total: S/ 118.00 | Distancia total: 20.0 km | Plan factible: SI
+DATOS DEL SA
+------------------------------------------------------------
+Costo solucion inicial: S/ 118.00
+Mejor costo: S/ 118.00
+Vecinos evaluados: 19
+Vecinos aceptados: 10
+
+============================================================
+INCIDENCIA
+============================================================
+Vehiculo averiado: TA01
+Tipo: MINOR
+Indisponibilidad: PT2H
+Pedidos afectados: [P01]
+
+============================================================
+REPLANIFICACION SA
+============================================================
+Plan antes:
+TA01:
+CENTRAL -> P01 -> CENTRAL
+Distancia: 8.0 km | Costo: S/ 64.00
+TB01:
+CENTRAL -> P03 -> CENTRAL
+Distancia: 6.0 km | Costo: S/ 18.00
+TM01:
+CENTRAL -> P02 -> CENTRAL
+Distancia: 6.0 km | Costo: S/ 36.00
+Costo total: S/ 118.00 | Distancia total: 20.0 km | Plan factible: SI
+Plan despues:
+TA02:
+CENTRAL -> P01 -> CENTRAL
+Distancia: 8.0 km | Costo: S/ 64.00
+TB01:
+CENTRAL -> P03 -> CENTRAL
+Distancia: 6.0 km | Costo: S/ 18.00
+TM01:
+CENTRAL -> P02 -> CENTRAL
+Distancia: 6.0 km | Costo: S/ 36.00
+Costo total: S/ 118.00 | Distancia total: 20.0 km | Plan factible: SI
+DATOS DEL SA
+------------------------------------------------------------
+Costo solucion inicial: S/ 118.00
+Mejor costo: S/ 118.00
+Vecinos evaluados: 19
+Vecinos aceptados: 10
+P01: TA01 -> TA02
+
+RESULTADO FINAL
+------------------------------------------------------------
+Costo inicial: S/ 118.00
+Costo final: S/ 118.00
+Distancia inicial: 20.0 km
+Distancia final: 20.0 km
+Pedidos atendidos: [P01, P03, P02]
+Pedidos no atendidos: []
+Plan factible: SI
+Carga negativa: NO
+============================================================
+              FIN DEMOSTRACION SA
+============================================================
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.016 s -- in com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.DemoIntegralSaTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.DemoReplanificacionBloqueoSaTest
+
+============================================================
+      DEMOSTRACION SA - REPLANIFICACION POR BLOQUEO
+============================================================
+PLANIFICACION INICIAL
+------------------------------------------------------------
+P01 | destino: (0,3) | cantidad: 12 | plazo: 2026-09-09T20:00:00Z
+P02 | destino: (3,0) | cantidad: 2 | plazo: 2026-09-09T20:00:00Z
+Ruta TA01: (0,0) -> (0,1) -> (0,2) -> (0,3) -> (0,2) -> (0,1) -> (0,0)
+Tramos: (0,0)->(0,1), (0,1)->(0,2), (0,2)->(0,3)
+Ruta TM01: (0,0) -> (1,0) -> (2,0) -> (3,0) -> (2,0) -> (1,0) -> (0,0)
+Tramos: (0,0)->(1,0), (1,0)->(2,0), (2,0)->(3,0)
+Distancia inicial: 12.0 km
+Costo inicial: S/ 84.00
+Datos SA: inicial S/ 84.00 | mejor S/ 84.00 | vecinos evaluados: 13 | aceptados: 10
+
+============================================================
+BLOQUEO VIAL
+============================================================
+Tramo bloqueado: (0,1)->(0,2)
+El tramo estaba en la ruta inicial durante el bloqueo: SI
+Replanificando con Simulated Annealing...
+
+============================================================
+PLANIFICACION POSTERIOR
+============================================================
+Ruta anterior:
+Ruta TA01: (0,0) -> (0,1) -> (0,2) -> (0,3) -> (0,2) -> (0,1) -> (0,0)
+Tramos: (0,0)->(0,1), (0,1)->(0,2), (0,2)->(0,3)
+Ruta TM01: (0,0) -> (1,0) -> (2,0) -> (3,0) -> (2,0) -> (1,0) -> (0,0)
+Tramos: (0,0)->(1,0), (1,0)->(2,0), (2,0)->(3,0)
+Ruta nueva:
+Ruta TA01: (0,0) -> (1,0) -> (1,1) -> (1,2) -> (1,3) -> (0,3) -> (0,2) -> (0,1) -> (0,0)
+Tramos: (0,0)->(1,0), (1,0)->(1,1), (1,1)->(1,2), (1,2)->(1,3), (0,3)->(1,3), (0,2)->(0,3), (0,1)->(0,2), (0,0)->(0,1)
+Ruta TM01: (0,0) -> (1,0) -> (2,0) -> (3,0) -> (2,0) -> (1,0) -> (0,0)
+Tramos: (0,0)->(1,0), (1,0)->(2,0), (2,0)->(3,0)
+Distancia inicial: 12.0 km
+Distancia final: 14.0 km
+Incremento: +2.0 km
+Costo inicial: S/ 84.00
+Costo final: S/ 100.00
+Incremento: +S/ 16.00
+Plan inicial factible: SI
+Plan final factible: SI
+Tramo bloqueado usado durante su vigencia despues: NO
+Carga negativa: NO
+Datos SA: inicial S/ 100.00 | mejor S/ 100.00 | vecinos evaluados: 13 | aceptados: 10
+
+============================================================
+COMPARACION
+============================================================
+DISTANCIA
+Inicial: 12.0 km
+Final: 14.0 km
+Cambio: +2.0 km
+COSTO
+Inicial: S/ 84.00
+Final: S/ 100.00
+Cambio: +S/ 16.00
+SA encontro una nueva solucion factible evitando el bloqueo.
+============================================================
+             FIN DEMOSTRACION
+============================================================
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.016 s -- in com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.DemoReplanificacionBloqueoSaTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.EntregaParcialSimulatedAnnealingTest
+
+ENTREGA PARCIAL SA
+Vehiculo TA01: 24 paquetes
+Vehiculo TM01: 6 paquetes
+Total entregado: 30/30
+Plan factible: true | Carga negativa: false | Pedido completado: true
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s -- in com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.EntregaParcialSimulatedAnnealingTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.OperationalSimulatedAnnealingPlannerTest
+
+====================================================
+SIMULATED ANNEALING
+====================================================
+Temperatura inicial: 100.00
+Temperatura minima: 1.00
+Cooling factor: 0.90
+
+Costo solucion inicial: S/ 84.00
+Vecinos evaluados: 11
+Vecinos aceptados: 5
+
+Mejor costo: S/ 84.00
+Plan factible: SI
+Pedidos no atendidos: []
+====================================================
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.016 s -- in com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.OperationalSimulatedAnnealingPlannerTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.PresupuestoTiempoSimulatedAnnealingTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.594 s -- in com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.PresupuestoTiempoSimulatedAnnealingTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.dto.SolicitudPlanificacionTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in com.pucp.paqrap.modulos.planificacion.dto.SolicitudPlanificacionTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.entity.OrdenDeterministaTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in com.pucp.paqrap.modulos.planificacion.entity.OrdenDeterministaTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.service.ClasificadorNoAtendidosTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.032 s -- in com.pucp.paqrap.modulos.planificacion.service.ClasificadorNoAtendidosTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.service.ConfiguracionSaEscenarioIntegrationTest
+2026-11-09T16:36:37.327-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.planificacion.service.ConfiguracionSaEscenarioIntegrationTest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.0)
+
+2026-11-09T16:36:37.343-05:00  INFO 35468 --- [paqrap-back] [           main] .ConfiguracionSaEscenarioIntegrationTest : Starting ConfiguracionSaEscenarioIntegrationTest using Java 21.0.6 with PID 35468 (started by josue in D:\Claude-DP1\pucp-2026-2-1inf54-software-design-development-project\paqrap-back)
+2026-11-09T16:36:37.343-05:00  INFO 35468 --- [paqrap-back] [           main] .ConfiguracionSaEscenarioIntegrationTest : The following 1 profile is active: "test"
+2026-11-09T16:36:37.628-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-11-09T16:36:37.707-05:00  INFO 35468 --- [paqrap-back] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 78 ms. Found 14 JPA repository interfaces.
+2026-11-09T16:36:37.770-05:00  INFO 35468 --- [paqrap-back] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-11-09T16:36:37.770-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-11-09T16:36:37.786-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-09T16:36:37.786-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-13 - Starting...
+2026-11-09T16:36:37.786-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-13 - Added connection conn120: url=jdbc:h2:mem:paqrap user=SA
+2026-11-09T16:36:37.786-05:00  INFO 35468 --- [paqrap-back] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-13 - Start completed.
+2026-11-09T16:36:37.786-05:00  INFO 35468 --- [paqrap-back] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-13)']
+	Database driver: undefined/unknown
+	Database version: 2.3.232
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-11-09T16:36:37.850-05:00  INFO 35468 --- [paqrap-back] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-11-09T16:36:37.866-05:00  INFO 35468 --- [paqrap-back] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-11-09T16:36:38.044-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-11-09T16:36:38.046-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-11-09T16:36:38.046-05:00  INFO 35468 --- [paqrap-back] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 0 ms
+2026-11-09T16:36:38.050-05:00  INFO 35468 --- [paqrap-back] [           main] .ConfiguracionSaEscenarioIntegrationTest : Started ConfiguracionSaEscenarioIntegrationTest in 0.723 seconds (process running for 37.226)
+2026-11-09T16:36:38.087-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.e.service.EjecutorPlanService    : Ejecuci¾n 1: 3 vehÝculos al almacÚn central, 0 pedidos del periodo reiniciados
+2026-11-09T16:36:38.101-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 1 (INICIAL -> INICIO n.║ 0 en 2026-01-01T05:00:00Z): 0 rutas (0 conservadas, 0 nuevas), 0 no atendidos, 0 ms
+2026-11-09T16:36:38.118-05:00  INFO 35468 --- [paqrap-back] [           main] c.p.p.m.p.service.PlanificadorSaAdapter  : Ejecuci¾n 1 (PERIODICO -> PERIODICO n.║ 1 en 2026-01-01T06:20:00Z): 0 rutas (0 conservadas, 0 nuevas), 0 no atendidos, 0 ms
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.891 s -- in com.pucp.paqrap.modulos.planificacion.service.ConfiguracionSaEscenarioIntegrationTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.service.CortePlanTest
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s -- in com.pucp.paqrap.modulos.planificacion.service.CortePlanTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.service.DiagnosticoPlanificadorTest
+[WARNING] Tests run: 5, Failures: 0, Errors: 0, Skipped: 1, Time elapsed: 0 s -- in com.pucp.paqrap.modulos.planificacion.service.DiagnosticoPlanificadorTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.service.FuenteDatosOperativosMockTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s -- in com.pucp.paqrap.modulos.planificacion.service.FuenteDatosOperativosMockTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.service.PlanificadorSaServiceTest
+[INFO] Tests run: 20, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.490 s -- in com.pucp.paqrap.modulos.planificacion.service.PlanificadorSaServiceTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.service.PlanPersistenceServiceTest
+2026-11-09T16:36:38.640-05:00  INFO 35468 --- [paqrap-back] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.pucp.paqrap.modulos.planificacion.service.PlanPersistenceServiceTest]: PlanPersistenceServiceTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-11-09T16:36:38.640-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.planificacion.service.PlanPersistenceServiceTest
+2026-11-09T16:36:38.690-05:00  WARN 35468 --- [paqrap-back] [           main] o.h.engine.jdbc.spi.SqlExceptionHelper   : SQL Error: 23506, SQLState: 23506
+2026-11-09T16:36:38.690-05:00 ERROR 35468 --- [paqrap-back] [           main] o.h.engine.jdbc.spi.SqlExceptionHelper   : Violaci¾n de una restricci¾n de Integridad Referencial: "fkqy636ll20j2gxg8qyimiek26i: public.route_stops FOREIGN KEY(order_id) REFERENCES public.orders(order_id) ('NO-EXISTE')"
+Referential integrity constraint violation: "fkqy636ll20j2gxg8qyimiek26i: public.route_stops FOREIGN KEY(order_id) REFERENCES public.orders(order_id) ('NO-EXISTE')"; SQL statement:
+insert into route_stops (delivered_packages,order_id,planned_arrival_at,route_id,sequence_no,stop_type,warehouse_id,x,y,route_stop_id) values (?,?,?,?,?,?,?,?,?,default) [23506-232]
+2026-11-09T16:36:38.737-05:00  WARN 35468 --- [paqrap-back] [           main] o.h.engine.jdbc.spi.SqlExceptionHelper   : SQL Error: 23505, SQLState: 23505
+2026-11-09T16:36:38.737-05:00 ERROR 35468 --- [paqrap-back] [           main] o.h.engine.jdbc.spi.SqlExceptionHelper   : Violaci¾n de indice de Unicidad ¾ Clave primaria: "public.uq_routes_plan_operational_INDEX_C ON public.routes(plan_id NULLS FIRST, operational_route_id NULLS FIRST) VALUES ( /* key:7 */ CAST(10 AS BIGINT), 'SA-TA01')"
+Unique index or primary key violation: "public.uq_routes_plan_operational_INDEX_C ON public.routes(plan_id NULLS FIRST, operational_route_id NULLS FIRST) VALUES ( /* key:7 */ CAST(10 AS BIGINT), 'SA-TA01')"; SQL statement:
+insert into routes (completed_at,departure_at,initial_load,operational_route_id,origin_x,origin_y,plan_id,start_warehouse_id,status,total_cost,total_distance_km,vehicle_id,route_id) values (?,?,?,?,?,?,?,?,?,?,?,?,default) [23505-232]
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.105 s -- in com.pucp.paqrap.modulos.planificacion.service.PlanPersistenceServiceTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.service.PlanResponseMapperCaminoTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in com.pucp.paqrap.modulos.planificacion.service.PlanResponseMapperCaminoTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.service.PlanResponseMapperRefrigerioTest
+[ERROR] Tests run: 1, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0 s <<< FAILURE! -- in com.pucp.paqrap.modulos.planificacion.service.PlanResponseMapperRefrigerioTest
+[ERROR] com.pucp.paqrap.modulos.planificacion.service.PlanResponseMapperRefrigerioTest.marcaElInicioDelRefrigerioSoloEnLaParadaDondeSeToma -- Time elapsed: 0 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: llega al cliente a las 08:30 ==> expected: <2026-09-09T13:30:00Z> but was: <2026-09-09T14:30:00Z>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertEquals.failNotEqual(AssertEquals.java:197)
+	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:182)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:1156)
+	at com.pucp.paqrap.modulos.planificacion.service.PlanResponseMapperRefrigerioTest.marcaElInicioDelRefrigerioSoloEnLaParadaDondeSeToma(PlanResponseMapperRefrigerioTest.java:78)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+
+[INFO] Running com.pucp.paqrap.modulos.planificacion.service.PlanResponseMapperTest
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s -- in com.pucp.paqrap.modulos.planificacion.service.PlanResponseMapperTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.service.ReplanificacionSaServiceTest
+[INFO] Tests run: 26, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 19.48 s -- in com.pucp.paqrap.modulos.planificacion.service.ReplanificacionSaServiceTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.service.TramosRutaTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.021 s -- in com.pucp.paqrap.modulos.planificacion.service.TramosRutaTest
+[INFO] Running com.pucp.paqrap.modulos.redvial.controller.BloqueoApiTest
+2026-11-09T16:36:58.263-05:00  INFO 35468 --- [paqrap-back] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.pucp.paqrap.modulos.redvial.controller.BloqueoApiTest]: BloqueoApiTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-11-09T16:36:58.397-05:00  INFO 35468 --- [paqrap-back] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.pucp.paqrap.PaqRapApplication for test class com.pucp.paqrap.modulos.redvial.controller.BloqueoApiTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.351 s -- in com.pucp.paqrap.modulos.redvial.controller.BloqueoApiTest
+[INFO] Running com.pucp.paqrap.modulos.redvial.service.RoadNetworkBloqueoTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in com.pucp.paqrap.modulos.redvial.service.RoadNetworkBloqueoTest
+[INFO] Running com.pucp.paqrap.modulos.redvial.service.RoadNetworkNodoBloqueadoTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in com.pucp.paqrap.modulos.redvial.service.RoadNetworkNodoBloqueadoTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[ERROR] Failures: 
+[ERROR]   EjecutorPlanServiceTest.informaElRefrigerioDelConductorMientrasDura:358 expected: <Optional[2026-01-01T10:30:00Z]> but was: <Optional[2026-01-01T11:30:00Z]>
+[ERROR]   DetalleApiTest.elDetalleExponeElRefrigerioSoloMientrasDura:240 JSON path "$.detenidoHasta" expected:<2026-01-01T07:00:00Z> but was:<2026-01-01T08:00:00Z>
+[ERROR]   RouteSchedulerRefrigerioTest.elRefrigerioSeAgregaUnaVezDentroDeLaVentanaDelTurnoYNoSeRepite:63 la primera parada debe incluir 1h de refrigerio ==> expected: <2026-09-09T14:30:00Z> but was: <2026-09-09T13:30:00Z>
+[ERROR]   PlanResponseMapperRefrigerioTest.marcaElInicioDelRefrigerioSoloEnLaParadaDondeSeToma:78 llega al cliente a las 08:30 ==> expected: <2026-09-09T13:30:00Z> but was: <2026-09-09T14:30:00Z>
+[INFO] 
+[ERROR] Tests run: 405, Failures: 4, Errors: 0, Skipped: 2
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  01:01 min
+[INFO] Finished at: 2026-11-09T16:36:59-05:00
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.5.3:test (default-test) on project paqrap-back: There are test failures.
+[ERROR] 
+[ERROR] See D:\Claude-DP1\pucp-2026-2-1inf54-software-design-development-project\paqrap-back\target\surefire-reports for the individual test results.
+[ERROR] See dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException

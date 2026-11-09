@@ -1,0 +1,136 @@
+﻿[INFO] Scanning for projects...
+[INFO] 
+[INFO] ------------------------< com.pucp:paqrap-back >------------------------
+[INFO] Building paqrap-back 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ paqrap-back ---
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.14.0:compile (default-compile) @ paqrap-back ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ paqrap-back ---
+[INFO] Copying 1 resource from src\test\resources to target\test-classes
+[INFO] 
+[INFO] --- compiler:3.14.0:testCompile (default-testCompile) @ paqrap-back ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 56 source files with javac [debug parameters release 21] to target\test-classes
+[INFO] 
+[INFO] --- surefire:3.5.3:test (default-test) @ paqrap-back ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.pucp.paqrap.modulos.planificacion.service.ClasificadorNoAtendidosTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.556 s -- in com.pucp.paqrap.modulos.planificacion.service.ClasificadorNoAtendidosTest
+[INFO] Running com.pucp.paqrap.modulos.planificacion.service.DiagnosticoPlanificadorTest
+mvn : Mockito is currently self-attaching to enable the inline-mock-maker. This will no longer work in future releases 
+of the JDK. Please add Mockito as an agent to your build as described in Mockito's documentation: 
+https://javadoc.io/doc/org.mockito/mockito-core/latest/org.mockito/org/mockito/Mockito.html#0.3
+En línea: 1 Carácter: 1
++ mvn -B test "-Dtest=ClasificadorNoAtendidosTest,DiagnosticoPlanificad ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Mockito is curr...ockito.html#0.3:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: A Java agent has been loaded dynamically 
+(C:\Users\josue\.m2\repository\net\bytebuddy\byte-buddy-agent\1.17.5\byte-buddy-agent-1.17.5.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+Java HotSpot(TM) 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap 
+classpath has been appended
+=== DIAGNËSTICO PASO 8 ===
+ventana: 2028-12-01T00:00 a 2028-12-01T06:00, paso 5 min, SA 300 iteraciones mßx., semilla base 42, tope nuevos/ciclo 100
+ciclos ejecutados: 71, pedidos conocidos: 298
+pendientes planificados por ciclo: mßx. 121, promedio 65.0
+cola sin enviar por el tope (mßx.): 0
+ms por ciclo: promedio 421, mßx. 3539
+pedidos que alguna vez quedaron sin atender: 236 (luego asignados: 128, sin atender al final: 108)
+causa la primera vez sin atender: {ENCOLABLE_EN_RUTA_ACTIVA=236}
+causa al final (solo los que siguen sin atender): {VENCIDO=2, IMPOSIBLE_FISICO=2, ENCOLABLE_EN_RUTA_ACTIVA=101, SIN_VEHICULOS_LIBRES=3}
+--- informe 202812-00084 ---
+Pedido 202812-00084
+  destino Location[x=66, y=41], 10 paquetes, registrado 2028-12-01T01:32, plazo 2028-12-01T05:32 (4 h)
+  distancia al central: 66 km por calles ortogonales
+
+Si saliera del central en el instante de su registro (mejor caso, sin esperar ciclo):
+  CAR (TA01, 20.0 km/h): llega 2028-12-01T04:50, termina 2028-12-01T06:50, margen -78 min À violaciones: []
+  BICYCLE (TB01): no aplica, capacidad 4 < 10 paquetes
+  MOTORCYCLE (TM01): no aplica, capacidad 8 < 10 paquetes
+
+Evoluci¾n por ciclo:
+  [2028-12-01T01:35] SIN ATENDER À ENCOLABLE_EN_RUTA_ACTIVA À cabe en la ruta de TA01 en la posici¾n 1 de 2 paradas À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T01:40] SIN ATENDER À ENCOLABLE_EN_RUTA_ACTIVA À cabe en la ruta de TA01 en la posici¾n 1 de 2 paradas À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T01:45] SIN ATENDER À ENCOLABLE_EN_RUTA_ACTIVA À cabe en la ruta de TA01 en la posici¾n 1 de 2 paradas À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T01:50] SIN ATENDER À ENCOLABLE_EN_RUTA_ACTIVA À cabe en la ruta de TA01 en la posici¾n 1 de 2 paradas À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T01:55] SIN ATENDER À ENCOLABLE_EN_RUTA_ACTIVA À cabe en la ruta de TA01 en la posici¾n 1 de 2 paradas À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T02:00] SIN ATENDER À ENCOLABLE_EN_RUTA_ACTIVA À cabe en la ruta de TA01 en la posici¾n 1 de 2 paradas À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T02:05] SIN ATENDER À ENCOLABLE_EN_RUTA_ACTIVA À cabe en la ruta de TA01 en la posici¾n 1 de 2 paradas À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T02:10] SIN ATENDER À ENCOLABLE_EN_RUTA_ACTIVA À cabe en la ruta de TA01 en la posici¾n 1 de 2 paradas À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T02:15] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T02:15 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T02:20] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T02:20 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T02:25] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T02:25 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T02:30] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T02:30 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T02:35] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T02:35 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T02:40] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T02:40 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T02:45] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T02:45 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T02:50] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T02:50 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T02:55] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T02:55 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T03:00] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T03:00 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T03:05] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T03:05 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T03:10] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T03:10 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T03:15] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T03:15 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T03:20] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T03:20 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T03:25] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T03:25 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T03:30] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T03:30 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T03:35] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T03:35 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T03:40] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T03:40 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T03:45] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T03:45 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T03:50] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T03:50 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T03:55] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T03:55 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T04:00] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T04:00 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T04:05] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T04:05 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T04:10] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T04:10 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T04:15] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T04:15 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T04:20] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T04:20 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T04:25] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T04:25 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T04:30] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T04:30 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T04:35] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T04:35 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T04:40] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T04:40 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T04:45] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T04:45 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T04:50] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T04:50 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T04:55] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T04:55 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T05:00] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T05:00 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T05:05] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T05:05 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T05:10] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T05:10 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T05:15] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T05:15 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T05:20] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T05:20 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T05:25] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T05:25 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T05:30] SIN ATENDER À IMPOSIBLE_FISICO À ninguno de los 10 vehÝculos con capacidad >= 10 llega antes de 2028-12-01T05:32 saliendo del central a 2028-12-01T05:30 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T05:35] SIN ATENDER À VENCIDO À plazo 2028-12-01T05:32 no es posterior a 2028-12-01T05:35 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T05:40] SIN ATENDER À VENCIDO À plazo 2028-12-01T05:32 no es posterior a 2028-12-01T05:40 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T05:45] SIN ATENDER À VENCIDO À plazo 2028-12-01T05:32 no es posterior a 2028-12-01T05:45 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T05:50] SIN ATENDER À VENCIDO À plazo 2028-12-01T05:32 no es posterior a 2028-12-01T05:50 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T05:55] SIN ATENDER À VENCIDO À plazo 2028-12-01T05:32 no es posterior a 2028-12-01T05:55 À autos libres: 0 À vehÝculos ocupados: 37
+  [2028-12-01T06:00] SIN ATENDER À VENCIDO À plazo 2028-12-01T05:32 no es posterior a 2028-12-01T06:00 À autos libres: 0 À vehÝculos ocupados: 37
+
+Primera vez sin atender: ciclo 17 (2028-12-01T01:35), causa ENCOLABLE_EN_RUTA_ACTIVA À cabe en la ruta de TA01 en la posici¾n 1 de 2 paradas
+Primer ciclo en que figura en una ruta: nunca
+Estado al final de la ventana: sin atender, causa VENCIDO À plazo 2028-12-01T05:32 no es posterior a 2028-12-01T06:00
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 53.01 s -- in com.pucp.paqrap.modulos.planificacion.service.DiagnosticoPlanificadorTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 14, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  01:06 min
+[INFO] Finished at: 2026-11-09T16:26:13-05:00
+[INFO] ------------------------------------------------------------------------
