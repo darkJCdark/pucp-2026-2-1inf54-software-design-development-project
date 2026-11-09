@@ -11,9 +11,11 @@ import com.pucp.paqrap.modulos.redvial.entity.*;
 import com.pucp.paqrap.modulos.redvial.service.*;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 
 /** Immutable stock allocation state for one planning iteration. */
 public final class InventorySnapshot {
@@ -21,8 +23,9 @@ public final class InventorySnapshot {
     private final Map<String, Integer> stockByWarehouseId;
 
     private InventorySnapshot(Map<String, Warehouse> warehousesById, Map<String, Integer> stockByWarehouseId) {
-        this.warehousesById = Map.copyOf(warehousesById);
-        this.stockByWarehouseId = Map.copyOf(stockByWarehouseId);
+        // Ordenados por id de almacén (ver OperationalPlan): el orden de iteración debe ser reproducible.
+        this.warehousesById = Collections.unmodifiableMap(new TreeMap<>(Map.copyOf(warehousesById)));
+        this.stockByWarehouseId = Collections.unmodifiableMap(new TreeMap<>(Map.copyOf(stockByWarehouseId)));
     }
 
     public static InventorySnapshot from(Collection<Warehouse> warehouses) {

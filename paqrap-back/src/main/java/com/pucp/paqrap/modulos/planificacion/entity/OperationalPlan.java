@@ -11,17 +11,21 @@ import com.pucp.paqrap.modulos.redvial.entity.*;
 import com.pucp.paqrap.modulos.redvial.service.*;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.TreeMap;
 
 /** Immutable assignment of at most one active operational route to every vehicle. */
 public final class OperationalPlan {
     private final Map<String, DeliveryRoute> routesByVehicleId;
 
     private OperationalPlan(Map<String, DeliveryRoute> routesByVehicleId) {
-        this.routesByVehicleId = Map.copyOf(routesByVehicleId);
+        // Ordenado por id de vehículo: Map.copyOf itera en un orden que cambia en cada JVM y el generador de
+        // vecinos elige por índice, así que con la misma semilla el SA daba resultados distintos entre ejecuciones.
+        this.routesByVehicleId = Collections.unmodifiableMap(new TreeMap<>(Map.copyOf(routesByVehicleId)));
     }
 
     public static OperationalPlan empty() {
