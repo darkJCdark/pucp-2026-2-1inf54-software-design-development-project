@@ -39,6 +39,8 @@ public final class OperationalPlanEvaluator {
     private final RouteScheduler scheduler;
     /** Limite por tramo en km; 0 o menos deshabilita la restriccion. */
     private final double maxLegDistanceKm;
+    /** Contadores de costo; {@link MetricasPlanificador#NOOP} salvo en el banco de pruebas. */
+    private final MetricasPlanificador metricas;
 
     /** Evaluador sin limite de distancia por tramo (maxLegKm = 0). */
     public OperationalPlanEvaluator(RouteScheduler scheduler) {
@@ -46,15 +48,31 @@ public final class OperationalPlanEvaluator {
     }
 
     public OperationalPlanEvaluator(RouteScheduler scheduler, double maxLegDistanceKm) {
+        this(scheduler, maxLegDistanceKm, MetricasPlanificador.NOOP);
+    }
+
+    public OperationalPlanEvaluator(RouteScheduler scheduler, double maxLegDistanceKm,
+                                    MetricasPlanificador metricas) {
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler is required");
         if (Double.isNaN(maxLegDistanceKm)) {
             throw new IllegalArgumentException("maxLegDistanceKm must be a number");
         }
         this.maxLegDistanceKm = maxLegDistanceKm;
+        this.metricas = Objects.requireNonNull(metricas, "metricas is required");
     }
 
     public PlanEvaluation evaluate(OperationalPlan plan, OperationalSnapshot snapshot,
                                    Collection<Order> requiredOrders, List<RoadBlock> blocks) {
+        long inicio = metricas.inicio();
+        try {
+            return evaluarPlan(plan, snapshot, requiredOrders, blocks);
+        } finally {
+            metricas.registrarEvaluacion(inicio);
+        }
+    }
+
+    private PlanEvaluation evaluarPlan(OperationalPlan plan, OperationalSnapshot snapshot,
+                                       Collection<Order> requiredOrders, List<RoadBlock> blocks) {
         Objects.requireNonNull(plan, "plan is required");
         Objects.requireNonNull(snapshot, "snapshot is required");
         Objects.requireNonNull(requiredOrders, "requiredOrders are required");

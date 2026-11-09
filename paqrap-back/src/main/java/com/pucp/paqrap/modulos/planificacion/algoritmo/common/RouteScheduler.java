@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import com.pucp.paqrap.modulos.flota.entity.FleetProfile;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryRoute;
@@ -38,13 +39,28 @@ public final class RouteScheduler {
 
     private final RoadNetwork roadNetwork;
 
+    /** Contadores de costo; {@link MetricasPlanificador#NOOP} salvo en el banco de pruebas. */
+    private final MetricasPlanificador metricas;
+
     public RouteScheduler(
             RoadNetwork roadNetwork
+    ) {
+        this(roadNetwork, MetricasPlanificador.NOOP);
+    }
+
+    public RouteScheduler(
+            RoadNetwork roadNetwork,
+            MetricasPlanificador metricas
     ) {
         this.roadNetwork =
                 Objects.requireNonNull(
                         roadNetwork,
                         "roadNetwork is required"
+                );
+        this.metricas =
+                Objects.requireNonNull(
+                        metricas,
+                        "metricas is required"
                 );
     }
 
@@ -120,7 +136,10 @@ public final class RouteScheduler {
              * =====================================================
              */
 
-            RoadPath approach =
+            long inicioCamino =
+                    metricas.inicio();
+
+            Optional<RoadPath> camino =
                     roadNetwork
                             .shortestPath(
                                     currentLocation,
@@ -128,7 +147,17 @@ public final class RouteScheduler {
                                     currentTime,
                                     travelPerStreet,
                                     blocks
-                            )
+                            );
+
+            metricas.registrarCamino(
+                    inicioCamino,
+                    currentLocation,
+                    stop.location(),
+                    currentTime
+            );
+
+            RoadPath approach =
+                    camino
                             .orElseThrow(
                                     () ->
                                             new IllegalStateException(
