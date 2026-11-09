@@ -7,6 +7,7 @@ import com.pucp.paqrap.modulos.flota.entity.VehicleOperationalState;
 import com.pucp.paqrap.modulos.flota.entity.VehicleStatus;
 import com.pucp.paqrap.modulos.pedidos.entity.Order;
 import com.pucp.paqrap.modulos.pedidos.service.CargadorPedidos;
+import com.pucp.paqrap.modulos.planificacion.algoritmo.common.MetricasPlanificador;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.OperationalPlanEvaluator;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.ResultadoPlanificacion;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.RouteScheduler;
@@ -73,7 +74,11 @@ class BancoPruebasPlanificadorTest {
     static final ZoneId ZONA = ShiftSchedule.DEFAULT_ZONE;
 
     static final String CABECERA = "serie,dataset,lote,repeticion,pedidos,ms_total,ms_plan_inicial,costo_inicial,"
-            + "costo_final,vecinos_evaluados,vecinos_aceptados,iteraciones,atendidos,no_atendidos,factible";
+            + "costo_final,vecinos_evaluados,vecinos_aceptados,iteraciones,atendidos,no_atendidos,factible,"
+            + "semilla_evaluaciones,semilla_ms_evaluaciones,semilla_caminos,semilla_ms_caminos,"
+            + "semilla_pares_unicos,semilla_pares_hora_unicos,"
+            + "total_evaluaciones,total_ms_evaluaciones,total_caminos,total_ms_caminos,"
+            + "total_pares_unicos,total_pares_hora_unicos";
 
     private static final AnnealingConfig CONFIG_PRUEBA = new AnnealingConfig(100.0, 1.0, 0.90, 5, 30, 30);
 
@@ -88,14 +93,24 @@ class BancoPruebasPlanificadorTest {
         }
     }
 
-    /** Una fila del CSV. */
+    /**
+     * Una fila del CSV. {@code semilla} son las métricas de la llamada aparte a {@link InitialPlanBuilder};
+     * {@code total}, las de la ejecución completa del SA (que incluye su propio plan inicial).
+     */
     record Medicion(String serie, String dataset, int lote, int repeticion, int pedidos, long msTotal,
                     long msPlanInicial, double costoInicial, double costoFinal, int vecinosEvaluados,
-                    int vecinosAceptados, int iteraciones, int atendidos, int noAtendidos, boolean factible) {
+                    int vecinosAceptados, int iteraciones, int atendidos, int noAtendidos, boolean factible,
+                    MetricasPlanificador.Resumen semilla, MetricasPlanificador.Resumen total) {
         String aCsv() {
             return String.format(Locale.ROOT, "%s,%s,%d,%d,%d,%d,%d,%.4f,%.4f,%d,%d,%d,%d,%d,%b",
                     serie, dataset, lote, repeticion, pedidos, msTotal, msPlanInicial, costoInicial, costoFinal,
-                    vecinosEvaluados, vecinosAceptados, iteraciones, atendidos, noAtendidos, factible);
+                    vecinosEvaluados, vecinosAceptados, iteraciones, atendidos, noAtendidos, factible)
+                    + "," + aCsv(semilla) + "," + aCsv(total);
+        }
+
+        private static String aCsv(MetricasPlanificador.Resumen r) {
+            return String.format(Locale.ROOT, "%d,%d,%d,%d,%d,%d", r.evaluaciones(), r.msEvaluaciones(),
+                    r.caminos(), r.msCaminos(), r.paresUnicos(), r.paresConHoraUnicos());
         }
     }
 
@@ -216,12 +231,33 @@ class BancoPruebasPlanificadorTest {
 
     @Test
     void aCsv_usaPuntoDecimalYTantasColumnasComoLaCabecera() {
-        Medicion m = new Medicion("produccion", "dic2028", 25, 1, 25, 1500, 40, 1234.5, 1000.25, 10, 4, 7, 24, 1, true);
+        Medicion m = new Medicion("produccion", "dic2028", 25, 1, 25, 1500, 40, 1234.5, 1000.25, 10, 4, 7, 24, 1, true,
+                new MetricasPlanificador.Resumen(925, 1400, 9000, 1200, 60, 8000),
+                new MetricasPlanificador.Resumen(930, 1450, 9100, 1250, 61, 8100));
 
         String fila = m.aCsv();
 
-        assertEquals("produccion,dic2028,25,1,25,1500,40,1234.5000,1000.2500,10,4,7,24,1,true", fila);
+        assertEquals("produccion,dic2028,25,1,25,1500,40,1234.5000,1000.2500,10,4,7,24,1,true,"
+                + "925,1400,9000,1200,60,8000,930,1450,9100,1250,61,8100", fila);
         assertEquals(CABECERA.split(",").length, fila.split(",").length);
+    }
+
+    @Test
+    void planInicial_evaluaUnaVezPorPedidoYVehiculoLibre() {
+        List<Order> pedidos = pedidosDesde(LINEAS_FEB, YearMonth.of(2026, 2));
+        Instant hora = pedidos.get(pedidos.size() - 1).registeredAt();
+        OperationalSnapshot snapshot = snapshot(new FuenteDatosOperativosMock(), hora);
+        long vehiculosLibres = snapshot.vehiclesById().values().stream()
+                .filter(estado -> snapshot.isVehiclePlannableAt(estado.vehicle().id(), hora))
+                .count();
+        MetricasPlanificador metricas = MetricasPlanificador.activas();
+
+        new InitialPlanBuilder(new OperationalPlanEvaluator(new RouteScheduler(new RoadNetwork(), metricas), 0, metricas))
+                .build(snapshot, pedidos, List.of());
+
+        assertTrue(vehiculosLibres > 0);
+        assertEquals(pedidos.size() * vehiculosLibres, metricas.resumen().evaluaciones());
+        assertTrue(metricas.resumen().caminos() > 0);
     }
 
     @Test
@@ -236,6 +272,9 @@ class BancoPruebasPlanificadorTest {
         assertTrue(m.msTotal() >= 0 && m.msPlanInicial() >= 0);
         assertTrue(m.vecinosEvaluados() > 0);
         assertTrue(Double.isFinite(m.costoInicial()) && Double.isFinite(m.costoFinal()));
+        assertTrue(m.semilla().evaluaciones() > 0 && m.semilla().caminos() > 0);
+        assertTrue(m.total().evaluaciones() >= m.semilla().evaluaciones());
+        assertTrue(m.total().paresUnicos() <= m.total().paresConHoraUnicos());
     }
 
     @Test
@@ -334,11 +373,15 @@ class BancoPruebasPlanificadorTest {
         Instant hora = pedidos.stream().map(Order::registeredAt).max(Comparator.naturalOrder()).orElseThrow();
         OperationalSnapshot snapshot = snapshot(fuente, hora);
         List<RoadBlock> relevantes = bloqueosRelevantes(bloqueos, hora, HORIZONTE_BLOQUEOS);
-        OperationalPlanEvaluator evaluador = new OperationalPlanEvaluator(new RouteScheduler(new RoadNetwork()), 0);
+        MetricasPlanificador metricas = MetricasPlanificador.activas();
+        OperationalPlanEvaluator evaluador = new OperationalPlanEvaluator(
+                new RouteScheduler(new RoadNetwork(), metricas), 0, metricas);
 
         long inicioPlanInicial = System.nanoTime();
         new InitialPlanBuilder(evaluador).build(snapshot, pedidos, relevantes);
         long msPlanInicial = (System.nanoTime() - inicioPlanInicial) / 1_000_000L;
+        MetricasPlanificador.Resumen semilla = metricas.resumen();
+        metricas.reiniciar();
 
         OperationalSimulatedAnnealingPlanner planificador = new OperationalSimulatedAnnealingPlanner(evaluador);
         long inicio = System.nanoTime();
@@ -351,7 +394,7 @@ class BancoPruebasPlanificadorTest {
         return new Medicion(serie, dataset, pedidos.size(), repeticion, pedidos.size(), msTotal, msPlanInicial,
                 ejecucion.initialCost(), resultado.costoTotal(), ejecucion.evaluatedNeighbors(),
                 ejecucion.acceptedNeighbors(), ejecucion.iterations(), pedidos.size() - noAtendidos, noAtendidos,
-                resultado.esFactible());
+                resultado.esFactible(), semilla, metricas.resumen());
     }
 
     private static void imprimirResumen(List<Medicion> mediciones) {
@@ -359,10 +402,16 @@ class BancoPruebasPlanificadorTest {
         for (Medicion m : mediciones) {
             grupos.computeIfAbsent(m.serie() + "|" + m.dataset() + "|" + m.lote(), k -> new ArrayList<>()).add(m);
         }
-        System.out.println("BANCO serie|dataset|lote -> mediana ms_total, mediana ms_plan_inicial, no_atendidos");
-        grupos.forEach((clave, filas) -> System.out.printf(Locale.ROOT, "BANCO %s -> %d ms, %d ms, %d%n", clave,
+        System.out.println("BANCO serie|dataset|lote -> mediana ms_total, mediana ms_plan_inicial, no_atendidos, "
+                + "evaluaciones semilla, caminos semilla, pares unicos semilla, mediana ms caminos semilla");
+        grupos.forEach((clave, filas) -> System.out.printf(Locale.ROOT, "BANCO %s -> %d ms, %d ms, %d, %d, %d, %d, %d ms%n",
+                clave,
                 mediana(filas.stream().map(Medicion::msTotal).toList()),
                 mediana(filas.stream().map(Medicion::msPlanInicial).toList()),
-                filas.get(0).noAtendidos()));
+                filas.get(0).noAtendidos(),
+                filas.get(0).semilla().evaluaciones(),
+                filas.get(0).semilla().caminos(),
+                filas.get(0).semilla().paresUnicos(),
+                mediana(filas.stream().map(m -> m.semilla().msCaminos()).toList())));
     }
 }
