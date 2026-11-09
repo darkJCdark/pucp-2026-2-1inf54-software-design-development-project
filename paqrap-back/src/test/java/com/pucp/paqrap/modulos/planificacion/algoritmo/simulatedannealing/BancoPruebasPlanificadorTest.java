@@ -7,6 +7,7 @@ import com.pucp.paqrap.modulos.flota.entity.VehicleOperationalState;
 import com.pucp.paqrap.modulos.flota.entity.VehicleStatus;
 import com.pucp.paqrap.modulos.pedidos.entity.Order;
 import com.pucp.paqrap.modulos.pedidos.service.CargadorPedidos;
+import com.pucp.paqrap.modulos.planificacion.algoritmo.common.CacheCaminosMinimos;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.MetricasPlanificador;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.OperationalPlanEvaluator;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.ResultadoPlanificacion;
@@ -57,10 +58,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>Propiedades opcionales: {@code paqrap.datos} (carpeta de datos, por defecto {@code ../paqrap-data}),
  * {@code paqrap.bench.series} ({@code produccion}, {@code amplio} o ambas separadas por coma),
  * {@code paqrap.bench.lotes} (tamaños de lote separados por coma, por defecto {@code 25,50,100,200,400}),
- * {@code paqrap.bench.salida} (nombre del CSV, por defecto {@code base.csv}).
+ * {@code paqrap.bench.salida} (nombre del CSV, por defecto {@code base.csv}),
+ * {@code paqrap.bench.cache} ({@code false} apaga el caché de caminos del paso 6 para medir el "antes").
  *
- * <p>Cada repetición construye su propio {@link RoadNetwork}, por lo que mide el ciclo en frío; el servicio de
- * producción reutiliza uno entre ciclos.
+ * <p>Cada repetición construye su propio {@link RouteScheduler} y su caché de caminos, por lo que mide el ciclo en
+ * frío; el servicio de producción reutiliza uno entre ciclos (con el caché ya poblado).
  */
 class BancoPruebasPlanificadorTest {
 
@@ -76,9 +78,9 @@ class BancoPruebasPlanificadorTest {
     static final String CABECERA = "serie,dataset,lote,repeticion,pedidos,ms_total,ms_plan_inicial,costo_inicial,"
             + "costo_final,vecinos_evaluados,vecinos_aceptados,iteraciones,atendidos,no_atendidos,factible,"
             + "semilla_evaluaciones,semilla_ms_evaluaciones,semilla_caminos,semilla_ms_caminos,"
-            + "semilla_pares_unicos,semilla_pares_hora_unicos,"
+            + "semilla_pares_unicos,semilla_pares_hora_unicos,semilla_aciertos_cache,"
             + "total_evaluaciones,total_ms_evaluaciones,total_caminos,total_ms_caminos,"
-            + "total_pares_unicos,total_pares_hora_unicos";
+            + "total_pares_unicos,total_pares_hora_unicos,total_aciertos_cache,cache_activo";
 
     private static final AnnealingConfig CONFIG_PRUEBA = new AnnealingConfig(100.0, 1.0, 0.90, 5, 30, 30);
 
@@ -100,17 +102,18 @@ class BancoPruebasPlanificadorTest {
     record Medicion(String serie, String dataset, int lote, int repeticion, int pedidos, long msTotal,
                     long msPlanInicial, double costoInicial, double costoFinal, int vecinosEvaluados,
                     int vecinosAceptados, int iteraciones, int atendidos, int noAtendidos, boolean factible,
-                    MetricasPlanificador.Resumen semilla, MetricasPlanificador.Resumen total) {
+                    MetricasPlanificador.Resumen semilla, MetricasPlanificador.Resumen total,
+                    boolean cacheActivo) {
         String aCsv() {
             return String.format(Locale.ROOT, "%s,%s,%d,%d,%d,%d,%d,%.4f,%.4f,%d,%d,%d,%d,%d,%b",
                     serie, dataset, lote, repeticion, pedidos, msTotal, msPlanInicial, costoInicial, costoFinal,
                     vecinosEvaluados, vecinosAceptados, iteraciones, atendidos, noAtendidos, factible)
-                    + "," + aCsv(semilla) + "," + aCsv(total);
+                    + "," + aCsv(semilla) + "," + aCsv(total) + "," + cacheActivo;
         }
 
         private static String aCsv(MetricasPlanificador.Resumen r) {
-            return String.format(Locale.ROOT, "%d,%d,%d,%d,%d,%d", r.evaluaciones(), r.msEvaluaciones(),
-                    r.caminos(), r.msCaminos(), r.paresUnicos(), r.paresConHoraUnicos());
+            return String.format(Locale.ROOT, "%d,%d,%d,%d,%d,%d,%d", r.evaluaciones(), r.msEvaluaciones(),
+                    r.caminos(), r.msCaminos(), r.paresUnicos(), r.paresConHoraUnicos(), r.aciertosCache());
         }
     }
 
@@ -232,13 +235,13 @@ class BancoPruebasPlanificadorTest {
     @Test
     void aCsv_usaPuntoDecimalYTantasColumnasComoLaCabecera() {
         Medicion m = new Medicion("produccion", "dic2028", 25, 1, 25, 1500, 40, 1234.5, 1000.25, 10, 4, 7, 24, 1, true,
-                new MetricasPlanificador.Resumen(925, 1400, 9000, 1200, 60, 8000),
-                new MetricasPlanificador.Resumen(930, 1450, 9100, 1250, 61, 8100));
+                new MetricasPlanificador.Resumen(925, 1400, 9000, 1200, 60, 8000, 0),
+                new MetricasPlanificador.Resumen(930, 1450, 9100, 1250, 61, 8100, 5), true);
 
         String fila = m.aCsv();
 
         assertEquals("produccion,dic2028,25,1,25,1500,40,1234.5000,1000.2500,10,4,7,24,1,true,"
-                + "925,1400,9000,1200,60,8000,930,1450,9100,1250,61,8100", fila);
+                + "925,1400,9000,1200,60,8000,0,930,1450,9100,1250,61,8100,5,true", fila);
         assertEquals(CABECERA.split(",").length, fila.split(",").length);
     }
 
@@ -292,6 +295,37 @@ class BancoPruebasPlanificadorTest {
     }
 
     // ---------------------------------------------------------------- auxiliares
+
+    @Test
+    void capacidadCache_dependeDeLaPropiedad() {
+        assertEquals(CacheCaminosMinimos.CAPACIDAD_POR_DEFECTO, capacidadCache(null));
+        assertEquals(CacheCaminosMinimos.CAPACIDAD_POR_DEFECTO, capacidadCache("true"));
+        assertEquals(0, capacidadCache("false"));
+    }
+
+    @Test
+    void medir_conYSinCache_daElMismoResultado() {
+        List<Order> pedidos = pedidosDesde(LINEAS_FEB, YearMonth.of(2026, 2));
+        FuenteDatosOperativos fuente = new FuenteDatosOperativosMock();
+
+        Medicion con = medir("prueba", "feb2026", 1, pedidos, List.of(), fuente, CONFIG_PRUEBA, PRESUPUESTO_AMPLIO_MS,
+                CacheCaminosMinimos.CAPACIDAD_POR_DEFECTO);
+        Medicion sin = medir("prueba", "feb2026", 1, pedidos, List.of(), fuente, CONFIG_PRUEBA, PRESUPUESTO_AMPLIO_MS, 0);
+
+        assertEquals(sin.costoInicial(), con.costoInicial());
+        assertEquals(sin.costoFinal(), con.costoFinal());
+        assertEquals(sin.vecinosEvaluados(), con.vecinosEvaluados());
+        assertEquals(sin.noAtendidos(), con.noAtendidos());
+        assertEquals(0L, sin.total().aciertosCache());
+        assertTrue(con.total().aciertosCache() > 0);
+        assertTrue(con.total().caminos() < sin.total().caminos());
+    }
+
+    /** Capacidad del caché de caminos según {@code paqrap.bench.cache}; solo {@code false} lo apaga. */
+    static int capacidadCache(String propiedad) {
+        return "false".equalsIgnoreCase(propiedad == null ? null : propiedad.strip())
+                ? 0 : CacheCaminosMinimos.CAPACIDAD_POR_DEFECTO;
+    }
 
     static List<String> leer(Path archivo) throws IOException {
         return Files.readString(archivo, StandardCharsets.UTF_8).replace("﻿", "").lines().toList();
@@ -370,15 +404,25 @@ class BancoPruebasPlanificadorTest {
     static Medicion medir(String serie, String dataset, int repeticion, List<Order> pedidos,
                           List<RoadBlock> bloqueos, FuenteDatosOperativos fuente, AnnealingConfig config,
                           long presupuestoMs) {
+        return medir(serie, dataset, repeticion, pedidos, bloqueos, fuente, config, presupuestoMs,
+                capacidadCache(System.getProperty("paqrap.bench.cache")));
+    }
+
+    static Medicion medir(String serie, String dataset, int repeticion, List<Order> pedidos,
+                          List<RoadBlock> bloqueos, FuenteDatosOperativos fuente, AnnealingConfig config,
+                          long presupuestoMs, int capacidadCache) {
         Instant hora = pedidos.stream().map(Order::registeredAt).max(Comparator.naturalOrder()).orElseThrow();
         OperationalSnapshot snapshot = snapshot(fuente, hora);
         List<RoadBlock> relevantes = bloqueosRelevantes(bloqueos, hora, HORIZONTE_BLOQUEOS);
         MetricasPlanificador metricas = MetricasPlanificador.activas();
+        // Un evaluador (y su caché) para cada medición, para que el SA no herede caminos ya calculados.
+        OperationalPlanEvaluator evaluadorSemilla = new OperationalPlanEvaluator(
+                new RouteScheduler(new RoadNetwork(), metricas, capacidadCache), 0, metricas);
         OperationalPlanEvaluator evaluador = new OperationalPlanEvaluator(
-                new RouteScheduler(new RoadNetwork(), metricas), 0, metricas);
+                new RouteScheduler(new RoadNetwork(), metricas, capacidadCache), 0, metricas);
 
         long inicioPlanInicial = System.nanoTime();
-        new InitialPlanBuilder(evaluador).build(snapshot, pedidos, relevantes);
+        new InitialPlanBuilder(evaluadorSemilla).build(snapshot, pedidos, relevantes);
         long msPlanInicial = (System.nanoTime() - inicioPlanInicial) / 1_000_000L;
         MetricasPlanificador.Resumen semilla = metricas.resumen();
         metricas.reiniciar();
@@ -394,7 +438,7 @@ class BancoPruebasPlanificadorTest {
         return new Medicion(serie, dataset, pedidos.size(), repeticion, pedidos.size(), msTotal, msPlanInicial,
                 ejecucion.initialCost(), resultado.costoTotal(), ejecucion.evaluatedNeighbors(),
                 ejecucion.acceptedNeighbors(), ejecucion.iterations(), pedidos.size() - noAtendidos, noAtendidos,
-                resultado.esFactible(), semilla, metricas.resumen());
+                resultado.esFactible(), semilla, metricas.resumen(), capacidadCache > 0);
     }
 
     private static void imprimirResumen(List<Medicion> mediciones) {

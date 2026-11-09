@@ -35,7 +35,7 @@ class MetricasPlanificadorTest {
 
     private static final Instant HORA = Instant.parse("2026-09-09T12:00:00Z");
     private static final AnnealingConfig CONFIG_PRUEBA = new AnnealingConfig(100.0, 1.0, 0.90, 5, 30, 30);
-    private static final MetricasPlanificador.Resumen CERO = new MetricasPlanificador.Resumen(0, 0, 0, 0, 0, 0);
+    private static final MetricasPlanificador.Resumen CERO = new MetricasPlanificador.Resumen(0, 0, 0, 0, 0, 0, 0);
 
     @Test
     void noop_noLeeElRelojNiRegistra() {
@@ -43,6 +43,7 @@ class MetricasPlanificadorTest {
 
         noop.registrarEvaluacion(noop.inicio());
         noop.registrarCamino(noop.inicio(), new Location(1, 1), new Location(2, 2), HORA);
+        noop.registrarAciertoCache();
 
         assertEquals(0L, noop.inicio());
         assertTrue(!noop.estanActivas());
@@ -61,6 +62,7 @@ class MetricasPlanificadorTest {
         metricas.registrarCamino(metricas.inicio(), a, b, HORA.plusSeconds(60));
         metricas.registrarCamino(metricas.inicio(), a, b, HORA);
         metricas.registrarCamino(metricas.inicio(), b, a, HORA);
+        metricas.registrarAciertoCache();
         MetricasPlanificador.Resumen resumen = metricas.resumen();
 
         assertTrue(metricas.estanActivas());
@@ -68,6 +70,7 @@ class MetricasPlanificadorTest {
         assertEquals(4L, resumen.caminos());
         assertEquals(2, resumen.paresUnicos());
         assertEquals(3, resumen.paresConHoraUnicos());
+        assertEquals(1L, resumen.aciertosCache());
         assertTrue(resumen.msEvaluaciones() >= 0 && resumen.msCaminos() >= 0);
 
         metricas.reiniciar();

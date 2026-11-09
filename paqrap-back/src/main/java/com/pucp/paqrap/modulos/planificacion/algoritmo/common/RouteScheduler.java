@@ -37,10 +37,11 @@ public final class RouteScheduler {
     private static final Duration DURACION_REFRIGERIO =
             Duration.ofHours(1);
 
-    private final RoadNetwork roadNetwork;
-
-    /** Contadores de costo; {@link MetricasPlanificador#NOOP} salvo en el banco de pruebas. */
-    private final MetricasPlanificador metricas;
+    /**
+     * Caminos mínimos memorizados (Semana 13, paso 6). shortestPath es pura,
+     * así que el caché no cambia el resultado; con capacidad 0 se apaga.
+     */
+    private final CacheCaminosMinimos caminos;
 
     public RouteScheduler(
             RoadNetwork roadNetwork
@@ -52,15 +53,25 @@ public final class RouteScheduler {
             RoadNetwork roadNetwork,
             MetricasPlanificador metricas
     ) {
-        this.roadNetwork =
-                Objects.requireNonNull(
-                        roadNetwork,
-                        "roadNetwork is required"
-                );
-        this.metricas =
-                Objects.requireNonNull(
-                        metricas,
-                        "metricas is required"
+        this(roadNetwork, metricas, CacheCaminosMinimos.CAPACIDAD_POR_DEFECTO);
+    }
+
+    public RouteScheduler(
+            RoadNetwork roadNetwork,
+            MetricasPlanificador metricas,
+            int capacidadCacheCaminos
+    ) {
+        this.caminos =
+                new CacheCaminosMinimos(
+                        Objects.requireNonNull(
+                                roadNetwork,
+                                "roadNetwork is required"
+                        ),
+                        Objects.requireNonNull(
+                                metricas,
+                                "metricas is required"
+                        ),
+                        capacidadCacheCaminos
                 );
     }
 
@@ -136,25 +147,15 @@ public final class RouteScheduler {
              * =====================================================
              */
 
-            long inicioCamino =
-                    metricas.inicio();
-
             Optional<RoadPath> camino =
-                    roadNetwork
-                            .shortestPath(
+                    caminos
+                            .obtener(
                                     currentLocation,
                                     stop.location(),
                                     currentTime,
                                     travelPerStreet,
                                     blocks
                             );
-
-            metricas.registrarCamino(
-                    inicioCamino,
-                    currentLocation,
-                    stop.location(),
-                    currentTime
-            );
 
             RoadPath approach =
                     camino
