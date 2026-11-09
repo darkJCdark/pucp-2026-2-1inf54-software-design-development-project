@@ -76,7 +76,7 @@ class BancoPruebasPlanificadorTest {
     static final ZoneId ZONA = ShiftSchedule.DEFAULT_ZONE;
 
     static final String CABECERA = "serie,dataset,lote,repeticion,pedidos,ms_total,ms_plan_inicial,costo_inicial,"
-            + "costo_final,vecinos_evaluados,vecinos_aceptados,iteraciones,atendidos,no_atendidos,factible,"
+            + "costo_final,vecinos_evaluados,vecinos_aceptados,iteraciones,atendidos,no_atendidos,vencidos,factible,"
             + "semilla_evaluaciones,semilla_ms_evaluaciones,semilla_caminos,semilla_ms_caminos,"
             + "semilla_pares_unicos,semilla_pares_hora_unicos,semilla_aciertos_cache,"
             + "total_evaluaciones,total_ms_evaluaciones,total_caminos,total_ms_caminos,"
@@ -96,18 +96,19 @@ class BancoPruebasPlanificadorTest {
     }
 
     /**
-     * Una fila del CSV. {@code semilla} son las métricas de la llamada aparte a {@link InitialPlanBuilder};
+     * Una fila del CSV. {@code vencidos} son los pedidos del lote cuyo plazo ya había vencido a la hora de
+     * planificar; el planificador no puede atenderlos, así que no son un fallo suyo.  {@code semilla} son las métricas de la llamada aparte a {@link InitialPlanBuilder};
      * {@code total}, las de la ejecución completa del SA (que incluye su propio plan inicial).
      */
     record Medicion(String serie, String dataset, int lote, int repeticion, int pedidos, long msTotal,
                     long msPlanInicial, double costoInicial, double costoFinal, int vecinosEvaluados,
-                    int vecinosAceptados, int iteraciones, int atendidos, int noAtendidos, boolean factible,
-                    MetricasPlanificador.Resumen semilla, MetricasPlanificador.Resumen total,
+                    int vecinosAceptados, int iteraciones, int atendidos, int noAtendidos, int vencidos,
+                    boolean factible, MetricasPlanificador.Resumen semilla, MetricasPlanificador.Resumen total,
                     boolean cacheActivo) {
         String aCsv() {
-            return String.format(Locale.ROOT, "%s,%s,%d,%d,%d,%d,%d,%.4f,%.4f,%d,%d,%d,%d,%d,%b",
+            return String.format(Locale.ROOT, "%s,%s,%d,%d,%d,%d,%d,%.4f,%.4f,%d,%d,%d,%d,%d,%d,%b",
                     serie, dataset, lote, repeticion, pedidos, msTotal, msPlanInicial, costoInicial, costoFinal,
-                    vecinosEvaluados, vecinosAceptados, iteraciones, atendidos, noAtendidos, factible)
+                    vecinosEvaluados, vecinosAceptados, iteraciones, atendidos, noAtendidos, vencidos, factible)
                     + "," + aCsv(semilla) + "," + aCsv(total) + "," + cacheActivo;
         }
 
@@ -224,6 +225,18 @@ class BancoPruebasPlanificadorTest {
     }
 
     @Test
+    void vencidos_cuentaLosPedidosConPlazoCumplidoALaHora() {
+        List<Order> pedidos = pedidosDesde(LINEAS_FEB, YearMonth.of(2026, 2));
+        Instant registro = pedidos.get(0).registeredAt();
+
+        assertEquals(0, vencidos(pedidos, registro));
+        assertEquals(1, vencidos(pedidos, pedidos.get(1).deadline()));
+        assertEquals(1, vencidos(pedidos, pedidos.get(1).deadline().plusSeconds(1)));
+        assertEquals(3, vencidos(pedidos, pedidos.get(2).deadline()));
+        assertEquals(0, vencidos(List.of(), registro));
+    }
+
+    @Test
     void lotesDe_usaValoresPorDefectoOLosIndicados() {
         assertEquals(5, lotesDe(null).length);
         assertEquals(5, lotesDe(" ").length);
@@ -234,13 +247,13 @@ class BancoPruebasPlanificadorTest {
 
     @Test
     void aCsv_usaPuntoDecimalYTantasColumnasComoLaCabecera() {
-        Medicion m = new Medicion("produccion", "dic2028", 25, 1, 25, 1500, 40, 1234.5, 1000.25, 10, 4, 7, 24, 1, true,
+        Medicion m = new Medicion("produccion", "dic2028", 25, 1, 25, 1500, 40, 1234.5, 1000.25, 10, 4, 7, 24, 1, 1, true,
                 new MetricasPlanificador.Resumen(925, 1400, 9000, 1200, 60, 8000, 0),
                 new MetricasPlanificador.Resumen(930, 1450, 9100, 1250, 61, 8100, 5), true);
 
         String fila = m.aCsv();
 
-        assertEquals("produccion,dic2028,25,1,25,1500,40,1234.5000,1000.2500,10,4,7,24,1,true,"
+        assertEquals("produccion,dic2028,25,1,25,1500,40,1234.5000,1000.2500,10,4,7,24,1,1,true,"
                 + "925,1400,9000,1200,60,8000,0,930,1450,9100,1250,61,8100,5,true", fila);
         assertEquals(CABECERA.split(",").length, fila.split(",").length);
     }
@@ -272,6 +285,7 @@ class BancoPruebasPlanificadorTest {
 
         assertEquals(3, m.pedidos());
         assertEquals(3, m.atendidos() + m.noAtendidos());
+        assertTrue(m.vencidos() >= 0 && m.vencidos() <= m.pedidos());
         assertTrue(m.msTotal() >= 0 && m.msPlanInicial() >= 0);
         assertTrue(m.vecinosEvaluados() > 0);
         assertTrue(Double.isFinite(m.costoInicial()) && Double.isFinite(m.costoFinal()));
@@ -371,6 +385,11 @@ class BancoPruebasPlanificadorTest {
         return lotes;
     }
 
+    /** Pedidos cuyo plazo ya venció (o vence justo) a la hora de planificar. */
+    static int vencidos(List<Order> pedidos, Instant hora) {
+        return (int) pedidos.stream().filter(p -> !p.deadline().isAfter(hora)).count();
+    }
+
     static long mediana(List<Long> valores) {
         if (valores.isEmpty()) {
             throw new IllegalArgumentException("no hay valores");
@@ -438,7 +457,7 @@ class BancoPruebasPlanificadorTest {
         return new Medicion(serie, dataset, pedidos.size(), repeticion, pedidos.size(), msTotal, msPlanInicial,
                 ejecucion.initialCost(), resultado.costoTotal(), ejecucion.evaluatedNeighbors(),
                 ejecucion.acceptedNeighbors(), ejecucion.iterations(), pedidos.size() - noAtendidos, noAtendidos,
-                resultado.esFactible(), semilla, metricas.resumen(), capacidadCache > 0);
+                vencidos(pedidos, hora), resultado.esFactible(), semilla, metricas.resumen(), capacidadCache > 0);
     }
 
     private static void imprimirResumen(List<Medicion> mediciones) {
