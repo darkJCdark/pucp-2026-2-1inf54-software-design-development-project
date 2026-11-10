@@ -25,109 +25,545 @@ import com.pucp.paqrap.modulos.planificacion.entity.WarehouseVisit;
 import com.pucp.paqrap.modulos.redvial.entity.RoadLeg;
 import com.pucp.paqrap.modulos.redvial.entity.RoadPath;
 
-/** Convierte el resultado interno del algoritmo en el DTO que consumen controllers y frontend. */
+/**
+ * Convierte el resultado interno del algoritmo
+ * en el DTO utilizado por controllers y frontend.
+ */
 final class PlanResponseMapper {
 
-    PlanResponse aResponse(ModoOperacion modo, Instant planificadoEn, ResultadoPlanificacion resultado,
-                           long semilla, long duracionMs, long presupuestoMs) {
-        PlanEvaluation evaluacion = resultado.evaluacion();
-        List<DeliveryRoute> rutasOrdenadas = resultado.plan().routes().stream()
-                .sorted(Comparator.comparing(ruta -> ruta.vehicle().id()))
-                .toList();
+    PlanResponse aResponse(
+            ModoOperacion modo,
+            Instant planificadoEn,
+            ResultadoPlanificacion resultado,
+            long semilla,
+            long duracionMs,
+            long presupuestoMs
+    ) {
 
-        List<RutaResponse> rutas = new ArrayList<>();
-        double distanciaTotal = 0;
-        for (DeliveryRoute ruta : rutasOrdenadas) {
-            ScheduledDeliveryRoute programada = evaluacion.schedulesByRouteId().get(ruta.id());
-            if (programada != null) {
-                distanciaTotal += programada.totalDistanceKm();
+        PlanEvaluation evaluacion =
+                resultado.evaluacion();
+
+        List<DeliveryRoute> rutasOrdenadas =
+                resultado
+                        .plan()
+                        .routes()
+                        .stream()
+                        .sorted(
+                                Comparator.comparing(
+                                        ruta ->
+                                                ruta.vehicle().id()
+                                )
+                        )
+                        .toList();
+
+        List<RutaResponse> rutas =
+                new ArrayList<>();
+
+        double distanciaTotal =
+                0;
+
+        for (
+                DeliveryRoute ruta :
+                rutasOrdenadas
+        ) {
+
+            ScheduledDeliveryRoute programada =
+                    evaluacion
+                            .schedulesByRouteId()
+                            .get(
+                                    ruta.id()
+                            );
+
+            if (
+                    programada != null
+            ) {
+                distanciaTotal +=
+                        programada
+                                .totalDistanceKm();
             }
-            rutas.add(aRuta(ruta, programada));
+
+            rutas.add(
+                    aRuta(
+                            ruta,
+                            programada
+                    )
+            );
         }
 
-        List<ViolacionResponse> violaciones = evaluacion.violations().stream()
-                .map(this::aViolacion)
-                .toList();
-        List<NoAtendidoResponse> noAtendidos = resultado.noAtendidos().stream()
-                .map(this::aNoAtendido)
-                .toList();
+        List<ViolacionResponse> violaciones =
+                evaluacion
+                        .violations()
+                        .stream()
+                        .map(
+                                this::aViolacion
+                        )
+                        .toList();
 
-        return new PlanResponse(modo, planificadoEn, resultado.esFactible(), resultado.esColapso(),
-                resultado.costoTotal(), distanciaTotal, semilla, duracionMs, presupuestoMs, duracionMs >= presupuestoMs,
-                rutas, violaciones, noAtendidos);
+        List<NoAtendidoResponse> noAtendidos =
+                resultado
+                        .noAtendidos()
+                        .stream()
+                        .map(
+                                this::aNoAtendido
+                        )
+                        .toList();
+
+        return new PlanResponse(
+                modo,
+                planificadoEn,
+                resultado.esFactible(),
+                resultado.esColapso(),
+                resultado.costoTotal(),
+                distanciaTotal,
+                semilla,
+                duracionMs,
+                presupuestoMs,
+                duracionMs >= presupuestoMs,
+                rutas,
+                violaciones,
+                noAtendidos
+        );
     }
 
-    private RutaResponse aRuta(DeliveryRoute ruta, ScheduledDeliveryRoute programada) {
-        List<ParadaResponse> paradas = new ArrayList<>();
-        List<TramoRutaResponse> tramos = new ArrayList<>();
-        if (programada != null) {
-            int orden = 1;
-            for (ScheduledRouteStop parada : programada.scheduledStops()) {
-                // RouteScheduler corre la llegada una hora cuando el conductor toma ahí su refrigerio.
-                Instant arriboReal = parada.approach().arrivesAt();
-                Instant inicioRefrigerio = parada.arrivedAt().isAfter(arriboReal) ? arriboReal : null;
-                // No recalcular ni simplificar: conservar coordenadas y tiempos exactos de RoadNetwork.
-                final int ordenParada = orden;
-                parada.approach().legs().forEach(tramo -> tramos.add(new TramoRutaResponse(ordenParada,
-                        tramo.from().x(), tramo.from().y(), tramo.to().x(), tramo.to().y(),
-                        tramo.departsAt(), tramo.arrivesAt())));
-                paradas.add(aParada(orden++, parada.stop(), parada.arrivedAt(), parada.completedAt(),
-                        parada.loadBefore(), parada.loadAfter(), inicioRefrigerio, camino(parada.approach())));
+    private RutaResponse aRuta(
+            DeliveryRoute ruta,
+            ScheduledDeliveryRoute programada
+    ) {
+
+        List<ParadaResponse> paradas =
+                new ArrayList<>();
+
+        List<TramoRutaResponse> tramos =
+                new ArrayList<>();
+
+        if (
+                programada != null
+        ) {
+
+            int orden =
+                    1;
+
+            for (
+                    ScheduledRouteStop parada :
+                    programada.scheduledStops()
+            ) {
+
+                /*
+                 * Llegada física.
+                 *
+                 * Ahora ScheduledRouteStop.arrivedAt()
+                 * NO incluye el refrigerio.
+                 */
+                Instant llegada =
+                        parada.arrivedAt();
+
+                /*
+                 * Hora en la que termina el servicio
+                 * normal de la parada.
+                 */
+                Instant finServicio =
+                        finServicio(
+                                parada
+                        );
+
+                /*
+                 * Si completedAt es posterior al fin
+                 * normal del servicio, significa que
+                 * se agregó una hora de refrigerio.
+                 */
+                Instant inicioRefrigerio =
+                        parada
+                                .completedAt()
+                                .isAfter(
+                                        finServicio
+                                )
+                                ? finServicio
+                                : null;
+
+                /*
+                 * Conservar exactamente los RoadLeg
+                 * producidos por RoadNetwork.
+                 */
+                final int ordenParada =
+                        orden;
+
+                parada
+                        .approach()
+                        .legs()
+                        .forEach(
+                                tramo ->
+                                        tramos.add(
+                                                new TramoRutaResponse(
+                                                        ordenParada,
+
+                                                        tramo
+                                                                .from()
+                                                                .x(),
+
+                                                        tramo
+                                                                .from()
+                                                                .y(),
+
+                                                        tramo
+                                                                .to()
+                                                                .x(),
+
+                                                        tramo
+                                                                .to()
+                                                                .y(),
+
+                                                        tramo
+                                                                .departsAt(),
+
+                                                        tramo
+                                                                .arrivesAt()
+                                                )
+                                        )
+                        );
+
+                paradas.add(
+                        aParada(
+                                orden++,
+
+                                parada.stop(),
+
+                                llegada,
+
+                                parada.completedAt(),
+
+                                parada.loadBefore(),
+
+                                parada.loadAfter(),
+
+                                inicioRefrigerio,
+
+                                camino(
+                                        parada.approach()
+                                )
+                        )
+                );
             }
+
         } else {
-            int orden = 1;
-            for (RouteStop parada : ruta.stops()) {
-                paradas.add(aParada(orden++, parada, null, null, null, null, null, null));
+
+            int orden =
+                    1;
+
+            for (
+                    RouteStop parada :
+                    ruta.stops()
+            ) {
+
+                paradas.add(
+                        aParada(
+                                orden++,
+                                parada,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                        )
+                );
             }
         }
-        return new RutaResponse(ruta.id(), ruta.vehicle().id(), ruta.vehicle().type().name(), ruta.departureAt(),
-                programada == null ? null : programada.completedAt(),
-                programada == null ? 0 : programada.totalDistanceKm(),
-                programada == null ? 0 : programada.totalCost(), paradas,
-                ruta.initialWarehouse().map(almacen -> almacen.id()).orElse(null), null, null, tramos);
+
+        return new RutaResponse(
+                ruta.id(),
+
+                ruta
+                        .vehicle()
+                        .id(),
+
+                ruta
+                        .vehicle()
+                        .type()
+                        .name(),
+
+                ruta.departureAt(),
+
+                programada == null
+                        ? null
+                        : programada.completedAt(),
+
+                programada == null
+                        ? 0
+                        : programada.totalDistanceKm(),
+
+                programada == null
+                        ? 0
+                        : programada.totalCost(),
+
+                paradas,
+
+                ruta
+                        .initialWarehouse()
+                        .map(
+                                almacen ->
+                                        almacen.id()
+                        )
+                        .orElse(
+                                null
+                        ),
+
+                null,
+
+                null,
+
+                tramos
+        );
     }
 
+    /*
+     * Calcula cuándo termina el servicio normal
+     * SIN considerar refrigerio.
+     */
+    private static Instant finServicio(
+            ScheduledRouteStop parada
+    ) {
 
-    PlanResponse conIdentidadesPersistidas(PlanResponse respuesta, java.util.Map<String, Long> routeIdsPorRutaOperacional,
-                                            long planPersistedId) {
-        List<RutaResponse> rutas = respuesta.rutas().stream()
-                .map(ruta -> new RutaResponse(ruta.id(), ruta.vehiculoId(), ruta.tipoVehiculo(), ruta.salida(),
-                        ruta.llegadaFinal(), ruta.distanciaKm(), ruta.costo(), ruta.paradas(), ruta.almacenInicialId(),
-                        planPersistedId, routeIdsPorRutaOperacional.get(ruta.id()), ruta.tramos()))
-                .toList();
-        return new PlanResponse(respuesta.modo(), respuesta.planificadoEn(), respuesta.factible(), respuesta.colapso(),
-                respuesta.costoTotal(), respuesta.distanciaTotalKm(), respuesta.semilla(), respuesta.duracionMs(),
-                respuesta.presupuestoMs(), respuesta.presupuestoAgotado(), rutas, respuesta.violaciones(),
-                respuesta.noAtendidos());
+        if (
+                parada.stop()
+                        instanceof DeliveryStop
+        ) {
+
+            return parada
+                    .arrivedAt()
+                    .plus(
+                            DeliveryStop.SERVICE_TIME
+                    );
+        }
+
+        /*
+         * WarehouseVisit no tiene una hora
+         * de servicio adicional en el modelo.
+         */
+        return parada.arrivedAt();
     }
-    private ParadaResponse aParada(int orden, RouteStop parada, Instant llegada, Instant fin,
-                                   Integer cargaAntes, Integer cargaDespues, Instant inicioRefrigerio,
-                                   List<ParadaResponse.Punto> camino) {
-        return switch (parada) {
-            case DeliveryStop entrega -> new ParadaResponse(orden, ParadaResponse.ENTREGA,
-                    entrega.order().id(), null, entrega.location().x(), entrega.location().y(),
-                    entrega.deliveredPackages(), llegada, fin, cargaAntes, cargaDespues, inicioRefrigerio, camino);
-            case WarehouseVisit almacen -> new ParadaResponse(orden, ParadaResponse.ALMACEN,
-                    null, almacen.warehouse().id(), almacen.location().x(), almacen.location().y(),
-                    almacen.pickupPackages(), llegada, fin, cargaAntes, cargaDespues, inicioRefrigerio, camino);
+
+    PlanResponse conIdentidadesPersistidas(
+            PlanResponse respuesta,
+            java.util.Map<String, Long> routeIdsPorRutaOperacional,
+            long planPersistedId
+    ) {
+
+        List<RutaResponse> rutas =
+                respuesta
+                        .rutas()
+                        .stream()
+                        .map(
+                                ruta ->
+                                        new RutaResponse(
+                                                ruta.id(),
+
+                                                ruta.vehiculoId(),
+
+                                                ruta.tipoVehiculo(),
+
+                                                ruta.salida(),
+
+                                                ruta.llegadaFinal(),
+
+                                                ruta.distanciaKm(),
+
+                                                ruta.costo(),
+
+                                                ruta.paradas(),
+
+                                                ruta.almacenInicialId(),
+
+                                                planPersistedId,
+
+                                                routeIdsPorRutaOperacional
+                                                        .get(
+                                                                ruta.id()
+                                                        ),
+
+                                                ruta.tramos()
+                                        )
+                        )
+                        .toList();
+
+        return new PlanResponse(
+                respuesta.modo(),
+                respuesta.planificadoEn(),
+                respuesta.factible(),
+                respuesta.colapso(),
+                respuesta.costoTotal(),
+                respuesta.distanciaTotalKm(),
+                respuesta.semilla(),
+                respuesta.duracionMs(),
+                respuesta.presupuestoMs(),
+                respuesta.presupuestoAgotado(),
+                rutas,
+                respuesta.violaciones(),
+                respuesta.noAtendidos()
+        );
+    }
+
+    private ParadaResponse aParada(
+            int orden,
+            RouteStop parada,
+            Instant llegada,
+            Instant fin,
+            Integer cargaAntes,
+            Integer cargaDespues,
+            Instant inicioRefrigerio,
+            List<ParadaResponse.Punto> camino
+    ) {
+
+        return switch (
+                parada
+        ) {
+
+            case DeliveryStop entrega ->
+                    new ParadaResponse(
+                            orden,
+
+                            ParadaResponse.ENTREGA,
+
+                            entrega
+                                    .order()
+                                    .id(),
+
+                            null,
+
+                            entrega
+                                    .location()
+                                    .x(),
+
+                            entrega
+                                    .location()
+                                    .y(),
+
+                            entrega
+                                    .deliveredPackages(),
+
+                            llegada,
+
+                            fin,
+
+                            cargaAntes,
+
+                            cargaDespues,
+
+                            inicioRefrigerio,
+
+                            camino
+                    );
+
+            case WarehouseVisit almacen ->
+                    new ParadaResponse(
+                            orden,
+
+                            ParadaResponse.ALMACEN,
+
+                            null,
+
+                            almacen
+                                    .warehouse()
+                                    .id(),
+
+                            almacen
+                                    .location()
+                                    .x(),
+
+                            almacen
+                                    .location()
+                                    .y(),
+
+                            almacen
+                                    .pickupPackages(),
+
+                            llegada,
+
+                            fin,
+
+                            cargaAntes,
+
+                            cargaDespues,
+
+                            inicioRefrigerio,
+
+                            camino
+                    );
         };
     }
 
-    /** Nodos del camino real hacia la parada (el que rodea los bloqueos), del origen del tramo a la parada. */
-    private static List<ParadaResponse.Punto> camino(RoadPath tramo) {
-        List<ParadaResponse.Punto> nodos = new ArrayList<>(tramo.legs().size() + 1);
-        nodos.add(new ParadaResponse.Punto(tramo.origin().x(), tramo.origin().y()));
-        for (RoadLeg calle : tramo.legs()) {
-            nodos.add(new ParadaResponse.Punto(calle.to().x(), calle.to().y()));
+    /**
+     * Nodos del camino real hacia la parada.
+     */
+    private static List<ParadaResponse.Punto> camino(
+            RoadPath tramo
+    ) {
+
+        List<ParadaResponse.Punto> nodos =
+                new ArrayList<>(
+                        tramo
+                                .legs()
+                                .size() +
+                                1
+                );
+
+        nodos.add(
+                new ParadaResponse.Punto(
+                        tramo
+                                .origin()
+                                .x(),
+
+                        tramo
+                                .origin()
+                                .y()
+                )
+        );
+
+        for (
+                RoadLeg calle :
+                tramo.legs()
+        ) {
+
+            nodos.add(
+                    new ParadaResponse.Punto(
+                            calle
+                                    .to()
+                                    .x(),
+
+                            calle
+                                    .to()
+                                    .y()
+                    )
+            );
         }
-        return List.copyOf(nodos);
+
+        return List.copyOf(
+                nodos
+        );
     }
 
-    private ViolacionResponse aViolacion(PlanViolation violacion) {
-        return new ViolacionResponse(violacion.type().name(), violacion.routeId(), violacion.detail());
+    private ViolacionResponse aViolacion(
+            PlanViolation violacion
+    ) {
+
+        return new ViolacionResponse(
+                violacion
+                        .type()
+                        .name(),
+
+                violacion.routeId(),
+
+                violacion.detail()
+        );
     }
 
-    private NoAtendidoResponse aNoAtendido(Order pedido) {
-        return new NoAtendidoResponse(pedido.id(), pedido.packages(), pedido.deadline());
+    private NoAtendidoResponse aNoAtendido(
+            Order pedido
+    ) {
+
+        return new NoAtendidoResponse(
+                pedido.id(),
+                pedido.packages(),
+                pedido.deadline()
+        );
     }
 }

@@ -11,9 +11,11 @@ import com.pucp.paqrap.modulos.redvial.entity.*;
 import com.pucp.paqrap.modulos.redvial.service.*;
 
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 
 /** Complete immutable input state consumed by exactly one planner iteration. */
 public final class OperationalSnapshot {
@@ -33,7 +35,9 @@ public final class OperationalSnapshot {
         this.planningTime = Objects.requireNonNull(planningTime, "planningTime is required");
         this.fleetProfile = Objects.requireNonNull(fleetProfile, "fleetProfile is required");
         this.inventory = Objects.requireNonNull(inventory, "inventory is required");
-        this.vehiclesById = Map.copyOf(Objects.requireNonNull(vehiclesById, "vehiclesById is required"));
+        // Ordenado por id de vehículo (ver OperationalPlan): el orden de iteración debe ser reproducible.
+        this.vehiclesById = Collections.unmodifiableMap(
+                new TreeMap<>(Map.copyOf(Objects.requireNonNull(vehiclesById, "vehiclesById is required"))));
         this.maintenanceCalendar = Objects.requireNonNull(maintenanceCalendar, "maintenanceCalendar is required");
         this.shiftSchedule = Objects.requireNonNull(shiftSchedule, "shiftSchedule is required");
         this.breakdownCalculator = new BreakdownAvailabilityCalculator(this.shiftSchedule);
