@@ -1,6 +1,8 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -19,14 +21,8 @@ import type {
 } from "konva/lib/Node";
 
 import {
-  Arrow,
-  Circle,
-  Group,
   Layer,
-  Line,
-  Rect,
   Stage,
-  Text,
 } from "react-konva";
 
 import type {
@@ -53,46 +49,63 @@ import {
   useElementSize,
 } from "@/hooks/useElementSize";
 
-import {
-  useRelojSimuladoAnimado,
-} from "@/hooks/useRelojSimuladoAnimado";
 
 import type {
   AlmacenMapa,
-  ParadaMapa,
   PedidoOperacion,
   RutaMapa,
-  TipoVehiculo,
   VehiculoMapa,
 } from "./ejecucion.types";
 
 import {
-  convertirTrazoAPixeles,
-  obtenerTrazosRuta,
   obtenerTramosTemporizados,
 } from "./geometriaRutas";
-import { claveGrupoVehiculo, debeAgruparVehiculos } from "./agrupamientoVehiculos";
 
 import {
   nombreParada,
   obtenerSeguimientoRuta,
-  type SeguimientoRuta,
 } from "./seguimientoRuta";
+
+import {
+  CapaReticula,
+} from "./CapaReticula";
+
+import {
+  CapaBloqueos,
+} from "./CapaBloqueos";
+
+import {
+  CapaAlmacenes,
+} from "./CapaAlmacenes";
+
+import {
+  CapaAverias,
+} from "./CapaAverias";
+
+import type {
+  VehiculoVisual,
+} from "./CapaVehiculos";
+
+import {
+  CapaPedidos,
+} from "./CapaPedidos";
+
+import {
+  CapaDinamicaMapa,
+} from "./CapaDinamicaMapa";
+
+
+import {
+  usePanZoomCompositor,
+} from "@/hooks/usePanZoomCompositor";
+
 
 const ANCHO_MAPA = 70;
 const ALTO_MAPA = 50;
 
 const PADDING = 34;
 
-const COLORES_VEHICULO:
-  Record<
-    TipoVehiculo,
-    string
-  > = {
-  AUTO: "#3b82f6",
-  MOTO: "#22c55e",
-  BICICLETA: "#f59e0b",
-};
+
 
 type FiltroMapa =
   | "AUTOS"
@@ -125,34 +138,34 @@ interface VistaMapa {
 
 interface MapaOperacionProps {
   pedidos:
-    PedidoOperacion[];
+  PedidoOperacion[];
 
   almacenes:
-    AlmacenMapa[];
+  AlmacenMapa[];
 
   vehiculos:
-    VehiculoMapa[];
+  VehiculoMapa[];
 
   rutas:
-    RutaMapa[];
+  RutaMapa[];
 
   bloqueos:
-    BloqueoMonitoreoDto[];
+  BloqueoMonitoreoDto[];
 
   averias:
-    AveriaResponseDto[];
+  AveriaResponseDto[];
 
   instanteSimulado:
-    string;
+  string;
 
   factorAceleracion:
-    number;
+  number;
 
   estadoEscenario:
-    EstadoEscenarioBackend;
+  EstadoEscenarioBackend;
 
   tiposFlota:
-    TipoVehiculoResponseDto[];
+  TipoVehiculoResponseDto[];
 
   seleccionVehiculoId?: string | null;
   seleccionPedidoId?: string | null;
@@ -163,27 +176,6 @@ interface MapaOperacionProps {
   onSeleccionarAlmacen?: (id: string) => void;
 }
 
-interface VehiculoVisual {
-  vehiculo:
-    VehiculoMapa;
-
-  ruta?: RutaMapa;
-
-  seguimiento?:
-    SeguimientoRuta;
-
-  x: number;
-  y: number;
-
-  enMovimiento:
-    boolean;
-
-  progresoTramo:
-    number;
-
-  direccionGrados:
-    number | null;
-}
 
 export function MapaOperacion({
   pedidos,
@@ -224,6 +216,35 @@ export function MapaOperacion({
       y: 0,
     });
 
+  const confirmarVista =
+    useCallback(
+      (
+        nuevaVista:
+          VistaMapa,
+      ) => {
+        setVista(
+          nuevaVista,
+        );
+      },
+      [],
+    );
+
+  const {
+    stageRef,
+    iniciarPan,
+    aplicarZoom:
+    aplicarZoomCompositor,
+  } =
+    usePanZoomCompositor({
+      vista,
+
+      onConfirmar:
+        confirmarVista,
+    });
+
+
+  const arrastrandoMapa = false;
+
   const [
     tooltip,
     setTooltip,
@@ -231,6 +252,17 @@ export function MapaOperacion({
     useState<
       TooltipMapa | null
     >(null);
+
+  const ultimoTooltipMsRef =
+    useRef(0);
+
+  const ultimoTooltipTituloRef =
+    useRef<string | null>(
+      null,
+    );
+
+  const INTERVALO_TOOLTIP_MS =
+    80;
 
   const [
     vehiculoSeleccionadoId,
@@ -275,11 +307,7 @@ export function MapaOperacion({
   ] =
     useState<NivelSemaforo>("TODOS");
 
-  useEffect(() => {
-    setVehiculoSeleccionadoId(
-      seleccionVehiculoId,
-    );
-  }, [seleccionVehiculoId]);
+
 
   /*
    * El servidor es la fuente
@@ -289,226 +317,377 @@ export function MapaOperacion({
    * visualmente el tiempo entre
    * respuestas del polling.
    */
-  const instanteAnimadoMs =
-    useRelojSimuladoAnimado(
-      instanteSimulado,
-      factorAceleracion,
-      estadoEscenario,
+
+  const instanteServidorMs =
+    useMemo(
+      () => {
+        const valor =
+          new Date(
+            instanteSimulado,
+          ).getTime();
+
+        return Number.isFinite(
+          valor,
+        )
+          ? valor
+          : Date.now();
+      },
+      [
+        instanteSimulado,
+      ],
     );
 
-  const capacidadPorTipo =
-    useMemo(
-      () =>
-        new Map(
-          tiposFlota.map(
-            (tipo) => [
-              adaptarTipoVehiculo(
-                tipo.tipo,
-              ),
-              tipo.capacidadPaquetes,
-            ],
-          ),
-        ),
-      [tiposFlota],
-    );
+
+
+  /*
+ * Los vehículos necesitan animación frecuente,
+ * pero el estado visual de vencimiento de los
+ * pedidos no.
+ *
+ * Redondeamos al minuto simulado para evitar
+ * recalcular todos los pedidos en cada frame.
+ */
+  const instantePedidosMs =
+    Math.floor(
+      instanteServidorMs /
+      60_000,
+    ) *
+    60_000;
 
   /*
    * Conversión coordenadas de negocio
    * 70 x 50 a pixels de Konva.
    */
-  const geometria =
-    useMemo(() => {
-      const anchoDisponible =
+const geometria =
+  useMemo(() => {
+    const anchoDisponible =
+      Math.max(
+        1,
+        width -
+          PADDING * 2,
+      );
+
+    const altoDisponible =
+      Math.max(
+        1,
+        height -
+          PADDING * 2,
+      );
+
+    const escalaBase =
+      Math.min(
+        anchoDisponible /
+          ANCHO_MAPA,
+
+        altoDisponible /
+          ALTO_MAPA,
+      );
+
+    const ancho =
+      ANCHO_MAPA *
+      escalaBase;
+
+    const alto =
+      ALTO_MAPA *
+      escalaBase;
+
+    const origenX =
+      (width - ancho) /
+      2;
+
+    const origenY =
+      (height - alto) /
+      2;
+
+    return {
+      escalaBase,
+
+      ancho,
+      alto,
+
+      origenX,
+      origenY,
+
+      x: (
+        valor: number,
+      ) =>
+        origenX +
+        valor *
+          escalaBase,
+
+      y: (
+        valor: number,
+      ) =>
+        origenY +
+        (ALTO_MAPA -
+          valor) *
+          escalaBase,
+    };
+  }, [
+    height,
+    width,
+  ]);
+
+/*
+ * =========================================================
+ * VIEWPORT VISIBLE
+ * =========================================================
+ *
+ * Se calcula DESPUÉS de geometria.
+ */
+const viewportMapa =
+  useMemo(
+    () => {
+      const escalaVista =
         Math.max(
-          1,
-          width -
-            PADDING * 2,
+          vista.escala,
+          0.0001,
         );
 
-      const altoDisponible =
-        Math.max(
-          1,
-          height -
-            PADDING * 2,
-        );
+      const izquierdaPx =
+        -vista.x /
+        escalaVista;
 
-      const escalaBase =
-        Math.min(
-          anchoDisponible /
-            ANCHO_MAPA,
+      const derechaPx =
+        (width -
+          vista.x) /
+        escalaVista;
 
-          altoDisponible /
-            ALTO_MAPA,
-        );
+      const arribaPx =
+        -vista.y /
+        escalaVista;
 
-      const ancho =
-        ANCHO_MAPA *
-        escalaBase;
+      const abajoPx =
+        (height -
+          vista.y) /
+        escalaVista;
 
-      const alto =
-        ALTO_MAPA *
-        escalaBase;
+      const convertirPixelAX =
+        (
+          pixel: number,
+        ) =>
+          (
+            pixel -
+            geometria.origenX
+          ) /
+          geometria.escalaBase;
 
-      const origenX =
-        (width - ancho) /
-        2;
+      const convertirPixelAY =
+        (
+          pixel: number,
+        ) =>
+          ALTO_MAPA -
+          (
+            pixel -
+            geometria.origenY
+          ) /
+            geometria.escalaBase;
 
-      const origenY =
-        (height - alto) /
+      const margen =
         2;
 
       return {
-        escalaBase,
+        minX:
+          convertirPixelAX(
+            izquierdaPx,
+          ) -
+          margen,
 
-        ancho,
-        alto,
+        maxX:
+          convertirPixelAX(
+            derechaPx,
+          ) +
+          margen,
 
-        origenX,
-        origenY,
+        minY:
+          convertirPixelAY(
+            abajoPx,
+          ) -
+          margen,
 
-        x: (
-          valor: number,
-        ) =>
-          origenX +
-          valor *
-            escalaBase,
-
-        y: (
-          valor: number,
-        ) =>
-          origenY +
-          (ALTO_MAPA -
-            valor) *
-            escalaBase,
+        maxY:
+          convertirPixelAY(
+            arribaPx,
+          ) +
+          margen,
       };
-    }, [
+    },
+    [
+      geometria,
       height,
+      vista.escala,
+      vista.x,
+      vista.y,
       width,
-    ]);
-
-  const rutasPorVehiculo =
-    useMemo(() => {
-      return new Map(
-        rutas.map(
-          (ruta) => [
-            ruta.vehiculoId,
-            ruta,
-          ],
-        ),
-      );
-    }, [rutas]);
-
-  const rutasSinGeometria = useMemo(
-    () => rutas.filter((ruta) => ruta.distanciaKm > 0 && obtenerTramosTemporizados(ruta).length === 0).length,
-    [rutas],
+    ],
   );
 
-  const rutasSeleccionadasPorPedido =
-    useMemo(
-      () =>
-        new Set(
-          seleccionPedidoId
-            ? rutas
-                .filter((ruta) =>
-                  ruta.paradas.some(
-                    (parada) =>
-                      parada.pedidoId === seleccionPedidoId,
-                  ),
-                )
-                .map((ruta) => ruta.id)
-            : [],
-        ),
-      [rutas, seleccionPedidoId],
-    );
+  const viewportPixeles =
+  useMemo(
+    () => {
+      const escala =
+        Math.max(
+          vista.escala,
+          0.0001,
+        );
+
+      /*
+       * Coordenadas visibles dentro del
+       * sistema local del Stage.
+       *
+       * convertirTrazoAPixeles usa exactamente
+       * este mismo sistema.
+       */
+      const margen =
+        100 /
+        escala;
+
+      return {
+        minX:
+          -vista.x /
+            escala -
+          margen,
+
+        maxX:
+          (width -
+            vista.x) /
+            escala +
+          margen,
+
+        minY:
+          -vista.y /
+            escala -
+          margen,
+
+        maxY:
+          (height -
+            vista.y) /
+            escala +
+          margen,
+      };
+    },
+    [
+      height,
+      vista.escala,
+      vista.x,
+      vista.y,
+      width,
+    ],
+  );
+
+const rutasSinGeometria =
+  useMemo(
+    () =>
+      rutas.filter(
+        (ruta) =>
+          ruta.distanciaKm >
+            0 &&
+          obtenerTramosTemporizados(
+            ruta,
+          ).length ===
+            0,
+      ).length,
+    [
+      rutas,
+    ],
+  );
 
   /*
    * Posición visual animada
    * para cada vehículo.
    */
-  const vehiculosVisuales =
-    useMemo<
-      VehiculoVisual[]
-    >(() => {
-      return vehiculos.map(
-        (vehiculo) => {
-          const ruta =
-            rutasPorVehiculo.get(
-              vehiculo.id,
-            );
 
-          if (!ruta) {
-            return {
-              vehiculo,
-
-              x: vehiculo.x,
-              y: vehiculo.y,
-
-              enMovimiento:
-                false,
-
-              progresoTramo:
-                0,
-
-              direccionGrados:
-                null,
-            };
-          }
-
-          const seguimiento =
-            obtenerSeguimientoRuta(
-              ruta,
-              vehiculo,
-              instanteAnimadoMs,
-            );
-
-          return {
-            vehiculo,
-            ruta,
-            seguimiento,
-
-            x:
-              seguimiento
-                .posicionVisual
-                .x,
-
-            y:
-              seguimiento
-                .posicionVisual
-                .y,
-
-            enMovimiento:
-              seguimiento
-                .enMovimiento,
-
-            progresoTramo:
-              seguimiento
-                .progresoTramo,
-
-            direccionGrados:
-              seguimiento
-                .direccionGrados,
-          };
-        },
-      );
-    }, [
-      instanteAnimadoMs,
-      rutasPorVehiculo,
-      vehiculos,
-    ]);
 
   const visualSeleccionado =
-    useMemo(
-      () =>
-        vehiculosVisuales.find(
-          (item) =>
-            item.vehiculo
-              .id ===
-            vehiculoSeleccionadoId,
-        ) ?? null,
+    useMemo<
+      VehiculoVisual | null
+    >(
+      () => {
+        if (
+          !vehiculoSeleccionadoId
+        ) {
+          return null;
+        }
 
+        const vehiculo =
+          vehiculos.find(
+            (item) =>
+              item.id ===
+              vehiculoSeleccionadoId,
+          );
+
+        if (!vehiculo) {
+          return null;
+        }
+
+        const ruta =
+          rutas.find(
+            (item) =>
+              item.vehiculoId ===
+              vehiculo.id,
+          );
+
+        if (!ruta) {
+          return {
+            vehiculo,
+
+            x:
+              vehiculo.x,
+
+            y:
+              vehiculo.y,
+
+            enMovimiento:
+              false,
+
+            progresoTramo:
+              0,
+
+            direccionGrados:
+              null,
+          };
+        }
+
+        const seguimiento =
+          obtenerSeguimientoRuta(
+            ruta,
+            vehiculo,
+            instanteServidorMs,
+          );
+
+        return {
+          vehiculo,
+          ruta,
+          seguimiento,
+
+          x:
+            seguimiento
+              .posicionVisual
+              .x,
+
+          y:
+            seguimiento
+              .posicionVisual
+              .y,
+
+          enMovimiento:
+            seguimiento
+              .enMovimiento,
+
+          progresoTramo:
+            seguimiento
+              .progresoTramo,
+
+          direccionGrados:
+            seguimiento
+              .direccionGrados,
+        };
+      },
       [
+        instanteServidorMs,
+        rutas,
         vehiculoSeleccionadoId,
-        vehiculosVisuales,
+        vehiculos,
       ],
     );
 
@@ -517,49 +696,7 @@ export function MapaOperacion({
    * en el mismo punto para evitar
    * 37 iconos exactamente superpuestos.
    */
-  const gruposVehiculos =
-    useMemo(() => {
-      const grupos =
-        new Map<
-          string,
-          VehiculoVisual[]
-        >();
 
-      for (
-        const visual of
-        vehiculosVisuales
-      ) {
-        const seleccionado =
-          visual.vehiculo
-            .id ===
-          vehiculoSeleccionadoId;
-
-        const clave = claveGrupoVehiculo(
-          visual.vehiculo.id, visual.x, visual.y, visual.enMovimiento, seleccionado,
-        );
-
-        const grupo =
-          grupos.get(
-            clave,
-          ) ?? [];
-
-        grupo.push(
-          visual,
-        );
-
-        grupos.set(
-          clave,
-          grupo,
-        );
-      }
-
-      return [
-        ...grupos.values(),
-      ];
-    }, [
-      vehiculoSeleccionadoId,
-      vehiculosVisuales,
-    ]);
 
   function alternarFiltro(
     filtro:
@@ -571,112 +708,159 @@ export function MapaOperacion({
 
         [filtro]:
           !actuales[
-            filtro
+          filtro
           ],
       }),
     );
   }
 
-  function mostrarTooltip(
-    event:
-      KonvaEventObject<MouseEvent>,
+  const mostrarTooltip =
+    useCallback(
+      (
+        event:
+          KonvaEventObject<MouseEvent>,
 
-    titulo: string,
+        titulo:
+          string,
 
-    lineas: string[],
-  ) {
-    const rect =
-      contenedorRef.current
-        ?.getBoundingClientRect();
+        lineas:
+          string[],
+      ) => {
+        /*
+         * Durante el pan no hacemos ningún
+         * trabajo de tooltip.
+         */
+        if (
+          arrastrandoMapa
+        ) {
+          return;
+        }
 
-    if (!rect) {
-      return;
-    }
+        const rect =
+          contenedorRef.current
+            ?.getBoundingClientRect();
 
-    setTooltip({
-      x:
-        event.evt.clientX -
-        rect.left +
-        12,
+        if (!rect) {
+          return;
+        }
 
-      y:
-        event.evt.clientY -
-        rect.top +
-        12,
+        const ahora =
+          performance.now();
 
-      titulo,
-      lineas,
-    });
+        const mismoElemento =
+          ultimoTooltipTituloRef
+            .current ===
+          titulo;
+
+        /*
+         * No actualizamos React por cada píxel
+         * recorrido por el mouse.
+         */
+        if (
+          mismoElemento &&
+          ahora -
+          ultimoTooltipMsRef.current <
+          INTERVALO_TOOLTIP_MS
+        ) {
+          return;
+        }
+
+        ultimoTooltipMsRef.current =
+          ahora;
+
+        ultimoTooltipTituloRef.current =
+          titulo;
+
+        setTooltip({
+          x:
+            event.evt.clientX -
+            rect.left +
+            12,
+
+          y:
+            event.evt.clientY -
+            rect.top +
+            12,
+
+          titulo,
+
+          lineas,
+        });
+      },
+      [
+        arrastrandoMapa,
+        contenedorRef,
+      ],
+    );
+
+  const ocultarTooltip =
+    useCallback(
+      () => {
+        ultimoTooltipTituloRef.current =
+          null;
+
+        setTooltip(
+          null,
+        );
+      },
+      [],
+    );
+  const seleccionarVehiculo =
+    useCallback(
+      (id: string) => {
+        setVehiculoSeleccionadoId(
+          id,
+        );
+
+        onSeleccionarVehiculo?.(
+          id,
+        );
+      },
+      [
+        onSeleccionarVehiculo,
+      ],
+    );
+
+  const seleccionarPedido =
+    useCallback(
+      (
+        id: string,
+      ) => {
+        onSeleccionarPedido?.(
+          id,
+        );
+      },
+      [
+        onSeleccionarPedido,
+      ],
+    );
+
+
+
+ function manejarRueda(
+  event:
+    KonvaEventObject<WheelEvent>,
+) {
+  event.evt.preventDefault();
+
+  const rect =
+    contenedorRef.current
+      ?.getBoundingClientRect();
+
+  if (!rect) {
+    return;
   }
 
-  function ocultarTooltip() {
-    setTooltip(null);
-  }
+  aplicarZoomCompositor(
+    event.evt.clientX -
+      rect.left,
 
-  function manejarRueda(
-    event:
-      KonvaEventObject<WheelEvent>,
-  ) {
-    event.evt.preventDefault();
+    event.evt.clientY -
+      rect.top,
 
-    const stage =
-      event.target.getStage();
-
-    const puntero =
-      stage
-        ?.getPointerPosition();
-
-    if (!puntero) {
-      return;
-    }
-
-    const escalaAnterior =
-      vista.escala;
-
-    const puntoMapa = {
-      x:
-        (puntero.x -
-          vista.x) /
-        escalaAnterior,
-
-      y:
-        (puntero.y -
-          vista.y) /
-        escalaAnterior,
-    };
-
-    const factor =
-      event.evt.deltaY >
-      0
-        ? 0.9
-        : 1.1;
-
-    const nuevaEscala =
-      Math.min(
-        3.5,
-        Math.max(
-          0.75,
-
-          escalaAnterior *
-            factor,
-        ),
-      );
-
-    setVista({
-      escala:
-        nuevaEscala,
-
-      x:
-        puntero.x -
-        puntoMapa.x *
-          nuevaEscala,
-
-      y:
-        puntero.y -
-        puntoMapa.y *
-          nuevaEscala,
-    });
-  }
+    event.evt.deltaY,
+  );
+}
 
   function aplicarZoom(
     factor: number,
@@ -708,7 +892,7 @@ export function MapaOperacion({
           0.75,
 
           vista.escala *
-            factor,
+          factor,
         ),
       );
 
@@ -719,12 +903,12 @@ export function MapaOperacion({
       x:
         centro.x -
         puntoMapa.x *
-          nuevaEscala,
+        nuevaEscala,
 
       y:
         centro.y -
         puntoMapa.y *
-          nuevaEscala,
+        nuevaEscala,
     });
   }
 
@@ -754,7 +938,7 @@ export function MapaOperacion({
           <Stage
             width={width}
             height={height}
-            draggable
+
 
             x={vista.x}
             y={vista.y}
@@ -771,29 +955,30 @@ export function MapaOperacion({
               manejarRueda
             }
 
-            onDragEnd={(
-              event,
-            ) =>
-              setVista(
-                (actual) => ({
-                  ...actual,
 
-                  x:
-                    event
-                      .target
-                      .x(),
-
-                  y:
-                    event
-                      .target
-                      .y(),
-                }),
-              )
-            }
 
             onMouseDown={(
               event,
             ) => {
+              if (
+                event.evt.button !==
+                0
+              ) {
+                return;
+              }
+
+              iniciarPan(
+                event.evt.clientX,
+                event.evt.clientY,
+              );
+
+              setTooltip(
+                null,
+              );
+
+              ultimoTooltipTituloRef.current =
+                null;
+
               if (
                 event.target ===
                 event.target.getStage()
@@ -803,947 +988,295 @@ export function MapaOperacion({
                 );
               }
             }}
+            ref={
+              stageRef
+            }
+
+
           >
-            {/* RETÍCULA */}
+            <CapaReticula
+              geometria={
+                geometria
+              }
+              anchoMapa={
+                ANCHO_MAPA
+              }
+              altoMapa={
+                ALTO_MAPA
+              }
+            />
+
+            {/* BLOQUEOS */}
             <Layer
+              name="pan-pesado"
+
               listening={
-                false
+                !arrastrandoMapa
+              }
+
+              visible={
+                !arrastrandoMapa
               }
             >
-              <Rect
-                x={
-                  geometria
-                    .origenX
+              <CapaBloqueos
+                bloqueos={
+                  bloqueos
                 }
-                y={
-                  geometria
-                    .origenY
+
+                visible={
+                  filtros.BLOQUEOS
                 }
-                width={
-                  geometria
-                    .ancho
+
+                convertirX={
+                  geometria.x
                 }
-                height={
-                  geometria
-                    .alto
+
+                convertirY={
+                  geometria.y
                 }
-                fill="#ffffff"
-                stroke="#64748b"
-                strokeWidth={
-                  1.5
+
+                onTooltip={
+                  mostrarTooltip
+                }
+
+                onLeave={
+                  ocultarTooltip
                 }
               />
-
-              {Array.from(
-                {
-                  length:
-                    ANCHO_MAPA +
-                    1,
-                },
-
-                (_, x) => (
-                  <Line
-                    key={`vertical-${x}`}
-                    points={[
-                      geometria.x(
-                        x,
-                      ),
-
-                      geometria.y(
-                        0,
-                      ),
-
-                      geometria.x(
-                        x,
-                      ),
-
-                      geometria.y(
-                        ALTO_MAPA,
-                      ),
-                    ]}
-                    stroke={
-                      x % 5 ===
-                      0
-                        ? "#94a3b8"
-                        : "#dbe4ef"
-                    }
-                    strokeWidth={
-                      x % 5 ===
-                      0
-                        ? 0.8
-                        : 0.35
-                    }
-                  />
-                ),
-              )}
-
-              {Array.from(
-                {
-                  length:
-                    ALTO_MAPA +
-                    1,
-                },
-
-                (_, y) => (
-                  <Line
-                    key={`horizontal-${y}`}
-                    points={[
-                      geometria.x(
-                        0,
-                      ),
-
-                      geometria.y(
-                        y,
-                      ),
-
-                      geometria.x(
-                        ANCHO_MAPA,
-                      ),
-
-                      geometria.y(
-                        y,
-                      ),
-                    ]}
-                    stroke={
-                      y % 5 ===
-                      0
-                        ? "#94a3b8"
-                        : "#dbe4ef"
-                    }
-                    strokeWidth={
-                      y % 5 ===
-                      0
-                        ? 0.8
-                        : 0.35
-                    }
-                  />
-                ),
-              )}
             </Layer>
 
-            <Layer>
-              {/* BLOQUEOS */}
-              {filtros.BLOQUEOS &&
-                bloqueos.map(
-                  (
-                    bloqueo,
-                  ) => {
-                    const puntos =
-                      bloqueo.nodos.flatMap(
-                        (
-                          nodo,
-                        ) => [
-                          geometria.x(
-                            nodo.x,
-                          ),
+            {/* CAPAS DINÁMICAS */}
+            <CapaDinamicaMapa
+              vehiculos={
+                vehiculos
+              }
 
-                          geometria.y(
-                            nodo.y,
-                          ),
-                        ],
-                      );
+              rutas={
+                rutas
+              }
 
-                    return (
-                      <Group
-                        key={`bloqueo-${bloqueo.id}`}
+              viewportPixeles={
+  viewportPixeles
+}
 
-                        onMouseEnter={(
-                          event,
-                        ) =>
-                          mostrarTooltip(
-                            event,
 
-                            `Bloqueo #${bloqueo.id}`,
+              tiposFlota={
+                tiposFlota
+              }
 
-                            [
-                              `${bloqueo.nodos.length} nodos`,
+              instanteSimulado={
+                instanteSimulado
+              }
 
-                              `Inicio: ${formatearFecha(
-                                bloqueo.inicio,
-                              )}`,
+              factorAceleracion={
+                factorAceleracion
+              }
 
-                              `Fin: ${formatearFecha(
-                                bloqueo.fin,
-                              )}`,
-                            ],
-                          )
-                        }
+              estadoEscenario={
+                estadoEscenario
+              }
 
-                        onMouseMove={(
-                          event,
-                        ) =>
-                          mostrarTooltip(
-                            event,
+              vehiculoSeleccionadoId={
+                vehiculoSeleccionadoId
+              }
 
-                            `Bloqueo #${bloqueo.id}`,
+              seleccionPedidoId={
+                seleccionPedidoId
+              }
 
-                            [
-                              `${bloqueo.nodos.length} nodos`,
+              mostrarRutas={
+                filtros.RUTAS
+              }
 
-                              `Inicio: ${formatearFecha(
-                                bloqueo.inicio,
-                              )}`,
+              mostrarAutos={
+                filtros.AUTOS
+              }
 
-                              `Fin: ${formatearFecha(
-                                bloqueo.fin,
-                              )}`,
-                            ],
-                          )
-                        }
+              mostrarMotos={
+                filtros.MOTOS
+              }
 
-                        onMouseLeave={
-                          ocultarTooltip
-                        }
-                      >
-                        <Line
-                          points={
-                            puntos
-                          }
-                          stroke="#dc2626"
-                          strokeWidth={
-                            7
-                          }
-                          opacity={
-                            0.65
-                          }
-                          lineCap="round"
-                          lineJoin="round"
-                        />
+              mostrarBicicletas={
+                filtros.BICICLETAS
+              }
 
-                        {bloqueo.nodos.map(
-                          (
-                            nodo,
-                            index,
-                          ) => (
-                            <Circle
-                              key={`${bloqueo.id}-${index}`}
-                              x={geometria.x(
-                                nodo.x,
-                              )}
-                              y={geometria.y(
-                                nodo.y,
-                              )}
-                              radius={
-                                3.2
-                              }
-                              fill="#991b1b"
-                            />
-                          ),
-                        )}
-                      </Group>
-                    );
-                  },
-                )}
+              filtroCarga={
+                filtroCargaVehiculos
+              }
 
-              {/* RUTAS */}
-              {filtros.RUTAS &&
-                rutas.map(
-                  (ruta) => {
-                    const visual =
-                      vehiculosVisuales.find(
-                        (
-                          item,
-                        ) =>
-                          item
-                            .vehiculo
-                            .id ===
-                          ruta.vehiculoId,
-                      );
+              verdeHasta={
+                configuracion
+                  .vehiculoVerdeHasta
+              }
 
-                    if (
-                      !visual
-                    ) {
-                      return null;
+              ambarHasta={
+                configuracion
+                  .vehiculoAmbarHasta
+              }
+
+              convertirX={
+                geometria.x
+              }
+
+              convertirY={
+                geometria.y
+              }
+
+              onSeleccionarVehiculo={
+                seleccionarVehiculo
+              }
+
+              onTooltip={
+                mostrarTooltip
+              }
+
+              onLeave={
+                ocultarTooltip
+              }
+
+              modoPan={
+                arrastrandoMapa
+              }
+
+              capaIntermedia={
+                <Layer
+                  name="pan-pesado"
+                  listening={
+                    !arrastrandoMapa
+                  }
+                  visible={
+                    !arrastrandoMapa
+                  }
+                >
+                  <CapaPedidos
+                    pedidos={
+                      pedidos
                     }
 
-                    const color =
-                      COLORES_VEHICULO[
-                        ruta
-                          .tipoVehiculo
-                      ];
-
-                    const seleccionada =
-                      ruta.vehiculoId ===
-                        vehiculoSeleccionadoId ||
-                      rutasSeleccionadasPorPedido.has(
-                        ruta.id,
-                      );
-
-                    const haySeleccion =
-                      vehiculoSeleccionadoId !==
-                        null ||
-                      seleccionPedidoId !==
-                        null;
-
-                    /*
-                     * Para rutas no seleccionadas
-                     * mostramos únicamente el
-                     * futuro pendiente.
-                     */
-                    if (
-                      !seleccionada
-                    ) {
-                      const trazos = obtenerTrazosRuta(ruta, instanteAnimadoMs).pendientes;
-                      return (
-                        <Group key={ruta.id}>
-                          {trazos.map((trazo, indice) => (
-                            <Arrow
-                              key={`${ruta.id}-pendiente-${indice}`}
-                              points={convertirTrazoAPixeles(trazo, geometria.x, geometria.y)}
-                              stroke={color}
-                              fill={color}
-                              strokeWidth={2.5}
-                              opacity={haySeleccion ? 0.12 : 0.55}
-                              dash={[9, 6]}
-                              lineCap="round"
-                              lineJoin="round"
-                              pointerLength={6}
-                              pointerWidth={6}
-                              hitStrokeWidth={18}
-                              onClick={() => {
-                                setVehiculoSeleccionadoId(ruta.vehiculoId);
-                                onSeleccionarVehiculo?.(ruta.vehiculoId);
-                              }}
-                              onTap={() => {
-                                setVehiculoSeleccionadoId(ruta.vehiculoId);
-                                onSeleccionarVehiculo?.(ruta.vehiculoId);
-                              }}
-                            />
-                          ))}
-                        </Group>
-                      );
+                    visible={
+                      filtros.PEDIDOS
                     }
 
-                    const seguimiento =
-                      visual.seguimiento;
-
-                    if (
-                      !seguimiento
-                    ) {
-                      return null;
+                    seleccionPedidoId={
+                      seleccionPedidoId
                     }
 
-                    return (
-                      <Group
-                        key={
-                          ruta.id
-                        }
-                      >
-                        <RutaSeleccionada
-                          ruta={
-                            ruta
-                          }
-                          seguimiento={
-                            seguimiento
-                          }
-                          instanteMs={
-                            instanteAnimadoMs
-                          }
-                          color={
-                            color
-                          }
-                          convertirX={
-                            geometria.x
-                          }
-                          convertirY={
-                            geometria.y
-                          }
-                        />
-                      </Group>
-                    );
-                  },
-                )}
+                    instanteReferenciaMs={
+                      instantePedidosMs
+                    }
 
-              {/* PEDIDOS */}
-              {filtros.PEDIDOS &&
-                pedidos.map(
-                  (pedido) => {
-                    const color =
-                      colorPedido(
-                        pedido,
-                        instanteAnimadoMs,
-                      );
+                    convertirX={
+                      geometria.x
+                    }
 
-                    return (
-                      <Circle
-                        key={
-                          pedido.id
-                        }
-                        x={geometria.x(
-                          pedido.x,
-                        )}
-                        y={geometria.y(
-                          pedido.y,
-                        )}
-                        radius={
-                          seleccionPedidoId === pedido.id
-                            ? 8
-                            : 5.5
-                        }
-                        fill={
-                          color
-                        }
-                        stroke={
-                          seleccionPedidoId === pedido.id
-                            ? "#f97316"
-                            : "#ffffff"
-                        }
-                        strokeWidth={
-                          seleccionPedidoId === pedido.id
-                            ? 3
-                            : 1
-                        }
-                        opacity={
-                          pedido.estado ===
-                          "ENTREGADO"
-                            ? 0.75
-                            : 0.95
-                        }
-                        onClick={() => onSeleccionarPedido?.(pedido.id)}
-                        onTap={() => onSeleccionarPedido?.(pedido.id)}
-                        onMouseEnter={(
-                          event,
-                        ) =>
-                          mostrarTooltip(
-                            event,
+                    convertirY={
+                      geometria.y
+                    }
 
-                            pedido.id,
+                    onSeleccionar={
+                      seleccionarPedido
+                    }
 
-                            [
-                              `Cliente: ${pedido.clienteId}`,
+                    onTooltip={
+                      mostrarTooltip
+                    }
 
-                              `Coordenadas: (${pedido.x}, ${pedido.y})`,
+                    onLeave={
+                      ocultarTooltip
+                    }
+                    viewport={
+  viewportMapa
+}
 
-                              `Paquetes: ${pedido.cantidad}`,
+                  />
 
-                              `Plazo: ${pedido.plazoHoras} h`,
+                  <CapaAlmacenes
+                    almacenes={
+                      almacenes
+                    }
 
-                              `Estado: ${pedido.estado}`,
+                    filtroStock={
+                      filtroStockAlmacenes
+                    }
 
-                              `Vence: ${formatearFecha(
-                                pedido.vence,
-                              )}`,
-                            ],
-                          )
-                        }
-                        onMouseMove={(
-                          event,
-                        ) =>
-                          mostrarTooltip(
-                            event,
+                    verdeHasta={
+                      configuracion
+                        .almacenVerdeHasta
+                    }
 
-                            pedido.id,
+                    ambarHasta={
+                      configuracion
+                        .almacenAmbarHasta
+                    }
 
-                            [
-                              `Cliente: ${pedido.clienteId}`,
+                    seleccionAlmacenId={
+                      seleccionAlmacenId
+                    }
 
-                              `Coordenadas: (${pedido.x}, ${pedido.y})`,
+                    convertirX={
+                      geometria.x
+                    }
 
-                              `Paquetes: ${pedido.cantidad}`,
+                    convertirY={
+                      geometria.y
+                    }
 
-                              `Plazo: ${pedido.plazoHoras} h`,
+                    onSeleccionar={
+                      onSeleccionarAlmacen
+                    }
 
-                              `Estado: ${pedido.estado}`,
+                    onTooltip={
+                      mostrarTooltip
+                    }
 
-                              `Vence: ${formatearFecha(
-                                pedido.vence,
-                              )}`,
-                            ],
-                          )
-                        }
-                        onMouseLeave={
-                          ocultarTooltip
-                        }
-                      />
-                    );
-                  },
-                )}
+                    onLeave={
+                      ocultarTooltip
+                    }
+                  />
+                </Layer>
+              }
+            />
 
-              {/* ALMACENES */}
-              {almacenes.map(
-                (almacen) => {
-                  const central =
-                    almacen.tipo ===
-                    "CENTRAL";
+            {/* AVERÍAS */}
+            <Layer
+              name="pan-pesado"
+              listening={
+                !arrastrandoMapa
+              }
+              visible={
+                !arrastrandoMapa
+              }
+            >
+              <CapaAverias
+                averias={
+                  averias
+                }
 
-                  const porcentaje =
-                    porcentajeAlmacen(
-                      almacen,
-                    );
+                visible={
+                  filtros.AVERIAS
+                }
 
-                  const nivel =
-                    nivelSemaforoStock(
-                      porcentaje,
-                      configuracion.almacenVerdeHasta,
-                      configuracion.almacenAmbarHasta,
-                    );
+                convertirX={
+                  geometria.x
+                }
 
-                  if (
-                    !central &&
-                    filtroStockAlmacenes !== "TODOS" &&
-                    filtroStockAlmacenes !== nivel
-                  ) {
-                    return null;
-                  }
+                convertirY={
+                  geometria.y
+                }
 
-                  const color =
-                    central
-                      ? "#2563eb"
-                      : colorSemaforo(nivel);
+                onTooltip={
+                  mostrarTooltip
+                }
 
-                  const seleccionado =
-                    seleccionAlmacenId ===
-                    almacen.id;
-
-                  const textoStock =
-                    central
-                      ? "Stock ilimitado"
-                      : `${almacen.stock ?? 0}/${almacen.capacidad ?? 0} · ${porcentaje.toFixed(0)}%`;
-
-                  const lineas = [
-                    `ID: ${almacen.id}`,
-                    `Coordenadas: (${almacen.x}, ${almacen.y})`,
-                    textoStock,
-                    central
-                      ? "Tipo: Central"
-                      : `Semáforo: ${nombreNivel(nivel)}`,
-                  ];
-
-                  return (
-                    <Group
-                      key={
-                        almacen.id
-                      }
-                      x={geometria.x(
-                        almacen.x,
-                      )}
-                      y={geometria.y(
-                        almacen.y,
-                      )}
-                      onClick={() =>
-                        onSeleccionarAlmacen?.(
-                          almacen.id,
-                        )
-                      }
-                      onTap={() =>
-                        onSeleccionarAlmacen?.(
-                          almacen.id,
-                        )
-                      }
-                      onMouseEnter={(
-                        event,
-                      ) =>
-                        mostrarTooltip(
-                          event,
-                          `Almacén ${almacen.nombre}`,
-                          lineas,
-                        )
-                      }
-                      onMouseMove={(
-                        event,
-                      ) =>
-                        mostrarTooltip(
-                          event,
-                          `Almacén ${almacen.nombre}`,
-                          lineas,
-                        )
-                      }
-                      onMouseLeave={
-                        ocultarTooltip
-                      }
-                    >
-                      {seleccionado && (
-                        <Rect
-                          x={-24}
-                          y={-24}
-                          width={48}
-                          height={48}
-                          cornerRadius={10}
-                          stroke="#f97316"
-                          strokeWidth={3}
-                          opacity={0.8}
-                        />
-                      )}
-                      <Rect
-                        x={-19}
-                        y={-19}
-                        width={
-                          38
-                        }
-                        height={
-                          38
-                        }
-                        cornerRadius={
-                          7
-                        }
-                        fill={
-                          central
-                            ? "#1e3a8a"
-                            : `${color}22`
-                        }
-                        stroke={
-                          color
-                        }
-                        strokeWidth={
-                          2.5
-                        }
-                        shadowColor="#0f172a"
-                        shadowBlur={
-                          5
-                        }
-                        shadowOpacity={
-                          0.25
-                        }
-                      />
-
-                      <Text
-                        x={-19}
-                        y={-6}
-                        width={
-                          38
-                        }
-                        align="center"
-                        text={
-                          central
-                            ? "C"
-                            : "ALM"
-                        }
-                        fontSize={
-                          central
-                            ? 19
-                            : 11
-                        }
-                        fontStyle="bold"
-                        fill={
-                          central
-                            ? "#ffffff"
-                            : color
-                        }
-                      />
-
-                      <Text
-                        x={-48}
-                        y={25}
-                        width={
-                          96
-                        }
-                        align="center"
-                        text={
-                          almacen.nombre
-                        }
-                        fontSize={
-                          12
-                        }
-                        fontStyle="bold"
-                        fill="#0f172a"
-                      />
-
-                      <Text
-                        x={-58}
-                        y={40}
-                        width={
-                          116
-                        }
-                        align="center"
-                        text={
-                          textoStock
-                        }
-                        fontSize={
-                          9
-                        }
-                        fill="#475569"
-                      />
-                    </Group>
-                  );
-                },
-              )}
-
-              {/* VEHÍCULOS */}
-              {gruposVehiculos.map(
-                (grupo) => {
-                  const visibles =
-                    grupo.filter(
-                      (
-                        item,
-                      ) => {
-                        if (
-                          !filtroVehiculoActivo(
-                            item.vehiculo.tipo,
-                            filtros,
-                          )
-                        ) {
-                          return false;
-                        }
-
-                        const capacidad =
-                          capacidadPorTipo.get(
-                            item.vehiculo.tipo,
-                          ) ?? 0;
-
-                        const nivel =
-                          nivelSemaforoCarga(
-                            item.vehiculo.cargaActual,
-                            capacidad,
-                            configuracion.vehiculoVerdeHasta,
-                            configuracion.vehiculoAmbarHasta,
-                          );
-
-                        return (
-                          filtroCargaVehiculos === "TODOS" ||
-                          filtroCargaVehiculos === nivel
-                        );
-                      },
-                    );
-
-                  if (
-                    visibles.length ===
-                    0
-                  ) {
-                    return null;
-                  }
-
-                  const contieneSeleccionado =
-                    visibles.some(
-                      (
-                        item,
-                      ) =>
-                        item
-                          .vehiculo
-                          .id ===
-                        vehiculoSeleccionadoId,
-                    );
-
-                  if (
-                    debeAgruparVehiculos(visibles.length, contieneSeleccionado)
-                  ) {
-                    return (
-                      <GrupoVehiculosMarker
-                        key={`grupo-${visibles[0].x}-${visibles[0].y}`}
-                        vehiculos={visibles.map(
-                          (
-                            item,
-                          ) =>
-                            item.vehiculo,
-                        )}
-                        cargaTotal={visibles.reduce(
-                          (total, item) =>
-                            total + item.vehiculo.cargaActual,
-                          0,
-                        )}
-                        capacidadTotal={visibles.reduce(
-                          (total, item) =>
-                            total +
-                            (capacidadPorTipo.get(
-                              item.vehiculo.tipo,
-                            ) ?? 0),
-                          0,
-                        )}
-                        x={geometria.x(
-                          visibles[0].x,
-                        )}
-                        y={geometria.y(
-                          visibles[0].y,
-                        )}
-                        onTooltip={
-                          mostrarTooltip
-                        }
-                        onLeave={
-                          ocultarTooltip
-                        }
-                      />
-                    );
-                  }
-
-                  return visibles.map(
-                    (
-                      item,
-                      index,
-                    ) => {
-                      const angulo =
-                        (Math.PI *
-                          2 *
-                          index) /
-                        Math.max(
-                          visibles.length,
-                          1,
-                        );
-
-                      const seleccionado =
-                        item
-                          .vehiculo
-                          .id ===
-                        vehiculoSeleccionadoId;
-
-                      const radio =
-                        visibles.length ===
-                          1 ||
-                        item.enMovimiento ||
-                        seleccionado
-                          ? 0
-                          : 14;
-
-                      return (
-                        <VehiculoMarker
-                          key={
-                            item
-                              .vehiculo
-                              .id
-                          }
-                          vehiculo={
-                            item.vehiculo
-                          }
-                          seleccionado={
-                            seleccionado
-                          }
-                          atenuado={
-                            vehiculoSeleccionadoId !==
-                              null &&
-                            !seleccionado
-                          }
-                          posicionVisual={{
-                            x:
-                              item.x,
-
-                            y:
-                              item.y,
-                          }}
-                          progresoTramo={
-                            item.progresoTramo
-                          }
-                          capacidad={
-                            capacidadPorTipo.get(
-                              item.vehiculo.tipo,
-                            ) ?? 0
-                          }
-                          direccionGrados={
-                            item.direccionGrados
-                          }
-                          nivelCarga={
-                            nivelSemaforoCarga(
-                              item.vehiculo.cargaActual,
-                              capacidadPorTipo.get(
-                                item.vehiculo.tipo,
-                              ) ?? 0,
-                              configuracion.vehiculoVerdeHasta,
-                              configuracion.vehiculoAmbarHasta,
-                            )
-                          }
-                          x={
-                            geometria.x(
-                              item.x,
-                            ) +
-                            Math.cos(
-                              angulo,
-                            ) *
-                              radio
-                          }
-                          y={
-                            geometria.y(
-                              item.y,
-                            ) +
-                            Math.sin(
-                              angulo,
-                            ) *
-                              radio
-                          }
-                          onSeleccionar={() => {
-                            setVehiculoSeleccionadoId(item.vehiculo.id);
-                            onSeleccionarVehiculo?.(item.vehiculo.id);
-                          }}
-                          onTooltip={
-                            mostrarTooltip
-                          }
-                          onLeave={
-                            ocultarTooltip
-                          }
-                        />
-                      );
-                    },
-                  );
-                },
-              )}
-
-              {/* AVERÍAS */}
-              {filtros.AVERIAS &&
-                averias.map(
-                  (averia) => {
-                    const estilo =
-                      estiloAveria(
-                        averia.tipo,
-                      );
-
-                    return (
-                      <Group
-                        key={`averia-${averia.id}`}
-                        x={geometria.x(
-                          averia.x,
-                        )}
-                        y={geometria.y(
-                          averia.y,
-                        )}
-                        onMouseEnter={(
-                          event,
-                        ) =>
-                          mostrarTooltip(
-                            event,
-                            `Avería ${estilo.nombre}`,
-                            [
-                              `Vehículo: ${averia.vehiculoId}`,
-                              `Tipo: ${estilo.nombre}`,
-                              `Coordenadas: (${averia.x}, ${averia.y})`,
-                              `Hasta: ${formatearFecha(
-                                averia.indisponibleHasta,
-                              )}`,
-                            ],
-                          )
-                        }
-                        onMouseMove={(
-                          event,
-                        ) =>
-                          mostrarTooltip(
-                            event,
-                            `Avería ${estilo.nombre}`,
-                            [
-                              `Vehículo: ${averia.vehiculoId}`,
-                              `Tipo: ${estilo.nombre}`,
-                              `Coordenadas: (${averia.x}, ${averia.y})`,
-                              `Hasta: ${formatearFecha(
-                                averia.indisponibleHasta,
-                              )}`,
-                            ],
-                          )
-                        }
-                        onMouseLeave={
-                          ocultarTooltip
-                        }
-                      >
-                        <Circle
-                          radius={12}
-                          fill={estilo.fondo}
-                          stroke={estilo.color}
-                          strokeWidth={3}
-                          shadowColor={estilo.color}
-                          shadowBlur={6}
-                          shadowOpacity={0.35}
-                        />
-
-                        <Text
-                          x={-10}
-                          y={-6}
-                          width={20}
-                          align="center"
-                          text={estilo.codigo}
-                          fontSize={10}
-                          fontStyle="bold"
-                          fill={estilo.color}
-                        />
-                      </Group>
-                    );
-                  },
-                )}
+                onLeave={
+                  ocultarTooltip
+                }
+              />
             </Layer>
           </Stage>
         )}
+
+
 
       {/* FILTROS */}
       <div className="absolute left-[470px] top-3 z-20 flex max-w-[calc(100%-640px)] flex-wrap items-center gap-2">
@@ -1979,7 +1512,7 @@ export function MapaOperacion({
                 Math.max(
                   8,
                   width -
-                    230,
+                  230,
                 ),
               ),
 
@@ -1990,7 +1523,7 @@ export function MapaOperacion({
                 Math.max(
                   8,
                   height -
-                    150,
+                  150,
                 ),
               ),
           }}
@@ -2021,677 +1554,7 @@ export function MapaOperacion({
   );
 }
 
-/*
- * =========================================================
- * RUTA SELECCIONADA
- * =========================================================
- */
 
-function RutaSeleccionada({
-  ruta,
-  seguimiento,
-  instanteMs,
-  color,
-  convertirX,
-  convertirY,
-}: {
-  ruta: RutaMapa;
-  seguimiento: SeguimientoRuta;
-  instanteMs: number;
-  color: string;
-  convertirX: (valor: number) => number;
-  convertirY: (valor: number) => number;
-}) {
-  const trazos = obtenerTrazosRuta(ruta, instanteMs, seguimiento.siguienteParada?.orden);
-  return (
-    <>
-      {/* Historial completo, incluido el trayecto desde el almacén de salida. */}
-      {trazos.recorridos.map((trazo, indice) => (
-        <Line
-          key={`recorrido-${indice}`}
-          points={convertirTrazoAPixeles(trazo, convertirX, convertirY)}
-          stroke={color}
-          strokeWidth={3}
-          opacity={0.4}
-          lineCap="round"
-          lineJoin="round"
-        />
-      ))}
-      {/* Calles reales pendientes hasta la próxima parada. */}
-      {trazos.actuales.map((trazo, indice) => (
-        <Arrow
-          key={`actual-${indice}`}
-          points={convertirTrazoAPixeles(trazo, convertirX, convertirY)}
-          stroke={color}
-          fill={color}
-          strokeWidth={6}
-          opacity={1}
-          lineCap="round"
-          lineJoin="round"
-          pointerLength={9}
-          pointerWidth={9}
-          shadowColor={color}
-          shadowBlur={7}
-          shadowOpacity={0.35}
-        />
-      ))}
-      {trazos.futuros.map((trazo, indice) => (
-        <Arrow
-          key={`futuro-${indice}`}
-          points={convertirTrazoAPixeles(trazo, convertirX, convertirY)}
-          stroke={color}
-          fill={color}
-          strokeWidth={3}
-          opacity={0.65}
-          dash={[10, 6]}
-          lineCap="round"
-          lineJoin="round"
-          pointerLength={7}
-          pointerWidth={7}
-        />
-      ))}
-
-      {/* PARADAS */}
-      {seguimiento.paradas.map(
-        ({
-          parada,
-          estado,
-        }) => (
-          <ParadaMarker
-            key={`${ruta.id}-parada-${parada.orden}`}
-            parada={
-              parada
-            }
-            estado={
-              estado
-            }
-            x={convertirX(
-              parada.x,
-            )}
-            y={convertirY(
-              parada.y,
-            )}
-            instanteMs={
-              instanteMs
-            }
-          />
-        ),
-      )}
-    </>
-  );
-}
-
-/*
- * =========================================================
- * PARADA
- * =========================================================
- */
-
-function ParadaMarker({
-  parada,
-  estado,
-  x,
-  y,
-}: {
-  parada:
-    ParadaMapa;
-
-  estado:
-    | "COMPLETADA"
-    | "REFRIGERIO"
-    | "EN_SERVICIO"
-    | "SIGUIENTE"
-    | "FUTURA";
-
-  x: number;
-  y: number;
-
-  instanteMs:
-    number;
-}) {
-  const color =
-    estado ===
-    "COMPLETADA"
-      ? "#16a34a"
-      : estado ===
-          "REFRIGERIO"
-        ? "#f59e0b"
-        : estado ===
-            "EN_SERVICIO"
-          ? "#f97316"
-          : estado ===
-            "SIGUIENTE"
-          ? "#0ea5e9"
-          : "#64748b";
-
-  const texto =
-    estado ===
-    "COMPLETADA"
-      ? "✓"
-      : estado ===
-          "REFRIGERIO"
-        ? "☕"
-        : estado ===
-            "EN_SERVICIO"
-          ? "●"
-          : estado ===
-            "SIGUIENTE"
-          ? "▶"
-          : String(
-              parada.orden,
-            );
-
-  return (
-    <Group
-      x={x}
-      y={y}
-    >
-      <Circle
-        radius={8}
-        fill="#ffffff"
-        stroke={
-          color
-        }
-        strokeWidth={
-          2
-        }
-        opacity={
-          estado ===
-          "FUTURA"
-            ? 0.7
-            : 1
-        }
-      />
-
-      <Text
-        x={-7}
-        y={-5}
-        width={14}
-        align="center"
-        text={
-          texto
-        }
-        fontSize={
-          9
-        }
-        fontStyle="bold"
-        fill={
-          color
-        }
-      />
-    </Group>
-  );
-}
-
-/*
- * =========================================================
- * VEHÍCULO
- * =========================================================
- */
-
-function VehiculoMarker({
-  vehiculo,
-  seleccionado,
-  atenuado,
-  x,
-  y,
-  posicionVisual,
-  progresoTramo,
-  capacidad,
-  nivelCarga,
-  direccionGrados,
-  onSeleccionar,
-  onTooltip,
-  onLeave,
-}: {
-  vehiculo:
-    VehiculoMapa;
-
-  seleccionado:
-    boolean;
-
-  atenuado:
-    boolean;
-
-  posicionVisual: {
-    x: number;
-    y: number;
-  };
-
-  progresoTramo:
-    number;
-
-  capacidad:
-    number;
-
-  nivelCarga:
-    Exclude<NivelSemaforo, "TODOS">;
-
-  direccionGrados:
-    number | null;
-
-  x: number;
-  y: number;
-
-  onSeleccionar:
-    () => void;
-
-  onTooltip: (
-    event:
-      KonvaEventObject<MouseEvent>,
-
-    titulo:
-      string,
-
-    lineas:
-      string[],
-  ) => void;
-
-  onLeave:
-    () => void;
-}) {
-  const colorTipo =
-    COLORES_VEHICULO[
-      vehiculo.tipo
-    ];
-
-  const color =
-    vehiculo.estado ===
-    "NO_DISPONIBLE"
-      ? "#64748b"
-      : colorSemaforo(
-          nivelCarga,
-        );
-
-  const porcentajeCarga =
-    capacidad > 0
-      ? Math.min(
-          100,
-          Math.max(
-            0,
-            (vehiculo.cargaActual /
-              capacidad) *
-              100,
-          ),
-        )
-      : 0;
-
-  const letra =
-    vehiculo.tipo ===
-    "AUTO"
-      ? "A"
-      : vehiculo.tipo ===
-          "MOTO"
-        ? "M"
-        : "B";
-
-  const lineas = [
-    `Tipo: ${vehiculo.tipo}`,
-
-    `Estado: ${vehiculo.estado}`,
-
-    `Posición confirmada: (${vehiculo.x}, ${vehiculo.y})`,
-
-    `Posición visual: (${posicionVisual.x.toFixed(
-      2,
-    )}, ${posicionVisual.y.toFixed(
-      2,
-    )})`,
-
-    `Avance de tramo: ${(
-      progresoTramo *
-      100
-    ).toFixed(0)}%`,
-
-    `Carga: ${vehiculo.cargaActual}/${capacidad || "—"} (${porcentajeCarga.toFixed(0)}%)`,
-    `Semáforo de carga: ${nombreNivel(nivelCarga)}`,
-
-    vehiculo.motivoDetencion
-      ? `Motivo de detención: ${nombreMotivoDetencion(vehiculo.motivoDetencion)}`
-      : "Sin detención activa",
-
-    vehiculo.detenidoHasta
-      ? `Disponible nuevamente: ${formatearFecha(vehiculo.detenidoHasta)}`
-      : "",
-
-    vehiculo.averiadoHasta
-      ? `Averiado hasta: ${formatearFecha(
-          vehiculo.averiadoHasta,
-        )}`
-      : "Sin avería activa",
-  ];
-
-  return (
-    <Group
-      x={x}
-      y={y}
-      opacity={
-        atenuado
-          ? 0.25
-          : 1
-      }
-      onClick={
-        onSeleccionar
-      }
-      onTap={
-        onSeleccionar
-      }
-      onMouseEnter={(
-        event,
-      ) =>
-        onTooltip(
-          event,
-          vehiculo.id,
-          lineas,
-        )
-      }
-      onMouseMove={(
-        event,
-      ) =>
-        onTooltip(
-          event,
-          vehiculo.id,
-          lineas,
-        )
-      }
-      onMouseLeave={
-        onLeave
-      }
-    >
-      {seleccionado && (
-        <Circle
-          radius={
-            15
-          }
-          stroke={
-            color
-          }
-          strokeWidth={
-            2
-          }
-          opacity={
-            0.35
-          }
-        />
-      )}
-
-      {direccionGrados !== null && vehiculo.estado === "EN_RUTA" && (
-        <Arrow
-          points={[0, 0, 17, 0]}
-          rotation={direccionGrados}
-          stroke={colorTipo}
-          fill={colorTipo}
-          strokeWidth={2}
-          pointerLength={5}
-          pointerWidth={5}
-          opacity={0.9}
-          listening={false}
-        />
-      )}
-
-      <Circle
-        radius={
-          10
-        }
-        fill="#ffffff"
-        stroke={
-          color
-        }
-        strokeWidth={
-          seleccionado
-            ? 3.5
-            : 2.5
-        }
-        shadowColor="#0f172a"
-        shadowBlur={
-          seleccionado
-            ? 8
-            : 4
-        }
-        shadowOpacity={
-          0.3
-        }
-      />
-
-      <Text
-        x={-7}
-        y={-6}
-        width={
-          14
-        }
-        align="center"
-        text={
-          letra
-        }
-        fontSize={
-          11
-        }
-        fontStyle="bold"
-        fill={
-          colorTipo
-        }
-      />
-
-      <Text
-        x={-28}
-        y={13}
-        width={56}
-        align="center"
-        text={vehiculo.id}
-        fontSize={8}
-        fontStyle="bold"
-        fill="#0f172a"
-      />
-
-      <Text
-        x={-30}
-        y={23}
-        width={60}
-        align="center"
-        text={`${vehiculo.cargaActual}/${capacidad || "—"}`}
-        fontSize={7}
-        fill="#475569"
-      />
-
-      {vehiculo.motivoDetencion && (
-        <Group x={9} y={-13}>
-          <Circle radius={7} fill={colorMotivoDetencion(vehiculo.motivoDetencion)} stroke="#ffffff" strokeWidth={1} />
-          <Text
-            x={-6}
-            y={-5}
-            width={12}
-            align="center"
-            text={simboloMotivoDetencion(vehiculo.motivoDetencion)}
-            fontSize={8}
-            fontStyle="bold"
-            fill="#ffffff"
-          />
-        </Group>
-      )}
-    </Group>
-  );
-}
-
-/*
- * =========================================================
- * GRUPO DE VEHÍCULOS
- * =========================================================
- */
-
-function GrupoVehiculosMarker({
-  vehiculos,
-  cargaTotal,
-  capacidadTotal,
-  x,
-  y,
-  onTooltip,
-  onLeave,
-}: {
-  vehiculos:
-    VehiculoMapa[];
-
-  cargaTotal:
-    number;
-
-  capacidadTotal:
-    number;
-
-  x: number;
-  y: number;
-
-  onTooltip: (
-    event:
-      KonvaEventObject<MouseEvent>,
-
-    titulo:
-      string,
-
-    lineas:
-      string[],
-  ) => void;
-
-  onLeave:
-    () => void;
-}) {
-  const autos =
-    vehiculos.filter(
-      (vehiculo) =>
-        vehiculo.tipo ===
-        "AUTO",
-    ).length;
-
-  const motos =
-    vehiculos.filter(
-      (vehiculo) =>
-        vehiculo.tipo ===
-        "MOTO",
-    ).length;
-
-  const bicicletas =
-    vehiculos.filter(
-      (vehiculo) =>
-        vehiculo.tipo ===
-        "BICICLETA",
-    ).length;
-
-  const porcentajeCarga =
-    capacidadTotal > 0
-      ? (cargaTotal / capacidadTotal) * 100
-      : 0;
-
-  const nivel =
-    nivelSemaforoCarga(
-      cargaTotal,
-      capacidadTotal,
-      60,
-      85,
-    );
-
-  const color =
-    colorSemaforo(
-      nivel,
-    );
-
-  return (
-    <Group
-      x={x}
-      y={y}
-      onMouseEnter={(
-        event,
-      ) =>
-        onTooltip(
-          event,
-
-          `${vehiculos.length} vehículos`,
-
-          [
-            `Autos: ${autos}`,
-
-            `Motos: ${motos}`,
-
-            `Bicicletas: ${bicicletas}`,
-
-            `Carga: ${cargaTotal}/${capacidadTotal || "—"} (${porcentajeCarga.toFixed(0)}%)`,
-
-            `Coordenadas: (${vehiculos[0].x}, ${vehiculos[0].y})`,
-          ],
-        )
-      }
-      onMouseMove={(
-        event,
-      ) =>
-        onTooltip(
-          event,
-
-          `${vehiculos.length} vehículos`,
-
-          [
-            `Autos: ${autos}`,
-
-            `Motos: ${motos}`,
-
-            `Bicicletas: ${bicicletas}`,
-
-            `Carga: ${cargaTotal}/${capacidadTotal || "—"} (${porcentajeCarga.toFixed(0)}%)`,
-
-            `Coordenadas: (${vehiculos[0].x}, ${vehiculos[0].y})`,
-          ],
-        )
-      }
-      onMouseLeave={
-        onLeave
-      }
-    >
-      <Circle
-        radius={
-          16
-        }
-        fill="#0f172a"
-        stroke={
-          color
-        }
-        strokeWidth={
-          2.5
-        }
-        shadowColor="#0f172a"
-        shadowBlur={
-          5
-        }
-        shadowOpacity={
-          0.3
-        }
-      />
-
-      <Text
-        x={-14}
-        y={-6}
-        width={
-          28
-        }
-        align="center"
-        text={String(
-          vehiculos.length,
-        )}
-        fontSize={
-          11
-        }
-        fontStyle="bold"
-        fill="#ffffff"
-      />
-
-      <Text
-        x={-18}
-        y={18}
-        width={36}
-        align="center"
-        text={`${porcentajeCarga.toFixed(0)}%`}
-        fontSize={7}
-        fontStyle="bold"
-        fill="#334155"
-      />
-    </Group>
-  );
-}
 
 /*
  * =========================================================
@@ -2704,10 +1567,10 @@ function PanelVehiculoSeleccionado({
   onCerrar,
 }: {
   visual:
-    VehiculoVisual;
+  VehiculoVisual;
 
   onCerrar:
-    () => void;
+  () => void;
 }) {
   const ruta =
     visual.ruta;
@@ -2759,17 +1622,15 @@ function PanelVehiculoSeleccionado({
 
           <p className="mt-1 text-xs text-slate-500">
             {visual.vehiculo.motivoDetencion
-              ? `${nombreMotivoDetencion(visual.vehiculo.motivoDetencion)}${
-                  visual.vehiculo.detenidoHasta
-                    ? ` hasta ${formatearHora(visual.vehiculo.detenidoHasta)}`
-                    : ""
-                }`
+              ? `${nombreMotivoDetencion(visual.vehiculo.motivoDetencion)}${visual.vehiculo.detenidoHasta
+                ? ` hasta ${formatearHora(visual.vehiculo.detenidoHasta)}`
+                : ""
+              }`
               : seguimiento.enRefrigerio
-                ? `En refrigerio hasta ${
-                    seguimiento.refrigerioHasta
-                      ? formatearHora(seguimiento.refrigerioHasta)
-                      : "—"
-                  }`
+                ? `En refrigerio hasta ${seguimiento.refrigerioHasta
+                  ? formatearHora(seguimiento.refrigerioHasta)
+                  : "—"
+                }`
                 : servicio
                   ? `Atendiendo ${nombreParada(servicio)}`
                   : siguiente
@@ -2811,8 +1672,8 @@ function PanelVehiculoSeleccionado({
           valor={
             seguimiento.eta
               ? formatearHora(
-                  seguimiento.eta,
-                )
+                seguimiento.eta,
+              )
               : "—"
           }
         />
@@ -2851,37 +1712,37 @@ function PanelVehiculoSeleccionado({
 
       {seguimiento
         .enMovimiento && (
-        <div className="mt-3">
+          <div className="mt-3">
 
-          <div className="mb-1 flex justify-between text-[10px] text-slate-500">
+            <div className="mb-1 flex justify-between text-[10px] text-slate-500">
 
-            <span>
-              Tramo actual
-            </span>
+              <span>
+                Tramo actual
+              </span>
 
-            <span>
-              {(
-                seguimiento
-                  .progresoTramo *
-                100
-              ).toFixed(
-                0,
-              )}
-              %
-            </span>
+              <span>
+                {(
+                  seguimiento
+                    .progresoTramo *
+                  100
+                ).toFixed(
+                  0,
+                )}
+                %
+              </span>
+            </div>
+
+            <div className="h-1 overflow-hidden rounded-full bg-slate-800">
+              <div
+                className="h-full bg-orange-500"
+                style={{
+                  width:
+                    `${seguimiento.progresoTramo * 100}%`,
+                }}
+              />
+            </div>
           </div>
-
-          <div className="h-1 overflow-hidden rounded-full bg-slate-800">
-            <div
-              className="h-full bg-orange-500"
-              style={{
-                width:
-                  `${seguimiento.progresoTramo * 100}%`,
-              }}
-            />
-          </div>
-        </div>
-      )}
+        )}
 
       <div className="mt-4 border-t border-slate-800 pt-3">
 
@@ -2918,7 +1779,7 @@ function PanelVehiculoSeleccionado({
                     "flex size-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold",
 
                     estado ===
-                    "COMPLETADA"
+                      "COMPLETADA"
                       ? "bg-green-500/15 text-green-400"
 
                       : estado ===
@@ -2927,20 +1788,20 @@ function PanelVehiculoSeleccionado({
 
                         : estado ===
                           "EN_SERVICIO"
-                        ? "bg-orange-500/15 text-orange-400"
+                          ? "bg-orange-500/15 text-orange-400"
 
-                        : estado ===
-                          "SIGUIENTE"
-                          ? "bg-sky-500/15 text-sky-400"
+                          : estado ===
+                            "SIGUIENTE"
+                            ? "bg-sky-500/15 text-sky-400"
 
-                          : "bg-slate-700 text-slate-400",
+                            : "bg-slate-700 text-slate-400",
 
                   ].join(
                     " ",
                   )}
                 >
                   {estado ===
-                  "COMPLETADA"
+                    "COMPLETADA"
                     ? "✓"
 
                     : estado ===
@@ -2949,13 +1810,13 @@ function PanelVehiculoSeleccionado({
 
                       : estado ===
                         "EN_SERVICIO"
-                      ? "●"
+                        ? "●"
 
-                      : estado ===
-                        "SIGUIENTE"
-                        ? "▶"
+                        : estado ===
+                          "SIGUIENTE"
+                          ? "▶"
 
-                        : parada.orden}
+                          : parada.orden}
                 </span>
 
                 <div className="min-w-0 flex-1">
@@ -2970,12 +1831,12 @@ function PanelVehiculoSeleccionado({
 
                     {parada.llegada
                       ? formatearHora(
-                          parada.llegada,
-                        )
+                        parada.llegada,
+                      )
                       : "Sin ETA"}
 
                     {parada.paquetes >
-                    0
+                      0
                       ? ` · ${parada.paquetes} paq.`
                       : ""}
                   </p>
@@ -3001,13 +1862,13 @@ function DatoDetalle({
   valor,
 }: {
   icono:
-    React.ReactNode;
+  React.ReactNode;
 
   label:
-    string;
+  string;
 
   valor:
-    string;
+  string;
 }) {
   return (
     <div className="rounded-md bg-slate-800/70 p-2">
@@ -3030,13 +1891,13 @@ function BotonMapa({
   children,
 }: {
   titulo:
-    string;
+  string;
 
   onClick:
-    () => void;
+  () => void;
 
   children:
-    React.ReactNode;
+  React.ReactNode;
 }) {
   return (
     <button
@@ -3059,10 +1920,10 @@ function Leyenda({
   texto,
 }: {
   color:
-    string;
+  string;
 
   texto:
-    string;
+  string;
 }) {
   return (
     <div className="mb-1.5 flex items-center gap-2">
@@ -3087,12 +1948,12 @@ function LeyendaLinea({
   texto,
 }: {
   tipo:
-    | "REALIZADO"
-    | "ACTUAL"
-    | "FUTURO";
+  | "REALIZADO"
+  | "ACTUAL"
+  | "FUTURO";
 
   texto:
-    string;
+  string;
 }) {
   return (
     <div className="mb-1.5 flex items-center gap-2">
@@ -3102,7 +1963,7 @@ function LeyendaLinea({
           "block w-7 border-t-2",
 
           tipo ===
-          "REALIZADO"
+            "REALIZADO"
             ? "border-slate-400 opacity-60"
 
             : tipo ===
@@ -3123,201 +1984,8 @@ function LeyendaLinea({
   );
 }
 
-function adaptarTipoVehiculo(
-  tipo: TipoVehiculoResponseDto["tipo"],
-): TipoVehiculo {
-  switch (tipo) {
-    case "CAR":
-      return "AUTO";
-    case "MOTORCYCLE":
-      return "MOTO";
-    case "BICYCLE":
-      return "BICICLETA";
-  }
-}
 
-function porcentajeAlmacen(
-  almacen: AlmacenMapa,
-) {
-  if (
-    almacen.tipo === "CENTRAL" ||
-    !almacen.capacidad ||
-    almacen.capacidad <= 0
-  ) {
-    return 100;
-  }
 
-  return Math.min(
-    100,
-    Math.max(
-      0,
-      ((almacen.stock ?? 0) /
-        almacen.capacidad) *
-        100,
-    ),
-  );
-}
-
-function nivelSemaforoStock(
-  porcentaje: number,
-  verdeHasta: number,
-  ambarHasta: number,
-): Exclude<NivelSemaforo, "TODOS"> {
-  if (porcentaje <= 0) {
-    return "VACIO";
-  }
-
-  if (porcentaje <= verdeHasta) {
-    return "VERDE";
-  }
-
-  if (porcentaje <= ambarHasta) {
-    return "AMBAR";
-  }
-
-  return "ROJO";
-}
-
-function nivelSemaforoCarga(
-  carga: number,
-  capacidad: number,
-  verdeHasta: number,
-  ambarHasta: number,
-): Exclude<NivelSemaforo, "TODOS"> {
-  const porcentaje =
-    capacidad > 0
-      ? (carga / capacidad) * 100
-      : 0;
-
-  if (carga <= 0) {
-    return "VACIO";
-  }
-
-  if (porcentaje <= verdeHasta) {
-    return "VERDE";
-  }
-
-  if (porcentaje <= ambarHasta) {
-    return "AMBAR";
-  }
-
-  return "ROJO";
-}
-
-function colorSemaforo(
-  nivel: Exclude<NivelSemaforo, "TODOS">,
-) {
-  switch (nivel) {
-    case "VACIO":
-      return "#64748b";
-    case "VERDE":
-      return "#16a34a";
-    case "AMBAR":
-      return "#d97706";
-    case "ROJO":
-      return "#dc2626";
-  }
-}
-
-function nombreNivel(
-  nivel: Exclude<NivelSemaforo, "TODOS">,
-) {
-  switch (nivel) {
-    case "VACIO":
-      return "Vacío";
-    case "VERDE":
-      return "Verde";
-    case "AMBAR":
-      return "Ámbar";
-    case "ROJO":
-      return "Rojo";
-  }
-}
-
-function estiloAveria(
-  tipo: AveriaResponseDto["tipo"],
-) {
-  switch (tipo) {
-    case "MINOR":
-      return {
-        nombre: "leve",
-        codigo: "L",
-        color: "#d97706",
-        fondo: "#fffbeb",
-      };
-    case "INTERMEDIATE":
-      return {
-        nombre: "intermedia",
-        codigo: "I",
-        color: "#ea580c",
-        fondo: "#fff7ed",
-      };
-    case "MAJOR":
-      return {
-        nombre: "grave",
-        codigo: "G",
-        color: "#dc2626",
-        fondo: "#fef2f2",
-      };
-  }
-}
-
-function filtroVehiculoActivo(
-  tipo:
-    TipoVehiculo,
-
-  filtros:
-    Record<
-      FiltroMapa,
-      boolean
-    >,
-) {
-  switch (tipo) {
-    case "AUTO":
-      return filtros.AUTOS;
-
-    case "MOTO":
-      return filtros.MOTOS;
-
-    case "BICICLETA":
-      return filtros.BICICLETAS;
-  }
-}
-
-function colorPedido(
-  pedido:
-    PedidoOperacion,
-
-  instanteMs:
-    number,
-) {
-  if (
-    pedido.estado !==
-      "ENTREGADO" &&
-    new Date(
-      pedido.vence,
-    ).getTime() <
-      instanteMs
-  ) {
-    return "#dc2626";
-  }
-
-  switch (
-    pedido.estado
-  ) {
-    case "ENTREGADO":
-      return "#16a34a";
-
-    case "EN_TRANSITO":
-      return "#f97316";
-
-    case "ASIGNADO":
-      return "#2563eb";
-
-    case "PENDIENTE":
-      return "#8b5cf6";
-  }
-}
 
 function nombreMotivoDetencion(motivo: VehiculoMapa["motivoDetencion"]) {
   switch (motivo) {
@@ -3332,57 +2000,7 @@ function nombreMotivoDetencion(motivo: VehiculoMapa["motivoDetencion"]) {
   }
 }
 
-function simboloMotivoDetencion(motivo: NonNullable<VehiculoMapa["motivoDetencion"]>) {
-  switch (motivo) {
-    case "AVERIA":
-      return "!";
-    case "MANTENIMIENTO":
-      return "M";
-    case "REFRIGERIO":
-      return "☕";
-  }
-}
 
-function colorMotivoDetencion(motivo: NonNullable<VehiculoMapa["motivoDetencion"]>) {
-  switch (motivo) {
-    case "AVERIA":
-      return "#dc2626";
-    case "MANTENIMIENTO":
-      return "#64748b";
-    case "REFRIGERIO":
-      return "#d97706";
-  }
-}
-
-function formatearFecha(
-  valor:
-    string,
-) {
-  return new Intl.DateTimeFormat(
-    "es-PE",
-    {
-      timeZone:
-        "America/Lima",
-
-      day:
-        "2-digit",
-
-      month:
-        "2-digit",
-
-      hour:
-        "2-digit",
-
-      minute:
-        "2-digit",
-
-      hour12:
-        false,
-    },
-  ).format(
-    new Date(valor),
-  );
-}
 
 function formatearHora(
   valor:

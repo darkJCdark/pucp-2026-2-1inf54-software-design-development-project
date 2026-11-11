@@ -8,7 +8,7 @@ import type {
   EstadoEscenarioBackend,
 } from "@/api/escenarios.dto";
 
-const FPS_OBJETIVO = 30;
+const FPS_OBJETIVO = 10;
 
 const INTERVALO_FRAME_MS =
   1000 / FPS_OBJETIVO;
@@ -24,17 +24,17 @@ function ahoraRealMs() {
   return Date.now();
 }
 
-/**
- * Genera un reloj visual suave entre
- * respuestas del backend.
- *
- * El backend continúa siendo la fuente
- * real del tiempo.
- */
 export function useRelojSimuladoAnimado(
   instanteServidor: string,
   factorAceleracion: number,
   estado: EstadoEscenarioBackend,
+
+  /*
+   * Permite suspender completamente la
+   * animación visual, por ejemplo mientras
+   * el usuario arrastra el mapa.
+   */
+  activo = true,
 ) {
   const instanteInicial =
     new Date(
@@ -62,6 +62,10 @@ export function useRelojSimuladoAnimado(
       ahoraRealMs(),
     );
 
+  /*
+   * El backend sigue siendo la fuente
+   * verdadera del reloj.
+   */
   useEffect(() => {
     const servidorMs =
       new Date(
@@ -82,14 +86,29 @@ export function useRelojSimuladoAnimado(
     baseRealRef.current =
       ahoraRealMs();
 
-    setInstanteAnimadoMs(
-      servidorMs,
-    );
-  }, [instanteServidor]);
+    /*
+     * Mientras el reloj visual está suspendido
+     * no provocamos otro render únicamente para
+     * actualizar la animación.
+     *
+     * Al reactivarlo se interpolará desde la
+     * última referencia recibida del backend.
+     */
+    if (activo) {
+      setInstanteAnimadoMs(
+        servidorMs,
+      );
+    }
+  }, [
+    instanteServidor,
+    activo,
+  ]);
 
   useEffect(() => {
     if (
-      estado !== "RUNNING"
+      estado !==
+        "RUNNING" ||
+      !activo
     ) {
       return;
     }
@@ -109,10 +128,13 @@ export function useRelojSimuladoAnimado(
           ahoraRealMs() -
           baseRealRef.current;
 
-        setInstanteAnimadoMs(
+        const siguienteInstante =
           baseSimuladaRef.current +
-            transcurridoReal *
-              factorAceleracion,
+          transcurridoReal *
+            factorAceleracion;
+
+        setInstanteAnimadoMs(
+          siguienteInstante,
         );
 
         ultimoFrame =
@@ -136,7 +158,31 @@ export function useRelojSimuladoAnimado(
       );
     };
   }, [
+    activo,
     estado,
+    factorAceleracion,
+  ]);
+
+  /*
+   * Al reactivar la animación hacemos un
+   * salto inmediato al tiempo que corresponde.
+   */
+  useEffect(() => {
+    if (!activo) {
+      return;
+    }
+
+    const transcurridoReal =
+      ahoraRealMs() -
+      baseRealRef.current;
+
+    setInstanteAnimadoMs(
+      baseSimuladaRef.current +
+        transcurridoReal *
+          factorAceleracion,
+    );
+  }, [
+    activo,
     factorAceleracion,
   ]);
 
