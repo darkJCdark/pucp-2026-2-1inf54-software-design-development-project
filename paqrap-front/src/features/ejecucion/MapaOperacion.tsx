@@ -94,6 +94,12 @@ import {
   CapaDinamicaMapa,
 } from "./CapaDinamicaMapa";
 
+
+import {
+  usePanZoomCompositor,
+} from "@/hooks/usePanZoomCompositor";
+
+
 const ANCHO_MAPA = 70;
 const ALTO_MAPA = 50;
 
@@ -209,6 +215,33 @@ export function MapaOperacion({
       x: 0,
       y: 0,
     });
+
+  const confirmarVista =
+    useCallback(
+      (
+        nuevaVista:
+          VistaMapa,
+      ) => {
+        setVista(
+          nuevaVista,
+        );
+      },
+      [],
+    );
+
+  const {
+    stageRef,
+    iniciarPan,
+    aplicarZoom:
+    aplicarZoomCompositor,
+  } =
+    usePanZoomCompositor({
+      vista,
+
+      onConfirmar:
+        confirmarVista,
+    });
+
 
   const [
     arrastrandoMapa,
@@ -652,70 +685,30 @@ export function MapaOperacion({
 
 
 
-  function manejarRueda(
-    event:
-      KonvaEventObject<WheelEvent>,
-  ) {
-    event.evt.preventDefault();
+ function manejarRueda(
+  event:
+    KonvaEventObject<WheelEvent>,
+) {
+  event.evt.preventDefault();
 
-    const stage =
-      event.target.getStage();
+  const rect =
+    contenedorRef.current
+      ?.getBoundingClientRect();
 
-    const puntero =
-      stage
-        ?.getPointerPosition();
-
-    if (!puntero) {
-      return;
-    }
-
-    const escalaAnterior =
-      vista.escala;
-
-    const puntoMapa = {
-      x:
-        (puntero.x -
-          vista.x) /
-        escalaAnterior,
-
-      y:
-        (puntero.y -
-          vista.y) /
-        escalaAnterior,
-    };
-
-    const factor =
-      event.evt.deltaY >
-        0
-        ? 0.9
-        : 1.1;
-
-    const nuevaEscala =
-      Math.min(
-        3.5,
-        Math.max(
-          0.75,
-
-          escalaAnterior *
-          factor,
-        ),
-      );
-
-    setVista({
-      escala:
-        nuevaEscala,
-
-      x:
-        puntero.x -
-        puntoMapa.x *
-        nuevaEscala,
-
-      y:
-        puntero.y -
-        puntoMapa.y *
-        nuevaEscala,
-    });
+  if (!rect) {
+    return;
   }
+
+  aplicarZoomCompositor(
+    event.evt.clientX -
+      rect.left,
+
+    event.evt.clientY -
+      rect.top,
+
+    event.evt.deltaY,
+  );
+}
 
   function aplicarZoom(
     factor: number,
@@ -793,7 +786,7 @@ export function MapaOperacion({
           <Stage
             width={width}
             height={height}
-            draggable
+
 
             x={vista.x}
             y={vista.y}
@@ -810,46 +803,21 @@ export function MapaOperacion({
               manejarRueda
             }
 
-            onDragStart={() => {
-              /*
-               * Seguridad por si el drag comienza
-               * sin un mouseDown convencional.
-               */
-              setArrastrandoMapa(
-                true,
-              );
-            }}
 
-            onDragEnd={(
-              event,
-            ) => {
-              setVista(
-                (actual) => ({
-                  ...actual,
-
-                  x:
-                    event.target.x(),
-
-                  y:
-                    event.target.y(),
-                }),
-              );
-
-              setArrastrandoMapa(
-                false,
-              );
-            }}
 
             onMouseDown={(
               event,
             ) => {
-              /*
-               * Activamos modo pan inmediatamente,
-               * antes de que Konva espere a detectar
-               * suficiente movimiento para iniciar drag.
-               */
-              setArrastrandoMapa(
-                true,
+              if (
+                event.evt.button !==
+                0
+              ) {
+                return;
+              }
+
+              iniciarPan(
+                event.evt.clientX,
+                event.evt.clientY,
               );
 
               setTooltip(
@@ -868,16 +836,11 @@ export function MapaOperacion({
                 );
               }
             }}
+            ref={
+              stageRef
+            }
 
-            onMouseUp={() => {
-              /*
-               * También cubre un simple click
-               * sin que se haya iniciado drag.
-               */
-              setArrastrandoMapa(
-                false,
-              );
-            }}
+
           >
             <CapaReticula
               geometria={
@@ -893,7 +856,7 @@ export function MapaOperacion({
 
             {/* BLOQUEOS */}
             <Layer
-            name="pan-pesado"
+              name="pan-pesado"
 
               listening={
                 !arrastrandoMapa
@@ -1020,13 +983,13 @@ export function MapaOperacion({
 
               capaIntermedia={
                 <Layer
-                name="pan-pesado"
+                  name="pan-pesado"
                   listening={
                     !arrastrandoMapa
                   }
                   visible={
-    !arrastrandoMapa
-  }
+                    !arrastrandoMapa
+                  }
                 >
                   <CapaPedidos
                     pedidos={
@@ -1115,13 +1078,13 @@ export function MapaOperacion({
 
             {/* AVERÍAS */}
             <Layer
-            name="pan-pesado"
+              name="pan-pesado"
               listening={
                 !arrastrandoMapa
               }
               visible={
-    !arrastrandoMapa
-  }
+                !arrastrandoMapa
+              }
             >
               <CapaAverias
                 averias={

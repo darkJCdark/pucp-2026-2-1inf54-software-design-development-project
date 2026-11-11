@@ -330,17 +330,7 @@ function CapaDinamicaMapaBase({
        * evita pintar potencialmente cientos de Arrow/Line
        * mientras el Stage se está desplazando.
        */}
-            <Layer
-             name="pan-pesado"
-                listening={
-                    !modoPan
-                }
-
-                visible={
-                    !modoPan &&
-                    mostrarRutas
-                }
-            >
+            <Layer>
                 <CapaRutas
                     rutas={
                         rutas
@@ -400,17 +390,7 @@ function CapaDinamicaMapaBase({
        * Permanecen visibles para mantener referencia
        * espacial, pero quedan congelados durante el pan.
        */}
-            <Layer
-             name="pan-pesado"
-                listening={
-                    
-                    !modoPan
-                }
-
-                visible={
-                    !modoPan
-                }
-            >
+            <Layer>
                 <CapaVehiculos
                     vehiculosVisuales={
                         vehiculosVisuales
