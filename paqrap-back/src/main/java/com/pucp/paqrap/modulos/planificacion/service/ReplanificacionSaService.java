@@ -27,8 +27,8 @@ import com.pucp.paqrap.modulos.flota.entity.VehicleOperationalState;
 import com.pucp.paqrap.modulos.flota.entity.VehicleStatus;
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
-import com.pucp.paqrap.modulos.incidencias.entity.BreakdownType;
 import com.pucp.paqrap.modulos.incidencias.entity.BreakdownResolution;
+import com.pucp.paqrap.modulos.incidencias.entity.BreakdownType;
 import com.pucp.paqrap.modulos.incidencias.service.BreakdownAvailabilityCalculator;
 import com.pucp.paqrap.modulos.pedidos.entity.Order;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.OperationalPlanEvaluator;
@@ -52,423 +52,1852 @@ import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 import com.pucp.paqrap.modulos.redvial.service.RoadNetwork;
 
 /**
- * Replanificación con SA. En cada evento: corta el plan vigente en {@code ahora} ({@link CortePlan}),
- * conserva las rutas en marcha (con un bloqueo, las vuelve a programar con el RouteScheduler original),
- * calcula lo pendiente, ejecuta el SA solo con los vehículos libres y une ambos conjuntos de rutas.
- * El estado de cada ejecución vive en memoria y solo se actualiza si la replanificación termina bien.
+ * Servicio de replanificación operacional.
+ *
+ * La lógica histórica de corte, bloqueos, averías,
+ * inventario y persistencia se conserva.
+ *
+ * Cuando el motor configurado es ALNS, antes de mandar
+ * pedidos pendientes únicamente a vehículos libres se
+ * intenta insertarlos en la parte todavía modificable
+ * de rutas que ya están en marcha.
  */
 @Service
-public class ReplanificacionSaService implements ReplanificacionService {
+public class ReplanificacionSaService
+        implements ReplanificacionService {
 
     private final FuenteDatosOperativos fuente;
+
     private final PlanificadorSaService planificador;
-    private final RouteScheduler programador = new RouteScheduler(new RoadNetwork());
-    /** El mismo evaluador del SA, para validar las rutas conservadas con las mismas reglas (incluido el límite por tramo). */
+
+    private final RouteScheduler programador =
+            new RouteScheduler(
+                    new RoadNetwork()
+            );
+
+    /**
+     * Mismo evaluador del motor de planificación.
+     */
     private final OperationalPlanEvaluator evaluador;
-    private final PlanResponseMapper mapper = new PlanResponseMapper();
+
+    private final PlanResponseMapper mapper =
+            new PlanResponseMapper();
+
     private final PlanPersistenceService persistenciaPlanes;
-    private final Map<Long, EstadoEjecucion> ejecuciones = new ConcurrentHashMap<>();
+
+    private final Map<
+            Long,
+            EstadoEjecucion
+            > ejecuciones =
+            new ConcurrentHashMap<>();
 
     @Autowired
-    public ReplanificacionSaService(FuenteDatosOperativos fuente, PlanificadorSaService planificador, PlanPersistenceService persistenciaPlanes) {
-        this.fuente = Objects.requireNonNull(fuente, "fuente es requerida");
-        this.planificador = Objects.requireNonNull(planificador, "planificador es requerido");
-        this.evaluador = planificador.evaluador();
-        this.persistenciaPlanes = Objects.requireNonNull(persistenciaPlanes, "persistenciaPlanes es requerida");
+    public ReplanificacionSaService(
+            FuenteDatosOperativos fuente,
+            PlanificadorSaService planificador,
+            PlanPersistenceService persistenciaPlanes
+    ) {
+
+        this.fuente =
+                Objects.requireNonNull(
+                        fuente,
+                        "fuente es requerida"
+                );
+
+        this.planificador =
+                Objects.requireNonNull(
+                        planificador,
+                        "planificador es requerido"
+                );
+
+        this.evaluador =
+                planificador.evaluador();
+
+        this.persistenciaPlanes =
+                Objects.requireNonNull(
+                        persistenciaPlanes,
+                        "persistenciaPlanes es requerida"
+                );
     }
 
-    // ------------------------------------------------------------------ disparadores
+    // ------------------------------------------------------------------
+    // disparadores
+    // ------------------------------------------------------------------
 
     @Override
-    public synchronized ReplanificacionResponse iniciar(long ejecucionId, SolicitudPlanificacion solicitud) {
-        Objects.requireNonNull(solicitud, "solicitud es requerida");
-        if (ejecuciones.containsKey(ejecucionId)) {
-            throw new ReglaNegocioException("La ejecución " + ejecucionId + " ya fue iniciada");
+    public synchronized ReplanificacionResponse iniciar(
+            long ejecucionId,
+            SolicitudPlanificacion solicitud
+    ) {
+
+        Objects.requireNonNull(
+                solicitud,
+                "solicitud es requerida"
+        );
+
+        if (
+                ejecuciones.containsKey(
+                        ejecucionId
+                )
+        ) {
+
+            throw new ReglaNegocioException(
+                    "La ejecución "
+                            +
+                            ejecucionId
+                            +
+                            " ya fue iniciada"
+            );
         }
-        EstadoEjecucion estado = new EstadoEjecucion(ejecucionId, solicitud.modo(),
-                PlanificadorSaService.semillaDe(solicitud), PlanificadorSaService.presupuestoDe(solicitud),
-                solicitud.configuracionSa() != null ? solicitud.configuracionSa() : PlanificadorSaService.configuracionPorDefecto(),
-                solicitud.horaPlanificacion());
-        Map<String, Order> pedidos = new LinkedHashMap<>();
-        for (Order pedido : solicitud.pedidosPendientes()) {
-            if (pedidos.put(pedido.id(), pedido) != null) {
-                throw new ReglaNegocioException("Pedido repetido en la solicitud: " + pedido.id());
+
+        EstadoEjecucion estado =
+                new EstadoEjecucion(
+                        ejecucionId,
+
+                        solicitud.modo(),
+
+                        PlanificadorSaService
+                                .semillaDe(
+                                        solicitud
+                                ),
+
+                        PlanificadorSaService
+                                .presupuestoDe(
+                                        solicitud
+                                ),
+
+                        solicitud.configuracionSa() != null
+                                ? solicitud.configuracionSa()
+                                : PlanificadorSaService
+                                        .configuracionPorDefecto(),
+
+                        solicitud.horaPlanificacion()
+                );
+
+        Map<String, Order> pedidos =
+                new LinkedHashMap<>();
+
+        for (
+                Order pedido :
+                solicitud.pedidosPendientes()
+        ) {
+
+            if (
+                    pedidos.put(
+                            pedido.id(),
+                            pedido
+                    ) != null
+            ) {
+
+                throw new ReglaNegocioException(
+                        "Pedido repetido en la solicitud: "
+                                +
+                                pedido.id()
+                );
             }
         }
-        estado.pedidos = pedidos;
-        estado.bloqueos = new ArrayList<>(solicitud.bloqueosActivos());
-        estado.bloqueosConocidos = new HashSet<>(solicitud.bloqueosActivos());
-        // Igual que el plan sin replanificación: las averías ya registradas cuentan desde el inicio.
-        estado.averias = new ArrayList<>(fuente.averias(ejecucionId));
-        ReplanificacionResponse respuesta = replanificar(estado, MotivoReplanificacion.INICIO,
-                solicitud.horaPlanificacion(), List.of(), List.of(), List.of(), List.of(), false, Set.of());
-        ejecuciones.put(ejecucionId, estado);
+
+        estado.pedidos =
+                pedidos;
+
+        estado.bloqueos =
+                new ArrayList<>(
+                        solicitud.bloqueosActivos()
+                );
+
+        estado.bloqueosConocidos =
+                new HashSet<>(
+                        solicitud.bloqueosActivos()
+                );
+
+        estado.averias =
+                new ArrayList<>(
+                        fuente.averias(
+                                ejecucionId
+                        )
+                );
+
+        ReplanificacionResponse respuesta =
+                replanificar(
+                        estado,
+
+                        MotivoReplanificacion.INICIO,
+
+                        solicitud.horaPlanificacion(),
+
+                        List.of(),
+
+                        List.of(),
+
+                        List.of(),
+
+                        List.of(),
+
+                        false,
+
+                        Set.of()
+                );
+
+        ejecuciones.put(
+                ejecucionId,
+                estado
+        );
+
         return respuesta;
     }
 
     @Override
-    public synchronized ReplanificacionResponse replanificar(long ejecucionId, Eventos eventos, Instant ahora) {
-        Objects.requireNonNull(eventos, "eventos es requerido");
-        EstadoEjecucion estado = obtener(ejecucionId);
-        validarHora(estado, ahora);
-        Map<String, Order> nuevos = new LinkedHashMap<>();
-        for (Order pedido : eventos.pedidos()) {
-            Objects.requireNonNull(pedido, "pedido es requerido");
-            if (estado.pedidos.containsKey(pedido.id()) || nuevos.put(pedido.id(), pedido) != null) {
-                throw new ReglaNegocioException("El pedido " + pedido.id() + " ya existe en la ejecución " + ejecucionId);
+    public synchronized ReplanificacionResponse replanificar(
+            long ejecucionId,
+            Eventos eventos,
+            Instant ahora
+    ) {
+
+        Objects.requireNonNull(
+                eventos,
+                "eventos es requerido"
+        );
+
+        EstadoEjecucion estado =
+                obtener(
+                        ejecucionId
+                );
+
+        validarHora(
+                estado,
+                ahora
+        );
+
+        Map<String, Order> nuevos =
+                new LinkedHashMap<>();
+
+        for (
+                Order pedido :
+                eventos.pedidos()
+        ) {
+
+            Objects.requireNonNull(
+                    pedido,
+                    "pedido es requerido"
+            );
+
+            if (
+                    estado
+                            .pedidos
+                            .containsKey(
+                                    pedido.id()
+                            )
+                    ||
+                    nuevos.put(
+                            pedido.id(),
+                            pedido
+                    ) != null
+            ) {
+
+                throw new ReglaNegocioException(
+                        "El pedido "
+                                +
+                                pedido.id()
+                                +
+                                " ya existe en la ejecución "
+                                +
+                                ejecucionId
+                );
             }
         }
-        // Cada bloqueo nuevo rige desde max(inicio, ahora); uno ya vencido o ya conocido no altera las rutas.
-        Set<RoadBlock> recibidos = new LinkedHashSet<>();
-        List<RoadBlock> bloqueos = new ArrayList<>();
-        for (RoadBlock bloqueo : eventos.bloqueos()) {
-            Objects.requireNonNull(bloqueo, "bloqueo es requerido");
-            if (estado.bloqueosConocidos.contains(bloqueo) || !recibidos.add(bloqueo)) {
+
+        Set<RoadBlock> recibidos =
+                new LinkedHashSet<>();
+
+        List<RoadBlock> bloqueos =
+                new ArrayList<>();
+
+        for (
+                RoadBlock bloqueo :
+                eventos.bloqueos()
+        ) {
+
+            Objects.requireNonNull(
+                    bloqueo,
+                    "bloqueo es requerido"
+            );
+
+            if (
+                    estado
+                            .bloqueosConocidos
+                            .contains(
+                                    bloqueo
+                            )
+                    ||
+                    !recibidos.add(
+                            bloqueo
+                    )
+            ) {
                 continue;
             }
-            Instant inicio = bloqueo.startsAt().isAfter(ahora) ? bloqueo.startsAt() : ahora;
-            if (bloqueo.endsAt().isAfter(inicio)) {
-                bloqueos.add(new RoadBlock(inicio, bloqueo.endsAt(), bloqueo.nodes()));
+
+            Instant inicio =
+                    bloqueo
+                            .startsAt()
+                            .isAfter(
+                                    ahora
+                            )
+                            ? bloqueo.startsAt()
+                            : ahora;
+
+            if (
+                    bloqueo
+                            .endsAt()
+                            .isAfter(
+                                    inicio
+                            )
+            ) {
+
+                bloqueos.add(
+                        new RoadBlock(
+                                inicio,
+                                bloqueo.endsAt(),
+                                bloqueo.nodes()
+                        )
+                );
             }
         }
-        Set<String> flota = new HashSet<>(fuente.flota().stream().map(Vehicle::id).toList());
-        for (BreakdownEvent averia : eventos.averias()) {
-            Objects.requireNonNull(averia, "averia es requerida");
-            if (!flota.contains(averia.vehicleId())) {
-                throw new ReglaNegocioException("Vehículo desconocido: " + averia.vehicleId());
+
+        Set<String> flota =
+                new HashSet<>(
+                        fuente
+                                .flota()
+                                .stream()
+                                .map(
+                                        Vehicle::id
+                                )
+                                .toList()
+                );
+
+        for (
+                BreakdownEvent averia :
+                eventos.averias()
+        ) {
+
+            Objects.requireNonNull(
+                    averia,
+                    "averia es requerida"
+            );
+
+            if (
+                    !flota.contains(
+                            averia.vehicleId()
+                    )
+            ) {
+
+                throw new ReglaNegocioException(
+                        "Vehículo desconocido: "
+                                +
+                                averia.vehicleId()
+                );
             }
         }
-        // Los bloqueos futuros del horizonte no son un evento: solo cuenta uno que empezó desde la replanificación
-        // anterior o uno nuevo que ya empezó.
-        boolean bloqueoIniciado = eventos.bloqueos().stream().anyMatch(bloqueo -> !bloqueo.startsAt().isAfter(ahora)
-                && (bloqueo.startsAt().isAfter(estado.ultimaHora) || recibidos.contains(bloqueo)));
-        boolean bloqueoTerminado = eventos.bloqueosTerminados().stream().anyMatch(bloqueo ->
-                !bloqueo.endsAt().isAfter(ahora) && bloqueo.endsAt().isAfter(estado.ultimaHora));
-        MotivoReplanificacion motivo = !eventos.averias().isEmpty() || !eventos.averiasTerminadas().isEmpty()
-                ? MotivoReplanificacion.AVERIA
-                : bloqueoIniciado || bloqueoTerminado ? MotivoReplanificacion.BLOQUEO
-                : !eventos.pedidos().isEmpty() ? MotivoReplanificacion.NUEVO_PEDIDO
-                : MotivoReplanificacion.PERIODICO;
-        ReplanificacionResponse respuesta = replanificar(estado, motivo, ahora, List.copyOf(nuevos.values()),
-                bloqueos, eventos.averias(), eventos.averiasTerminadas(), bloqueoIniciado || bloqueoTerminado,
-                Set.copyOf(eventos.tiposFlotaActualizados()));
-        estado.bloqueosConocidos.addAll(recibidos);
+
+        boolean bloqueoIniciado =
+                eventos
+                        .bloqueos()
+                        .stream()
+
+                        .anyMatch(
+                                bloqueo ->
+                                        !bloqueo
+                                                .startsAt()
+                                                .isAfter(
+                                                        ahora
+                                                )
+                                        &&
+                                        (
+                                                bloqueo
+                                                        .startsAt()
+                                                        .isAfter(
+                                                                estado.ultimaHora
+                                                        )
+                                                ||
+                                                recibidos.contains(
+                                                        bloqueo
+                                                )
+                                        )
+                        );
+
+        boolean bloqueoTerminado =
+                eventos
+                        .bloqueosTerminados()
+                        .stream()
+
+                        .anyMatch(
+                                bloqueo ->
+                                        !bloqueo
+                                                .endsAt()
+                                                .isAfter(
+                                                        ahora
+                                                )
+                                        &&
+                                        bloqueo
+                                                .endsAt()
+                                                .isAfter(
+                                                        estado.ultimaHora
+                                                )
+                        );
+
+        MotivoReplanificacion motivo =
+                !eventos.averias().isEmpty()
+                        ||
+                        !eventos
+                                .averiasTerminadas()
+                                .isEmpty()
+
+                        ? MotivoReplanificacion.AVERIA
+
+                        : bloqueoIniciado
+                        ||
+                        bloqueoTerminado
+
+                        ? MotivoReplanificacion.BLOQUEO
+
+                        : !eventos.pedidos().isEmpty()
+
+                        ? MotivoReplanificacion.NUEVO_PEDIDO
+
+                        : MotivoReplanificacion.PERIODICO;
+
+        ReplanificacionResponse respuesta =
+                replanificar(
+                        estado,
+                        motivo,
+                        ahora,
+                        List.copyOf(
+                                nuevos.values()
+                        ),
+                        bloqueos,
+                        eventos.averias(),
+                        eventos.averiasTerminadas(),
+                        bloqueoIniciado
+                                ||
+                                bloqueoTerminado,
+                        Set.copyOf(
+                                eventos
+                                        .tiposFlotaActualizados()
+                        )
+                );
+
+        estado
+                .bloqueosConocidos
+                .addAll(
+                        recibidos
+                );
+
         return respuesta;
     }
 
     @Override
-    public boolean conocePedido(long ejecucionId, String pedidoId) {
-        EstadoEjecucion estado = ejecuciones.get(ejecucionId);
-        return estado != null && estado.pedidos.containsKey(pedidoId);
+    public boolean conocePedido(
+            long ejecucionId,
+            String pedidoId
+    ) {
+
+        EstadoEjecucion estado =
+                ejecuciones.get(
+                        ejecucionId
+                );
+
+        return
+                estado != null
+                &&
+                estado
+                        .pedidos
+                        .containsKey(
+                                pedidoId
+                        );
     }
 
     @Override
-    public boolean estaIniciada(long ejecucionId) {
-        return ejecuciones.containsKey(ejecucionId);
+    public boolean estaIniciada(
+            long ejecucionId
+    ) {
+
+        return ejecuciones.containsKey(
+                ejecucionId
+        );
     }
 
     @Override
-    public Optional<ReplanificacionResponse> planVigente(long ejecucionId) {
-        EstadoEjecucion estado = ejecuciones.get(ejecucionId);
-        return estado == null ? Optional.empty() : Optional.ofNullable(estado.ultimaRespuesta);
+    public Optional<ReplanificacionResponse> planVigente(
+            long ejecucionId
+    ) {
+
+        EstadoEjecucion estado =
+                ejecuciones.get(
+                        ejecucionId
+                );
+
+        return estado == null
+                ? Optional.empty()
+                : Optional.ofNullable(
+                        estado.ultimaRespuesta
+                );
     }
 
     @Override
-    public Optional<MetricasPlanificacion> metricas(long ejecucionId) {
-        EstadoEjecucion estado = ejecuciones.get(ejecucionId);
-        return estado == null ? Optional.empty()
-                : Optional.of(new MetricasPlanificacion(estado.totalComputationMs, estado.numeroReplanificacion));
+    public Optional<MetricasPlanificacion> metricas(
+            long ejecucionId
+    ) {
+
+        EstadoEjecucion estado =
+                ejecuciones.get(
+                        ejecucionId
+                );
+
+        return estado == null
+                ? Optional.empty()
+
+                : Optional.of(
+                        new MetricasPlanificacion(
+                                estado.totalComputationMs,
+                                estado.numeroReplanificacion
+                        )
+                );
     }
 
     @Override
-    public synchronized void finalizar(long ejecucionId) {
-        ejecuciones.remove(ejecucionId);
+    public synchronized void finalizar(
+            long ejecucionId
+    ) {
+
+        ejecuciones.remove(
+                ejecucionId
+        );
     }
 
-    /** Solo para pruebas: rutas del plan vigente con sus snapshots de origen. */
-    synchronized List<RutaVigente> rutasVigentes(long ejecucionId) {
-        return List.copyOf(obtener(ejecucionId).rutas);
+    synchronized List<RutaVigente> rutasVigentes(
+            long ejecucionId
+    ) {
+
+        return List.copyOf(
+                obtener(
+                        ejecucionId
+                ).rutas
+        );
     }
 
-    /** Solo para pruebas: bloqueos con los que planifica la ejecución. */
-    synchronized List<RoadBlock> bloqueosVigentes(long ejecucionId) {
-        return List.copyOf(obtener(ejecucionId).bloqueos);
+    synchronized List<RoadBlock> bloqueosVigentes(
+            long ejecucionId
+    ) {
+
+        return List.copyOf(
+                obtener(
+                        ejecucionId
+                ).bloqueos
+        );
     }
 
-    // ------------------------------------------------------------------ replanificación
+    // ------------------------------------------------------------------
+    // replanificación
+    // ------------------------------------------------------------------
 
-    private ReplanificacionResponse replanificar(EstadoEjecucion estado, MotivoReplanificacion motivo, Instant ahora,
-                                                 List<Order> nuevosPedidos, List<RoadBlock> nuevosBloqueos,
-                                                 List<BreakdownEvent> nuevasAverias, List<BreakdownEvent> averiasTerminadas,
-                                                 boolean cambioBloqueo,
-                                                 Set<VehicleType> tiposFlotaActualizados) {
-        // 1. Datos con los eventos aplicados (el estado se confirma recién al final).
-        Map<String, Order> pedidos = new LinkedHashMap<>(estado.pedidos);
-        nuevosPedidos.forEach(pedido -> pedidos.put(pedido.id(), pedido));
-        List<RoadBlock> bloqueos = new ArrayList<>(estado.bloqueos);
-        bloqueos.addAll(nuevosBloqueos);
-        List<BreakdownEvent> averias = new ArrayList<>(estado.averias);
-        averias.addAll(nuevasAverias);
-        Map<String, VehicleOperationalState> forzados = new HashMap<>(estado.estadosForzados);
-        Collection<Warehouse> almacenes = fuente.almacenes();
-        Warehouse central = almacenes.stream().filter(Warehouse::isCentral).findFirst()
-                .orElseThrow(() -> new IllegalStateException("La fuente de datos no define un almacén central"));
+    private ReplanificacionResponse replanificar(
+            EstadoEjecucion estado,
+            MotivoReplanificacion motivo,
+            Instant ahora,
+            List<Order> nuevosPedidos,
+            List<RoadBlock> nuevosBloqueos,
+            List<BreakdownEvent> nuevasAverias,
+            List<BreakdownEvent> averiasTerminadas,
+            boolean cambioBloqueo,
+            Set<VehicleType> tiposFlotaActualizados
+    ) {
 
-        // 2. Corte del plan vigente en 'ahora'; la ruta de un vehículo averiado se corta en el instante de la avería.
-        Map<String, BreakdownEvent> averiaPorVehiculo = new HashMap<>();
-        nuevasAverias.forEach(averia -> averiaPorVehiculo.merge(averia.vehicleId(), averia,
-                (a, b) -> a.occurredAt().isAfter(b.occurredAt()) ? b : a));
-        Map<String, Instant> interrumpidos = new HashMap<>();
-        averiaPorVehiculo.forEach((vehiculo, averia) -> interrumpidos.put(vehiculo, averia.occurredAt()));
-        CortePlan.Resultado corte = CortePlan.cortar(estado.rutas, ahora, interrumpidos);
-        Map<String, Integer> entregados = new HashMap<>(estado.entregados);
-        CortePlan.sumar(entregados, corte.entregasSalientes());
-        Map<String, Integer> retiros = new HashMap<>(estado.retiros);
-        CortePlan.sumar(retiros, corte.retirosSalientes());
-        for (RutaVigente interrumpida : corte.interrumpidas()) {
-            forzados.put(interrumpida.vehiculoId(), estadoTrasAveria(interrumpida.ruta().vehicle(),
-                    averiaPorVehiculo.get(interrumpida.vehiculoId()), central));
+        /*
+         * =====================================================
+         * 1. APLICAR EVENTOS SOBRE UNA COPIA
+         * =====================================================
+         */
+
+        Map<String, Order> pedidos =
+                new LinkedHashMap<>(
+                        estado.pedidos
+                );
+
+        nuevosPedidos.forEach(
+                pedido ->
+                        pedidos.put(
+                                pedido.id(),
+                                pedido
+                        )
+        );
+
+        List<RoadBlock> bloqueos =
+                new ArrayList<>(
+                        estado.bloqueos
+                );
+
+        bloqueos.addAll(
+                nuevosBloqueos
+        );
+
+        List<BreakdownEvent> averias =
+                new ArrayList<>(
+                        estado.averias
+                );
+
+        averias.addAll(
+                nuevasAverias
+        );
+
+        Map<
+                String,
+                VehicleOperationalState
+                > forzados =
+                new HashMap<>(
+                        estado.estadosForzados
+                );
+
+        Collection<Warehouse> almacenes =
+                fuente.almacenes();
+
+        Warehouse central =
+                almacenes
+                        .stream()
+                        .filter(
+                                Warehouse::isCentral
+                        )
+                        .findFirst()
+                        .orElseThrow(
+                                () ->
+                                        new IllegalStateException(
+                                                "La fuente de datos no define un almacén central"
+                                        )
+                        );
+
+        /*
+         * =====================================================
+         * 2. CORTAR PLAN VIGENTE
+         * =====================================================
+         */
+
+        Map<String, BreakdownEvent> averiaPorVehiculo =
+                new HashMap<>();
+
+        nuevasAverias.forEach(
+                averia ->
+                        averiaPorVehiculo.merge(
+                                averia.vehicleId(),
+                                averia,
+                                (
+                                        a,
+                                        b
+                                ) ->
+                                        a
+                                                .occurredAt()
+                                                .isAfter(
+                                                        b.occurredAt()
+                                                )
+                                                ? b
+                                                : a
+                        )
+        );
+
+        Map<String, Instant> interrumpidos =
+                new HashMap<>();
+
+        averiaPorVehiculo.forEach(
+                (
+                        vehiculo,
+                        averia
+                ) ->
+                        interrumpidos.put(
+                                vehiculo,
+                                averia.occurredAt()
+                        )
+        );
+
+        CortePlan.Resultado corte =
+                CortePlan.cortar(
+                        estado.rutas,
+                        ahora,
+                        interrumpidos
+                );
+
+        Map<String, Integer> entregados =
+                new HashMap<>(
+                        estado.entregados
+                );
+
+        CortePlan.sumar(
+                entregados,
+                corte.entregasSalientes()
+        );
+
+        Map<String, Integer> retiros =
+                new HashMap<>(
+                        estado.retiros
+                );
+
+        CortePlan.sumar(
+                retiros,
+                corte.retirosSalientes()
+        );
+
+        for (
+                RutaVigente interrumpida :
+                corte.interrumpidas()
+        ) {
+
+            forzados.put(
+                    interrumpida
+                            .vehiculoId(),
+
+                    estadoTrasAveria(
+                            interrumpida
+                                    .ruta()
+                                    .vehicle(),
+
+                            averiaPorVehiculo.get(
+                                    interrumpida
+                                            .vehiculoId()
+                            ),
+
+                            central
+                    )
+            );
         }
 
-        // 3. Conserved routes are rescheduled when their road path or fleet parameters change.
-        List<RutaVigente> conservadas = new ArrayList<>(corte.conservadas().stream()
-                .map(ruta -> cambioBloqueo || tiposFlotaActualizados.contains(ruta.ruta().vehicle().type())
-                        ? reprogramar(ruta, bloqueos, !tiposFlotaActualizados.isEmpty()) : ruta)
-                .toList());
-        agregarRegresosAlCentral(averiasTerminadas, ahora, central, almacenes, conservadas, forzados, averias, retiros,
-                bloqueos);
+        /*
+         * =====================================================
+         * 3. RUTAS ACTIVAS
+         * =====================================================
+         */
 
-        // 4. Pendiente = pedido menos lo entregado y lo que llevan las rutas conservadas.
-        Map<String, Integer> cubiertos = new HashMap<>(entregados);
-        Map<String, Integer> retirosTotales = new HashMap<>(retiros);
-        for (RutaVigente ruta : conservadas) {
-            CortePlan.sumar(cubiertos, CortePlan.entregas(ruta, null));
-            CortePlan.sumar(retirosTotales, CortePlan.retirosIntermedios(ruta, null));
+        List<RutaVigente> conservadas =
+                new ArrayList<>(
+                        corte
+                                .conservadas()
+                                .stream()
+
+                                .map(
+                                        ruta ->
+                                                cambioBloqueo
+                                                ||
+                                                tiposFlotaActualizados
+                                                        .contains(
+                                                                ruta
+                                                                        .ruta()
+                                                                        .vehicle()
+                                                                        .type()
+                                                        )
+
+                                                        ? reprogramar(
+                                                                ruta,
+                                                                bloqueos,
+                                                                !tiposFlotaActualizados
+                                                                        .isEmpty()
+                                                        )
+
+                                                        : ruta
+                                )
+
+                                .toList()
+                );
+
+        agregarRegresosAlCentral(
+                averiasTerminadas,
+                ahora,
+                central,
+                almacenes,
+                conservadas,
+                forzados,
+                averias,
+                retiros,
+                bloqueos
+        );
+
+        /*
+         * =====================================================
+         * 4. CALCULAR PEDIDOS PENDIENTES
+         * =====================================================
+         */
+
+        Map<String, Integer> cubiertos =
+                new HashMap<>(
+                        entregados
+                );
+
+        Map<String, Integer> retirosTotales =
+                new HashMap<>(
+                        retiros
+                );
+
+        for (
+                RutaVigente ruta :
+                conservadas
+        ) {
+
+            CortePlan.sumar(
+                    cubiertos,
+                    CortePlan.entregas(
+                            ruta,
+                            null
+                    )
+            );
+
+            CortePlan.sumar(
+                    retirosTotales,
+                    CortePlan
+                            .retirosIntermedios(
+                                    ruta,
+                                    null
+                            )
+            );
         }
-        List<Order> pendientes = new ArrayList<>();
-        for (Order pedido : pedidos.values()) {
-            int falta = pedido.packages() - cubiertos.getOrDefault(pedido.id(), 0);
-            if (falta > 0) {
-                pendientes.add(falta == pedido.packages() ? pedido
-                        : new Order(pedido.id(), pedido.destination(), falta, pedido.registeredAt(), pedido.deadline()));
+
+        List<Order> pendientes =
+                new ArrayList<>();
+
+        for (
+                Order pedido :
+                pedidos.values()
+        ) {
+
+            int falta =
+                    pedido.packages()
+                    -
+                    cubiertos.getOrDefault(
+                            pedido.id(),
+                            0
+                    );
+
+            if (
+                    falta > 0
+            ) {
+
+                pendientes.add(
+                        falta ==
+                                pedido.packages()
+
+                                ? pedido
+
+                                : new Order(
+                                        pedido.id(),
+                                        pedido.destination(),
+                                        falta,
+                                        pedido.registeredAt(),
+                                        pedido.deadline()
+                                )
+                );
             }
         }
 
-        // 5. SA solo con lo pendiente y los vehículos libres.
-        OperationalSnapshot snapshot = construirSnapshot(ahora, central, almacenes, conservadas, forzados, averias,
-                retirosTotales);
-        int numero = estado.numeroReplanificacion + 1;
-        long semilla = estado.semillaBase + numero;
+        /*
+         * =====================================================
+         * 5. INSERCIÓN EN RUTAS ACTIVAS - SOLO ALNS
+         * =====================================================
+         *
+         * Reservamos como máximo:
+         *
+         * - 20 % del presupuesto;
+         * - con techo de 300 ms.
+         *
+         * El resto siempre queda disponible para ALNS.
+         */
+
+        long presupuestoPlannerMs =
+                estado.presupuestoMs;
+
+        if (
+                planificador.algoritmo() ==
+                        AlgoritmoPlanificacion.ALNS
+                &&
+                !pendientes.isEmpty()
+                &&
+                !conservadas.isEmpty()
+        ) {
+
+            long inicioInsercionNanos =
+                    System.nanoTime();
+
+            long presupuestoInsercionMs =
+                    Math.min(
+                            300L,
+
+                            Math.max(
+                                    25L,
+                                    estado.presupuestoMs
+                                            /
+                                            5L
+                            )
+                    );
+
+            long deadlineInsercion =
+                    inicioInsercionNanos
+                    +
+                    presupuestoInsercionMs
+                    *
+                    1_000_000L;
+
+            InsercionRutasActivasAlns.Resultado insercion =
+                    new InsercionRutasActivasAlns(
+                            evaluador
+                    )
+                            .insertar(
+                                    ahora,
+                                    conservadas,
+                                    pendientes,
+                                    central,
+                                    bloqueos,
+                                    deadlineInsercion
+                            );
+
+            conservadas =
+                    new ArrayList<>(
+                            insercion.rutas()
+                    );
+
+            pendientes =
+                    new ArrayList<>(
+                            insercion.pendientes()
+                    );
+
+            long gastadoInsercionMs =
+                    Math.max(
+                            0L,
+
+                            (
+                                    System.nanoTime()
+                                    -
+                                    inicioInsercionNanos
+                            )
+                            /
+                            1_000_000L
+                    );
+
+            presupuestoPlannerMs =
+                    Math.max(
+                            1L,
+
+                            estado.presupuestoMs
+                            -
+                            gastadoInsercionMs
+                    );
+        }
+
+        /*
+         * =====================================================
+         * 6. ALNS / SA CON LO QUE TODAVÍA QUEDA PENDIENTE
+         * =====================================================
+         */
+
+        OperationalSnapshot snapshot =
+                construirSnapshot(
+                        ahora,
+                        central,
+                        almacenes,
+                        conservadas,
+                        forzados,
+                        averias,
+                        retirosTotales
+                );
+
+        int numero =
+                estado.numeroReplanificacion
+                +
+                1;
+
+        long semilla =
+                estado.semillaBase
+                +
+                numero;
+
         PlanificadorSaService.EjecucionSa ejecucion =
-                planificador.ejecutarSa(snapshot, pendientes, bloqueos, estado.configuracionSa, semilla, estado.presupuestoMs);
-        estado.totalComputationMs += ejecucion.duracionMs();
-        ResultadoPlanificacion sa = ejecucion.resultado();
+                planificador.ejecutarSa(
+                        snapshot,
+                        pendientes,
+                        bloqueos,
+                        estado.configuracionSa,
+                        semilla,
+                        presupuestoPlannerMs
+                );
 
-        // 6. Plan vigente = conservadas + nuevas.
-        OperationalPlan plan = OperationalPlan.empty();
-        Map<String, ScheduledDeliveryRoute> programadas = new LinkedHashMap<>();
-        List<PlanViolation> violaciones = new ArrayList<>();
-        double costo = 0;
-        List<RutaVigente> vigentes = new ArrayList<>();
-        for (RutaVigente ruta : conservadas) {
-            plan = plan.withRoute(ruta.ruta());
-            if (ruta.programada() != null) {
-                programadas.put(ruta.ruta().id(), ruta.programada());
-                costo += ruta.programada().totalCost();
+        estado.totalComputationMs +=
+                ejecucion.duracionMs();
+
+        ResultadoPlanificacion resultadoHeuristico =
+                ejecucion.resultado();
+
+        /*
+         * =====================================================
+         * 7. COMBINAR RUTAS CONSERVADAS + NUEVAS
+         * =====================================================
+         */
+
+        OperationalPlan plan =
+                OperationalPlan.empty();
+
+        Map<
+                String,
+                ScheduledDeliveryRoute
+                > programadas =
+                new LinkedHashMap<>();
+
+        List<PlanViolation> violaciones =
+                new ArrayList<>();
+
+        double costo =
+                0;
+
+        List<RutaVigente> vigentes =
+                new ArrayList<>();
+
+        for (
+                RutaVigente ruta :
+                conservadas
+        ) {
+
+            plan =
+                    plan.withRoute(
+                            ruta.ruta()
+                    );
+
+            if (
+                    ruta.programada() != null
+            ) {
+
+                programadas.put(
+                        ruta
+                                .ruta()
+                                .id(),
+
+                        ruta.programada()
+                );
+
+                costo +=
+                        ruta
+                                .programada()
+                                .totalCost();
             }
-            violaciones.addAll(ruta.violaciones());
-            vigentes.add(ruta);
+
+            violaciones.addAll(
+                    ruta.violaciones()
+            );
+
+            vigentes.add(
+                    ruta
+            );
         }
-        List<DeliveryRoute> nuevas = sa.plan().routes().stream()
-                .sorted(Comparator.comparing(ruta -> ruta.vehicle().id())).toList();
-        for (DeliveryRoute ruta : nuevas) {
-            plan = plan.withRoute(ruta);
-            ScheduledDeliveryRoute programada = sa.evaluacion().schedulesByRouteId().get(ruta.id());
-            if (programada != null) {
-                programadas.put(ruta.id(), programada);
+
+        List<DeliveryRoute> nuevas =
+                resultadoHeuristico
+                        .plan()
+                        .routes()
+                        .stream()
+
+                        .sorted(
+                                Comparator.comparing(
+                                        ruta ->
+                                                ruta
+                                                        .vehicle()
+                                                        .id()
+                                )
+                        )
+
+                        .toList();
+
+        for (
+                DeliveryRoute ruta :
+                nuevas
+        ) {
+
+            plan =
+                    plan.withRoute(
+                            ruta
+                    );
+
+            ScheduledDeliveryRoute programada =
+                    resultadoHeuristico
+                            .evaluacion()
+                            .schedulesByRouteId()
+                            .get(
+                                    ruta.id()
+                            );
+
+            if (
+                    programada != null
+            ) {
+
+                programadas.put(
+                        ruta.id(),
+                        programada
+                );
             }
-            vigentes.add(new RutaVigente(ruta, snapshot, programada, List.of()));
+
+            vigentes.add(
+                    new RutaVigente(
+                            ruta,
+                            snapshot,
+                            programada,
+                            List.of()
+                    )
+            );
         }
-        violaciones.addAll(sa.evaluacion().violations());
-        costo += sa.costoTotal();
-        ResultadoPlanificacion combinado = new ResultadoPlanificacion(plan,
-                new PlanEvaluation(programadas, violaciones, sa.evaluacion().remainingInventory(), costo), sa.noAtendidos());
-        PlanResponse planResponse = mapper.aResponse(estado.modo, ahora, combinado, semilla, ejecucion.duracionMs(),
-                estado.presupuestoMs);
 
-        Set<String> asignadosAntes = pedidosDe(estado.rutas.stream().map(RutaVigente::ruta).toList());
-        List<String> reasignados = pedidosDe(nuevas).stream().filter(asignadosAntes::contains).sorted().toList();
-        Set<String> ocupados = new HashSet<>();
-        conservadas.forEach(ruta -> ocupados.add(ruta.vehiculoId()));
-        List<String> noDisponibles = fuente.flota().stream().map(Vehicle::id)
-                .filter(id -> !ocupados.contains(id) && !snapshot.isVehiclePlannableAt(id, ahora))
-                .sorted().toList();
-        PlanEntity snapshotPersistido = persistenciaPlanes.persistir(estado.ejecucionId, motivo, plan, programadas,
-                planResponse);
-        if (snapshotPersistido != null) { // Los dobles de prueba históricos no persisten snapshots.
-            planResponse = mapper.conIdentidadesPersistidas(planResponse,
-                    persistenciaPlanes.rutasPersistidasPorOperacion(snapshotPersistido.getPlanId()),
-                    snapshotPersistido.getPlanId());
+        violaciones.addAll(
+                resultadoHeuristico
+                        .evaluacion()
+                        .violations()
+        );
+
+        costo +=
+                resultadoHeuristico
+                        .costoTotal();
+
+        ResultadoPlanificacion combinado =
+                new ResultadoPlanificacion(
+                        plan,
+
+                        new PlanEvaluation(
+                                programadas,
+                                violaciones,
+
+                                resultadoHeuristico
+                                        .evaluacion()
+                                        .remainingInventory(),
+
+                                costo
+                        ),
+
+                        resultadoHeuristico
+                                .noAtendidos()
+                );
+
+        PlanResponse planResponse =
+                mapper.aResponse(
+                        estado.modo,
+                        ahora,
+                        combinado,
+                        semilla,
+                        ejecucion.duracionMs(),
+                        estado.presupuestoMs
+                );
+
+        /*
+         * =====================================================
+         * METADATOS DE REPLANIFICACIÓN
+         * =====================================================
+         */
+
+        Set<String> asignadosAntes =
+                pedidosDe(
+                        estado
+                                .rutas
+                                .stream()
+                                .map(
+                                        RutaVigente::ruta
+                                )
+                                .toList()
+                );
+
+        List<String> reasignados =
+                pedidosDe(
+                        nuevas
+                )
+                        .stream()
+
+                        .filter(
+                                asignadosAntes::contains
+                        )
+
+                        .sorted()
+
+                        .toList();
+
+        Set<String> ocupados =
+                new HashSet<>();
+
+        conservadas.forEach(
+                ruta ->
+                        ocupados.add(
+                                ruta.vehiculoId()
+                        )
+        );
+
+        List<String> noDisponibles =
+                fuente
+                        .flota()
+                        .stream()
+
+                        .map(
+                                Vehicle::id
+                        )
+
+                        .filter(
+                                id ->
+                                        !ocupados.contains(
+                                                id
+                                        )
+                                        &&
+                                        !snapshot
+                                                .isVehiclePlannableAt(
+                                                        id,
+                                                        ahora
+                                                )
+                        )
+
+                        .sorted()
+
+                        .toList();
+
+        /*
+         * =====================================================
+         * PERSISTENCIA
+         * =====================================================
+         */
+
+        PlanEntity snapshotPersistido =
+                persistenciaPlanes.persistir(
+                        estado.ejecucionId,
+                        motivo,
+                        plan,
+                        programadas,
+                        planResponse
+                );
+
+        if (
+                snapshotPersistido != null
+        ) {
+
+            planResponse =
+                    mapper.conIdentidadesPersistidas(
+                            planResponse,
+
+                            persistenciaPlanes
+                                    .rutasPersistidasPorOperacion(
+                                            snapshotPersistido
+                                                    .getPlanId()
+                                    ),
+
+                            snapshotPersistido
+                                    .getPlanId()
+                    );
         }
-        ReplanificacionResponse respuesta = new ReplanificacionResponse(estado.ejecucionId, numero, motivo, ahora,
-                planResponse,
-                conservadas.stream().map(ruta -> ruta.ruta().id()).sorted().toList(),
-                nuevas.stream().map(DeliveryRoute::id).sorted().toList(),
-                reasignados, noDisponibles);
 
-        // 7. Confirmación del estado.
+        ReplanificacionResponse respuesta =
+                new ReplanificacionResponse(
+                        estado.ejecucionId,
+                        numero,
+                        motivo,
+                        ahora,
 
+                        planResponse,
 
-        estado.pedidos = pedidos;
-        estado.bloqueos = bloqueos;
-        estado.averias = averias;
-        estado.estadosForzados = forzados;
-        estado.entregados = entregados;
-        estado.retiros = retiros;
-        estado.rutas = List.copyOf(vigentes);
-        estado.numeroReplanificacion = numero;
-        estado.ultimaHora = ahora;
-        estado.ultimaRespuesta = respuesta;
+                        conservadas
+                                .stream()
+                                .map(
+                                        ruta ->
+                                                ruta
+                                                        .ruta()
+                                                        .id()
+                                )
+                                .sorted()
+                                .toList(),
+
+                        nuevas
+                                .stream()
+                                .map(
+                                        DeliveryRoute::id
+                                )
+                                .sorted()
+                                .toList(),
+
+                        reasignados,
+
+                        noDisponibles
+                );
+
+        /*
+         * =====================================================
+         * 8. CONFIRMAR ESTADO
+         * =====================================================
+         */
+
+        estado.pedidos =
+                pedidos;
+
+        estado.bloqueos =
+                bloqueos;
+
+        estado.averias =
+                averias;
+
+        estado.estadosForzados =
+                forzados;
+
+        estado.entregados =
+                entregados;
+
+        estado.retiros =
+                retiros;
+
+        estado.rutas =
+                List.copyOf(
+                        vigentes
+                );
+
+        estado.numeroReplanificacion =
+                numero;
+
+        estado.ultimaHora =
+                ahora;
+
+        estado.ultimaRespuesta =
+                respuesta;
+
         return respuesta;
     }
 
-    /**
-     * Supuesto del equipo: al terminar una avería menor, la unidad cuya ruta se interrumpió regresa vacía al central
-     * por las calles (el caso no define qué hace, y el planificador solo asigna unidades que están en el central). Sus
-     * pedidos ya se reasignaron; queda ocupada hasta llegar.
+    /*
+     * =========================================================
+     * REGRESOS TRAS AVERÍA
+     * =========================================================
      */
-    private void agregarRegresosAlCentral(List<BreakdownEvent> averiasTerminadas, Instant ahora, Warehouse central,
-                                          Collection<Warehouse> almacenes, List<RutaVigente> conservadas,
-                                          Map<String, VehicleOperationalState> forzados, List<BreakdownEvent> averias,
-                                          Map<String, Integer> retiros, List<RoadBlock> bloqueos) {
-        for (BreakdownEvent averia : averiasTerminadas) {
-            String vehiculoId = averia.vehicleId();
-            VehicleOperationalState detenido = forzados.get(vehiculoId);
-            if (averia.type() != BreakdownType.MINOR || detenido == null
-                    || conservadas.stream().anyMatch(ruta -> ruta.vehiculoId().equals(vehiculoId))) {
+
+    private void agregarRegresosAlCentral(
+            List<BreakdownEvent> averiasTerminadas,
+            Instant ahora,
+            Warehouse central,
+            Collection<Warehouse> almacenes,
+            List<RutaVigente> conservadas,
+            Map<String, VehicleOperationalState> forzados,
+            List<BreakdownEvent> averias,
+            Map<String, Integer> retiros,
+            List<RoadBlock> bloqueos
+    ) {
+
+        for (
+                BreakdownEvent averia :
+                averiasTerminadas
+        ) {
+
+            String vehiculoId =
+                    averia.vehicleId();
+
+            VehicleOperationalState detenido =
+                    forzados.get(
+                            vehiculoId
+                    );
+
+            if (
+                    averia.type() !=
+                            BreakdownType.MINOR
+                    ||
+                    detenido == null
+                    ||
+                    conservadas
+                            .stream()
+                            .anyMatch(
+                                    ruta ->
+                                            ruta
+                                                    .vehiculoId()
+                                                    .equals(
+                                                            vehiculoId
+                                                    )
+                            )
+            ) {
                 continue;
             }
-            forzados.remove(vehiculoId);
-            if (averia.location().equals(central.location())) {
+
+            forzados.remove(
+                    vehiculoId
+            );
+
+            if (
+                    averia
+                            .location()
+                            .equals(
+                                    central.location()
+                            )
+            ) {
                 continue;
             }
-            DeliveryRoute regreso = DeliveryRoute.replanFromCurrentLocation("REGRESO-" + vehiculoId, detenido.vehicle(),
-                    averia.location(), 0, ahora).returningTo(central);
-            OperationalSnapshot snapshot = construirSnapshot(ahora, central, almacenes, conservadas, forzados, averias,
-                    retiros);
-            conservadas.add(reprogramar(new RutaVigente(regreso, snapshot, null, List.of()), bloqueos, false));
+
+            DeliveryRoute regreso =
+                    DeliveryRoute
+                            .replanFromCurrentLocation(
+                                    "REGRESO-"
+                                            +
+                                            vehiculoId,
+
+                                    detenido.vehicle(),
+
+                                    averia.location(),
+
+                                    0,
+
+                                    ahora
+                            )
+                            .returningTo(
+                                    central
+                            );
+
+            OperationalSnapshot snapshot =
+                    construirSnapshot(
+                            ahora,
+                            central,
+                            almacenes,
+                            conservadas,
+                            forzados,
+                            averias,
+                            retiros
+                    );
+
+            conservadas.add(
+                    reprogramar(
+                            new RutaVigente(
+                                    regreso,
+                                    snapshot,
+                                    null,
+                                    List.of()
+                            ),
+
+                            bloqueos,
+
+                            false
+                    )
+            );
         }
     }
 
-    private RutaVigente reprogramar(RutaVigente ruta, List<RoadBlock> bloqueos, boolean perfilFlotaActualizado) {
-        OperationalSnapshot snapshot = perfilFlotaActualizado ? conPerfilFlotaActual(ruta.snapshotOrigen())
-                : ruta.snapshotOrigen();
+    /*
+     * =========================================================
+     * REPROGRAMACIÓN DE RUTAS CONSERVADAS
+     * =========================================================
+     */
+
+    private RutaVigente reprogramar(
+            RutaVigente ruta,
+            List<RoadBlock> bloqueos,
+            boolean perfilFlotaActualizado
+    ) {
+
+        OperationalSnapshot snapshot =
+                perfilFlotaActualizado
+
+                        ? conPerfilFlotaActual(
+                                ruta.snapshotOrigen()
+                        )
+
+                        : ruta.snapshotOrigen();
+
         try {
-            ScheduledDeliveryRoute programada = programador.schedule(ruta.ruta(), snapshot, bloqueos);
-            return new RutaVigente(ruta.ruta(), snapshot, programada, violacionesDeRuta(ruta, bloqueos, snapshot));
-        } catch (IllegalStateException sinCamino) {
-            return new RutaVigente(ruta.ruta(), snapshot, ruta.programada(),
-                    List.of(new PlanViolation(PlanViolationType.NO_ROAD_PATH, ruta.ruta().id(), sinCamino.getMessage())));
+
+            ScheduledDeliveryRoute programada =
+                    programador.schedule(
+                            ruta.ruta(),
+                            snapshot,
+                            bloqueos
+                    );
+
+            return new RutaVigente(
+                    ruta.ruta(),
+                    snapshot,
+                    programada,
+
+                    violacionesDeRuta(
+                            ruta,
+                            bloqueos,
+                            snapshot
+                    )
+            );
+
+        } catch (
+                IllegalStateException sinCamino
+        ) {
+
+            return new RutaVigente(
+                    ruta.ruta(),
+                    snapshot,
+                    ruta.programada(),
+
+                    List.of(
+                            new PlanViolation(
+                                    PlanViolationType.NO_ROAD_PATH,
+                                    ruta
+                                            .ruta()
+                                            .id(),
+                                    sinCamino.getMessage()
+                            )
+                    )
+            );
         }
     }
 
-    private OperationalSnapshot conPerfilFlotaActual(OperationalSnapshot origen) {
-        return new OperationalSnapshot(origen.planningTime(), fuente.perfilFlota(), origen.inventory(),
-                origen.vehiclesById(), origen.maintenanceCalendar(), origen.shiftSchedule(), origen.breakdowns());
+    private OperationalSnapshot conPerfilFlotaActual(
+            OperationalSnapshot origen
+    ) {
+
+        return new OperationalSnapshot(
+                origen.planningTime(),
+
+                fuente.perfilFlota(),
+
+                origen.inventory(),
+
+                origen.vehiclesById(),
+
+                origen.maintenanceCalendar(),
+
+                origen.shiftSchedule(),
+
+                origen.breakdowns()
+        );
     }
 
-    /**
-     * Evalúa la ruta sola con el evaluador original y su snapshot de origen. Se descarta
-     * PARTIAL_DELIVERY_MISMATCH porque una ruta puede llevar solo una parte de un pedido.
+    /*
+     * =========================================================
+     * VALIDACIÓN INDIVIDUAL DE RUTA
+     * =========================================================
      */
-    private List<PlanViolation> violacionesDeRuta(RutaVigente ruta, List<RoadBlock> bloqueos,
-                                                   OperationalSnapshot snapshot) {
-        Map<String, Order> pedidos = new LinkedHashMap<>();
-        ruta.ruta().stops().forEach(parada -> {
-            if (parada instanceof DeliveryStop entrega) {
-                pedidos.putIfAbsent(entrega.order().id(), entrega.order());
-            }
-        });
-        PlanEvaluation evaluacion = evaluador.evaluate(OperationalPlan.empty().withRoute(ruta.ruta()),
-                snapshot, pedidos.values(), bloqueos);
-        return evaluacion.violations().stream()
-                .filter(violacion -> violacion.type() != PlanViolationType.PARTIAL_DELIVERY_MISMATCH)
+
+    private List<PlanViolation> violacionesDeRuta(
+            RutaVigente ruta,
+            List<RoadBlock> bloqueos,
+            OperationalSnapshot snapshot
+    ) {
+
+        Map<String, Order> pedidos =
+                new LinkedHashMap<>();
+
+        ruta
+                .ruta()
+                .stops()
+                .forEach(
+                        parada -> {
+
+                            if (
+                                    parada instanceof
+                                            DeliveryStop entrega
+                            ) {
+
+                                pedidos.putIfAbsent(
+                                        entrega
+                                                .order()
+                                                .id(),
+
+                                        entrega.order()
+                                );
+                            }
+                        }
+                );
+
+        PlanEvaluation evaluacion =
+                evaluador.evaluate(
+                        OperationalPlan
+                                .empty()
+                                .withRoute(
+                                        ruta.ruta()
+                                ),
+
+                        snapshot,
+
+                        pedidos.values(),
+
+                        bloqueos
+                );
+
+        return evaluacion
+                .violations()
+                .stream()
+
+                .filter(
+                        violacion ->
+                                violacion.type() !=
+                                        PlanViolationType
+                                                .PARTIAL_DELIVERY_MISMATCH
+                )
+
                 .toList();
     }
 
-    /**
-     * Estado del vehículo después de interrumpir una ruta por avería.
-     *
-     * <p>Una MINOR permanece en el lugar de la avería y vuelve a ser planificable al finalizar sus dos horas.
-     * Las INTERMEDIATE y MAJOR quedan en el central desde el instante en que terminan tanto la indisponibilidad
-     * como el retorno automático.
+    /*
+     * =========================================================
+     * AVERÍAS
+     * =========================================================
      */
-    private VehicleOperationalState estadoTrasAveria(Vehicle vehiculo, BreakdownEvent averia, Warehouse central) {
+
+    private VehicleOperationalState estadoTrasAveria(
+            Vehicle vehiculo,
+            BreakdownEvent averia,
+            Warehouse central
+    ) {
+
         BreakdownResolution resolucion =
-                new BreakdownAvailabilityCalculator(new ShiftSchedule(ShiftSchedule.DEFAULT_ZONE)).resolve(averia);
+                new BreakdownAvailabilityCalculator(
+                        new ShiftSchedule(
+                                ShiftSchedule.DEFAULT_ZONE
+                        )
+                )
+                        .resolve(
+                                averia
+                        );
+
         return new VehicleOperationalState(
                 vehiculo,
+
                 VehicleStatus.AVAILABLE,
-                resolucion.returnsToCentralAt() == null ? averia.location() : central.location(),
-                resolucion.availableFrom());
+
+                resolucion
+                                .returnsToCentralAt()
+                        ==
+                        null
+
+                        ? averia.location()
+
+                        : central.location(),
+
+                resolucion.availableFrom()
+        );
     }
 
-    private OperationalSnapshot construirSnapshot(Instant ahora, Warehouse central, Collection<Warehouse> almacenes,
-                                                  List<RutaVigente> conservadas,
-                                                  Map<String, VehicleOperationalState> forzados,
-                                                  List<BreakdownEvent> averias, Map<String, Integer> retiros) {
-        InventorySnapshot inventario = InventorySnapshot.from(almacenes);
-        for (Map.Entry<String, Integer> retiro : retiros.entrySet()) {
-            int cantidad = Math.min(retiro.getValue(), inventario.availableStock(retiro.getKey()));
-            if (cantidad > 0) {
-                inventario = inventario.withdraw(retiro.getKey(), cantidad);
+    /*
+     * =========================================================
+     * SNAPSHOT
+     * =========================================================
+     */
+
+    private OperationalSnapshot construirSnapshot(
+            Instant ahora,
+            Warehouse central,
+            Collection<Warehouse> almacenes,
+            List<RutaVigente> conservadas,
+            Map<String, VehicleOperationalState> forzados,
+            List<BreakdownEvent> averias,
+            Map<String, Integer> retiros
+    ) {
+
+        InventorySnapshot inventario =
+                InventorySnapshot.from(
+                        almacenes
+                );
+
+        for (
+                Map.Entry<String, Integer> retiro :
+                retiros.entrySet()
+        ) {
+
+            int cantidad =
+                    Math.min(
+                            retiro.getValue(),
+
+                            inventario
+                                    .availableStock(
+                                            retiro.getKey()
+                                    )
+                    );
+
+            if (
+                    cantidad > 0
+            ) {
+
+                inventario =
+                        inventario.withdraw(
+                                retiro.getKey(),
+                                cantidad
+                        );
             }
         }
-        Map<String, Instant> ocupadosHasta = new HashMap<>();
-        conservadas.forEach(ruta -> ocupadosHasta.put(ruta.vehiculoId(),
-                ruta.programada() == null ? ahora : ruta.programada().completedAt()));
-        Map<String, VehicleOperationalState> estados = new LinkedHashMap<>();
-        for (Vehicle vehiculo : fuente.flota()) {
+
+        Map<String, Instant> ocupadosHasta =
+                new HashMap<>();
+
+        conservadas.forEach(
+                ruta ->
+                        ocupadosHasta.put(
+                                ruta.vehiculoId(),
+
+                                ruta.programada() == null
+                                        ? ahora
+                                        : ruta
+                                                .programada()
+                                                .completedAt()
+                        )
+        );
+
+        Map<
+                String,
+                VehicleOperationalState
+                > estados =
+                new LinkedHashMap<>();
+
+        for (
+                Vehicle vehiculo :
+                fuente.flota()
+        ) {
+
             VehicleOperationalState estado;
-            if (ocupadosHasta.containsKey(vehiculo.id())) {
-                estado = new VehicleOperationalState(vehiculo, VehicleStatus.IN_ROUTE, central.location(), 0,
-                        ocupadosHasta.get(vehiculo.id()));
-            } else if (forzados.containsKey(vehiculo.id())) {
-                estado = forzados.get(vehiculo.id());
+
+            if (
+                    ocupadosHasta.containsKey(
+                            vehiculo.id()
+                    )
+            ) {
+
+                estado =
+                        new VehicleOperationalState(
+                                vehiculo,
+
+                                VehicleStatus.IN_ROUTE,
+
+                                central.location(),
+
+                                0,
+
+                                ocupadosHasta.get(
+                                        vehiculo.id()
+                                )
+                        );
+
+            } else if (
+                    forzados.containsKey(
+                            vehiculo.id()
+                    )
+            ) {
+
+                estado =
+                        forzados.get(
+                                vehiculo.id()
+                        );
+
             } else {
-                estado = new VehicleOperationalState(vehiculo, VehicleStatus.AVAILABLE, central.location(), ahora);
+
+                estado =
+                        new VehicleOperationalState(
+                                vehiculo,
+
+                                VehicleStatus.AVAILABLE,
+
+                                central.location(),
+
+                                ahora
+                        );
             }
-            estados.put(vehiculo.id(), estado);
+
+            estados.put(
+                    vehiculo.id(),
+                    estado
+            );
         }
-        return new OperationalSnapshot(ahora, fuente.perfilFlota(), inventario, estados,
-                fuente.calendarioMantenimiento(), new ShiftSchedule(ShiftSchedule.DEFAULT_ZONE), averias);
+
+        return new OperationalSnapshot(
+                ahora,
+
+                fuente.perfilFlota(),
+
+                inventario,
+
+                estados,
+
+                fuente.calendarioMantenimiento(),
+
+                new ShiftSchedule(
+                        ShiftSchedule.DEFAULT_ZONE
+                ),
+
+                averias
+        );
     }
 
-    private static Set<String> pedidosDe(List<DeliveryRoute> rutas) {
-        Set<String> ids = new HashSet<>();
-        for (DeliveryRoute ruta : rutas) {
-            ruta.stops().forEach(parada -> {
-                if (parada instanceof DeliveryStop entrega) {
-                    ids.add(entrega.order().id());
-                }
-            });
+    /*
+     * =========================================================
+     * HELPERS
+     * =========================================================
+     */
+
+    private static Set<String> pedidosDe(
+            List<DeliveryRoute> rutas
+    ) {
+
+        Set<String> ids =
+                new HashSet<>();
+
+        for (
+                DeliveryRoute ruta :
+                rutas
+        ) {
+
+            ruta
+                    .stops()
+                    .forEach(
+                            parada -> {
+
+                                if (
+                                        parada instanceof
+                                                DeliveryStop entrega
+                                ) {
+
+                                    ids.add(
+                                            entrega
+                                                    .order()
+                                                    .id()
+                                    );
+                                }
+                            }
+                    );
         }
+
         return ids;
     }
 
-    private EstadoEjecucion obtener(long ejecucionId) {
-        EstadoEjecucion estado = ejecuciones.get(ejecucionId);
-        if (estado == null) {
-            throw new RecursoNoEncontradoException("Ejecución", ejecucionId);
+    private EstadoEjecucion obtener(
+            long ejecucionId
+    ) {
+
+        EstadoEjecucion estado =
+                ejecuciones.get(
+                        ejecucionId
+                );
+
+        if (
+                estado == null
+        ) {
+
+            throw new RecursoNoEncontradoException(
+                    "Ejecución",
+                    ejecucionId
+            );
         }
+
         return estado;
     }
 
-    private static void validarHora(EstadoEjecucion estado, Instant ahora) {
-        Objects.requireNonNull(ahora, "ahora es requerido");
-        if (ahora.isBefore(estado.ultimaHora)) {
-            throw new ReglaNegocioException("La hora " + ahora + " es anterior a la última replanificación ("
-                    + estado.ultimaHora + ")");
+    private static void validarHora(
+            EstadoEjecucion estado,
+            Instant ahora
+    ) {
+
+        Objects.requireNonNull(
+                ahora,
+                "ahora es requerido"
+        );
+
+        if (
+                ahora.isBefore(
+                        estado.ultimaHora
+                )
+        ) {
+
+            throw new ReglaNegocioException(
+                    "La hora "
+                            +
+                            ahora
+                            +
+                            " es anterior a la última replanificación ("
+                            +
+                            estado.ultimaHora
+                            +
+                            ")"
+            );
         }
     }
 }

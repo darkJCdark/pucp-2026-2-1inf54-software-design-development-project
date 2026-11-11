@@ -240,6 +240,7 @@ class EjecutorPlanServiceTest {
         assertEquals(0, vehiculo("TA01").getCurrentLoad());
         assertTrue(vehiculo("TA01").getCurrentLoad() >= 0);
     }
+
     @Test
     void unaAveriaDeOtraEjecucionDelMismoPeriodoNoLaAfecta() {
         // Una corrida anterior del mismo periodo averió a TA01 a las 10:40; en esta corrida no le pasó nada.
@@ -302,6 +303,7 @@ class EjecutorPlanServiceTest {
         assertEquals(14, vehiculo("TA01").getCurrentY());
         assertEquals(0, vehiculo("TA01").getCurrentLoad());
     }
+
     @Test
     void unaAveriaMayorEnRutaDevuelveLaUnidadAlCentralTrasCuatroHoras() {
         planes.planes.put(ejecucion, planConRutaTa01());
@@ -346,19 +348,24 @@ class EjecutorPlanServiceTest {
         assertEquals(metricasAntes.distanciaKm(), metricasDespues.distanciaKm());
         assertEquals(metricasAntes.costo(), metricasDespues.costo());
     }
+
     @Test
     void informaElRefrigerioDelConductorMientrasDura() {
-        // Llega a P1 a las 10:20 y descansa hasta las 10:30, cuando lo atiende.
-        RutaResponse ruta = new RutaResponse("SA-TA01", "TA01", "CAR", SALIDA, hora("11:30"), 3.0, 24.0, List.of(
-                new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 5, hora("10:30"), hora("11:30"),
-                        5, 0, hora("10:20"))));
+        // Nueva semántica: llega a P1 a las 10:20, atiende hasta las 11:20
+        // y recién después toma refrigerio hasta las 12:20.
+        RutaResponse ruta = new RutaResponse("SA-TA01", "TA01", "CAR", SALIDA, hora("12:20"), 3.0, 24.0, List.of(
+                new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 5, hora("10:20"), hora("12:20"),
+                        5, 0, hora("11:20"))));
         planes.planes.put(ejecucion, plan(SALIDA, List.of(ruta)));
         ejecutor.avanzar(ejecucion, SALIDA, SALIDA);
 
-        assertEquals(Optional.of(hora("10:30")), ejecutor.refrigerioHasta(ejecucion, "TA01", hora("10:25")));
         assertEquals(Optional.empty(), ejecutor.refrigerioHasta(ejecucion, "TA01", hora("10:10")), "aún viaja");
-        assertEquals(Optional.empty(), ejecutor.refrigerioHasta(ejecucion, "TA01", hora("10:45")), "ya atiende");
-        assertEquals(Optional.empty(), ejecutor.refrigerioHasta(ejecucion, "TM01", hora("10:25")), "otro vehículo");
+        assertEquals(Optional.empty(), ejecutor.refrigerioHasta(ejecucion, "TA01", hora("10:45")), "todavía atiende");
+        assertEquals(Optional.of(hora("12:20")), ejecutor.refrigerioHasta(ejecucion, "TA01", hora("11:25")),
+                "está tomando refrigerio");
+        assertEquals(Optional.empty(), ejecutor.refrigerioHasta(ejecucion, "TA01", hora("12:25")),
+                "el refrigerio ya terminó");
+        assertEquals(Optional.empty(), ejecutor.refrigerioHasta(ejecucion, "TM01", hora("11:25")), "otro vehículo");
     }
 
     @Test
@@ -442,6 +449,7 @@ class EjecutorPlanServiceTest {
                 "el operario lo marcó no disponible");
         assertEquals(40, vehiculo("TM01").getCurrentX());
     }
+
     @Test
     void laCargaInicialRegistraUnDespachoIdempotenteDesdeSuAlmacenDeOrigen() {
         RutaResponse ruta = new RutaResponse("SA-INICIAL", "TA01", "CAR", SALIDA, hora("11:00"), 3.0, 24.0,
@@ -541,8 +549,13 @@ class EjecutorPlanServiceTest {
         assertEquals(3, vehiculo("TA01").getCurrentLoad(), "registrarDespacho=false no incrementa la carga");
     }
 
-    private static RutaResponse rutaConCargaIntermedia(String id, Instant salida, Instant llegadaAlmacen,
-                                                        long planId, long routeId) {
+    private static RutaResponse rutaConCargaIntermedia(
+            String id,
+            Instant salida,
+            Instant llegadaAlmacen,
+            long planId,
+            long routeId
+    ) {
         return new RutaResponse(id, "TA01", "CAR", salida, llegadaAlmacen.plusSeconds(300), 3.0, 24.0,
                 List.of(
                         new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 0,

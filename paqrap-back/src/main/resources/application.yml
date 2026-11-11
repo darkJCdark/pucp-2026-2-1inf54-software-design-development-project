@@ -72,13 +72,53 @@ paqrap:
 
   planificacion:
 
-    # Máximo de pedidos tomados por cada ciclo de SA.
+    # Motor activo.
+    #
+    # Valores:
+    # SA
+    # ALNS
+    #
+    # Se mantiene SA por defecto para no cambiar
+    # automáticamente los tests y escenarios antiguos.
+    algoritmo: ${PAQRAP_PLAN_ALGORITMO:SA}
+
+    # Límite histórico para SA.
     max-pedidos: ${PAQRAP_PLAN_MAX_PEDIDOS:100}
 
-    # Tiempo máximo disponible para SA por ciclo.
+    # Presupuesto máximo de cómputo por ciclo.
     presupuesto-ms: ${PAQRAP_PLAN_PRESUPUESTO_MS:1500}
 
-    # Límite de distancia por tramo (km). 0 = sin límite: regla final del caso
-    # (21.dis.selec.algoritmos v04 / 22.dis.experim v03, maxLegKm = 0).
-    # El valor histórico de la hoja "Flota" era 80.
+    # 0 = sin límite.
     max-tramo-km: ${PAQRAP_PLAN_MAX_TRAMO_KM:0}
+
+    alns:
+
+      # ALNS no queda artificialmente limitado
+      # a 100 pedidos.
+      max-pedidos: ${PAQRAP_ALNS_MAX_PEDIDOS:20000}
+
+      # Construcción inicial por lotes.
+      initial-batch-size: ${PAQRAP_ALNS_INITIAL_BATCH_SIZE:32}
+
+      # Vehículos que se evalúan en profundidad
+      # para cada inserción.
+      candidate-vehicles: ${PAQRAP_ALNS_CANDIDATE_VEHICLES:6}
+
+      # Intensidad del destroy.
+      min-routes-to-remove: ${PAQRAP_ALNS_MIN_ROUTES_TO_REMOVE:1}
+      max-routes-to-remove: ${PAQRAP_ALNS_MAX_ROUTES_TO_REMOVE:6}
+
+      # Límites de búsqueda.
+      max-iterations: ${PAQRAP_ALNS_MAX_ITERATIONS:800}
+
+      max-iterations-without-improvement: ${PAQRAP_ALNS_MAX_NO_IMPROVEMENT:200}
+
+      # Criterio de aceptación tipo SA.
+      initial-temperature: ${PAQRAP_ALNS_INITIAL_TEMPERATURE:50.0}
+
+      minimum-temperature: ${PAQRAP_ALNS_MINIMUM_TEMPERATURE:0.5}
+
+      cooling-factor: ${PAQRAP_ALNS_COOLING_FACTOR:0.995}
+
+      # Adaptación de pesos destroy/repair.
+      reaction-factor: ${PAQRAP_ALNS_REACTION_FACTOR:0.20}
