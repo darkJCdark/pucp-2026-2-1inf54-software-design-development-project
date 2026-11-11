@@ -33,6 +33,10 @@ import type {
   SeguimientoRuta,
 } from "./seguimientoRuta";
 
+import type {
+  NivelDetalleMapa,
+} from "./mapaVisual.types";
+
 type NivelSemaforo =
   | "TODOS"
   | "VACIO"
@@ -50,11 +54,8 @@ export interface VehiculoVisual {
   seguimiento?:
     SeguimientoRuta;
 
-  x:
-    number;
-
-  y:
-    number;
+  x: number;
+  y: number;
 
   enMovimiento:
     boolean;
@@ -75,6 +76,9 @@ interface CapaVehiculosProps {
 
   vehiculoSeleccionadoId:
     string | null;
+
+  nivelDetalle:
+    NivelDetalleMapa;
 
   mostrarAutos:
     boolean;
@@ -112,10 +116,8 @@ interface CapaVehiculosProps {
   onTooltip: (
     event:
       KonvaEventObject<MouseEvent>,
-    titulo:
-      string,
-    lineas:
-      string[],
+    titulo: string,
+    lineas: string[],
   ) => void;
 
   onLeave:
@@ -126,6 +128,7 @@ function CapaVehiculosBase({
   vehiculosVisuales,
   tiposFlota,
   vehiculoSeleccionadoId,
+  nivelDetalle,
   mostrarAutos,
   mostrarMotos,
   mostrarBicicletas,
@@ -151,25 +154,13 @@ function CapaVehiculosBase({
               adaptarTipoVehiculo(
                 tipo.tipo,
               ),
-
               tipo.capacidadPaquetes,
             ],
           ),
         ),
-      [
-        tiposFlota,
-      ],
+      [tiposFlota],
     );
 
-  /*
-   * Agrupación visual.
-   *
-   * El padre seguirá calculando la distribución
-   * a 10 FPS porque algunos vehículos sí se mueven.
-   *
-   * Sin embargo, los marcadores individuales
-   * estacionados quedarán protegidos por React.memo.
-   */
   const gruposVehiculos =
     useMemo(() => {
       const grupos =
@@ -245,11 +236,8 @@ function CapaVehiculosBase({
                   nivelSemaforoCarga(
                     item.vehiculo
                       .cargaActual,
-
                     capacidad,
-
                     verdeHasta,
-
                     ambarHasta,
                   );
 
@@ -276,14 +264,6 @@ function CapaVehiculosBase({
                 vehiculoSeleccionadoId,
             );
 
-          /*
-           * Los grupos corresponden a vehículos
-           * estacionados en el mismo punto.
-           *
-           * Enviamos únicamente valores primitivos
-           * al marcador agrupado para que React.memo
-           * pueda evitar renders innecesarios.
-           */
           if (
             debeAgruparVehiculos(
               visibles.length,
@@ -329,55 +309,42 @@ function CapaVehiculosBase({
             return (
               <GrupoVehiculosMarker
                 key={`grupo-${visibles[0].x}-${visibles[0].y}`}
-
                 cantidad={
                   visibles.length
                 }
-
-                autos={
-                  autos
-                }
-
-                motos={
-                  motos
-                }
-
+                autos={autos}
+                motos={motos}
                 bicicletas={
                   bicicletas
                 }
-
                 cargaTotal={
                   cargaTotal
                 }
-
                 capacidadTotal={
                   capacidadTotal
                 }
-
                 posicionNegocioX={
                   visibles[0].x
                 }
-
                 posicionNegocioY={
                   visibles[0].y
                 }
-
                 x={
                   convertirX(
                     visibles[0].x,
                   )
                 }
-
                 y={
                   convertirY(
                     visibles[0].y,
                   )
                 }
-
+                nivelDetalle={
+                  nivelDetalle
+                }
                 onTooltip={
                   onTooltip
                 }
-
                 onLeave={
                   onLeave
                 }
@@ -413,75 +380,63 @@ function CapaVehiculosBase({
                   ? 0
                   : 14;
 
+              const capacidad =
+                capacidadPorTipo.get(
+                  item.vehiculo.tipo,
+                ) ?? 0;
+
               return (
                 <VehiculoMarker
                   key={
                     item.vehiculo.id
                   }
-
                   vehiculo={
                     item.vehiculo
                   }
-
                   enMovimiento={
                     item.enMovimiento
                   }
-
                   seleccionado={
                     seleccionado
                   }
-
                   atenuado={
                     vehiculoSeleccionadoId !==
                       null &&
                     !seleccionado
                   }
-
+                  nivelDetalle={
+                    nivelDetalle
+                  }
                   posicionVisualX={
                     item.x
                   }
-
                   posicionVisualY={
                     item.y
                   }
-
                   progresoTramo={
                     item.progresoTramo
                   }
-
                   capacidad={
-                    capacidadPorTipo.get(
-                      item.vehiculo.tipo,
-                    ) ?? 0
+                    capacidad
                   }
-
                   direccionGrados={
                     item.direccionGrados
                   }
-
                   nivelCarga={
                     nivelSemaforoCarga(
                       item.vehiculo
                         .cargaActual,
-
-                      capacidadPorTipo.get(
-                        item.vehiculo
-                          .tipo,
-                      ) ?? 0,
-
+                      capacidad,
                       verdeHasta,
-
                       ambarHasta,
                     )
                   }
-
                   colorTipo={
                     coloresVehiculo[
                       item.vehiculo
                         .tipo
                     ]
                   }
-
                   x={
                     convertirX(
                       item.x,
@@ -491,7 +446,6 @@ function CapaVehiculosBase({
                     ) *
                       radio
                   }
-
                   y={
                     convertirY(
                       item.y,
@@ -501,15 +455,12 @@ function CapaVehiculosBase({
                     ) *
                       radio
                   }
-
                   onSeleccionarVehiculo={
                     onSeleccionar
                   }
-
                   onTooltip={
                     onTooltip
                   }
-
                   onLeave={
                     onLeave
                   }
@@ -528,12 +479,6 @@ export const CapaVehiculos =
     CapaVehiculosBase,
   );
 
-/*
- * =========================================================
- * VEHÍCULO INDIVIDUAL
- * =========================================================
- */
-
 interface VehiculoMarkerProps {
   vehiculo:
     VehiculoMapa;
@@ -546,6 +491,9 @@ interface VehiculoMarkerProps {
 
   atenuado:
     boolean;
+
+  nivelDetalle:
+    NivelDetalleMapa;
 
   posicionVisualX:
     number;
@@ -571,11 +519,8 @@ interface VehiculoMarkerProps {
   colorTipo:
     string;
 
-  x:
-    number;
-
-  y:
-    number;
+  x: number;
+  y: number;
 
   onSeleccionarVehiculo:
     (id: string) => void;
@@ -583,10 +528,8 @@ interface VehiculoMarkerProps {
   onTooltip: (
     event:
       KonvaEventObject<MouseEvent>,
-    titulo:
-      string,
-    lineas:
-      string[],
+    titulo: string,
+    lineas: string[],
   ) => void;
 
   onLeave:
@@ -597,6 +540,7 @@ function VehiculoMarkerBase({
   vehiculo,
   seleccionado,
   atenuado,
+  nivelDetalle,
   posicionVisualX,
   posicionVisualY,
   progresoTramo,
@@ -622,10 +566,8 @@ function VehiculoMarkerBase({
     capacidad > 0
       ? Math.min(
           100,
-
           Math.max(
             0,
-
             (
               vehiculo.cargaActual /
               capacidad
@@ -644,42 +586,48 @@ function VehiculoMarkerBase({
         ? "M"
         : "B";
 
+  /*
+   * LOD.
+   *
+   * Un vehículo seleccionado conserva más
+   * información aunque el zoom sea bajo.
+   */
+  const mostrarDireccion =
+    seleccionado ||
+    nivelDetalle !== "BAJO";
+
+  const mostrarId =
+    seleccionado ||
+    nivelDetalle !== "BAJO";
+
+  const mostrarCarga =
+    seleccionado ||
+    nivelDetalle === "ALTO";
+
+  const usarSombra =
+    seleccionado ||
+    nivelDetalle === "ALTO";
+
   const lineas = [
     `Tipo: ${vehiculo.tipo}`,
-
     `Estado: ${vehiculo.estado}`,
-
     `Posición confirmada: (${vehiculo.x}, ${vehiculo.y})`,
-
-    `Posición visual: (${posicionVisualX.toFixed(
-      2,
-    )}, ${posicionVisualY.toFixed(
-      2,
-    )})`,
-
-    `Avance de tramo: ${(
-      progresoTramo *
-      100
-    ).toFixed(0)}%`,
-
+    `Posición visual: (${posicionVisualX.toFixed(2)}, ${posicionVisualY.toFixed(2)})`,
+    `Avance de tramo: ${(progresoTramo * 100).toFixed(0)}%`,
     `Carga: ${vehiculo.cargaActual}/${capacidad || "—"} (${porcentajeCarga.toFixed(0)}%)`,
-
     `Semáforo de carga: ${nombreNivel(
       nivelCarga,
     )}`,
-
     vehiculo.motivoDetencion
       ? `Motivo de detención: ${nombreMotivoDetencion(
           vehiculo.motivoDetencion,
         )}`
       : "Sin detención activa",
-
     vehiculo.detenidoHasta
       ? `Disponible nuevamente: ${formatearFecha(
           vehiculo.detenidoHasta,
         )}`
       : "",
-
     vehiculo.averiadoHasta
       ? `Averiado hasta: ${formatearFecha(
           vehiculo.averiadoHasta,
@@ -691,25 +639,21 @@ function VehiculoMarkerBase({
     <Group
       x={x}
       y={y}
-
       opacity={
         atenuado
           ? 0.25
           : 1
       }
-
       onClick={() =>
         onSeleccionarVehiculo(
           vehiculo.id,
         )
       }
-
       onTap={() =>
         onSeleccionarVehiculo(
           vehiculo.id,
         )
       }
-
       onMouseEnter={(
         event,
       ) =>
@@ -719,7 +663,6 @@ function VehiculoMarkerBase({
           lineas,
         )
       }
-
       onMouseMove={(
         event,
       ) =>
@@ -729,33 +672,25 @@ function VehiculoMarkerBase({
           lineas,
         )
       }
-
       onMouseLeave={
         onLeave
       }
     >
       {seleccionado && (
         <Circle
-          radius={
-            15
-          }
-
-          stroke={
-            color
-          }
-
-          strokeWidth={
-            2
-          }
-
-          opacity={
-            0.35
+          radius={15}
+          stroke={color}
+          strokeWidth={2}
+          opacity={0.35}
+          perfectDrawEnabled={
+            false
           }
         />
       )}
 
-      {direccionGrados !==
-        null &&
+      {mostrarDireccion &&
+        direccionGrados !==
+          null &&
         vehiculo.estado ===
           "EN_RUTA" && (
           <Arrow
@@ -765,184 +700,155 @@ function VehiculoMarkerBase({
               17,
               0,
             ]}
-
             rotation={
               direccionGrados
             }
-
             stroke={
               colorTipo
             }
-
             fill={
               colorTipo
             }
-
-            strokeWidth={
-              2
-            }
-
-            pointerLength={
-              5
-            }
-
-            pointerWidth={
-              5
-            }
-
-            opacity={
-              0.9
-            }
-
-            listening={
+            strokeWidth={2}
+            pointerLength={5}
+            pointerWidth={5}
+            opacity={0.9}
+            listening={false}
+            perfectDrawEnabled={
               false
             }
           />
         )}
 
       <Circle
-        radius={
-          10
-        }
-
+        radius={10}
         fill="#ffffff"
-
-        stroke={
-          color
-        }
-
+        stroke={color}
         strokeWidth={
           seleccionado
             ? 3.5
             : 2.5
         }
-
         shadowColor="#0f172a"
-
         shadowBlur={
-          seleccionado
-            ? 8
-            : 4
+          usarSombra
+            ? seleccionado
+              ? 8
+              : 4
+            : 0
         }
-
         shadowOpacity={
-          0.3
+          usarSombra
+            ? 0.3
+            : 0
+        }
+        shadowForStrokeEnabled={
+          usarSombra
+        }
+        perfectDrawEnabled={
+          false
         }
       />
 
+      {/*
+       * La letra de tipo se conserva siempre
+       * porque cuesta poco y permite distinguir
+       * AUTO/MOTO/BICI.
+       */}
       <Text
         x={-7}
         y={-6}
-
-        width={
-          14
-        }
-
+        width={14}
         align="center"
-
-        text={
-          letra
-        }
-
-        fontSize={
-          11
-        }
-
+        text={letra}
+        fontSize={11}
         fontStyle="bold"
-
         fill={
           colorTipo
         }
+        listening={false}
+        perfectDrawEnabled={
+          false
+        }
       />
 
-      <Text
-        x={-28}
-        y={13}
+      {mostrarId && (
+        <Text
+          x={-28}
+          y={13}
+          width={56}
+          align="center"
+          text={
+            vehiculo.id
+          }
+          fontSize={8}
+          fontStyle="bold"
+          fill="#0f172a"
+          listening={false}
+          perfectDrawEnabled={
+            false
+          }
+        />
+      )}
 
-        width={
-          56
-        }
+      {mostrarCarga && (
+        <Text
+          x={-30}
+          y={23}
+          width={60}
+          align="center"
+          text={`${vehiculo.cargaActual}/${capacidad || "—"}`}
+          fontSize={7}
+          fill="#475569"
+          listening={false}
+          perfectDrawEnabled={
+            false
+          }
+        />
+      )}
 
-        align="center"
-
-        text={
-          vehiculo.id
-        }
-
-        fontSize={
-          8
-        }
-
-        fontStyle="bold"
-
-        fill="#0f172a"
-      />
-
-      <Text
-        x={-30}
-        y={23}
-
-        width={
-          60
-        }
-
-        align="center"
-
-        text={`${vehiculo.cargaActual}/${capacidad || "—"}`}
-
-        fontSize={
-          7
-        }
-
-        fill="#475569"
-      />
-
+      {/*
+       * Avería / mantenimiento / refrigerio
+       * siempre se conserva porque es información
+       * operacional importante.
+       */}
       {vehiculo.motivoDetencion && (
         <Group
           x={9}
           y={-13}
+          listening={false}
         >
           <Circle
-            radius={
-              7
-            }
-
+            radius={7}
             fill={
               colorMotivoDetencion(
                 vehiculo.motivoDetencion,
               )
             }
-
             stroke="#ffffff"
-
-            strokeWidth={
-              1
+            strokeWidth={1}
+            perfectDrawEnabled={
+              false
             }
           />
 
           <Text
             x={-6}
             y={-5}
-
-            width={
-              12
-            }
-
+            width={12}
             align="center"
-
             text={
               simboloMotivoDetencion(
                 vehiculo.motivoDetencion,
               )
             }
-
-            fontSize={
-              8
-            }
-
+            fontSize={8}
             fontStyle="bold"
-
             fill="#ffffff"
+            listening={false}
+            perfectDrawEnabled={
+              false
+            }
           />
         </Group>
       )}
@@ -950,16 +856,6 @@ function VehiculoMarkerBase({
   );
 }
 
-/*
- * Esta comparación es la clave.
- *
- * Si el vehículo está en movimiento dejamos
- * que renderice normalmente a 10 FPS.
- *
- * Si está estacionado, React solo lo vuelve
- * a renderizar cuando realmente cambia alguno
- * de sus datos.
- */
 function vehiculoMarkerIgual(
   anterior:
     Readonly<VehiculoMarkerProps>,
@@ -967,6 +863,10 @@ function vehiculoMarkerIgual(
   siguiente:
     Readonly<VehiculoMarkerProps>,
 ) {
+  /*
+   * Los que se mueven deben continuar
+   * actualizándose a 10 FPS.
+   */
   if (
     anterior.enMovimiento ||
     siguiente.enMovimiento
@@ -977,46 +877,34 @@ function vehiculoMarkerIgual(
   return (
     anterior.vehiculo ===
       siguiente.vehiculo &&
-
     anterior.seleccionado ===
       siguiente.seleccionado &&
-
     anterior.atenuado ===
       siguiente.atenuado &&
-
+    anterior.nivelDetalle ===
+      siguiente.nivelDetalle &&
     anterior.posicionVisualX ===
       siguiente.posicionVisualX &&
-
     anterior.posicionVisualY ===
       siguiente.posicionVisualY &&
-
     anterior.progresoTramo ===
       siguiente.progresoTramo &&
-
     anterior.capacidad ===
       siguiente.capacidad &&
-
     anterior.nivelCarga ===
       siguiente.nivelCarga &&
-
     anterior.direccionGrados ===
       siguiente.direccionGrados &&
-
     anterior.colorTipo ===
       siguiente.colorTipo &&
-
     anterior.x ===
       siguiente.x &&
-
     anterior.y ===
       siguiente.y &&
-
     anterior.onSeleccionarVehiculo ===
       siguiente.onSeleccionarVehiculo &&
-
     anterior.onTooltip ===
       siguiente.onTooltip &&
-
     anterior.onLeave ===
       siguiente.onLeave
   );
@@ -1027,12 +915,6 @@ const VehiculoMarker =
     VehiculoMarkerBase,
     vehiculoMarkerIgual,
   );
-
-/*
- * =========================================================
- * GRUPO DE VEHÍCULOS ESTACIONADOS
- * =========================================================
- */
 
 interface GrupoVehiculosMarkerProps {
   cantidad:
@@ -1059,19 +941,17 @@ interface GrupoVehiculosMarkerProps {
   posicionNegocioY:
     number;
 
-  x:
-    number;
+  x: number;
+  y: number;
 
-  y:
-    number;
+  nivelDetalle:
+    NivelDetalleMapa;
 
   onTooltip: (
     event:
       KonvaEventObject<MouseEvent>,
-    titulo:
-      string,
-    lineas:
-      string[],
+    titulo: string,
+    lineas: string[],
   ) => void;
 
   onLeave:
@@ -1089,6 +969,7 @@ function GrupoVehiculosMarkerBase({
   posicionNegocioY,
   x,
   y,
+  nivelDetalle,
   onTooltip,
   onLeave,
 }: GrupoVehiculosMarkerProps) {
@@ -1101,10 +982,6 @@ function GrupoVehiculosMarkerBase({
         100
       : 0;
 
-  /*
-   * Se mantiene el comportamiento
-   * previo de los grupos.
-   */
   const nivel =
     nivelSemaforoCarga(
       cargaTotal,
@@ -1118,15 +995,17 @@ function GrupoVehiculosMarkerBase({
       nivel,
     );
 
+  const mostrarPorcentaje =
+    nivelDetalle !== "BAJO";
+
+  const usarSombra =
+    nivelDetalle === "ALTO";
+
   const lineas = [
     `Autos: ${autos}`,
-
     `Motos: ${motos}`,
-
     `Bicicletas: ${bicicletas}`,
-
     `Carga: ${cargaTotal}/${capacidadTotal || "—"} (${porcentajeCarga.toFixed(0)}%)`,
-
     `Coordenadas: (${posicionNegocioX}, ${posicionNegocioY})`,
   ];
 
@@ -1134,125 +1013,93 @@ function GrupoVehiculosMarkerBase({
     <Group
       x={x}
       y={y}
-
       onMouseEnter={(
         event,
       ) =>
         onTooltip(
           event,
-
           `${cantidad} vehículos`,
-
           lineas,
         )
       }
-
       onMouseMove={(
         event,
       ) =>
         onTooltip(
           event,
-
           `${cantidad} vehículos`,
-
           lineas,
         )
       }
-
       onMouseLeave={
         onLeave
       }
     >
       <Circle
-        radius={
-          16
-        }
-
+        radius={16}
         fill="#0f172a"
-
-        stroke={
-          color
-        }
-
-        strokeWidth={
-          2.5
-        }
-
+        stroke={color}
+        strokeWidth={2.5}
         shadowColor="#0f172a"
-
         shadowBlur={
-          5
+          usarSombra
+            ? 5
+            : 0
         }
-
         shadowOpacity={
-          0.3
+          usarSombra
+            ? 0.3
+            : 0
+        }
+        shadowForStrokeEnabled={
+          usarSombra
+        }
+        perfectDrawEnabled={
+          false
         }
       />
 
       <Text
         x={-14}
         y={-6}
-
-        width={
-          28
-        }
-
+        width={28}
         align="center"
-
         text={String(
           cantidad,
         )}
-
-        fontSize={
-          11
-        }
-
+        fontSize={11}
         fontStyle="bold"
-
         fill="#ffffff"
+        listening={false}
+        perfectDrawEnabled={
+          false
+        }
       />
 
-      <Text
-        x={-18}
-        y={18}
-
-        width={
-          36
-        }
-
-        align="center"
-
-        text={`${porcentajeCarga.toFixed(0)}%`}
-
-        fontSize={
-          7
-        }
-
-        fontStyle="bold"
-
-        fill="#334155"
-      />
+      {mostrarPorcentaje && (
+        <Text
+          x={-18}
+          y={18}
+          width={36}
+          align="center"
+          text={`${porcentajeCarga.toFixed(0)}%`}
+          fontSize={7}
+          fontStyle="bold"
+          fill="#334155"
+          listening={false}
+          perfectDrawEnabled={
+            false
+          }
+        />
+      )}
     </Group>
   );
 }
 
-/*
- * Todas las props de un grupo son valores
- * primitivos o callbacks estables.
- *
- * Por eso memo puede congelar de forma efectiva
- * los grupos mientras no cambien.
- */
 const GrupoVehiculosMarker =
   memo(
     GrupoVehiculosMarkerBase,
   );
-
-/*
- * =========================================================
- * HELPERS
- * =========================================================
- */
 
 function adaptarTipoVehiculo(
   tipo:
@@ -1296,17 +1143,10 @@ function tipoVehiculoVisible(
 }
 
 function nivelSemaforoCarga(
-  carga:
-    number,
-
-  capacidad:
-    number,
-
-  verdeHasta:
-    number,
-
-  ambarHasta:
-    number,
+  carga: number,
+  capacidad: number,
+  verdeHasta: number,
+  ambarHasta: number,
 ): Exclude<
   NivelSemaforo,
   "TODOS"
@@ -1320,9 +1160,7 @@ function nivelSemaforoCarga(
         100
       : 0;
 
-  if (
-    carga <= 0
-  ) {
+  if (carga <= 0) {
     return "VACIO";
   }
 
@@ -1443,33 +1281,25 @@ function colorMotivoDetencion(
 }
 
 function formatearFecha(
-  valor:
-    string,
+  valor: string,
 ) {
   return new Intl.DateTimeFormat(
     "es-PE",
     {
       timeZone:
         "America/Lima",
-
       day:
         "2-digit",
-
       month:
         "2-digit",
-
       hour:
         "2-digit",
-
       minute:
         "2-digit",
-
       hour12:
         false,
     },
   ).format(
-    new Date(
-      valor,
-    ),
+    new Date(valor),
   );
 }

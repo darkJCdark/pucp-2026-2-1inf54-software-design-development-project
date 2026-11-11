@@ -243,11 +243,7 @@ export function MapaOperacion({
     });
 
 
-  const [
-    arrastrandoMapa,
-    setArrastrandoMapa,
-  ] =
-    useState(false);
+  const arrastrandoMapa = false;
 
   const [
     tooltip,
@@ -362,83 +358,239 @@ export function MapaOperacion({
    * Conversión coordenadas de negocio
    * 70 x 50 a pixels de Konva.
    */
-  const geometria =
-    useMemo(() => {
-      const anchoDisponible =
-        Math.max(
-          1,
-          width -
+const geometria =
+  useMemo(() => {
+    const anchoDisponible =
+      Math.max(
+        1,
+        width -
           PADDING * 2,
-        );
+      );
 
-      const altoDisponible =
-        Math.max(
-          1,
-          height -
+    const altoDisponible =
+      Math.max(
+        1,
+        height -
           PADDING * 2,
-        );
+      );
 
-      const escalaBase =
-        Math.min(
-          anchoDisponible /
+    const escalaBase =
+      Math.min(
+        anchoDisponible /
           ANCHO_MAPA,
 
-          altoDisponible /
+        altoDisponible /
           ALTO_MAPA,
+      );
+
+    const ancho =
+      ANCHO_MAPA *
+      escalaBase;
+
+    const alto =
+      ALTO_MAPA *
+      escalaBase;
+
+    const origenX =
+      (width - ancho) /
+      2;
+
+    const origenY =
+      (height - alto) /
+      2;
+
+    return {
+      escalaBase,
+
+      ancho,
+      alto,
+
+      origenX,
+      origenY,
+
+      x: (
+        valor: number,
+      ) =>
+        origenX +
+        valor *
+          escalaBase,
+
+      y: (
+        valor: number,
+      ) =>
+        origenY +
+        (ALTO_MAPA -
+          valor) *
+          escalaBase,
+    };
+  }, [
+    height,
+    width,
+  ]);
+
+/*
+ * =========================================================
+ * VIEWPORT VISIBLE
+ * =========================================================
+ *
+ * Se calcula DESPUÉS de geometria.
+ */
+const viewportMapa =
+  useMemo(
+    () => {
+      const escalaVista =
+        Math.max(
+          vista.escala,
+          0.0001,
         );
 
-      const ancho =
-        ANCHO_MAPA *
-        escalaBase;
+      const izquierdaPx =
+        -vista.x /
+        escalaVista;
 
-      const alto =
-        ALTO_MAPA *
-        escalaBase;
+      const derechaPx =
+        (width -
+          vista.x) /
+        escalaVista;
 
-      const origenX =
-        (width - ancho) /
-        2;
+      const arribaPx =
+        -vista.y /
+        escalaVista;
 
-      const origenY =
-        (height - alto) /
+      const abajoPx =
+        (height -
+          vista.y) /
+        escalaVista;
+
+      const convertirPixelAX =
+        (
+          pixel: number,
+        ) =>
+          (
+            pixel -
+            geometria.origenX
+          ) /
+          geometria.escalaBase;
+
+      const convertirPixelAY =
+        (
+          pixel: number,
+        ) =>
+          ALTO_MAPA -
+          (
+            pixel -
+            geometria.origenY
+          ) /
+            geometria.escalaBase;
+
+      const margen =
         2;
 
       return {
-        escalaBase,
+        minX:
+          convertirPixelAX(
+            izquierdaPx,
+          ) -
+          margen,
 
-        ancho,
-        alto,
+        maxX:
+          convertirPixelAX(
+            derechaPx,
+          ) +
+          margen,
 
-        origenX,
-        origenY,
+        minY:
+          convertirPixelAY(
+            abajoPx,
+          ) -
+          margen,
 
-        x: (
-          valor: number,
-        ) =>
-          origenX +
-          valor *
-          escalaBase,
-
-        y: (
-          valor: number,
-        ) =>
-          origenY +
-          (ALTO_MAPA -
-            valor) *
-          escalaBase,
+        maxY:
+          convertirPixelAY(
+            arribaPx,
+          ) +
+          margen,
       };
-    }, [
+    },
+    [
+      geometria,
       height,
+      vista.escala,
+      vista.x,
+      vista.y,
       width,
-    ]);
-
-
-  const rutasSinGeometria = useMemo(
-    () => rutas.filter((ruta) => ruta.distanciaKm > 0 && obtenerTramosTemporizados(ruta).length === 0).length,
-    [rutas],
+    ],
   );
 
+  const viewportPixeles =
+  useMemo(
+    () => {
+      const escala =
+        Math.max(
+          vista.escala,
+          0.0001,
+        );
 
+      /*
+       * Coordenadas visibles dentro del
+       * sistema local del Stage.
+       *
+       * convertirTrazoAPixeles usa exactamente
+       * este mismo sistema.
+       */
+      const margen =
+        100 /
+        escala;
+
+      return {
+        minX:
+          -vista.x /
+            escala -
+          margen,
+
+        maxX:
+          (width -
+            vista.x) /
+            escala +
+          margen,
+
+        minY:
+          -vista.y /
+            escala -
+          margen,
+
+        maxY:
+          (height -
+            vista.y) /
+            escala +
+          margen,
+      };
+    },
+    [
+      height,
+      vista.escala,
+      vista.x,
+      vista.y,
+      width,
+    ],
+  );
+
+const rutasSinGeometria =
+  useMemo(
+    () =>
+      rutas.filter(
+        (ruta) =>
+          ruta.distanciaKm >
+            0 &&
+          obtenerTramosTemporizados(
+            ruta,
+          ).length ===
+            0,
+      ).length,
+    [
+      rutas,
+    ],
+  );
 
   /*
    * Posición visual animada
@@ -903,6 +1055,11 @@ export function MapaOperacion({
                 rutas
               }
 
+              viewportPixeles={
+  viewportPixeles
+}
+
+
               tiposFlota={
                 tiposFlota
               }
@@ -1027,6 +1184,10 @@ export function MapaOperacion({
                     onLeave={
                       ocultarTooltip
                     }
+                    viewport={
+  viewportMapa
+}
+
                   />
 
                   <CapaAlmacenes
