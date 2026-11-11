@@ -24,6 +24,10 @@ import type {
 } from "@/api/planificacion.dto";
 
 import type {
+  PedidoOperacion,
+} from "./ejecucion.types";
+
+import type {
   SeleccionDetalleOperacion,
 } from "./DetalleOperacionPanel";
 
@@ -62,14 +66,19 @@ interface PanelListasOperacionProps {
   plan:
     PlanResponseDto | null;
 
+  /**
+   * Pedidos ya cargados por EjecucionPage.
+   */
+  pedidos:
+    PedidoOperacion[];
+
   seleccion:
     SeleccionDetalleOperacion | null;
 
-  onSeleccionar:
-    (
-      seleccion:
-        SeleccionLista,
-    ) => void;
+  onSeleccionar: (
+    seleccion:
+      SeleccionLista,
+  ) => void;
 }
 
 export function PanelListasOperacion({
@@ -77,6 +86,7 @@ export function PanelListasOperacion({
   ejecucionId,
   tiposFlota,
   plan,
+  pedidos,
   seleccion,
   onSeleccionar,
 }: PanelListasOperacionProps) {
@@ -95,15 +105,11 @@ export function PanelListasOperacion({
     );
 
   useEffect(() => {
-    if (
-      !seleccion
-    ) {
+    if (!seleccion) {
       return;
     }
 
-    setAbierto(
-      true,
-    );
+    setAbierto(true);
 
     setPestana(
       seleccion.tipo ===
@@ -167,6 +173,7 @@ export function PanelListasOperacion({
         <ChevronDown
           className={[
             "size-4 text-slate-500 transition-transform",
+
             abierto
               ? "rotate-180"
               : "",
@@ -277,11 +284,11 @@ export function PanelListasOperacion({
             {pestana ===
               "PEDIDOS" && (
               <ListaPedidosEjecucion
-                monitoreo={
-                  monitoreo
+                pedidos={
+                  pedidos
                 }
-                ejecucionId={
-                  ejecucionId
+                plan={
+                  plan
                 }
                 seleccionId={
                   seleccion?.tipo ===
@@ -346,9 +353,7 @@ function Pestana({
   return (
     <button
       type="button"
-      onClick={
-        onClick
-      }
+      onClick={onClick}
       className={[
         "flex items-center justify-center gap-1 rounded-md px-2 py-2 text-[11px] font-medium",
 
@@ -358,7 +363,6 @@ function Pestana({
       ].join(" ")}
     >
       {icono}
-
       {texto}
     </button>
   );

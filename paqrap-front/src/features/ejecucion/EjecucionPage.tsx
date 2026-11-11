@@ -1184,26 +1184,16 @@ export default function EjecucionPage() {
             }
           />
 
+          
           <PanelListasOperacion
-            monitoreo={
-              monitoreo
-            }
-            ejecucionId={
-              ejecucionId
-            }
-            tiposFlota={
-              tiposFlota
-            }
-            plan={
-              plan
-            }
-            seleccion={
-              seleccionDetalle
-            }
-            onSeleccionar={
-              setSeleccionDetalle
-            }
-          />
+  monitoreo={monitoreo}
+  ejecucionId={ejecucionId}
+  tiposFlota={tiposFlota}
+  plan={plan}
+  pedidos={pedidos}
+  seleccion={seleccionDetalle}
+  onSeleccionar={setSeleccionDetalle}
+/>
         </div>
 
         {/* ACCIONES */}
