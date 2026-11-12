@@ -10,6 +10,7 @@ import {
   BarChart3,
   CirclePause,
   CirclePlay,
+  Gauge,
   Loader2,
   OctagonX,
   PackagePlus,
@@ -53,6 +54,7 @@ import {
 } from "@/services/api";
 
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { VentanaFlotante } from "@/components/ui/VentanaFlotante";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { mensajeDeError } from "@/lib/api-error";
 
@@ -155,6 +157,36 @@ export default function EjecucionPage() {
     Number(
       ejecucionIdParam,
     );
+
+  /* Columna derecha de indicadores: arranca plegada (solo en memoria). */
+  const [
+    indicadoresPlegados,
+    setIndicadoresPlegados,
+  ] =
+    useState(true);
+
+  /*
+   * Acordeón de la columna izquierda: como máximo una ventana abierta.
+   * Todas arrancan minimizadas.
+   */
+  const [
+    ventanaIzquierda,
+    setVentanaIzquierda,
+  ] =
+    useState<VentanaIzquierda | null>(
+      null,
+    );
+
+  const cambiarVentanaIzquierda =
+    (
+      ventana: VentanaIzquierda,
+      abierta: boolean,
+    ) =>
+      setVentanaIzquierda(
+        abierta
+          ? ventana
+          : null,
+      );
 
   const [
     monitoreo,
@@ -1069,7 +1101,14 @@ export default function EjecucionPage() {
    */
 
   return (
-    <div className="grid h-screen grid-cols-[minmax(0,1fr)_360px] overflow-hidden bg-[#0d1117]">
+    <div
+      className={[
+        "grid h-screen overflow-hidden bg-[#0d1117]",
+        indicadoresPlegados
+          ? "grid-cols-[minmax(0,1fr)_44px]"
+          : "grid-cols-[minmax(0,1fr)_min(360px,28vw)]",
+      ].join(" ")}
+    >
       <div className="relative min-w-0">
         <MapaOperacion
           pedidos={
@@ -1148,6 +1187,72 @@ export default function EjecucionPage() {
               id,
             })
           }
+          accionesExtra={
+            <div className="flex items-start gap-2">
+              {puedeRegistrarPedido && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMostrarFormularioAveria(
+                      false,
+                    );
+
+                    setMostrarFormularioPedido(
+                      true,
+                    );
+                  }}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-2xl hover:bg-orange-600"
+                >
+                  <PackagePlus className="size-4" />
+
+                  Registrar pedido
+                </button>
+              )}
+
+              {puedeRegistrarAveria && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMostrarFormularioPedido(
+                      false,
+                    );
+
+                    setMostrarFormularioAveria(
+                      true,
+                    );
+                  }}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-red-800 px-4 py-2.5 text-sm font-semibold text-white shadow-2xl hover:bg-red-700"
+                >
+                  <Wrench className="size-4" />
+
+                  Registrar avería
+                </button>
+              )}
+
+              {[
+                "STOPPED",
+                "COMPLETED",
+                "COLLAPSED",
+                "FAILED",
+              ].includes(
+                estado,
+              ) && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMostrarResultado(
+                      true,
+                    )
+                  }
+                  className="flex items-center justify-center gap-2 rounded-xl border border-orange-700 bg-[#11161d] px-4 py-2.5 text-sm font-semibold text-orange-300 shadow-2xl hover:bg-orange-950/50"
+                >
+                  <BarChart3 className="size-4" />
+
+                  Ver resultado
+                </button>
+              )}
+            </div>
+          }
         />
 
         {/*
@@ -1159,8 +1264,18 @@ export default function EjecucionPage() {
          *
          * Ahora comparten un contenedor.
          */}
-        <div className="absolute left-5 top-5 z-50 flex max-h-[calc(100%-5rem)] w-[430px] flex-col gap-3 overflow-y-auto pr-1">
+        <div className="absolute left-5 top-5 z-50 flex max-h-[calc(100%-2.5rem)] w-[min(430px,32vw)] min-w-[300px] flex-col gap-3 overflow-y-auto pr-1">
           <PanelEscenario
+            minimizada={
+              ventanaIzquierda !==
+              "ESCENARIO"
+            }
+            onCambiarMinimizada={(minimizada) =>
+              cambiarVentanaIzquierda(
+                "ESCENARIO",
+                !minimizada,
+              )
+            }
             monitoreo={
               monitoreo
             }
@@ -1193,73 +1308,51 @@ export default function EjecucionPage() {
   pedidos={pedidos}
   seleccion={seleccionDetalle}
   onSeleccionar={setSeleccionDetalle}
+  abierto={ventanaIzquierda === "UNIDADES"}
+  onCambiarAbierto={(abierto) =>
+    cambiarVentanaIzquierda("UNIDADES", abierto)
+  }
 />
-        </div>
 
-        {/* ACCIONES */}
-        <div className="absolute right-5 top-16 z-40 flex flex-col gap-2">
-          {puedeRegistrarPedido && (
-            <button
-              type="button"
-              onClick={() => {
-                setMostrarFormularioAveria(
-                  false,
-                );
+          {/* Antes flotaba abajo a la izquierda y se superponía con esta columna. */}
+          <EstadoOperativo
+            minimizada={
+              ventanaIzquierda !==
+              "ESTADO"
+            }
+            onCambiarMinimizada={(minimizada) =>
+              cambiarVentanaIzquierda(
+                "ESTADO",
+                !minimizada,
+              )
+            }
+            monitoreo={
+              monitoreo
+            }
+            rutas={
+              rutas.length
+            }
+            replanificacion={
+              replanificacion
+            }
+          />
 
-                setMostrarFormularioPedido(
-                  true,
-                );
-              }}
-              className="flex items-center justify-center gap-2 rounded-md bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-orange-600"
-            >
-              <PackagePlus className="size-4" />
-
-              Registrar pedido
-            </button>
-          )}
-
-          {puedeRegistrarAveria && (
-            <button
-              type="button"
-              onClick={() => {
-                setMostrarFormularioPedido(
-                  false,
-                );
-
-                setMostrarFormularioAveria(
-                  true,
-                );
-              }}
-              className="flex items-center justify-center gap-2 rounded-md bg-red-800 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-red-700"
-            >
-              <Wrench className="size-4" />
-
-              Registrar avería
-            </button>
-          )}
-
-          {[
-            "STOPPED",
-            "COMPLETED",
-            "COLLAPSED",
-            "FAILED",
-          ].includes(
-            estado,
-          ) && (
-            <button
-              type="button"
-              onClick={() =>
-                setMostrarResultado(
-                  true,
-                )
-              }
-              className="flex items-center justify-center gap-2 rounded-md border border-orange-700 bg-[#11161d] px-4 py-2 text-sm font-semibold text-orange-300 shadow hover:bg-orange-950/50"
-            >
-              <BarChart3 className="size-4" />
-
-              Ver resultado
-            </button>
-          )}
+          {/* Antes flotaba sobre el mapa; ahora es el 4.º ítem del acordeón. */}
+          <FeedEventos
+            eventos={
+              eventos
+            }
+            minimizada={
+              ventanaIzquierda !==
+              "ACTIVIDAD"
+            }
+            onCambiarMinimizada={(minimizada) =>
+              cambiarVentanaIzquierda(
+                "ACTIVIDAD",
+                !minimizada,
+              )
+            }
+          />
         </div>
 
         {/* FORM PEDIDO */}
@@ -1348,23 +1441,6 @@ export default function EjecucionPage() {
           </div>
         )}
 
-        <FeedEventos
-          eventos={
-            eventos
-          }
-        />
-
-        <EstadoOperativo
-          monitoreo={
-            monitoreo
-          }
-          rutas={
-            rutas.length
-          }
-          replanificacion={
-            replanificacion
-          }
-        />
       </div>
 
       <PanelIndicadores
@@ -1405,6 +1481,14 @@ export default function EjecucionPage() {
               "ALMACEN",
             id,
           })
+        }
+        plegado={
+          indicadoresPlegados
+        }
+        onAlternarPlegado={() =>
+          setIndicadoresPlegados(
+            (actual) => !actual,
+          )
         }
       />
 
@@ -1453,13 +1537,27 @@ export default function EjecucionPage() {
  * =========================================================
  */
 
+type VentanaIzquierda =
+  | "ESCENARIO"
+  | "UNIDADES"
+  | "ESTADO"
+  | "ACTIVIDAD";
+
 function PanelEscenario({
+  minimizada,
+  onCambiarMinimizada,
   monitoreo,
   accionando,
   onPausar,
   onReanudar,
   onDetener,
 }: {
+  minimizada:
+    boolean;
+
+  onCambiarMinimizada:
+    (minimizada: boolean) => void;
+
   monitoreo:
     MonitoreoResponseDto;
 
@@ -1481,7 +1579,15 @@ function PanelEscenario({
       .estado;
 
   return (
-    <div className="w-full shrink-0 rounded-lg border border-slate-700 bg-[#11161d]/95 p-4 text-white shadow-xl">
+    <VentanaFlotante
+      titulo="Escenario"
+      icono={<CirclePlay className="size-4" />}
+      resumen={`${nombreTipoEscenario(monitoreo.escenario.tipo)} · ${nombreEstado(estado)}`}
+      minimizada={minimizada}
+      onCambiarMinimizada={onCambiarMinimizada}
+      className="w-full shrink-0"
+      classNameCuerpo="p-4"
+    >
       <div className="mb-3 flex items-start justify-between gap-4">
         <div>
           <p className="text-[10px] uppercase text-slate-500">
@@ -1576,7 +1682,7 @@ function PanelEscenario({
           </button>
         )}
       </div>
-    </div>
+    </VentanaFlotante>
   );
 }
 
@@ -1587,10 +1693,18 @@ function PanelEscenario({
  */
 
 function EstadoOperativo({
+  minimizada,
+  onCambiarMinimizada,
   monitoreo,
   rutas,
   replanificacion,
 }: {
+  minimizada:
+    boolean;
+
+  onCambiarMinimizada:
+    (minimizada: boolean) => void;
+
   monitoreo:
     MonitoreoResponseDto;
 
@@ -1601,14 +1715,18 @@ function EstadoOperativo({
     ReplanificacionResponseDto | null;
 }) {
   return (
-    <div className="absolute bottom-5 left-5 z-40 w-[410px] rounded-lg border border-slate-700 bg-[#11161d]/95 p-4 text-white shadow-xl">
+    <VentanaFlotante
+      titulo="Estado operativo"
+      icono={<Gauge className="size-4" />}
+      minimizada={minimizada}
+      onCambiarMinimizada={onCambiarMinimizada}
+      resumen={`Pendientes ${monitoreo.pedidos.pendientes} · Vencidos ${monitoreo.pedidos.vencidosSinEntregar} · Entregados ${monitoreo.ejecucion.pedidosEntregados}`}
+      className="w-full shrink-0"
+      classNameCuerpo="p-4"
+    >
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h3 className="font-semibold">
-            Estado operativo
-          </h3>
-
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="text-xs text-slate-500">
             Ejecución #
             {
               monitoreo
@@ -1705,7 +1823,7 @@ function EstadoOperativo({
         pedidos del periodo y el
         último plan vigente de SA.
       </p>
-    </div>
+    </VentanaFlotante>
   );
 }
 

@@ -79,6 +79,13 @@ interface PanelListasOperacionProps {
     seleccion:
       SeleccionLista,
   ) => void;
+
+  /**
+   * Control opcional desde EjecucionPage (acordeón de la columna
+   * izquierda). Sin estas props el panel maneja su propio estado.
+   */
+  abierto?: boolean;
+  onCambiarAbierto?: (abierto: boolean) => void;
 }
 
 export function PanelListasOperacion({
@@ -89,12 +96,35 @@ export function PanelListasOperacion({
   pedidos,
   seleccion,
   onSeleccionar,
+  abierto: abiertoControlado,
+  onCambiarAbierto,
 }: PanelListasOperacionProps) {
   const [
-    abierto,
-    setAbierto,
+    abiertoInterno,
+    setAbiertoInterno,
   ] =
     useState(false);
+
+  const abierto =
+    abiertoControlado ??
+    abiertoInterno;
+
+  function cambiarAbierto(
+    siguiente: boolean,
+  ) {
+    if (
+      abiertoControlado ===
+      undefined
+    ) {
+      setAbiertoInterno(
+        siguiente,
+      );
+    }
+
+    onCambiarAbierto?.(
+      siguiente,
+    );
+  }
 
   const [
     pestana,
@@ -104,12 +134,14 @@ export function PanelListasOperacion({
       "VEHICULOS",
     );
 
+  /*
+   * Una selección solo cambia la pestaña. Ya no abre el panel:
+   * el detalle se muestra a la derecha y así no se apilan ventanas.
+   */
   useEffect(() => {
     if (!seleccion) {
       return;
     }
-
-    setAbierto(true);
 
     setPestana(
       seleccion.tipo ===
@@ -129,9 +161,8 @@ export function PanelListasOperacion({
       <button
         type="button"
         onClick={() =>
-          setAbierto(
-            (actual) =>
-              !actual,
+          cambiarAbierto(
+            !abierto,
           )
         }
         className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-800/60"
@@ -182,7 +213,7 @@ export function PanelListasOperacion({
       </button>
 
       {abierto && (
-        <div className="border-t border-slate-800">
+        <div className="border-t border-slate-800 animate-in fade-in slide-in-from-top-1 duration-150">
           <div className="grid grid-cols-3 gap-1 p-2">
             <Pestana
               activa={
@@ -233,7 +264,7 @@ export function PanelListasOperacion({
             />
           </div>
 
-          <div className="max-h-[calc(100vh-330px)] space-y-2 overflow-y-auto p-2 pt-0">
+          <div className="max-h-[calc(45vh-3rem)] space-y-2 overflow-y-auto p-2 pt-0">
             {pestana ===
               "VEHICULOS" && (
               <>

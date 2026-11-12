@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import {
+  ChevronDown,
   Clock3,
   Loader2,
+  Minus,
   Package,
   Truck,
   Warehouse,
@@ -37,10 +39,13 @@ export function DetalleOperacionPanel({ seleccion, ejecucionId, instante, onCerr
   const [respuesta, setRespuesta] = useState<RespuestaDetalle | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [minimizado, setMinimizado] = useState(false);
 
   // Al cambiar de elemento se limpia; al refrescarlo cada segundo se conserva lo mostrado para que no parpadee.
+  // Una nueva selección vuelve a mostrar el panel aunque estuviera minimizado.
   useEffect(() => {
     setRespuesta(null);
+    setMinimizado(false);
   }, [seleccion]);
 
   useEffect(() => {
@@ -88,25 +93,38 @@ export function DetalleOperacionPanel({ seleccion, ejecucionId, instante, onCerr
   if (!seleccion) return null;
 
   return (
-    <aside className="absolute right-5 top-16 z-[70] w-[370px] overflow-hidden rounded-xl border border-slate-700 bg-[#11161d]/98 text-white shadow-2xl">
-      <div className="flex items-start justify-between border-b border-slate-800 px-4 py-3">
-        <div>
+    <aside className="absolute right-5 top-16 z-[70] w-[min(370px,30vw)] min-w-[260px] overflow-hidden rounded-xl border border-slate-700 bg-[#11161d]/98 text-white shadow-2xl">
+      <div className={`flex items-start justify-between px-4 py-3 ${minimizado ? "" : "border-b border-slate-800"}`}>
+        <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase text-orange-400">
             Detalle operativo
           </p>
-          <h3 className="mt-1 font-semibold">{seleccion.id}</h3>
+          <h3 className="mt-1 truncate font-semibold">{seleccion.id}</h3>
         </div>
-        <button
-          type="button"
-          onClick={onCerrar}
-          className="rounded p-1 text-slate-500 hover:bg-slate-800 hover:text-white"
-          aria-label="Cerrar detalle"
-        >
-          <X className="size-4" />
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setMinimizado((actual) => !actual)}
+            className="rounded p-1 text-slate-500 hover:bg-slate-800 hover:text-white"
+            aria-expanded={!minimizado}
+            aria-label={minimizado ? "Restaurar detalle" : "Minimizar detalle"}
+            title={minimizado ? "Restaurar" : "Minimizar"}
+          >
+            {minimizado ? <ChevronDown className="size-4" /> : <Minus className="size-4" />}
+          </button>
+          <button
+            type="button"
+            onClick={onCerrar}
+            className="rounded p-1 text-slate-500 hover:bg-slate-800 hover:text-white"
+            aria-label="Cerrar detalle"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
       </div>
 
-      <div className="max-h-[calc(100vh-150px)] overflow-y-auto p-4">
+      {!minimizado && (
+      <div className="max-h-[45vh] overflow-y-auto p-4">
         {cargando && !respuesta && (
           <div className="flex items-center justify-center py-10 text-sm text-slate-400">
             <Loader2 className="mr-2 size-4 animate-spin" /> Cargando detalle...
@@ -129,6 +147,7 @@ export function DetalleOperacionPanel({ seleccion, ejecucionId, instante, onCerr
           <DetalleAlmacen detalle={respuesta.data} />
         )}
       </div>
+      )}
     </aside>
   );
 }

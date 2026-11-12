@@ -1,10 +1,9 @@
-import { useState } from "react";
+import { VentanaFlotante } from "@/components/ui/VentanaFlotante";
 
 import {
   Activity,
   AlertTriangle,
   CheckCircle2,
-  ChevronDown,
   Coffee,
   PackagePlus,
   RefreshCcw,
@@ -16,98 +15,34 @@ import type {
   TipoEventoEjecucion,
 } from "@/hooks/useEventosEjecucion";
 
+/*
+ * Actividad reciente: ítem del acordeón de la columna izquierda
+ * (antes flotaba sobre el mapa). Usa VentanaFlotante para tener
+ * la misma cabecera que las demás ventanas.
+ */
 export function FeedEventos({
   eventos,
+  minimizada,
+  onCambiarMinimizada,
 }: {
   eventos: EventoEjecucion[];
+  minimizada?: boolean;
+  onCambiarMinimizada?: (minimizada: boolean) => void;
 }) {
-  const [abierto, setAbierto] =
-    useState(false);
-
   return (
-    <div
-      className="
-        absolute
-        bottom-[72px]
-        left-[450px]
-        z-40
-        hidden
-        w-[340px]
-        overflow-hidden
-        rounded-lg
-        border
-        border-slate-700
-        bg-[#11161d]/95
-        text-white
-        shadow-xl
-        xl:block
-      "
+    <VentanaFlotante
+      titulo="Actividad reciente"
+      icono={<Activity className="size-4 text-sky-400" />}
+      resumen={
+        eventos.length === 0
+          ? "Sin eventos recientes · en vivo"
+          : `${eventos.length} evento${eventos.length === 1 ? "" : "s"} en memoria · en vivo`
+      }
+      minimizada={minimizada}
+      onCambiarMinimizada={onCambiarMinimizada}
+      inicialmenteMinimizada
+      className="w-full shrink-0"
     >
-      <button
-        type="button"
-        onClick={() =>
-          setAbierto(
-            (actual) => !actual,
-          )
-        }
-        className="
-          flex
-          w-full
-          items-center
-          justify-between
-          gap-3
-          px-3
-          py-2.5
-          text-left
-          hover:bg-slate-800/55
-        "
-        aria-expanded={abierto}
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          <Activity className="size-4 shrink-0 text-sky-400" />
-
-          <div className="min-w-0">
-            <p className="text-xs font-semibold">
-              Actividad reciente
-            </p>
-
-            <p className="truncate text-[10px] text-slate-500">
-              {eventos.length === 0
-                ? "Sin eventos recientes"
-                : `${eventos.length} evento${
-                    eventos.length === 1
-                      ? ""
-                      : "s"
-                  } en memoria`}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          <span className="text-[9px] uppercase text-slate-500">
-            en vivo
-          </span>
-
-          <ChevronDown
-            className={[
-              "size-4 text-slate-500 transition-transform",
-              abierto
-                ? "rotate-180"
-                : "",
-            ].join(" ")}
-          />
-        </div>
-      </button>
-
-      {abierto && (
-        <div
-          className="
-            max-h-44
-            overflow-y-auto
-            border-t
-            border-slate-800
-          "
-        >
           {eventos.length === 0 ? (
             <p className="px-3 py-3 text-[11px] text-slate-500">
               Las entregas, salidas y
@@ -163,9 +98,7 @@ export function FeedEventos({
               ),
             )
           )}
-        </div>
-      )}
-    </div>
+    </VentanaFlotante>
   );
 }
 

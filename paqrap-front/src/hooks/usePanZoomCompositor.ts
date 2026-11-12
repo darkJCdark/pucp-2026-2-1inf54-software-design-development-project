@@ -10,6 +10,10 @@ import {
 
 import type Konva from "konva";
 
+import {
+  interpolarVista,
+} from "@/features/ejecucion/vistaMapa";
+
 export interface VistaCompositor {
   escala: number;
   x: number;
@@ -68,6 +72,42 @@ export function usePanZoomCompositor({
     useRef<
       number | null
     >(null);
+
+  /*
+   * Animación de enfoque (centrar en un vehículo).
+   * Guarda el id de requestAnimationFrame para poder cancelarla
+   * si el usuario arrastra o usa la rueda mientras se mueve.
+   */
+  const animacionRef =
+    useRef<
+      number | null
+    >(null);
+
+  const cancelarAnimacion =
+    useCallback(
+      () => {
+        if (
+          animacionRef.current !==
+          null
+        ) {
+          window.cancelAnimationFrame(
+            animacionRef.current,
+          );
+
+          animacionRef.current =
+            null;
+        }
+      },
+      [],
+    );
+
+  useEffect(
+    () =>
+      cancelarAnimacion,
+    [
+      cancelarAnimacion,
+    ],
+  );
 
   useEffect(() => {
     if (
@@ -201,6 +241,8 @@ export function usePanZoomCompositor({
         clientY:
           number,
       ) => {
+        cancelarAnimacion();
+
         /*
          * Si había un zoom temporal pendiente,
          * lo consolidamos primero.
@@ -216,6 +258,7 @@ export function usePanZoomCompositor({
         };
       },
       [
+        cancelarAnimacion,
         confirmarPreview,
       ],
     );
@@ -304,6 +347,8 @@ export function usePanZoomCompositor({
         deltaY:
           number,
       ) => {
+        cancelarAnimacion();
+
         const actual =
           previewActivoRef.current
             ? vistaPreviewRef.current
@@ -389,7 +434,107 @@ export function usePanZoomCompositor({
       },
       [
         aplicarPreview,
+        cancelarAnimacion,
         confirmarPreview,
+      ],
+    );
+
+  /*
+   * Lleva la cámara a `destino` en `duracionMs` usando la misma
+   * vista previa CSS que el zoom con rueda: no se redibuja Konva
+   * en cada cuadro, solo una vez al final (confirmarPreview).
+   */
+  const animarHacia =
+    useCallback(
+      (
+        destino:
+          VistaCompositor,
+
+        duracionMs:
+          number,
+      ) => {
+        cancelarAnimacion();
+
+        if (
+          zoomTimerRef.current !==
+          null
+        ) {
+          window.clearTimeout(
+            zoomTimerRef.current,
+          );
+
+          zoomTimerRef.current =
+            null;
+        }
+
+        confirmarPreview();
+
+        if (
+          !stageRef.current ||
+          duracionMs <= 0
+        ) {
+          vistaConfirmadaRef.current =
+            destino;
+
+          vistaPreviewRef.current =
+            destino;
+
+          onConfirmar(
+            destino,
+          );
+
+          return;
+        }
+
+        const desde =
+          vistaConfirmadaRef.current;
+
+        const inicio =
+          performance.now();
+
+        const paso = (
+          ahora: number,
+        ) => {
+          const t =
+            Math.min(
+              1,
+              (ahora - inicio) /
+                duracionMs,
+            );
+
+          aplicarPreview(
+            interpolarVista(
+              desde,
+              destino,
+              t,
+            ),
+          );
+
+          if (t < 1) {
+            animacionRef.current =
+              window.requestAnimationFrame(
+                paso,
+              );
+
+            return;
+          }
+
+          animacionRef.current =
+            null;
+
+          confirmarPreview();
+        };
+
+        animacionRef.current =
+          window.requestAnimationFrame(
+            paso,
+          );
+      },
+      [
+        aplicarPreview,
+        cancelarAnimacion,
+        confirmarPreview,
+        onConfirmar,
       ],
     );
 
@@ -397,5 +542,6 @@ export function usePanZoomCompositor({
     stageRef,
     iniciarPan,
     aplicarZoom,
+    animarHacia,
   };
 }

@@ -637,6 +637,7 @@ function VehiculoMarkerBase({
 
   return (
     <Group
+      id={`vehiculo-${vehiculo.id}`}
       x={x}
       y={y}
       opacity={
