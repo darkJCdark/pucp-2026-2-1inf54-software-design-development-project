@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Loader2, Pencil, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Loader2, Pencil, X } from "lucide-react";
 
 import type { TipoVehiculoBackend, TipoVehiculoResponseDto } from "@/api/flota.dto";
 import type { PlanResponseDto, ReplanificacionResponseDto } from "@/api/planificacion.dto";
@@ -26,6 +26,9 @@ interface PanelIndicadoresProps {
   tipoActualizando?: TipoVehiculoBackend | null;
   onActualizarVelocidad?: (tipo: TipoVehiculoBackend, velocidad: number) => Promise<void>;
   onSeleccionarAlmacen?: (id: string) => void;
+  /** Columna plegada a un riel angosto para que el mapa use todo el ancho. */
+  plegado?: boolean;
+  onAlternarPlegado?: () => void;
 }
 
 export function PanelIndicadores({
@@ -40,6 +43,8 @@ export function PanelIndicadores({
   tipoActualizando = null,
   onActualizarVelocidad,
   onSeleccionarAlmacen,
+  plegado = false,
+  onAlternarPlegado,
 }: PanelIndicadoresProps) {
   const {
     configuracion,
@@ -101,8 +106,45 @@ export function PanelIndicadores({
       ? (stockTotal / capacidadAlmacenes) * 100
       : 0;
 
+  if (plegado) {
+    return (
+      <aside className="flex flex-col items-center gap-3 bg-[#11161d] py-3">
+        <button
+          type="button"
+          onClick={onAlternarPlegado}
+          aria-expanded={false}
+          aria-label="Mostrar indicadores"
+          title="Mostrar indicadores"
+          className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-white"
+        >
+          <ChevronLeft className="size-4" />
+        </button>
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 [writing-mode:vertical-rl]">
+          Indicadores
+        </span>
+      </aside>
+    );
+  }
+
   return (
     <aside className="space-y-3 overflow-y-auto bg-[#11161d] p-3">
+      {onAlternarPlegado && (
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            Indicadores
+          </span>
+          <button
+            type="button"
+            onClick={onAlternarPlegado}
+            aria-expanded={true}
+            aria-label="Plegar indicadores"
+            title="Plegar indicadores"
+            className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-white"
+          >
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-2">
         <Indicador
           titulo="Costo acumulado"

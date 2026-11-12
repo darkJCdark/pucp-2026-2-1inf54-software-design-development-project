@@ -4,13 +4,17 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 
 import {
+  ChevronDown,
   Clock3,
+  Maximize2,
   Navigation,
   Package,
   RotateCcw,
+  SlidersHorizontal,
   X,
   ZoomIn,
   ZoomOut,
@@ -99,6 +103,18 @@ import {
   usePanZoomCompositor,
 } from "@/hooks/usePanZoomCompositor";
 
+import {
+  VentanaFlotante,
+} from "@/components/ui/VentanaFlotante";
+
+import {
+  DURACION_ENFOQUE_MS,
+  calcularVistaAjustada,
+  calcularVistaCentrada,
+  margenesPaneles,
+  pantallaAMapa,
+} from "./vistaMapa";
+
 
 const ANCHO_MAPA = 70;
 const ALTO_MAPA = 50;
@@ -174,6 +190,12 @@ interface MapaOperacionProps {
   onSeleccionarVehiculo?: (id: string) => void;
   onSeleccionarPedido?: (id: string) => void;
   onSeleccionarAlmacen?: (id: string) => void;
+
+  /**
+   * Botones de acción de la página (registrar pedido/avería, resultado).
+   * Se dibujan en la misma barra superior derecha que el zoom.
+   */
+  accionesExtra?: ReactNode;
 }
 
 
@@ -194,6 +216,7 @@ export function MapaOperacion({
   onSeleccionarVehiculo,
   onSeleccionarPedido,
   onSeleccionarAlmacen,
+  accionesExtra,
 }: MapaOperacionProps) {
   const {
     ref: contenedorRef,
@@ -234,6 +257,7 @@ export function MapaOperacion({
     iniciarPan,
     aplicarZoom:
     aplicarZoomCompositor,
+    animarHacia,
   } =
     usePanZoomCompositor({
       vista,
@@ -296,6 +320,12 @@ export function MapaOperacion({
     });
 
   const [
+    filtrosMinimizados,
+    setFiltrosMinimizados,
+  ] =
+    useState(true);
+
+  const [
     filtroCargaVehiculos,
     setFiltroCargaVehiculos,
   ] =
@@ -306,6 +336,14 @@ export function MapaOperacion({
     setFiltroStockAlmacenes,
   ] =
     useState<NivelSemaforo>("TODOS");
+
+  /* Cantidad de filtros que ocultan algo (se muestra en el botón). */
+  const filtrosActivos =
+    Object.values(filtros).filter(
+      (visible) => !visible,
+    ).length +
+    (filtroCargaVehiculos !== "TODOS" ? 1 : 0) +
+    (filtroStockAlmacenes !== "TODOS" ? 1 : 0);
 
 
 
@@ -805,10 +843,141 @@ const rutasSinGeometria =
       },
       [],
     );
+  /*
+   * Enfoque automático al seleccionar un vehículo (como un punto en
+   * Google Maps): acerca a ESCALA_ENFOQUE y lo deja en el centro del
+   * área libre entre paneles, con una animación corta.
+   *
+   * Posición: la del nodo Konva dibujado (posición animada real).
+   * Si el vehículo está oculto por un filtro o agrupado, se usa la
+   * posición que reporta el backend.
+   */
+  const ultimoCentradoRef =
+    useRef<string | null>(
+      null,
+    );
+
+  const centrarEnVehiculo =
+    useCallback(
+      (id: string) => {
+        const stage =
+          stageRef.current;
+
+        if (
+          !stage ||
+          width <= 0 ||
+          height <= 0
+        ) {
+          return;
+        }
+
+        const vistaStage = {
+          escala:
+            stage.scaleX(),
+          x: stage.x(),
+          y: stage.y(),
+        };
+
+        let punto:
+          | { x: number; y: number }
+          | null = null;
+
+        const nodo =
+          stage.findOne(
+            `#vehiculo-${id}`,
+          );
+
+        if (nodo) {
+          punto =
+            pantallaAMapa(
+              nodo.getAbsolutePosition(),
+              vistaStage,
+            );
+        } else {
+          const vehiculo =
+            vehiculos.find(
+              (item) =>
+                item.id === id,
+            );
+
+          if (vehiculo) {
+            punto = {
+              x: geometria.x(
+                vehiculo.x,
+              ),
+              y: geometria.y(
+                vehiculo.y,
+              ),
+            };
+          }
+        }
+
+        if (!punto) {
+          return;
+        }
+
+        ultimoCentradoRef.current =
+          id;
+
+        animarHacia(
+          calcularVistaCentrada(
+            punto,
+            width,
+            height,
+            margenesPaneles(
+              window.innerWidth,
+              true,
+            ),
+            vistaStage.escala,
+          ),
+          DURACION_ENFOQUE_MS,
+        );
+      },
+      [
+        animarHacia,
+        geometria,
+        height,
+        stageRef,
+        vehiculos,
+        width,
+      ],
+    );
+
+  /*
+   * Selección desde fuera del mapa (PanelListasOperacion).
+   * El clic en el mapa ya centra en seleccionarVehiculo; el ref
+   * evita repetir la animación cuando la selección vuelve como prop.
+   */
+  useEffect(() => {
+    if (!seleccionVehiculoId) {
+      ultimoCentradoRef.current =
+        null;
+      return;
+    }
+
+    if (
+      ultimoCentradoRef.current ===
+      seleccionVehiculoId
+    ) {
+      return;
+    }
+
+    centrarEnVehiculo(
+      seleccionVehiculoId,
+    );
+  }, [
+    centrarEnVehiculo,
+    seleccionVehiculoId,
+  ]);
+
   const seleccionarVehiculo =
     useCallback(
       (id: string) => {
         setVehiculoSeleccionadoId(
+          id,
+        );
+
+        centrarEnVehiculo(
           id,
         );
 
@@ -817,6 +986,7 @@ const rutasSinGeometria =
         );
       },
       [
+        centrarEnVehiculo,
         onSeleccionarVehiculo,
       ],
     );
@@ -910,6 +1080,44 @@ const rutasSinGeometria =
         puntoMapa.y *
         nuevaEscala,
     });
+  }
+
+  /*
+   * "Ajustar mapa": encuadra el mapa completo en el área libre entre
+   * la columna izquierda, el detalle (si está abierto) y la barra superior.
+   */
+  function ajustarMapa() {
+    if (
+      width <= 0 ||
+      height <= 0
+    ) {
+      return;
+    }
+
+    const hayDetalle =
+      Boolean(
+        seleccionVehiculoId ||
+          seleccionPedidoId ||
+          seleccionAlmacenId,
+      );
+
+    animarHacia(
+      calcularVistaAjustada(
+        {
+          x: geometria.origenX,
+          y: geometria.origenY,
+          ancho: geometria.ancho,
+          alto: geometria.alto,
+        },
+        width,
+        height,
+        margenesPaneles(
+          window.innerWidth,
+          hayDetalle,
+        ),
+      ),
+      DURACION_ENFOQUE_MS,
+    );
   }
 
   function reiniciarVista() {
@@ -1278,9 +1486,52 @@ const rutasSinGeometria =
 
 
 
-      {/* FILTROS */}
-      <div className="absolute left-[470px] top-3 z-20 flex max-w-[calc(100%-640px)] flex-wrap items-center gap-2">
+      {/*
+        * FILTROS: un solo botón que abre un panel desplegable.
+        * Se alinea con el ancho responsivo de la columna izquierda.
+        */}
+      <div className="absolute left-[calc(min(430px,_32vw)_+_40px)] top-3 z-30">
 
+        <button
+          type="button"
+          onClick={() =>
+            setFiltrosMinimizados(
+              (actual) => !actual,
+            )
+          }
+          aria-expanded={
+            !filtrosMinimizados
+          }
+          title={
+            filtrosMinimizados
+              ? "Mostrar filtros"
+              : "Ocultar filtros"
+          }
+          className="flex items-center gap-2 rounded-xl border border-slate-700 bg-[#11161d]/97 px-4 py-2.5 text-sm font-semibold text-white shadow-2xl hover:bg-slate-800"
+        >
+          <SlidersHorizontal className="size-4 text-orange-400" />
+          Filtros
+          {filtrosActivos > 0 && (
+            <span className="rounded-full bg-orange-500 px-1.5 text-[10px] font-bold text-white">
+              {filtrosActivos}
+            </span>
+          )}
+          <ChevronDown
+            className={[
+              "size-4 text-slate-500 transition-transform duration-150",
+              filtrosMinimizados
+                ? ""
+                : "rotate-180",
+            ].join(" ")}
+          />
+        </button>
+
+        {!filtrosMinimizados && (
+        <div className="mt-2 w-[min(340px,calc(100vw-2rem))] rounded-xl border border-slate-700 bg-[#11161d]/97 p-3 shadow-2xl animate-in fade-in slide-in-from-top-1 duration-150">
+        <p className="mb-2 text-[10px] font-semibold uppercase text-slate-500">
+          Mostrar en el mapa
+        </p>
+        <div className="flex flex-wrap gap-2">
         {(
           Object.keys(
             filtros,
@@ -1314,7 +1565,12 @@ const rutasSinGeometria =
             </button>
           ),
         )}
+        </div>
 
+        <p className="mb-2 mt-3 text-[10px] font-semibold uppercase text-slate-500">
+          Semáforo
+        </p>
+        <div className="flex flex-wrap gap-2">
         <label className="flex items-center gap-1 rounded-full bg-slate-800/95 px-2 py-1 text-[10px] text-slate-300 shadow-sm">
           Carga
           <select
@@ -1354,10 +1610,15 @@ const rutasSinGeometria =
             <option className="text-black" value="ROJO">Rojo</option>
           </select>
         </label>
+        </div>
+        </div>
+        )}
       </div>
 
-      {/* ZOOM */}
-      <div className="absolute right-3 top-3 z-20 flex gap-1 rounded-lg border border-slate-700 bg-[#11161d]/95 p-1 shadow-lg">
+      {/* ACCIONES + ZOOM: una sola barra arriba a la derecha */}
+      <div className="absolute right-3 top-3 z-40 flex items-start gap-2">
+      {accionesExtra}
+      <div className="flex gap-1 rounded-xl border border-slate-700 bg-[#11161d]/97 p-1 shadow-2xl">
 
         <BotonMapa
           titulo="Alejar"
@@ -1389,6 +1650,16 @@ const rutasSinGeometria =
         >
           <RotateCcw className="size-4" />
         </BotonMapa>
+
+        <BotonMapa
+          titulo="Ajustar mapa al área libre"
+          onClick={
+            ajustarMapa
+          }
+        >
+          <Maximize2 className="size-4" />
+        </BotonMapa>
+      </div>
       </div>
 
       {/* DETALLE DEL VEHÍCULO */}
@@ -1409,12 +1680,13 @@ const rutasSinGeometria =
           />
         )}
 
-      {/* LEYENDA */}
-      <div className="absolute bottom-5 right-5 z-20 rounded-md bg-[#11161d]/95 p-4 text-xs text-slate-300 shadow-xl">
-
-        <p className="mb-3 font-semibold text-white">
-          LEYENDA
-        </p>
+      {/* LEYENDA (minimizable) */}
+      <VentanaFlotante
+        titulo="LEYENDA"
+        inicialmenteMinimizada
+        className="absolute bottom-5 right-5 z-20 w-[min(220px,40vw)] text-xs text-slate-300"
+        classNameCuerpo="p-4 pt-3"
+      >
 
         <LeyendaLinea
           tipo="REALIZADO"
@@ -1498,7 +1770,7 @@ const rutasSinGeometria =
           color="#dc2626"
           texto="Rojo"
         />
-      </div>
+      </VentanaFlotante>
 
       {/* TOOLTIP */}
       {tooltip && (

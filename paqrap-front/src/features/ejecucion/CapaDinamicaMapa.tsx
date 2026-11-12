@@ -1,7 +1,6 @@
 import {
   memo,
   useMemo,
-  useRef,
   type ReactNode,
 } from "react";
 
@@ -221,31 +220,17 @@ function CapaDinamicaMapaBase({
     ) *
     intervaloRutasSimuladoMs;
 
-  const instanteVehiculosRef =
-    useRef(
-      instanteAnimadoMs,
-    );
-
-  if (!modoPan) {
-    instanteVehiculosRef.current =
-      instanteAnimadoMs;
-  }
-
+  /*
+   * Antes se congelaban estos instantes con refs leídos durante el
+   * render (error react-hooks/refs). No hace falta: con modoPan activo
+   * useRelojSimuladoAnimado recibe activo=false y deja de actualizar
+   * instanteAnimadoMs, así que el valor ya queda congelado.
+   */
   const instanteVehiculosMs =
-    instanteVehiculosRef.current;
-
-  const instanteRutasRef =
-    useRef(
-      instanteRutasCalculadoMs,
-    );
-
-  if (!modoPan) {
-    instanteRutasRef.current =
-      instanteRutasCalculadoMs;
-  }
+    instanteAnimadoMs;
 
   const instanteRutasMs =
-    instanteRutasRef.current;
+    instanteRutasCalculadoMs;
 
   const vehiculosVisuales =
     useMemo<
