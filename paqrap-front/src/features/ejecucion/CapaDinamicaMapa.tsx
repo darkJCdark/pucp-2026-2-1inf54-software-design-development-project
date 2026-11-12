@@ -152,7 +152,7 @@ const COLORES_VEHICULO:
     string
   > = {
     AUTO:
-      "#3b82f6",
+      "#EC4899",
     MOTO:
       "#22c55e",
     BICICLETA:
