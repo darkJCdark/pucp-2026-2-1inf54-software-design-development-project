@@ -2101,13 +2101,30 @@ function PanelVehiculoSeleccionado({
 
                   <p className="text-[9px] text-slate-500">
 
-                    {parada.llegada
-                      ? formatearHora(
-                        parada.llegada,
-                      )
-                      : "Sin ETA"}
+                    {parada.tipo ===
+                      "TRASVASE"
+                      ? `(${parada.x}, ${parada.y}) · Llegada ${
+                        parada.llegada
+                          ? formatearHora(
+                            parada.llegada,
+                          )
+                          : "Sin horario"
+                      } · Fin ${
+                        parada.fin
+                          ? formatearHora(
+                            parada.fin,
+                          )
+                          : "Sin horario"
+                      } · ${parada.paquetes} paq.`
+                      : parada.llegada
+                        ? formatearHora(
+                          parada.llegada,
+                        )
+                        : "Sin ETA"}
 
-                    {parada.paquetes >
+                    {parada.tipo !==
+                      "TRASVASE" &&
+                    parada.paquetes >
                       0
                       ? ` · ${parada.paquetes} paq.`
                       : ""}

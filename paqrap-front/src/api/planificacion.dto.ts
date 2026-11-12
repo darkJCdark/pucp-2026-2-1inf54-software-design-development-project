@@ -12,7 +12,8 @@ export type MotivoReplanificacionBackend =
 
 export type TipoParadaBackend =
   | "ENTREGA"
-  | "ALMACEN";
+  | "ALMACEN"
+  | "TRASVASE";
 
 export interface ParadaResponseDto {
   orden: number;
