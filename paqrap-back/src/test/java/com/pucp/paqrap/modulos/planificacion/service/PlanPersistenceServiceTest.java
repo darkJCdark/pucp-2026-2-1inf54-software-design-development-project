@@ -205,6 +205,7 @@ class PlanPersistenceServiceTest {
             int cargaDespues = switch (parada) {
                 case DeliveryStop entrega -> carga - entrega.deliveredPackages();
                 case WarehouseVisit almacen -> carga + almacen.pickupPackages();
+                case com.pucp.paqrap.modulos.planificacion.entity.TransferStop trasvase -> carga + trasvase.packages();
             };
             Instant llegada = HORA.plusSeconds((indice + 1L) * 60);
             paradas.add(new ScheduledRouteStop(parada,

@@ -57,8 +57,13 @@ class DemoReplanificacionBloqueoSaTest {
 
         OperationalSimulatedAnnealingPlanner.Ejecucion ejecucionInicial = ejecutar(snapshot, pedidos, List.of(), 71L);
         ResultadoPlanificacion inicial = ejecucionInicial.resultado();
+        // Se bloquea la última calle por la que el plan inicial llega a P01 (el plan cambia con los vecindarios).
+        var llegadaP01 = inicial.evaluacion().schedulesByRouteId().values().stream()
+                .flatMap(ruta -> ruta.scheduledStops().stream())
+                .filter(parada -> parada.stop().location().equals(new Location(0, 3)) && !parada.approach().legs().isEmpty())
+                .findFirst().orElseThrow().approach().legs().getLast();
         RoadBlock bloqueo = new RoadBlock(INICIO, INICIO.plusSeconds(2 * 3600),
-                List.of(new Location(0, 1), new Location(0, 2)));
+                List.of(llegadaP01.from(), llegadaP01.to()));
         OperationalSimulatedAnnealingPlanner.Ejecucion ejecucionFinal = ejecutar(snapshot, pedidos, List.of(bloqueo), 71L);
         ResultadoPlanificacion replanificado = ejecucionFinal.resultado();
 
@@ -77,8 +82,15 @@ class DemoReplanificacionBloqueoSaTest {
 
         double distanciaInicial = distanciaTotal(inicial);
         double distanciaFinal = distanciaTotal(replanificado);
-        assertTrue(distanciaFinal > distanciaInicial);
-        assertTrue(replanificado.costoTotal() > inicial.costoTotal());
+        // El bloqueo se paga con un desvío (más km y costo) o esperando a que termine (llega más tarde).
+        java.time.Instant finInicial = inicial.evaluacion().schedulesByRouteId().values().stream()
+                .map(ScheduledDeliveryRoute::completedAt).max(java.time.Instant::compareTo).orElseThrow();
+        java.time.Instant finFinal = replanificado.evaluacion().schedulesByRouteId().values().stream()
+                .map(ScheduledDeliveryRoute::completedAt).max(java.time.Instant::compareTo).orElseThrow();
+        assertTrue(distanciaFinal >= distanciaInicial);
+        assertTrue(distanciaFinal > distanciaInicial || finFinal.isAfter(finInicial),
+                "el bloqueo debe costar distancia o tiempo");
+        assertTrue(replanificado.costoTotal() >= inicial.costoTotal());
 
         imprimirDemostracion(pedidos, bloqueo, ejecucionInicial, ejecucionFinal, distanciaInicial, distanciaFinal);
     }

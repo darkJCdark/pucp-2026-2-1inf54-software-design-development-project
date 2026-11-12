@@ -1,5 +1,6 @@
 package com.pucp.paqrap.modulos.planificacion.service;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -84,7 +85,11 @@ class ReplanificacionSaServiceTest {
         return List.of(
                 new Order("P01", new Location(31, 14), 12, H, plazo),
                 new Order("P02", new Location(27, 18), 8, H, plazo),
-                new Order("P03", new Location(29, 16), 4, H, plazo));
+                new Order("P03", new Location(29, 16), 4, H, plazo),
+                // Dos pedidos chicos en línea: un solo vehículo los lleva en el mismo viaje (consolidación), así el
+                // plan siempre tiene una ruta con dos entregas para las pruebas de avería y bloqueo.
+                new Order("P06", new Location(35, 14), 2, H, plazo),
+                new Order("P07", new Location(37, 14), 2, H, plazo));
     }
 
     private static Order p04(Instant registro) {
@@ -92,7 +97,10 @@ class ReplanificacionSaServiceTest {
     }
 
     private static SolicitudPlanificacion solicitud() {
-        return new SolicitudPlanificacion(ModoOperacion.SIMULACION_5D, H, pedidos(), List.of(), SEMILLA, PRESUPUESTO_AMPLIO);
+        // Misma configuración que el planificador de referencia: con los vecindarios corregidos (Semana 13) el SA sí
+        // mejora la semilla, así que la de producción (1M iteraciones) ya no da el mismo plan que CONFIG_PRUEBA.
+        return new SolicitudPlanificacion(ModoOperacion.SIMULACION_5D, H, pedidos(), List.of(), SEMILLA, PRESUPUESTO_AMPLIO,
+                CONFIG_PRUEBA);
     }
 
     private static Warehouse central() {
@@ -205,7 +213,8 @@ class ReplanificacionSaServiceTest {
 
     private static RutaResponse rutaQueAunNoLlegaASuPrimeraEntrega(ReplanificacionResponse inicial) {
         return inicial.plan().rutas().stream()
-                .filter(r -> r.paradas().getFirst().llegada().isAfter(H.plusSeconds(60)))
+                .filter(r -> r.paradas().stream().filter(p -> ParadaResponse.ENTREGA.equals(p.tipo())).findFirst()
+                        .map(p -> p.llegada().isAfter(H.plusSeconds(60))).orElse(false))
                 .findFirst().orElseThrow(() -> new AssertionError("el plan inicial no tiene una ruta adecuada"));
     }
 
@@ -355,12 +364,11 @@ class ReplanificacionSaServiceTest {
     }
 
     /**
-     * En el código original un nodo bloqueado no se atraviesa: el vehículo espera a que termine el bloqueo
-     * (o, si no hay camino, la ruta no se puede programar). Como la ruta se conserva congelada, el retraso
-     * debe reportarse como violación de esa ruta (SLA_MISSED o NO_ROAD_PATH) y el plan deja de ser factible.
+     * Indicación del profesor: si una parada pendiente queda sobre un bloqueo, se llega por la calle perpendicular, se
+     * atiende y se sale por la misma calle. La ruta conservada sigue siendo factible y nunca recorre el bloqueo.
      */
     @Test
-    void unBloqueoSobreUnaParadaPendienteSeInformaComoViolacionDeLaRutaConservada() {
+    void unBloqueoSobreUnaParadaPendienteSeAtiendeLlegandoPorLaPerpendicular() {
         servicio.iniciar(EJECUCION, solicitud());
         Instant t = H.plusSeconds(30 * 60);
         RutaVigente afectada = servicio.rutasVigentes(EJECUCION).stream()
@@ -375,11 +383,18 @@ class ReplanificacionSaServiceTest {
 
         ReplanificacionResponse r = servicio.activarBloqueo(EJECUCION, bloqueo, t);
 
-        assertFalse(r.plan().factible());
-        assertTrue(r.plan().violaciones().stream()
-                .anyMatch(v -> (v.tipo().equals("SLA_MISSED") || v.tipo().equals("NO_ROAD_PATH"))
-                        && afectada.ruta().id().equals(v.rutaId())), "violaciones: " + r.plan().violaciones());
         assertTrue(r.rutasConservadas().contains(afectada.ruta().id()));
+        assertTrue(r.plan().violaciones().stream().noneMatch(v -> afectada.ruta().id().equals(v.rutaId())),
+                () -> "violaciones: " + r.plan().violaciones());
+        RutaVigente reprogramada = servicio.rutasVigentes(EJECUCION).stream()
+                .filter(rv -> rv.ruta().id().equals(afectada.ruta().id())).findFirst().orElseThrow();
+        RoadBlock efectivo = new RoadBlock(t, bloqueo.endsAt(), bloqueo.nodes());
+        for (ScheduledRouteStop s : reprogramada.programada().scheduledStops()) {
+            for (RoadLeg leg : s.approach().legs()) {
+                assertFalse(efectivo.blockedSegments().contains(new StreetSegment(leg.from(), leg.to()))
+                        && efectivo.overlaps(leg.departsAt(), leg.arrivesAt()), "recorre el bloqueo");
+            }
+        }
     }
 
     @Test
@@ -446,13 +461,164 @@ class ReplanificacionSaServiceTest {
         ReplanificacionResponse r = servicio.registrarAveria(EJECUCION,
                 new BreakdownEvent(afectada.vehiculoId(), BreakdownType.MINOR, t, new Location(28, 14)), t);
 
-        Map<String, Integer> hecho = entregas(List.of(afectada), t);
+        Map<String, Integer> hecho = entregas(inicio.plan().rutas(), t); // también las rutas que ya terminaron
         Map<String, Integer> total = new HashMap<>(hecho);
         CortePlan.sumar(total, entregas(r.plan().rutas(), null));
         for (Order p : pedidos()) {
             assertEquals(Integer.valueOf(p.packages()), total.get(p.id()), "paquetes de " + p.id());
         }
         assertTrue(r.plan().noAtendidos().isEmpty());
+    }
+
+    /**
+     * Trasvase (indicación del profesor): la moto que lleva P11 se avería a mitad de camino. Un despacho nuevo desde el
+     * central ya no llegaría con holgura; la moto que volvía de entregar P10 está cerca, se desvía, recibe los 6
+     * paquetes (30 min) y entrega P11 a tiempo.
+     */
+    @Test
+    void unaAveriaConUnPedidoUrgenteSeResuelveConTrasvaseDeUnaUnidadCercana() {
+        Instant t0 = H;
+        Order p10 = new Order("P10", new Location(45, 14), 3, t0, t0.plusSeconds(60 * 60));
+        servicio.iniciar(EJECUCION, new SolicitudPlanificacion(ModoOperacion.SIMULACION_5D, t0, List.of(p10),
+                List.of(), SEMILLA, PRESUPUESTO_AMPLIO, CONFIG_PRUEBA));
+        RutaVigente conP10 = servicio.rutasVigentes(EJECUCION).getFirst();
+        Instant regresa = conP10.programada().scheduledStops().getFirst().completedAt();
+        // P11 llega cuando la unidad de P10 está por volver; su moto pasa por (45,14) mientras la otra regresa.
+        Instant t1 = regresa.minusSeconds(27 * 60);
+        Order p11 = new Order("P11", new Location(60, 14), 6, t1, t1.plusSeconds(100 * 60));
+        servicio.registrarPedido(EJECUCION, p11, t1);
+        RutaVigente conP11 = servicio.rutasVigentes(EJECUCION).stream()
+                .filter(rv -> rv.ruta().stops().stream().anyMatch(st -> st instanceof DeliveryStop e
+                        && e.order().id().equals("P11")))
+                .findFirst().orElseThrow();
+        assertFalse(conP11.vehiculoId().equals(conP10.vehiculoId()), "el caso necesita dos unidades");
+        Instant t = regresa.plusSeconds(5 * 60);
+        Location donde = conP11.programada().scheduledStops().stream()
+                .flatMap(st -> st.approach().legs().stream())
+                .filter(leg -> !leg.departsAt().isAfter(t) && leg.arrivesAt().isAfter(t))
+                .findFirst().orElseThrow(() -> new AssertionError("la unidad de P11 debe ir en camino en t")).from();
+        BreakdownEvent averia = new BreakdownEvent(conP11.vehiculoId(), BreakdownType.INTERMEDIATE, t, donde);
+
+        ReplanificacionResponse r = servicio.registrarAveria(EJECUCION, averia, t);
+
+        RutaResponse rescate = r.plan().rutas().stream()
+                .filter(x -> x.paradas().stream().anyMatch(pp -> ParadaResponse.TRASVASE.equals(pp.tipo())))
+                .findFirst().orElseThrow(() -> new AssertionError("no hubo trasvase: " + r.plan().rutas()));
+        assertEquals(conP10.vehiculoId(), rescate.vehiculoId());
+        assertEquals(conP10.ruta().id() + ReplanificacionSaService.SUFIJO_DESVIO, rescate.id());
+        assertEquals(t, rescate.salida());
+        ParadaResponse trasvase = rescate.paradas().stream()
+                .filter(pp -> ParadaResponse.TRASVASE.equals(pp.tipo())).findFirst().orElseThrow();
+        assertEquals(donde.x(), trasvase.x());
+        assertEquals(donde.y(), trasvase.y());
+        assertEquals(6, trasvase.paquetes());
+        assertEquals(trasvase.llegada().plus(Duration.ofMinutes(30)), trasvase.fin());
+        ParadaResponse entregaP11 = rescate.paradas().stream().filter(pp -> "P11".equals(pp.pedidoId()))
+                .findFirst().orElseThrow();
+        assertFalse(entregaP11.llegada().isAfter(p11.deadline()), "P11 debe llegar a tiempo");
+        assertTrue(r.plan().noAtendidos().isEmpty());
+        assertTrue(r.plan().violaciones().isEmpty(), () -> "violaciones: " + r.plan().violaciones());
+        assertTrue(r.plan().rutas().stream().noneMatch(x -> x.vehiculoId().equals(conP11.vehiculoId())));
+
+        // El desvío sigue vigente en la replanificación siguiente.
+        ReplanificacionResponse luego = servicio.replanificar(EJECUCION, ReplanificacionService.Eventos.NINGUNO,
+                t.plusSeconds(60));
+        assertTrue(luego.rutasConservadas().contains(rescate.id()));
+    }
+
+    /**
+     * Inserción en rutas en marcha (Semana 13): con una sola moto, ya en camino a P20, llega P21 con plazo corto. Esperar
+     * a que vuelva al central no llega a tiempo; en cambio, tras atender P20 recarga en ESTE (57,27), a 3 km, y entrega
+     * P21 sin volver. La ruta conserva su id y su salida, y lo ya recorrido no cambia.
+     */
+    @Test
+    void unPedidoUrgenteSeInsertaEnUnaRutaEnMarchaRecargandoEnUnIntermedio() {
+        FuenteDatosOperativos unaMoto = new FuenteDatosOperativosMock() {
+            @Override
+            public List<Vehicle> flota() {
+                return List.of(vehiculo("TM01"));
+            }
+        };
+        PlanificadorSaService sa = new PlanificadorSaService(unaMoto, CONFIG_PRUEBA);
+        ReplanificacionSaService conUnaMoto = new ReplanificacionSaService(unaMoto, sa,
+                Mockito.mock(PlanPersistenceService.class));
+        Order p20 = new Order("P20", new Location(60, 27), 2, H, H.plusSeconds(10 * 3600));
+        conUnaMoto.iniciar(EJECUCION, new SolicitudPlanificacion(ModoOperacion.SIMULACION_5D, H, List.of(p20), List.of(),
+                SEMILLA, PRESUPUESTO_AMPLIO, CONFIG_PRUEBA));
+        RutaVigente antes = conUnaMoto.rutasVigentes(EJECUCION).getFirst();
+        Instant t1 = H.plusSeconds(20 * 60);
+        // Plazo 14:30: solo llega si recarga en ESTE y come después de entregar P21 (refrigerio postergado).
+        Order p21 = new Order("P21", new Location(58, 30), 3, t1, t1.plusSeconds(130 * 60));
+
+        ReplanificacionResponse r = conUnaMoto.registrarPedido(EJECUCION, p21, t1);
+
+        assertTrue(r.plan().noAtendidos().isEmpty(), () -> "sin atender: " + r.plan().noAtendidos());
+        RutaResponse ruta = r.plan().rutas().getFirst();
+        assertEquals(antes.ruta().id(), ruta.id());
+        assertEquals(antes.ruta().departureAt(), ruta.salida());
+        List<String> secuencia = ruta.paradas().stream()
+                .map(pp -> ParadaResponse.ENTREGA.equals(pp.tipo()) ? pp.pedidoId() : pp.almacenId()).toList();
+        assertEquals(List.of("P20", "ESTE", "P21", "CENTRAL"), secuencia);
+        assertEquals(3, ruta.paradas().get(1).paquetes(), "recarga en ESTE lo que lleva a P21");
+        assertEquals(antes.programada().scheduledStops().getFirst().arrivedAt(), ruta.paradas().getFirst().llegada(),
+                "lo ya recorrido no cambia");
+        assertFalse(ruta.paradas().get(2).llegada().isAfter(p21.deadline()));
+        assertTrue(r.plan().violaciones().isEmpty(), () -> "violaciones: " + r.plan().violaciones());
+        assertTrue(r.rutasConservadas().contains(ruta.id()));
+    }
+
+    /**
+     * Trasvase desde una unidad en mitad de su ruta (Semana 13): TM01 va con P30 y P31; TM02 lleva P32, urgente, y se
+     * avería a mitad de camino sin otra unidad libre. TM01, tras atender P30, pasa por la avería, recibe los paquetes,
+     * entrega P32 a tiempo y luego sigue con P31.
+     */
+    @Test
+    void unaUnidadEnMitadDeSuRutaHaceElTrasvaseYLuegoSigueConLoSuyo() {
+        FuenteDatosOperativos dosMotos = new FuenteDatosOperativosMock() {
+            @Override
+            public List<Vehicle> flota() {
+                return List.of(vehiculo("TM01"), vehiculo("TM02"));
+            }
+        };
+        ReplanificacionSaService conDosMotos = new ReplanificacionSaService(dosMotos,
+                new PlanificadorSaService(dosMotos, CONFIG_PRUEBA), Mockito.mock(PlanPersistenceService.class));
+        Order p30 = new Order("P30", new Location(40, 14), 2, H, H.plusSeconds(10 * 3600));
+        Order p31 = new Order("P31", new Location(44, 14), 2, H, H.plusSeconds(10 * 3600));
+        conDosMotos.iniciar(EJECUCION, new SolicitudPlanificacion(ModoOperacion.SIMULACION_5D, H, List.of(p30, p31),
+                List.of(), SEMILLA, PRESUPUESTO_AMPLIO, CONFIG_PRUEBA));
+        RutaVigente conP30 = conDosMotos.rutasVigentes(EJECUCION).getFirst();
+        assertEquals(1, conDosMotos.rutasVigentes(EJECUCION).size(), "P30 y P31 van en la misma moto");
+        Instant t1 = H.plusSeconds(10 * 60);
+        Order p32 = new Order("P32", new Location(60, 14), 4, t1, t1.plusSeconds(135 * 60));
+        conDosMotos.registrarPedido(EJECUCION, p32, t1);
+        RutaVigente conP32 = conDosMotos.rutasVigentes(EJECUCION).stream()
+                .filter(rv -> !rv.vehiculoId().equals(conP30.vehiculoId())).findFirst().orElseThrow();
+        Instant t = H.plusSeconds(40 * 60);
+        Location donde = conP32.programada().scheduledStops().stream()
+                .flatMap(st -> st.approach().legs().stream())
+                .filter(leg -> !leg.departsAt().isAfter(t) && leg.arrivesAt().isAfter(t))
+                .findFirst().orElseThrow().from();
+
+        ReplanificacionResponse r = conDosMotos.registrarAveria(EJECUCION,
+                new BreakdownEvent(conP32.vehiculoId(), BreakdownType.INTERMEDIATE, t, donde), t);
+
+        assertTrue(r.plan().noAtendidos().isEmpty(), () -> "sin atender: " + r.plan().noAtendidos());
+        RutaResponse ruta = r.plan().rutas().stream().filter(x -> x.vehiculoId().equals(conP30.vehiculoId()))
+                .findFirst().orElseThrow();
+        assertEquals(conP30.ruta().id(), ruta.id(), "es la misma ruta, con el trasvase intercalado");
+        List<String> secuencia = ruta.paradas().stream().map(pp -> switch (pp.tipo()) {
+            case ParadaResponse.ENTREGA -> pp.pedidoId();
+            case ParadaResponse.TRASVASE -> "TRASVASE";
+            default -> pp.almacenId();
+        }).toList();
+        // Atiende una de sus entregas, hace el trasvase, entrega P32 y sigue con la otra (el orden de P30/P31 lo elige el SA).
+        assertEquals(5, secuencia.size(), () -> "secuencia: " + secuencia);
+        assertEquals(List.of("TRASVASE", "P32"), secuencia.subList(1, 3), () -> "secuencia: " + secuencia);
+        assertEquals(java.util.Set.of("P30", "P31"), java.util.Set.of(secuencia.get(0), secuencia.get(3)));
+        assertEquals("CENTRAL", secuencia.get(4));
+        ParadaResponse entregaP32 = ruta.paradas().get(2);
+        assertFalse(entregaP32.llegada().isAfter(p32.deadline()), "P32 llega a tiempo");
+        assertTrue(r.plan().violaciones().isEmpty(), () -> "violaciones: " + r.plan().violaciones());
     }
 
     /** Indicación del profesor: tras una MINOR la unidad espera 2 horas y sigue su ruta con su carga, sin volver antes. */
@@ -468,6 +634,7 @@ class ReplanificacionSaServiceTest {
         RutaResponse continuacion = r.plan().rutas().stream()
                 .filter(ruta -> ruta.vehiculoId().equals(afectada.vehiculoId())).findFirst().orElseThrow();
         assertEquals(afectada.id() + "-CONT", continuacion.id());
+        assertTrue(r.plan().violaciones().isEmpty(), () -> "violaciones: " + r.plan().violaciones());
         assertEquals(t.plus(BreakdownType.MINOR.minimumUnavailable()), continuacion.salida());
         assertEquals(afectada.paradas().size(), continuacion.paradas().size());
         assertEquals(afectada.paradas().getFirst().cargaAntes(), continuacion.paradas().getFirst().cargaAntes());
@@ -664,7 +831,9 @@ class ReplanificacionSaServiceTest {
         assertEquals(MotivoReplanificacion.AVERIA, r.motivo());
         assertEquals(1, r.numeroReplanificacion());
         assertTrue(servicio.conocePedido(EJECUCION, "P04") && servicio.conocePedido(EJECUCION, "P05"));
-        assertTrue(r.plan().rutas().stream().noneMatch(x -> x.vehiculoId().equals(afectada.vehiculoId())));
+        // Avería menor: la unidad solo puede seguir con su propia carga (ruta -CONT), no recibe pedidos nuevos.
+        assertTrue(r.plan().rutas().stream().filter(x -> x.vehiculoId().equals(afectada.vehiculoId()))
+                .allMatch(x -> x.id().endsWith(CortePlan.SUFIJO_CONTINUACION)));
         Map<String, Integer> total = entregas(r.plan().rutas(), null);
         assertEquals(Integer.valueOf(6), total.get("P04"));
         assertEquals(Integer.valueOf(2), total.get("P05"));
