@@ -65,6 +65,12 @@ interface CapaRutasProps {
 
   visible: boolean;
 
+  mostrarAutos: boolean;
+
+  mostrarMotos: boolean;
+
+  mostrarBicicletas: boolean;
+
   vehiculoSeleccionadoId:
     string | null;
 
@@ -95,6 +101,9 @@ function CapaRutasBase({
   viewportPixeles,
   nivelDetalle,
   visible,
+  mostrarAutos,
+  mostrarMotos,
+  mostrarBicicletas,
   vehiculoSeleccionadoId,
   seleccionPedidoId,
   instanteMs,
@@ -168,6 +177,17 @@ function CapaRutasBase({
           );
 
         if (!visual) {
+          return null;
+        }
+
+        if (
+          !tipoVehiculoVisible(
+            visual.vehiculo.tipo,
+            mostrarAutos,
+            mostrarMotos,
+            mostrarBicicletas,
+          )
+        ) {
           return null;
         }
 
@@ -267,6 +287,24 @@ function CapaRutasBase({
       })}
     </>
   );
+}
+
+function tipoVehiculoVisible(
+  tipo: TipoVehiculo,
+  mostrarAutos: boolean,
+  mostrarMotos: boolean,
+  mostrarBicicletas: boolean,
+) {
+  switch (tipo) {
+    case "AUTO":
+      return mostrarAutos;
+
+    case "MOTO":
+      return mostrarMotos;
+
+    case "BICICLETA":
+      return mostrarBicicletas;
+  }
 }
 
 export const CapaRutas =
