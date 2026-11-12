@@ -1327,11 +1327,11 @@ const rutasSinGeometria =
             className="bg-transparent font-semibold text-white outline-none"
             aria-label="Filtrar vehículos por semáforo de carga"
           >
-            <option value="TODOS">Todos</option>
-            <option value="VACIO">Sin carga</option>
-            <option value="VERDE">Verde</option>
-            <option value="AMBAR">Ámbar</option>
-            <option value="ROJO">Rojo</option>
+            <option className="text-black" value="TODOS">Todos</option>
+            <option className="text-black" value="VACIO">Sin carga</option>
+            <option className="text-black" value="VERDE">Verde</option>
+            <option className="text-black" value="AMBAR">Ámbar</option>
+            <option className="text-black" value="ROJO">Rojo</option>
           </select>
         </label>
 
@@ -1347,11 +1347,11 @@ const rutasSinGeometria =
             className="bg-transparent font-semibold text-white outline-none"
             aria-label="Filtrar almacenes por semáforo de stock"
           >
-            <option value="TODOS">Todos</option>
-            <option value="VACIO">Vacío</option>
-            <option value="VERDE">Verde</option>
-            <option value="AMBAR">Ámbar</option>
-            <option value="ROJO">Rojo</option>
+            <option className="text-black" value="TODOS">Todos</option>
+            <option className="text-black" value="VACIO">Vacío</option>
+            <option className="text-black" value="VERDE">Verde</option>
+            <option className="text-black" value="AMBAR">Ámbar</option>
+            <option className="text-black" value="ROJO">Rojo</option>
           </select>
         </label>
       </div>
@@ -1434,7 +1434,7 @@ const rutasSinGeometria =
         <div className="my-2 border-t border-slate-700" />
 
         <Leyenda
-          color="#3b82f6"
+          color="#EC4899"
           texto="Automóvil"
         />
 
@@ -1464,7 +1464,7 @@ const rutasSinGeometria =
         />
 
         <Leyenda
-          color="#16a34a"
+          color="#0891B2"
           texto="Pedido entregado"
         />
 

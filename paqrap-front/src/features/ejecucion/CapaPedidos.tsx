@@ -125,7 +125,7 @@ const ESTILOS_PEDIDO:
 
     ENTREGADO: {
         fill:
-            "#16a34a",
+            "#0891B2",
 
         opacity:
             0.75,
