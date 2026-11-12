@@ -287,6 +287,15 @@ function CapaDinamicaMapaBase({
           visible={
             mostrarRutas
           }
+          mostrarAutos={
+            mostrarAutos
+          }
+          mostrarMotos={
+            mostrarMotos
+          }
+          mostrarBicicletas={
+            mostrarBicicletas
+          }
           vehiculoSeleccionadoId={
             vehiculoSeleccionadoId
           }

@@ -78,10 +78,11 @@ public final class VerificacionTramos {
                 List.of(new Location(10,12), new Location(10,13)));
         return caso(new Location(10,15), List.of(bloqueo), regresar);
     }
+    /** Destino al otro lado del bloqueo: no se puede atravesar; esperar (12:29) es más rápido que rodearlo (12:30). */
     private static Caso espera() {
         RoadBlock bloqueo = new RoadBlock(INICIO.plusSeconds(8*60), INICIO.plusSeconds(14*60),
                 List.of(new Location(10,12), new Location(10,13)));
-        return caso(new Location(10,12), List.of(bloqueo), false);
+        return caso(new Location(10,14), List.of(bloqueo), false);
     }
     private static void igual(Object esperado, Object obtenido, String mensaje) {
         if (!Objects.equals(esperado, obtenido)) throw new AssertionError(mensaje + ": esperado=" + esperado + ", obtenido=" + obtenido);
@@ -137,7 +138,7 @@ public final class VerificacionTramos {
     }
     public static void esperaEntreCalles() {
         RutaResponse ruta = espera().respuesta();
-        igual(2, ruta.tramos().size(), "esperar es más rápido que desviarse en este caso");
+        igual(4, ruta.tramos().size(), "esperar es más rápido que desviarse en este caso");
         TramoRutaResponse segundo = ruta.tramos().get(1);
         cumple(segundo.salida().isAfter(ruta.tramos().getFirst().llegada()), "existe espera entre calles");
         igual(new Location(10,11), PosicionRuta.estimar(ruta, 10,10, INICIO.plusSeconds(10*60)), "quieto durante la espera");
@@ -146,7 +147,8 @@ public final class VerificacionTramos {
     public static void esperaAntesDePrimerTramo() {
         RoadBlock bloqueo = new RoadBlock(INICIO, INICIO.plusSeconds(3*60),
                 List.of(new Location(10,11), new Location(10,12)));
-        RutaResponse ruta = caso(new Location(10,11), List.of(bloqueo), false).respuesta();
+        // Destino más allá del bloqueo: no se puede pasar por (10,11) mientras rige, así que espera 3 min al salir.
+        RutaResponse ruta = caso(new Location(10,13), List.of(bloqueo), false).respuesta();
         igual(INICIO.plusSeconds(3*60), ruta.tramos().getFirst().salida(), "espera inicial preservada");
         igual(new Location(10,10), PosicionRuta.estimar(ruta, 10,10, INICIO.plusSeconds(2*60)), "quieto antes del primer tramo");
     }

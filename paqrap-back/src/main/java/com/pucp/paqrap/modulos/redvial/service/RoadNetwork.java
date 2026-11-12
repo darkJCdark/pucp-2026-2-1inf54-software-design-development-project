@@ -21,10 +21,27 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.PriorityQueue;
 
-/** Time-aware routing over PaqRap's bidirectional, non-diagonal road grid. */
+/**
+ * Time-aware routing over PaqRap's bidirectional, non-diagonal road grid.
+ *
+ * <p>Regla de bloqueos (indicación del profesor): las calles de un bloqueo vigente no se recorren y un nodo bloqueado
+ * no se atraviesa. Si el destino está sobre el bloqueo, se llega por una calle perpendicular (que no es del bloqueo),
+ * se atiende en ese nodo y se sale por la misma calle por la que se entró ({@code arrivedFrom}).
+ */
 public final class RoadNetwork {
     public Optional<RoadPath> shortestPath(Location origin, Location destination, Instant departureAt,
                                            Duration travelTimePerStreet, List<RoadBlock> blocks) {
+        return shortestPath(origin, destination, departureAt, travelTimePerStreet, blocks, null);
+    }
+
+    /**
+     * @param arrivedFrom nodo desde el que el vehículo llegó a {@code origin}; si {@code origin} está bloqueado solo
+     *                    puede salir por esa calle (vuelve por donde entró). Null si se desconoce: sale por cualquier
+     *                    calle que no sea del bloqueo.
+     */
+    public Optional<RoadPath> shortestPath(Location origin, Location destination, Instant departureAt,
+                                           Duration travelTimePerStreet, List<RoadBlock> blocks,
+                                           Location arrivedFrom) {
         Objects.requireNonNull(origin, "origin is required");
         Objects.requireNonNull(destination, "destination is required");
         Objects.requireNonNull(departureAt, "departureAt is required");
@@ -51,8 +68,10 @@ public final class RoadNetwork {
                 return Optional.of(reconstructPath(origin, destination, departureAt, incomingLeg));
             }
             for (Location next : neighboursOf(state.node())) {
+                boolean mayEnter = next.equals(destination);
+                boolean mayLeave = state.node().equals(origin) && (arrivedFrom == null || next.equals(arrivedFrom));
                 Instant legDeparture = firstLegalDeparture(state.node(), next, state.arrivalAt(),
-                        travelTimePerStreet, activeBlocks);
+                        travelTimePerStreet, activeBlocks, mayEnter, mayLeave);
                 Instant nextArrival = legDeparture.plus(travelTimePerStreet);
                 Instant knownArrival = earliestArrival.get(next);
                 if (knownArrival == null || nextArrival.isBefore(knownArrival)) {
@@ -85,10 +104,11 @@ public final class RoadNetwork {
     }
 
     private Instant firstLegalDeparture(Location from, Location to, Instant candidateDeparture,
-                                        Duration travelTime, BlockIndex blocks) {
+                                        Duration travelTime, BlockIndex blocks, boolean mayEnter, boolean mayLeave) {
         Instant departure = candidateDeparture;
         while (true) {
-            Instant latestConflictEnd = blocks.latestConflictEnd(from, to, departure, departure.plus(travelTime));
+            Instant latestConflictEnd = blocks.routingConflictEnd(from, to, departure, departure.plus(travelTime),
+                    mayEnter, mayLeave);
             if (latestConflictEnd == null) {
                 return departure;
             }
@@ -115,6 +135,38 @@ public final class RoadNetwork {
 
         boolean blocksTraversal(Location from, Location to, Instant departure, Instant arrival) {
             return latestConflictEnd(from, to, departure, arrival) != null;
+        }
+
+        /**
+         * Fin del último bloqueo que impide recorrer la calle (from, to) en ese intervalo; null si nada lo impide. La
+         * calle está cerrada si es un tramo del bloqueo; además no se entra a un nodo bloqueado salvo que sea el
+         * destino ({@code mayEnter}) ni se sale de uno salvo desde el origen por la calle de llegada ({@code mayLeave}).
+         */
+        Instant routingConflictEnd(Location from, Location to, Instant departure, Instant arrival, boolean mayEnter,
+                                   boolean mayLeave) {
+            StreetSegment street = new StreetSegment(from, to);
+            Instant latest = null;
+            List<RoadBlock> atFrom = blocksByNode.get(from);
+            if (atFrom != null) {
+                for (RoadBlock block : atFrom) {
+                    if (block.overlaps(departure, arrival)
+                            && (!mayLeave || block.blockedSegments().contains(street))
+                            && (latest == null || block.endsAt().isAfter(latest))) {
+                        latest = block.endsAt();
+                    }
+                }
+            }
+            List<RoadBlock> atTo = blocksByNode.get(to);
+            if (atTo != null) {
+                for (RoadBlock block : atTo) {
+                    if (block.overlaps(departure, arrival)
+                            && (!mayEnter || block.blockedSegments().contains(street))
+                            && (latest == null || block.endsAt().isAfter(latest))) {
+                        latest = block.endsAt();
+                    }
+                }
+            }
+            return latest;
         }
 
         /** End of the latest block closing either end of the street while it is traversed; null if none. */

@@ -58,7 +58,8 @@ class OperationalSimulatedAnnealingPlannerTest {
         Warehouse central = Warehouse.central("CENTRAL", new Location(0, 0));
         Vehicle sustituto = new Vehicle("TA02", VehicleType.CAR, true);
         Order urgente = new Order("URGENTE", new Location(0, 50), 24, INICIO, INICIO.plusSeconds(4 * 3600));
-        Order flexible = new Order("FLEXIBLE", new Location(0, 50), 24, INICIO, INICIO.plusSeconds(5 * 3600));
+        // 4 h 30: con el refrigerio postergado (Semana 13) la misma unidad llegaría a FLEXIBLE a las 4 h 45, tarde.
+        Order flexible = new Order("FLEXIBLE", new Location(0, 50), 24, INICIO, INICIO.plusSeconds(270 * 60));
 
         ResultadoPlanificacion resultado = planificador().planificar(snapshot(central, List.of(sustituto)),
                 List.of(flexible, urgente), List.of(), configuracion(30), random(57L));

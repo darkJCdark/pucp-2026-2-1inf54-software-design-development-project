@@ -1,6 +1,9 @@
 package com.pucp.paqrap.modulos.planificacion.service;
 
+import com.pucp.paqrap.modulos.planificacion.algoritmo.common.ScheduledDeliveryRoute;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.ScheduledRouteStop;
+import com.pucp.paqrap.modulos.planificacion.entity.DeliveryRoute;
+import com.pucp.paqrap.modulos.planificacion.entity.RouteStop;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryStop;
 import com.pucp.paqrap.modulos.planificacion.entity.WarehouseVisit;
 
@@ -20,12 +23,16 @@ import java.util.Objects;
  *   <li>Interrumpida: partió y su vehículo se averió antes de que terminara; solo cuentan las paradas a las que
  *       llegó antes de la avería ({@code llegada < avería}), igual que el ejecutor del plan, que entrega al llegar.</li>
  *   <li>Terminada: ya volvió ({@code fin <= ahora}); todas sus entregas quedan hechas.</li>
- *   <li>Conservada: partió y no terminó; se mantiene completa (congelada).</li>
+ *   <li>Conservada: partió y no terminó; su viaje en curso se mantiene congelado y los viajes siguientes que aún
+ *       no salieron del central se liberan ({@link #sinViajesPendientes}).</li>
  * </ul>
  * Las entregas y retiros de las rutas que salen del plan (terminadas e interrumpidas) se devuelven para
  * acumularlos; los de las conservadas se calculan en cada corte porque todavía forman parte del plan.
  */
 final class CortePlan {
+
+    /** Ruta que retoma una unidad tras una avería menor: sale en el futuro, pero sus pedidos ya están en el vehículo. */
+    static final String SUFIJO_CONTINUACION = "-CONT";
 
     private CortePlan() {
     }
@@ -47,7 +54,9 @@ final class CortePlan {
 
         for (RutaVigente ruta : rutas) {
             Instant averia = averias.get(ruta.vehiculoId());
-            if (ruta.programada() == null || !ruta.ruta().departureAt().isBefore(ahora)
+            boolean continuacion = (ruta.ruta().id().endsWith(SUFIJO_CONTINUACION)
+                    || ruta.ruta().id().endsWith(ReplanificacionSaService.SUFIJO_DESVIO)) && ruta.programada() != null;
+            if (ruta.programada() == null || (!continuacion && !ruta.ruta().departureAt().isBefore(ahora))
                     || (averia != null && !averia.isAfter(ruta.ruta().departureAt()))) {
                 liberadas.add(ruta);
             } else if (averia != null && averia.isBefore(ruta.programada().completedAt())) {
@@ -59,10 +68,45 @@ final class CortePlan {
                 sumar(entregas, entregas(ruta, null));
                 sumar(retiros, retirosIntermedios(ruta, null));
             } else {
-                conservadas.add(ruta);
+                conservadas.add(sinViajesPendientes(ruta, ahora, false));
             }
         }
         return new Resultado(conservadas, liberadas, terminadas, interrumpidas, entregas, retiros);
+    }
+
+    /**
+     * Una ruta en marcha puede encadenar varios viajes que recargan en un almacén (central o intermedio). El viaje en
+     * curso queda congelado, pero los viajes que aún no salieron de su almacén se liberan para volver a planificarse,
+     * igual que una ruta que no partió: la ruta conservada termina en la próxima llegada a un almacén
+     * ({@code llegada >= ahora}) y lo que venía después vuelve a lo pendiente. Si ese almacén es un intermedio, la
+     * unidad queda allí y el planificador puede darle un viaje que cargue en ese mismo almacén.
+     */
+    static RutaVigente sinViajesPendientes(RutaVigente ruta, Instant ahora, boolean tambienIntermedios) {
+        List<ScheduledRouteStop> paradas = ruta.programada().scheduledStops();
+        for (int corte = 0; corte < paradas.size() - 1; corte++) {
+            ScheduledRouteStop parada = paradas.get(corte);
+            if (!(parada.stop() instanceof WarehouseVisit visita)
+                    || (!tambienIntermedios && !visita.warehouse().isCentral())
+                    || parada.arrivedAt().isBefore(ahora)
+                    || parada.loadBefore() != 0 // lo que sigue ya va a bordo: no es un viaje nuevo
+                    || paradas.subList(corte + 1, paradas.size()).stream()
+                    .noneMatch(siguiente -> siguiente.stop() instanceof DeliveryStop)) {
+                continue;
+            }
+            WarehouseVisit regreso = new WarehouseVisit(visita.warehouse(), 0);
+            List<RouteStop> stops = new ArrayList<>(ruta.ruta().stops().subList(0, corte));
+            stops.add(regreso);
+            DeliveryRoute recortada = ruta.ruta().withReplacedStops(stops);
+            List<ScheduledRouteStop> programadas = new ArrayList<>(paradas.subList(0, corte));
+            programadas.add(new ScheduledRouteStop(regreso, parada.approach(), parada.arrivedAt(),
+                    parada.completedAt(), parada.loadBefore(), parada.loadBefore()));
+            double distancia = programadas.stream().mapToDouble(p -> p.approach().distanceKm()).sum();
+            double costoPorKm = ruta.programada().totalDistanceKm() > 0
+                    ? ruta.programada().totalCost() / ruta.programada().totalDistanceKm() : 0;
+            return new RutaVigente(recortada, ruta.snapshotOrigen(), new ScheduledDeliveryRoute(recortada,
+                    programadas, parada.completedAt(), distancia, distancia * costoPorKm), ruta.violaciones());
+        }
+        return ruta;
     }
 
     /** Paquetes entregados por pedido en las paradas a las que se llegó antes de {@code antes}; null cuenta todas. */

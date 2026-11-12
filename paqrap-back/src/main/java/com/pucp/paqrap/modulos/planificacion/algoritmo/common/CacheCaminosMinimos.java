@@ -34,7 +34,7 @@ public final class CacheCaminosMinimos {
     @FunctionalInterface
     interface CalculadorCamino {
         Optional<RoadPath> calcular(Location origen, Location destino, Instant salida, Duration porCalle,
-                                    List<RoadBlock> bloqueos);
+                                    List<RoadBlock> bloqueos, Location llegoDesde);
     }
 
     private final CalculadorCamino calculador;
@@ -66,10 +66,16 @@ public final class CacheCaminosMinimos {
 
     public Optional<RoadPath> obtener(Location origen, Location destino, Instant salida, Duration porCalle,
                                       List<RoadBlock> bloqueos) {
+        return obtener(origen, destino, salida, porCalle, bloqueos, null);
+    }
+
+    /** @param llegoDesde nodo desde el que se llegó al origen (regla del pedido dentro de un bloqueo); puede ser null */
+    public Optional<RoadPath> obtener(Location origen, Location destino, Instant salida, Duration porCalle,
+                                      List<RoadBlock> bloqueos, Location llegoDesde) {
         if (capacidad == 0) {
-            return calcular(origen, destino, salida, porCalle, bloqueos);
+            return calcular(origen, destino, salida, porCalle, bloqueos, llegoDesde);
         }
-        Clave clave = new Clave(origen, destino, salida, porCalle, bloqueosDe(bloqueos));
+        Clave clave = new Clave(origen, destino, salida, porCalle, bloqueosDe(bloqueos), llegoDesde);
         Optional<RoadPath> guardado;
         synchronized (entradas) {
             guardado = entradas.get(clave);
@@ -78,7 +84,7 @@ public final class CacheCaminosMinimos {
             metricas.registrarAciertoCache();
             return guardado;
         }
-        Optional<RoadPath> calculado = calcular(origen, destino, salida, porCalle, bloqueos);
+        Optional<RoadPath> calculado = calcular(origen, destino, salida, porCalle, bloqueos, llegoDesde);
         synchronized (entradas) {
             entradas.put(clave, calculado);
         }
@@ -118,15 +124,16 @@ public final class CacheCaminosMinimos {
     }
 
     private Optional<RoadPath> calcular(Location origen, Location destino, Instant salida, Duration porCalle,
-                                        List<RoadBlock> bloqueos) {
+                                        List<RoadBlock> bloqueos, Location llegoDesde) {
         long inicio = metricas.inicio();
         Optional<RoadPath> camino = Objects.requireNonNull(
-                calculador.calcular(origen, destino, salida, porCalle, bloqueos), "camino calculado nulo");
+                calculador.calcular(origen, destino, salida, porCalle, bloqueos, llegoDesde), "camino calculado nulo");
         metricas.registrarCamino(inicio, origen, destino, salida);
         return camino;
     }
 
-    private record Clave(Location origen, Location destino, Instant salida, Duration porCalle, Bloqueos bloqueos) {
+    private record Clave(Location origen, Location destino, Instant salida, Duration porCalle, Bloqueos bloqueos,
+                         Location llegoDesde) {
     }
 
     /**
