@@ -21,6 +21,7 @@ import com.pucp.paqrap.modulos.planificacion.dto.ViolacionResponse;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryRoute;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryStop;
 import com.pucp.paqrap.modulos.planificacion.entity.RouteStop;
+import com.pucp.paqrap.modulos.planificacion.entity.TransferStop;
 import com.pucp.paqrap.modulos.planificacion.entity.WarehouseVisit;
 import com.pucp.paqrap.modulos.redvial.entity.RoadLeg;
 import com.pucp.paqrap.modulos.redvial.entity.RoadPath;
@@ -335,6 +336,18 @@ final class PlanResponseMapper {
                     );
         }
 
+        if (
+                parada.stop()
+                        instanceof TransferStop
+        ) {
+
+            return parada
+                    .arrivedAt()
+                    .plus(
+                            TransferStop.TRANSFER_TIME
+                    );
+        }
+
         /*
          * WarehouseVisit no tiene una hora
          * de servicio adicional en el modelo.
@@ -475,6 +488,40 @@ final class PlanResponseMapper {
 
                             almacen
                                     .pickupPackages(),
+
+                            llegada,
+
+                            fin,
+
+                            cargaAntes,
+
+                            cargaDespues,
+
+                            inicioRefrigerio,
+
+                            camino
+                    );
+
+            case TransferStop trasvase ->
+                    new ParadaResponse(
+                            orden,
+
+                            ParadaResponse.TRASVASE,
+
+                            null,
+
+                            null,
+
+                            trasvase
+                                    .location()
+                                    .x(),
+
+                            trasvase
+                                    .location()
+                                    .y(),
+
+                            trasvase
+                                    .packages(),
 
                             llegada,
 

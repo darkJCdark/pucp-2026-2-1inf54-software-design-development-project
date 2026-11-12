@@ -272,7 +272,8 @@ class BancoPruebasPlanificadorTest {
                 .build(snapshot, pedidos, List.of());
 
         assertTrue(vehiculosLibres > 0);
-        assertEquals(pedidos.size() * vehiculosLibres, metricas.resumen().evaluaciones());
+        // Semana 13: además de un intento por pedido y vehículo libre, prueba sumar el pedido al último viaje.
+        assertTrue(metricas.resumen().evaluaciones() >= pedidos.size() * vehiculosLibres);
         assertTrue(metricas.resumen().caminos() > 0);
     }
 

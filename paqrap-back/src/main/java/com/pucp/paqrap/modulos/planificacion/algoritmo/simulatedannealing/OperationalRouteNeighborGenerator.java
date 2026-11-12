@@ -24,7 +24,7 @@ public final class OperationalRouteNeighborGenerator implements OperationalNeigh
                                               RandomGenerator random) {
         List<DeliveryRoute> routes = current.routes().stream().toList();
         if (routes.isEmpty()) return Optional.empty();
-        return switch (random.nextInt(7)) {
+        Optional<OperationalPlan> neighbor = switch (random.nextInt(7)) {
             case 0 -> relocation(current, routes, random);
             case 1 -> swap(current, routes, random);
             case 2 -> twoOpt(current, routes, random);
@@ -33,6 +33,84 @@ public final class OperationalRouteNeighborGenerator implements OperationalNeigh
             case 5 -> closeEmptyRoute(current, routes, random);
             default -> changeWarehouse(current, snapshot, routes, random);
         };
+        return neighbor.map(OperationalRouteNeighborGenerator::mergeConsecutiveParts);
+    }
+
+    /**
+     * Dos paradas seguidas del mismo pedido en el mismo vehículo son una sola entrega: partirla solo suma otra hora de
+     * acondicionamiento y deja la segunda parte al límite del plazo (Semana 13: con un bloqueo esa parte llegaba tarde).
+     */
+    static OperationalPlan mergeConsecutiveParts(OperationalPlan plan) {
+        OperationalPlan result = plan;
+        for (DeliveryRoute route : plan.routes()) {
+            List<RouteStop> merged = new ArrayList<>();
+            boolean changed = false;
+            for (RouteStop stop : route.stops()) {
+                if (stop instanceof DeliveryStop delivery && !merged.isEmpty()
+                        && merged.getLast() instanceof DeliveryStop previous
+                        && previous.order().id().equals(delivery.order().id())) {
+                    merged.set(merged.size() - 1, new DeliveryStop(previous.order(),
+                            previous.deliveredPackages() + delivery.deliveredPackages()));
+                    changed = true;
+                } else {
+                    merged.add(stop);
+                }
+            }
+            DeliveryRoute normalized = rebalanceLoads(changed ? route.withReplacedStops(merged) : route);
+            if (changed || normalized != route) result = result.withRoute(normalized);
+        }
+        return result;
+    }
+
+    /**
+     * Ajusta lo que el vehículo retira en cada viaje a lo que entrega en ese viaje. Los vecindarios mueven paradas
+     * entre rutas; sin este ajuste la ruta que recibe una entrega no la lleva cargada (carga negativa) y casi todos
+     * los vecinos eran infactibles. La carga inicial solo cambia si la ruta sale de un almacén; si parte desde donde
+     * está el vehículo, su carga es la que lleva.
+     */
+    static DeliveryRoute rebalanceLoads(DeliveryRoute route) {
+        List<RouteStop> stops = route.stops();
+        if (stops.stream().anyMatch(stop -> !(stop instanceof DeliveryStop) && !(stop instanceof WarehouseVisit))) {
+            return route; // una ruta con trasvase la arma la replanificación, no el SA
+        }
+        int firstSegment = segmentDemand(stops, 0);
+        int load = route.initialWarehouse().isPresent() ? firstSegment : route.initialLoad();
+        boolean changed = load != route.initialLoad();
+        List<RouteStop> updated = new ArrayList<>(stops.size());
+        for (int i = 0; i < stops.size(); i++) {
+            RouteStop stop = stops.get(i);
+            if (stop instanceof DeliveryStop delivery) {
+                load -= delivery.deliveredPackages();
+                updated.add(stop);
+            } else if (stop instanceof WarehouseVisit visit) {
+                int pickup = Math.max(0, segmentDemand(stops, i + 1) - Math.max(0, load));
+                if (pickup != visit.pickupPackages()) {
+                    changed = true;
+                    updated.add(new WarehouseVisit(visit.warehouse(), pickup));
+                } else {
+                    updated.add(stop);
+                }
+                load += pickup;
+            } else {
+                updated.add(stop);
+            }
+        }
+        if (!changed) return route;
+        int initialLoad = route.initialWarehouse().isPresent() ? firstSegment : route.initialLoad();
+        if (initialLoad > route.vehicle().type().capacity()) return route;
+        DeliveryRoute base = route.initialWarehouse()
+                .map(warehouse -> DeliveryRoute.startScenarioAtCentral(route.id(), route.vehicle(), warehouse,
+                        initialLoad, route.departureAt()))
+                .orElse(route);
+        return base.withReplacedStops(updated);
+    }
+
+    private static int segmentDemand(List<RouteStop> stops, int from) {
+        int demand = 0;
+        for (int i = from; i < stops.size() && !(stops.get(i) instanceof WarehouseVisit); i++) {
+            if (stops.get(i) instanceof DeliveryStop delivery) demand += delivery.deliveredPackages();
+        }
+        return demand;
     }
 
     private Optional<OperationalPlan> relocation(OperationalPlan current, List<DeliveryRoute> routes,
@@ -98,19 +176,27 @@ public final class OperationalRouteNeighborGenerator implements OperationalNeigh
         StopReference reference = candidates.get(random.nextInt(candidates.size()));
         DeliveryStop original = (DeliveryStop) reference.route().stops().get(reference.index());
         int firstQuantity = random.nextInt(1, original.deliveredPackages());
+        // La otra parte la lleva otro vehículo: en el mismo vehículo partir no adelanta nada (respuesta 14).
+        List<DeliveryRoute> others = routes.stream()
+                .filter(route -> !route.vehicle().id().equals(reference.route().vehicle().id()))
+                .toList();
+        if (others.isEmpty()) return Optional.empty();
+        DeliveryRoute target = others.get(random.nextInt(others.size()));
         List<RouteStop> stops = new ArrayList<>(reference.route().stops());
         stops.set(reference.index(), new DeliveryStop(original.order(), firstQuantity));
-        stops.add(reference.index() + 1, new DeliveryStop(original.order(), original.deliveredPackages() - firstQuantity));
-        return Optional.of(current.withRoute(reference.route().withReplacedStops(stops)));
+        DeliveryRoute targetAfterInsertion = target.withInsertedStop(insertionIndex(target.stops()),
+                new DeliveryStop(original.order(), original.deliveredPackages() - firstQuantity));
+        return Optional.of(current.withRoute(reference.route().withReplacedStops(stops)).withRoute(targetAfterInsertion));
     }
 
     private Optional<OperationalPlan> openRoute(OperationalPlan current, OperationalSnapshot snapshot,
                                                 List<DeliveryRoute> routes, RandomGenerator random) {
         StopReference source = randomDeliveryStop(routes, random);
         if (source == null) return Optional.empty();
+        // Despacho diferido: también un vehículo que sigue en ruta, desde la hora en que queda disponible.
         List<VehicleOperationalState> idleVehicles = snapshot.vehiclesById().values().stream()
                 .filter(state -> current.routeForVehicle(state.vehicle().id()).isEmpty())
-                .filter(state -> snapshot.isVehiclePlannableAt(state.vehicle().id(), snapshot.planningTime()))
+                .filter(state -> snapshot.isVehiclePlannableAt(state.vehicle().id(), departure(state, snapshot)))
                 .toList();
         if (idleVehicles.isEmpty()) return Optional.empty();
         VehicleOperationalState vehicle = idleVehicles.get(random.nextInt(idleVehicles.size()));
@@ -121,13 +207,17 @@ public final class OperationalRouteNeighborGenerator implements OperationalNeigh
         Warehouse central = snapshot.inventory().warehouses().stream().filter(Warehouse::isCentral).findFirst().orElse(null);
         if (central == null) return Optional.empty();
         DeliveryRoute newRoute = DeliveryRoute.replanFromCurrentLocation("SA-" + vehicle.vehicle().id(),
-                        vehicle.vehicle(), vehicle.location(), vehicle.carriedPackages(), snapshot.planningTime())
+                        vehicle.vehicle(), vehicle.location(), vehicle.carriedPackages(), departure(vehicle, snapshot))
                 .withAppendedStop(new WarehouseVisit(central, pickup))
                 .withAppendedStop(moved)
                 .returningTo(central);
         DeliveryRoute sourceAfterRemoval = source.route().withReplacedStops(removeAt(source.route().stops(), source.index()));
         OperationalPlan neighbor = current.withRoute(sourceAfterRemoval).withRoute(newRoute);
         return Optional.of(removeIfNoDeliveries(neighbor, sourceAfterRemoval));
+    }
+
+    private static java.time.Instant departure(VehicleOperationalState state, OperationalSnapshot snapshot) {
+        return state.availableAt().isAfter(snapshot.planningTime()) ? state.availableAt() : snapshot.planningTime();
     }
 
     private Optional<OperationalPlan> closeEmptyRoute(OperationalPlan current, List<DeliveryRoute> routes,

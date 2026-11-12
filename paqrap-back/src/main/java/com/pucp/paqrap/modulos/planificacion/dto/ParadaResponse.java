@@ -10,6 +10,7 @@ import java.util.List;
  *
  * - ENTREGA: utiliza pedidoId.
  * - ALMACEN: utiliza almacenId.
+ * - TRASVASE: recibe los paquetes de un vehículo averiado; pedidoId y almacenId son null.
  *
  * El campo que no corresponde es null.
  *
@@ -86,6 +87,10 @@ public record ParadaResponse(
 
     public static final String ALMACEN =
             "ALMACEN";
+
+    /** Trasvase: recibe la carga del vehículo averiado ({@code paquetes}) en el lugar de la avería. */
+    public static final String TRASVASE =
+            "TRASVASE";
 
     /**
      * Nodo de la cuadrícula.

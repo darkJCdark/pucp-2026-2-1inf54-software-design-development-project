@@ -51,9 +51,9 @@ class CacheCaminosMinimosTest {
 
         @Override
         public Optional<RoadPath> calcular(Location origen, Location destino, Instant salida, Duration porCalle,
-                                           List<RoadBlock> bloqueos) {
+                                           List<RoadBlock> bloqueos, Location llegoDesde) {
             llamadas.incrementAndGet();
-            return red.shortestPath(origen, destino, salida, porCalle, bloqueos);
+            return red.shortestPath(origen, destino, salida, porCalle, bloqueos, llegoDesde);
         }
     }
 
@@ -138,7 +138,7 @@ class CacheCaminosMinimosTest {
     @Test
     void sinCamino_seGuardaYNoSeRecalcula() {
         AtomicInteger llamadas = new AtomicInteger();
-        CacheCaminosMinimos cache = new CacheCaminosMinimos((o, d, s, p, b) -> {
+        CacheCaminosMinimos cache = new CacheCaminosMinimos((o, d, s, p, b, l) -> {
             llamadas.incrementAndGet();
             return Optional.empty();
         }, MetricasPlanificador.NOOP, 10);

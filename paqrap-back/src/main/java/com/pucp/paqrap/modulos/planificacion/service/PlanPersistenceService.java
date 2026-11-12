@@ -12,6 +12,7 @@ import com.pucp.paqrap.modulos.planificacion.entity.DeliveryRoute;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryStop;
 import com.pucp.paqrap.modulos.planificacion.entity.OperationalPlan;
 import com.pucp.paqrap.modulos.planificacion.entity.RouteStop;
+import com.pucp.paqrap.modulos.planificacion.entity.TransferStop;
 import com.pucp.paqrap.modulos.planificacion.entity.WarehouseVisit;
 import com.pucp.paqrap.modulos.planificacion.persistence.PlanEntity;
 import com.pucp.paqrap.modulos.planificacion.persistence.RouteEntity;
@@ -113,6 +114,10 @@ public class PlanPersistenceService {
         for (int indice = 0; indice < ruta.stops().size(); indice++) {
             RouteStop parada = ruta.stops().get(indice);
             Instant llegada = indice < programadas.size() ? programadas.get(indice).arrivedAt() : null;
+            if (parada instanceof TransferStop) {
+                // El esquema v2 solo admite DELIVERY y WAREHOUSE; el trasvase no mueve stock de ningún almacén.
+                continue;
+            }
             paradas.add(switch (parada) {
                 case DeliveryStop entrega -> new RouteStopEntity(rutaPersistida, indice + 1, RouteStopEntity.DELIVERY,
                         referencia(OrderEntity.class, entrega.order().id()), null, entrega.deliveredPackages(),
@@ -120,6 +125,7 @@ public class PlanPersistenceService {
                 case WarehouseVisit almacen -> new RouteStopEntity(rutaPersistida, indice + 1,
                         RouteStopEntity.WAREHOUSE, null, referencia(WarehouseEntity.class, almacen.warehouse().id()),
                         null, almacen.location().x(), almacen.location().y(), llegada);
+                case TransferStop trasvase -> throw new IllegalStateException("unreachable");
             });
         }
         return paradas;

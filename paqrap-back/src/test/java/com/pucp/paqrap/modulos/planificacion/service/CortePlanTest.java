@@ -116,6 +116,38 @@ class CortePlanTest {
         assertTrue(corte.retirosSalientes().isEmpty());
     }
 
+    /**
+     * Semana 13: un viaje solo se libera si la unidad llega vacía al almacén. Aquí llega a NOROESTE con los 2 paquetes
+     * de P01 que entrega después (ya van a bordo), así que no hay viaje nuevo que liberar, ni siquiera cuando se pide.
+     */
+    @Test
+    void noSeLiberaLoQueSigueAUnAlmacenSiLaUnidadLlegaConCarga() {
+        CortePlan.Resultado corte = CortePlan.cortar(List.of(rutaTa01(0, TA01)), min(80), Map.of());
+        assertEquals(5, corte.conservadas().getFirst().ruta().stops().size());
+        RutaVigente original = rutaTa01(0, TA01);
+        assertEquals(5, CortePlan.sinViajesPendientes(original, min(80), true).ruta().stops().size());
+    }
+
+    /** Si llega vacía al intermedio, lo que viene después es un viaje nuevo y se libera cuando se pide. */
+    @Test
+    void elViajeQueAunNoSalioDeUnIntermedioSoloSeLiberaCuandoSePide() {
+        RutaVigente vacia = rutaTa01(0, TA01);
+        List<ScheduledRouteStop> programadas = new ArrayList<>(vacia.programada().scheduledStops());
+        ScheduledRouteStop enNoroeste = programadas.get(1);
+        programadas.set(1, new ScheduledRouteStop(enNoroeste.stop(), enNoroeste.approach(), enNoroeste.arrivedAt(),
+                enNoroeste.completedAt(), 0, 5));
+        vacia = new RutaVigente(vacia.ruta(), vacia.snapshotOrigen(), new ScheduledDeliveryRoute(vacia.ruta(),
+                programadas, vacia.programada().completedAt(), 20.0, 160.0), List.of());
+        assertEquals(5, CortePlan.cortar(List.of(vacia), min(80), Map.of()).conservadas().getFirst().ruta().stops().size());
+
+        RutaVigente conservada = CortePlan.sinViajesPendientes(vacia, min(80), true);
+        assertEquals(2, conservada.ruta().stops().size());
+        assertEquals(new WarehouseVisit(NOROESTE, 0), conservada.ruta().stops().getLast());
+        assertEquals(min(100), conservada.programada().completedAt());
+        assertEquals(Map.of("P01", 4), CortePlan.entregas(conservada, null));
+        assertTrue(CortePlan.retirosIntermedios(conservada, null).isEmpty());
+    }
+
     @Test
     void unaRutaQueTerminaJustoAhoraSeDaPorTerminadaConTodasSusEntregasYRetiros() {
         CortePlan.Resultado corte = CortePlan.cortar(List.of(rutaTa01(0, TA01)), min(300), Map.of());

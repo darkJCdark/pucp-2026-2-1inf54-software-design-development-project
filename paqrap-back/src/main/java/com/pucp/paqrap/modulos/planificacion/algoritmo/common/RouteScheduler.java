@@ -13,6 +13,7 @@ import com.pucp.paqrap.modulos.planificacion.entity.DeliveryStop;
 import com.pucp.paqrap.modulos.planificacion.entity.OperationalSnapshot;
 import com.pucp.paqrap.modulos.planificacion.entity.RouteStop;
 import com.pucp.paqrap.modulos.planificacion.entity.ShiftSchedule;
+import com.pucp.paqrap.modulos.planificacion.entity.TransferStop;
 import com.pucp.paqrap.modulos.planificacion.entity.WarehouseVisit;
 import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 import com.pucp.paqrap.modulos.redvial.entity.RoadPath;
@@ -36,6 +37,10 @@ public final class RouteScheduler {
 
     private static final Duration DURACION_REFRIGERIO =
             Duration.ofHours(1);
+
+    /** Experimento Semana 13 (medir Ta): {@code -Dpaqrap.refrigerio.postergar=false} lo desactiva. */
+    static final boolean POSTERGAR_REFRIGERIO =
+            Boolean.parseBoolean(System.getProperty("paqrap.refrigerio.postergar", "true"));
 
     /**
      * Caminos mínimos memorizados (Semana 13, paso 6). shortestPath es pura,
@@ -136,10 +141,21 @@ public final class RouteScheduler {
         Instant turnoConRefrigerioTomado =
                 null;
 
+        List<RouteStop> paradas =
+                route.stops();
+
+        /* Nodo desde el que se llegó a la ubicación actual. */
+        com.pucp.paqrap.modulos.redvial.entity.Location llegoDesde =
+                null;
+
         for (
-                RouteStop stop :
-                route.stops()
+                int indice = 0;
+                indice < paradas.size();
+                indice++
         ) {
+
+            RouteStop stop =
+                    paradas.get(indice);
 
             /*
              * =====================================================
@@ -147,6 +163,10 @@ public final class RouteScheduler {
              * =====================================================
              */
 
+            /*
+             * Si la parada anterior está sobre un bloqueo,
+             * la unidad sale por la calle por la que llegó.
+             */
             Optional<RoadPath> camino =
                     caminos
                             .obtener(
@@ -154,7 +174,8 @@ public final class RouteScheduler {
                                     stop.location(),
                                     currentTime,
                                     travelPerStreet,
-                                    blocks
+                                    blocks,
+                                    llegoDesde
                             );
 
             RoadPath approach =
@@ -219,6 +240,23 @@ public final class RouteScheduler {
                 serviceCompletedAt =
                         arrivedAt;
 
+            } else if (
+                    stop instanceof
+                            TransferStop trasvase
+            ) {
+
+                /*
+                 * Trasvase: recibe la carga del vehículo
+                 * averiado; el transbordo toma 30 min.
+                 */
+                currentLoad +=
+                        trasvase.packages();
+
+                serviceCompletedAt =
+                        arrivedAt.plus(
+                                TransferStop.TRANSFER_TIME
+                        );
+
             } else {
 
                 throw new IllegalStateException(
@@ -277,9 +315,36 @@ public final class RouteScheduler {
                                             .startsAt()
                             );
 
+            /*
+             * Semana 13: el refrigerio se puede
+             * postergar a la parada siguiente solo si
+             * (1) esa parada es una entrega y, al
+             * terminarla, el refrigerio todavía
+             * empieza dentro de su ventana; y
+             * (2) tomarlo aquí haría llegar tarde a
+             * esa entrega, o la parada actual es un
+             * trasvase (la carga rescatada sigue de
+             * inmediato). Nunca se omite: solo se
+             * corre a una parada posterior.
+             */
+            boolean postergar =
+                    POSTERGAR_REFRIGERIO &&
+                    refrigerioPendiente &&
+                    ventanaYaInicio &&
+                    puedePostergarRefrigerio(
+                            paradas,
+                            indice,
+                            serviceCompletedAt,
+                            ventanaRefrigerio,
+                            travelPerStreet,
+                            blocks,
+                            !(stop instanceof TransferStop)
+                    );
+
             if (
                     refrigerioPendiente &&
-                    ventanaYaInicio
+                    ventanaYaInicio &&
+                    !postergar
             ) {
 
                 /*
@@ -314,6 +379,11 @@ public final class RouteScheduler {
                     )
             );
 
+            if (!approach.legs().isEmpty()) {
+                llegoDesde =
+                        approach.legs().getLast().from();
+            }
+
             currentLocation =
                     stop.location();
 
@@ -336,5 +406,91 @@ public final class RouteScheduler {
                 distance,
                 cost
         );
+    }
+
+    /**
+     * True si el refrigerio pendiente se puede correr hasta después de la próxima entrega (pasando por las recargas en
+     * almacén, sin servicio, y los trasvases, de 30 min, que haya antes): el conductor la termina a más tardar al cierre de la ventana de
+     * refrigerio (así come dentro de ella) y, si {@code exigirRetraso}, tomarlo ahora haría que esa entrega llegue
+     * después de su plazo (sin refrigerio llegaría a tiempo).
+     */
+    private boolean puedePostergarRefrigerio(
+            List<RouteStop> paradas,
+            int indice,
+            Instant libreDesde,
+            ShiftSchedule.ShiftWindow ventana,
+            Duration porCalle,
+            List<RoadBlock> bloqueos,
+            boolean exigirRetraso
+    ) {
+
+        int entrega = indice + 1;
+        while (entrega < paradas.size() && !(paradas.get(entrega) instanceof DeliveryStop)) {
+            entrega++;
+        }
+        if (
+                entrega >= paradas.size() ||
+                !(paradas.get(entrega) instanceof DeliveryStop siguiente)
+        ) {
+            return false;
+        }
+
+        Instant sinRefrigerio =
+                llegada(paradas, indice, entrega, libreDesde, porCalle, bloqueos);
+
+        if (
+                sinRefrigerio == null ||
+                sinRefrigerio
+                        .plus(DeliveryStop.SERVICE_TIME)
+                        .isAfter(ventana.endsAt())
+        ) {
+            return false; // ya no comería dentro de la ventana
+        }
+
+        if (!exigirRetraso) {
+            return true;
+        }
+
+        Instant plazo =
+                siguiente.order().deadline();
+
+        if (sinRefrigerio.isAfter(plazo)) {
+            return false; // llega tarde igual: postergar no ayuda
+        }
+
+        Instant conRefrigerio =
+                llegada(paradas, indice, entrega, libreDesde.plus(DURACION_REFRIGERIO), porCalle, bloqueos);
+
+        return conRefrigerio != null && conRefrigerio.isAfter(plazo);
+    }
+
+    /** Llegada a la parada {@code hasta} saliendo de {@code desde} en {@code salida}; las recargas no tienen servicio. */
+    private Instant llegada(
+            List<RouteStop> paradas,
+            int desde,
+            int hasta,
+            Instant salida,
+            Duration porCalle,
+            List<RoadBlock> bloqueos
+    ) {
+        Instant hora = salida;
+        for (int i = desde; i < hasta; i++) {
+            Optional<RoadPath> tramo =
+                    caminos.obtener(
+                            paradas.get(i).location(),
+                            paradas.get(i + 1).location(),
+                            hora,
+                            porCalle,
+                            bloqueos
+                    );
+            if (tramo.isEmpty()) {
+                return null;
+            }
+            hora = tramo.get().arrivesAt();
+            if (i + 1 < hasta && paradas.get(i + 1) instanceof TransferStop) {
+                hora = hora.plus(TransferStop.TRANSFER_TIME);
+            }
+        }
+        return hora;
     }
 }
