@@ -123,14 +123,20 @@ public class ReplanificacionSaService implements ReplanificacionService {
         estado.bloqueosConocidos = new HashSet<>(solicitud.bloqueosActivos());
         // Igual que el plan sin replanificación: las averías ya registradas cuentan desde el inicio.
         estado.averias = new ArrayList<>(fuente.averias(ejecucionId));
-        ReplanificacionResponse respuesta = replanificar(estado, MotivoReplanificacion.INICIO,
+        CandidatoReplanificacion candidato = calcularCandidato(estado, MotivoReplanificacion.INICIO,
                 solicitud.horaPlanificacion(), List.of(), List.of(), List.of(), List.of(), false, Set.of());
+        ReplanificacionResponse respuesta = confirmarInterno(candidato);
         ejecuciones.put(ejecucionId, estado);
         return respuesta;
     }
 
     @Override
     public synchronized ReplanificacionResponse replanificar(long ejecucionId, Eventos eventos, Instant ahora) {
+        return confirmar(prepararReplanificacion(ejecucionId, eventos, ahora));
+    }
+
+    @Override
+    public synchronized Candidato prepararReplanificacion(long ejecucionId, Eventos eventos, Instant ahora) {
         Objects.requireNonNull(eventos, "eventos es requerido");
         EstadoEjecucion estado = obtener(ejecucionId);
         validarHora(estado, ahora);
@@ -172,11 +178,11 @@ public class ReplanificacionSaService implements ReplanificacionService {
                 : bloqueoIniciado || bloqueoTerminado ? MotivoReplanificacion.BLOQUEO
                 : !eventos.pedidos().isEmpty() ? MotivoReplanificacion.NUEVO_PEDIDO
                 : MotivoReplanificacion.PERIODICO;
-        ReplanificacionResponse respuesta = replanificar(estado, motivo, ahora, List.copyOf(nuevos.values()),
+        CandidatoReplanificacion candidato = calcularCandidato(estado, motivo, ahora, List.copyOf(nuevos.values()),
                 bloqueos, eventos.averias(), eventos.averiasTerminadas(), bloqueoIniciado || bloqueoTerminado,
                 Set.copyOf(eventos.tiposFlotaActualizados()));
-        estado.bloqueosConocidos.addAll(recibidos);
-        return respuesta;
+        candidato.bloqueosConocidos = Set.copyOf(recibidos);
+        return candidato;
     }
 
     @Override
@@ -220,7 +226,7 @@ public class ReplanificacionSaService implements ReplanificacionService {
 
     // ------------------------------------------------------------------ replanificación
 
-    private ReplanificacionResponse replanificar(EstadoEjecucion estado, MotivoReplanificacion motivo, Instant ahora,
+    private CandidatoReplanificacion calcularCandidato(EstadoEjecucion estado, MotivoReplanificacion motivo, Instant ahora,
                                                  List<Order> nuevosPedidos, List<RoadBlock> nuevosBloqueos,
                                                  List<BreakdownEvent> nuevasAverias, List<BreakdownEvent> averiasTerminadas,
                                                  boolean cambioBloqueo,
@@ -235,7 +241,9 @@ public class ReplanificacionSaService implements ReplanificacionService {
         bloqueos.removeIf(bloqueo -> !bloqueo.endsAt().isAfter(ahora));
         List<BreakdownEvent> averias = new ArrayList<>(estado.averias);
         averias.addAll(nuevasAverias);
-        averias.removeIf(averia -> averia.occurredAt().plus(VIGENCIA_AVERIA).isBefore(ahora));
+        BreakdownAvailabilityCalculator calculadorAverias = new BreakdownAvailabilityCalculator(ShiftSchedule.defaultSchedule());
+        averias.removeIf(averia -> averia.occurredAt().plus(VIGENCIA_AVERIA).isBefore(ahora)
+                && !calculadorAverias.resolve(averia).availableFrom().isAfter(ahora));
         Map<String, VehicleOperationalState> forzados = new HashMap<>(estado.estadosForzados);
         Collection<Warehouse> almacenes = fuente.almacenes();
         Warehouse central = almacenes.stream().filter(Warehouse::isCentral).findFirst()
@@ -295,7 +303,7 @@ public class ReplanificacionSaService implements ReplanificacionService {
         long semilla = estado.semillaBase + numero;
         PlanificadorSaService.EjecucionSa ejecucion =
                 planificador.ejecutarSa(snapshot, pendientes, bloqueos, estado.configuracionSa, semilla, estado.presupuestoMs);
-        estado.totalComputationMs += ejecucion.duracionMs();
+        long duracionMs = ejecucion.duracionMs();
         ResultadoPlanificacion sa = ejecucion.resultado();
 
         // 6. Plan vigente = conservadas + nuevas.
@@ -374,35 +382,120 @@ public class ReplanificacionSaService implements ReplanificacionService {
         List<String> noDisponibles = fuente.flota().stream().map(Vehicle::id)
                 .filter(id -> !ocupados.contains(id) && !snapshot.isVehiclePlannableAt(id, ahora))
                 .sorted().toList();
-        PlanEntity snapshotPersistido = persistenciaPlanes.persistir(estado.ejecucionId, motivo, plan, programadas,
-                planResponse);
-        if (snapshotPersistido != null) { // Los dobles de prueba históricos no persisten snapshots.
+      return new CandidatoReplanificacion(estado, motivo, ahora, numero, duracionMs, plan, programadas,
+                planResponse, conservadas, nuevas, reasignados, noDisponibles, pedidos, bloqueos, averias, forzados,
+                entregados, retiros, vigentes);
+    }
+
+    @Override
+    public synchronized ReplanificacionResponse confirmar(Candidato candidato) {
+        if (!(candidato instanceof CandidatoReplanificacion preparado)) {
+            throw new IllegalArgumentException("El candidato no pertenece a ReplanificacionSaService");
+        }
+        if (ejecuciones.get(preparado.estado.ejecucionId) != preparado.estado) {
+            throw new IllegalStateException("El candidato ya no corresponde a una ejecución vigente");
+        }
+        preparado.consumir();
+        return confirmarInterno(preparado);
+    }
+
+    @Override
+    public synchronized void descartar(Candidato candidato) {
+        if (!(candidato instanceof CandidatoReplanificacion preparado)) {
+            throw new IllegalArgumentException("El candidato no pertenece a ReplanificacionSaService");
+        }
+        preparado.consumir();
+    }
+
+    private ReplanificacionResponse confirmarInterno(CandidatoReplanificacion candidato) {
+        PlanResponse planResponse = candidato.planResponse;
+        PlanEntity snapshotPersistido = persistenciaPlanes.persistir(candidato.estado.ejecucionId, candidato.motivo,
+                candidato.plan, candidato.programadas, planResponse);
+        if (snapshotPersistido != null) {
             planResponse = mapper.conIdentidadesPersistidas(planResponse,
                     persistenciaPlanes.rutasPersistidasPorOperacion(snapshotPersistido.getPlanId()),
                     snapshotPersistido.getPlanId());
         }
-        ReplanificacionResponse respuesta = new ReplanificacionResponse(estado.ejecucionId, numero, motivo, ahora,
-                planResponse,
-                conservadas.stream().map(ruta -> ruta.ruta().id()).sorted().toList(),
-                nuevas.stream().map(DeliveryRoute::id).sorted().toList(),
-                reasignados, noDisponibles);
-
-        // 7. Confirmación del estado.
-
-
-        estado.pedidos = pedidos;
-        estado.bloqueos = bloqueos;
-        estado.averias = averias;
-        estado.estadosForzados = forzados;
-        estado.entregados = entregados;
-        estado.retiros = retiros;
-        estado.rutas = List.copyOf(vigentes);
-        estado.numeroReplanificacion = numero;
-        estado.ultimaHora = ahora;
-        estado.ultimaRespuesta = respuesta;
+        ReplanificacionResponse respuesta = new ReplanificacionResponse(candidato.estado.ejecucionId,
+                candidato.numero, candidato.motivo, candidato.ahora, planResponse,
+                candidato.conservadas.stream().map(ruta -> ruta.ruta().id()).sorted().toList(),
+                candidato.nuevas.stream().map(DeliveryRoute::id).sorted().toList(),
+                candidato.reasignados, candidato.noDisponibles);
+        candidato.estado.pedidos = candidato.pedidos;
+        candidato.estado.bloqueos = candidato.bloqueos;
+        candidato.estado.bloqueosConocidos.addAll(candidato.bloqueosConocidos);
+        candidato.estado.averias = candidato.averias;
+        candidato.estado.estadosForzados = candidato.forzados;
+        candidato.estado.entregados = candidato.entregados;
+        candidato.estado.retiros = candidato.retiros;
+        candidato.estado.rutas = List.copyOf(candidato.vigentes);
+        candidato.estado.numeroReplanificacion = candidato.numero;
+        candidato.estado.totalComputationMs += candidato.duracionMs;
+        candidato.estado.ultimaHora = candidato.ahora;
+        candidato.estado.ultimaRespuesta = respuesta;
         return respuesta;
     }
 
+    private static final class CandidatoReplanificacion implements Candidato {
+        private final EstadoEjecucion estado;
+        private final MotivoReplanificacion motivo;
+        private final Instant ahora;
+        private final int numero;
+        private final long duracionMs;
+        private final OperationalPlan plan;
+        private final Map<String, ScheduledDeliveryRoute> programadas;
+        private final PlanResponse planResponse;
+        private final List<RutaVigente> conservadas;
+        private final List<DeliveryRoute> nuevas;
+        private final List<String> reasignados;
+        private final List<String> noDisponibles;
+        private final Map<String, Order> pedidos;
+        private final List<RoadBlock> bloqueos;
+        private final List<BreakdownEvent> averias;
+        private final Map<String, VehicleOperationalState> forzados;
+        private final Map<String, Integer> entregados;
+        private final Map<String, Integer> retiros;
+        private final List<RutaVigente> vigentes;
+        private Set<RoadBlock> bloqueosConocidos = Set.of();
+        private boolean consumido;
+
+        private CandidatoReplanificacion(EstadoEjecucion estado, MotivoReplanificacion motivo, Instant ahora,
+                                         int numero, long duracionMs, OperationalPlan plan,
+                                         Map<String, ScheduledDeliveryRoute> programadas, PlanResponse planResponse,
+                                         List<RutaVigente> conservadas, List<DeliveryRoute> nuevas,
+                                         List<String> reasignados, List<String> noDisponibles,
+                                         Map<String, Order> pedidos, List<RoadBlock> bloqueos,
+                                         List<BreakdownEvent> averias, Map<String, VehicleOperationalState> forzados,
+                                         Map<String, Integer> entregados, Map<String, Integer> retiros,
+                                         List<RutaVigente> vigentes) {
+            this.estado = estado;
+            this.motivo = motivo;
+            this.ahora = ahora;
+            this.numero = numero;
+            this.duracionMs = duracionMs;
+            this.plan = plan;
+            this.programadas = new LinkedHashMap<>(programadas);
+            this.planResponse = planResponse;
+            this.conservadas = List.copyOf(conservadas);
+            this.nuevas = List.copyOf(nuevas);
+            this.reasignados = List.copyOf(reasignados);
+            this.noDisponibles = List.copyOf(noDisponibles);
+            this.pedidos = new LinkedHashMap<>(pedidos);
+            this.bloqueos = List.copyOf(bloqueos);
+            this.averias = List.copyOf(averias);
+            this.forzados = new HashMap<>(forzados);
+            this.entregados = new HashMap<>(entregados);
+            this.retiros = new HashMap<>(retiros);
+            this.vigentes = List.copyOf(vigentes);
+        }
+
+        private void consumir() {
+            if (consumido) {
+                throw new IllegalStateException("El candidato ya fue confirmado o descartado");
+            }
+            consumido = true;
+        }
+    }
     /**
      * Indicación del profesor: una avería menor se supera pronto y la unidad no tiene por qué volver al central. Pasadas
      * las 2 horas continúa desde donde quedó con su carga y las paradas que le faltaban. Si ya no llegaría a tiempo a
@@ -424,7 +517,7 @@ public class ReplanificacionSaService implements ReplanificacionService {
             if (faltantes.stream().noneMatch(parada -> parada.stop() instanceof DeliveryStop)) {
                 continue;
             }
-            Instant reanuda = averia.occurredAt().plus(BreakdownType.MINOR.minimumUnavailable());
+            Instant reanuda = averia.occurredAt().plus(averia.repairDuration());
             DeliveryRoute continuacion = DeliveryRoute.replanFromCurrentLocation(
                     interrumpida.ruta().id() + CortePlan.SUFIJO_CONTINUACION, interrumpida.ruta().vehicle(),
                     averia.location(), faltantes.getFirst().loadBefore(), reanuda.isAfter(ahora) ? reanuda : ahora)

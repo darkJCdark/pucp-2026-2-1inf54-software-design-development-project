@@ -1,6 +1,8 @@
 import {
   createContext,
   useContext,
+  useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -8,6 +10,7 @@ import {
 import type {
   ConfiguracionPlanificador,
 } from "@/features/configuracion/configuracion.types";
+import { claveUmbralesActuales, claveUmbralesEjecucion, extraerUmbrales, guardarUmbrales, leerUmbrales, type UmbralesSemaforo } from "@/features/configuracion/semaforo";
 
 interface ConfiguracionContextType {
   configuracion: ConfiguracionPlanificador;
@@ -65,9 +68,19 @@ export function ConfiguracionProvider({
   children: ReactNode;
 }) {
   const [configuracion, setConfiguracion] =
-    useState<ConfiguracionPlanificador>(
-      configuracionInicial,
-    );
+    useState<ConfiguracionPlanificador>(() => ({
+      ...configuracionInicial,
+      ...(leerUmbrales(claveUmbralesActuales) ?? {}),
+    }));
+
+  useEffect(() => {
+    const umbrales = extraerUmbrales(configuracion);
+    if (umbrales.almacenVerdeHasta < umbrales.almacenAmbarHasta &&
+        umbrales.vehiculoVerdeHasta < umbrales.vehiculoAmbarHasta &&
+        Object.values(umbrales).every((valor) => Number.isFinite(valor) && valor >= 0 && valor <= 100)) {
+      guardarUmbrales(claveUmbralesActuales, umbrales);
+    }
+  }, [configuracion]);
 
   const [archivoPedidos, setArchivoPedidos] =
     useState<File | null>(null);
@@ -112,4 +125,22 @@ export function useConfiguracion() {
   }
 
   return context;
+}
+
+const UmbralesEjecucionContext = createContext<{ umbrales: UmbralesSemaforo; guardados: boolean } | null>(null);
+
+export function UmbralesEjecucionProvider({ ejecucionId, children }: { ejecucionId: number; children: ReactNode }) {
+  const { configuracion } = useConfiguracion();
+  const guardados = useMemo(() => leerUmbrales(claveUmbralesEjecucion(ejecucionId)), [ejecucionId]);
+  return (
+    <UmbralesEjecucionContext.Provider value={{ umbrales: guardados ?? configuracion, guardados: guardados !== null }}>
+      {children}
+    </UmbralesEjecucionContext.Provider>
+  );
+}
+
+export function useUmbralesEjecucion() {
+  const contexto = useContext(UmbralesEjecucionContext);
+  if (!contexto) throw new Error("useUmbralesEjecucion requiere UmbralesEjecucionProvider");
+  return contexto;
 }

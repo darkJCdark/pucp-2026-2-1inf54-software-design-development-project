@@ -66,14 +66,15 @@ export function ResumenConfiguracion({
       <Separator className="my-4 bg-slate-800" />
       <p className="mb-2 text-xs uppercase text-slate-500">Semáforo de inventario</p>
       <Fila label="Llenado vacío" value="0%" />
-      <Fila label="Llenado verde" value={`≤ ${configuracion.almacenVerdeHasta}%`} />
-      <Fila label="Llenado ámbar" value={`≤ ${configuracion.almacenAmbarHasta}%`} />
+      <Fila label="Llenado verde" value={`> 0% y ≤ ${configuracion.almacenVerdeHasta}%`} />
+      <Fila label="Llenado ámbar" value={`> ${configuracion.almacenVerdeHasta}% y ≤ ${configuracion.almacenAmbarHasta}%`} />
       <Fila label="Llenado rojo" value={`> ${configuracion.almacenAmbarHasta}%`} />
 
       <Separator className="my-4 bg-slate-800" />
       <p className="mb-2 text-xs uppercase text-slate-500">Semáforo de carga</p>
-      <Fila label="Carga verde" value={`≤ ${configuracion.vehiculoVerdeHasta}%`} />
-      <Fila label="Carga ámbar" value={`≤ ${configuracion.vehiculoAmbarHasta}%`} />
+      <Fila label="Carga vacía" value="0%" />
+      <Fila label="Carga verde" value={`> 0% y ≤ ${configuracion.vehiculoVerdeHasta}%`} />
+      <Fila label="Carga ámbar" value={`> ${configuracion.vehiculoVerdeHasta}% y ≤ ${configuracion.vehiculoAmbarHasta}%`} />
       <Fila label="Carga roja" value={`> ${configuracion.vehiculoAmbarHasta}%`} />
     </Card>
   );

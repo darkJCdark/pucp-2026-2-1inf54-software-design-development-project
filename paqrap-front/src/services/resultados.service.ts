@@ -12,6 +12,7 @@ export const resultadosService = {
   async descargarCsv(ejecucionId: number) {
     const { blob, nombreArchivo } = await apiBlobRequest(
       `/api/escenarios/${ejecucionId}/resultado/csv`,
+      { headers: { Accept: "text/csv" } },
     );
 
     const url = URL.createObjectURL(blob);

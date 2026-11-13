@@ -15,6 +15,7 @@ import {
 import type {
   AlmacenMapa,
 } from "./ejecucion.types";
+import { nivelSemaforo } from "@/features/configuracion/semaforo";
 
 type NivelSemaforo =
   | "TODOS"
@@ -389,41 +390,7 @@ function porcentajeAlmacen(
   );
 }
 
-function nivelSemaforoStock(
-  porcentaje:
-    number,
-
-  verdeHasta:
-    number,
-
-  ambarHasta:
-    number,
-): Exclude<
-  NivelSemaforo,
-  "TODOS"
-> {
-  if (
-    porcentaje <= 0
-  ) {
-    return "VACIO";
-  }
-
-  if (
-    porcentaje <=
-    verdeHasta
-  ) {
-    return "VERDE";
-  }
-
-  if (
-    porcentaje <=
-    ambarHasta
-  ) {
-    return "AMBAR";
-  }
-
-  return "ROJO";
-}
+const nivelSemaforoStock = nivelSemaforo;
 
 function colorSemaforo(
   nivel:

@@ -5,7 +5,8 @@ import type { MonitoreoResponseDto } from "@/api/monitoreo.dto";
 import type { PlanResponseDto, RutaResponseDto } from "@/api/planificacion.dto";
 import type { TipoVehiculoResponseDto } from "@/api/flota.dto";
 import { Card } from "@/components/ui/card";
-import { useConfiguracion } from "@/context/ConfiguracionContext";
+import { useUmbralesEjecucion } from "@/context/ConfiguracionContext";
+import { nivelSemaforo, type NivelSemaforo } from "@/features/configuracion/semaforo";
 
 import type { SeleccionLista } from "./ListaPedidosEjecucion";
 
@@ -36,7 +37,7 @@ export function ListaVehiculos({
 }: ListaVehiculosProps) {
   const [busqueda, setBusqueda] = useState("");
   const [orden, setOrden] = useState<OrdenVehiculos>("OCUPACION_DESC");
-  const { configuracion } = useConfiguracion();
+  const { umbrales: configuracion } = useUmbralesEjecucion();
 
   const capacidades = useMemo(
     () => new Map(tiposFlota.map((tipo) => [tipo.tipo, tipo.capacidadPaquetes])),
@@ -116,9 +117,8 @@ export function ListaVehiculos({
       <ul className="max-h-[430px] space-y-1 overflow-y-auto pr-1">
         {filas.map(({ vehiculo, capacidad, ocupacion, ruta, entregas, paquetes }) => {
           const seleccionado = seleccionId === vehiculo.id;
-          const nivel = nivelOcupacion(
+          const nivel = nivelSemaforo(
             ocupacion,
-            vehiculo.cargaActual,
             configuracion.vehiculoVerdeHasta,
             configuracion.vehiculoAmbarHasta,
           );
@@ -204,19 +204,7 @@ function fechaOrdenDesc(valor: string | null | undefined) {
   return Number.isFinite(fecha) ? -fecha : Number.POSITIVE_INFINITY;
 }
 
-function nivelOcupacion(
-  porcentaje: number,
-  carga: number,
-  verdeHasta: number,
-  ambarHasta: number,
-) {
-  if (carga === 0) return "VACIO" as const;
-  if (porcentaje <= verdeHasta) return "VERDE" as const;
-  if (porcentaje <= ambarHasta) return "AMBAR" as const;
-  return "ROJO" as const;
-}
-
-function claseNivel(nivel: ReturnType<typeof nivelOcupacion>) {
+function claseNivel(nivel: NivelSemaforo) {
   switch (nivel) {
     case "VACIO":
       return "bg-slate-700 text-slate-200";

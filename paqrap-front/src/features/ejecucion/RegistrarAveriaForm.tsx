@@ -11,6 +11,7 @@ import type {
 } from "@/api/incidencias.dto";
 
 import { mensajeDeError } from "@/lib/api-error";
+import { incidenciasService } from "@/services/incidencias.service";
 
 import type {
   VehiculoMapa,
@@ -33,6 +34,14 @@ export function RegistrarAveriaForm({
   onRegistrar,
   onCerrar,
 }: RegistrarAveriaFormProps) {
+  const [duracionMenor, setDuracionMenor] = useState<number | null>(null);
+  useEffect(() => {
+    let cancelado = false;
+    void incidenciasService.obtenerConfiguracionMenor().then((datos) => {
+      if (!cancelado) setDuracionMenor(datos.duracionMinutos);
+    }).catch(() => { /* The backend remains authoritative if the label cannot be loaded. */ });
+    return () => { cancelado = true; };
+  }, []);
   const ordenados = useMemo(
     () =>
       [...vehiculos]
@@ -163,7 +172,7 @@ export function RegistrarAveriaForm({
             className="w-full rounded-md border border-slate-700 bg-[#202833] px-3 py-2 text-sm text-white outline-none focus:border-orange-500"
           >
             <option value="MINOR">
-              Menor · 2 horas
+              Menor · {duracionMenor === null ? "duración del sistema" : `${duracionMenor} minutos`}
             </option>
 
             <option value="INTERMEDIATE">

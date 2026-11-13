@@ -35,15 +35,17 @@ public class AveriaService {
     private final FlotaService flotaService;
     private final ApplicationEventPublisher eventos;
     private final ContextoSimulacion contexto;
+    private final ConfiguracionAveriaService configuracion;
     private final BreakdownAvailabilityCalculator calculadora =
             new BreakdownAvailabilityCalculator(ShiftSchedule.defaultSchedule());
 
     public AveriaService(BreakdownEventRepository averiaRepository, FlotaService flotaService,
-                         ApplicationEventPublisher eventos, ContextoSimulacion contexto) {
+                         ApplicationEventPublisher eventos, ContextoSimulacion contexto, ConfiguracionAveriaService configuracion) {
         this.averiaRepository = averiaRepository;
         this.flotaService = flotaService;
         this.eventos = eventos;
         this.contexto = contexto;
+        this.configuracion = configuracion;
     }
 
     @Transactional
@@ -60,7 +62,8 @@ public class AveriaService {
         Instant ocurridaEn = horaDeLaAveria(ejecucionId, request.ocurridaEn());
         Location ubicacion = ubicacionDeLaAveria(ejecucionId, vehiculo, ocurridaEn, request);
 
-        BreakdownEvent evento = new BreakdownEvent(vehiculo.id(), request.tipo(), ocurridaEn, ubicacion);
+        BreakdownEvent evento = new BreakdownEvent(vehiculo.id(), request.tipo(), ocurridaEn, ubicacion,
+                request.tipo() == BreakdownType.MINOR ? configuracion.duracionMenorMinutos() : null);
         validarQueNoSeCruceConOtraAveria(ejecucionId, evento);
 
         BreakdownEventEntity guardado = averiaRepository.save(new BreakdownEventEntity(ejecucionId, evento));

@@ -56,6 +56,7 @@ import {
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { VentanaFlotante } from "@/components/ui/VentanaFlotante";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { UmbralesEjecucionProvider, useUmbralesEjecucion } from "@/context/ConfiguracionContext";
 import { mensajeDeError } from "@/lib/api-error";
 
 import {
@@ -141,6 +142,11 @@ import {
 } from "../ejecuciones/ResultadoEscenarioModal";
 
 export default function EjecucionPage() {
+  const { ejecucionId } = useParams();
+  return <UmbralesEjecucionProvider ejecucionId={Number(ejecucionId)}><ContenidoEjecucionPage /></UmbralesEjecucionProvider>;
+}
+
+function ContenidoEjecucionPage() {
   const {
     ejecucionId:
       ejecucionIdParam,
@@ -152,6 +158,7 @@ export default function EjecucionPage() {
   const {
     mostrarToast,
   } = useToast();
+  const { guardados: umbralesGuardados } = useUmbralesEjecucion();
 
   const ejecucionId =
     Number(
@@ -299,6 +306,10 @@ export default function EjecucionPage() {
     useState<
       SeleccionDetalleOperacion | null
     >(null);
+
+  useEffect(() => {
+    setSeleccionDetalle(null);
+  }, [ejecucionId]);
 
   const [
     tipoActualizando,
@@ -1265,6 +1276,7 @@ export default function EjecucionPage() {
          * Ahora comparten un contenedor.
          */}
         <div className="absolute left-5 top-5 z-50 flex max-h-[calc(100%-2.5rem)] w-[min(430px,32vw)] min-w-[300px] flex-col gap-3 overflow-y-auto pr-1">
+          {!umbralesGuardados && <p role="status" className="rounded-md border border-amber-700 bg-[#11161d] px-3 py-2 text-xs text-amber-300">Esta ejecución no tiene umbrales guardados en este navegador; se muestran los actuales de configuración.</p>}
           <PanelEscenario
             minimizada={
               ventanaIzquierda !==
@@ -1353,6 +1365,25 @@ export default function EjecucionPage() {
               )
             }
           />
+          <VentanaFlotante
+            titulo="Alertas de simulación"
+            icono={<AlertTriangle className={`size-4 ${monitoreo.colapso ? "text-red-400" : "text-slate-500"}`} />}
+            resumen={monitoreo.colapso ? <span className="text-red-300">1 alerta registrada</span> : "Sin alertas"}
+            minimizada={ventanaIzquierda !== "ALERTAS"}
+            onCambiarMinimizada={(minimizada) =>
+              cambiarVentanaIzquierda("ALERTAS", !minimizada)
+            }
+            className="w-full shrink-0"
+          >
+            {monitoreo.colapso ? (
+              <div className="space-y-1 break-words whitespace-normal px-4 py-3 text-xs text-red-100">
+                <p className="font-semibold text-red-300">Colapso detectado</p>
+                <p>Pedido {monitoreo.colapso.pedidoId} · {nombreCausaColapso(monitoreo.colapso.causa)}</p>
+              </div>
+            ) : (
+              <p className="px-4 py-3 text-xs text-slate-500">No hay alertas de simulación registradas.</p>
+            )}
+          </VentanaFlotante>
         </div>
 
         {/* FORM PEDIDO */}
@@ -1392,6 +1423,7 @@ export default function EjecucionPage() {
           )}
 
         <DetalleOperacionPanel
+          onSeleccionar={setSeleccionDetalle}
           seleccion={
             seleccionDetalle
           }
@@ -1412,32 +1444,6 @@ export default function EjecucionPage() {
         {error && (
           <div className="absolute left-5 top-44 z-50 max-w-sm rounded-md border border-red-900 bg-[#11161d] px-3 py-2 text-xs text-red-400 shadow">
             {error}
-          </div>
-        )}
-
-        {/* COLAPSO */}
-        {monitoreo.colapso && (
-          <div className="absolute left-5 top-44 z-40 max-w-md rounded-md border border-red-700 bg-red-950/90 p-3 text-xs text-red-100 shadow-xl">
-            <div className="flex items-center gap-2 font-semibold">
-              <AlertTriangle className="size-4" />
-
-              Colapso detectado
-            </div>
-
-            <p className="mt-1">
-              Pedido{" "}
-              {
-                monitoreo
-                  .colapso
-                  .pedidoId
-              }{" "}
-              ·{" "}
-              {nombreCausaColapso(
-                monitoreo
-                  .colapso
-                  .causa,
-              )}
-            </p>
           </div>
         )}
 
@@ -1541,7 +1547,8 @@ type VentanaIzquierda =
   | "ESCENARIO"
   | "UNIDADES"
   | "ESTADO"
-  | "ACTIVIDAD";
+  | "ACTIVIDAD"
+  | "ALERTAS";
 
 function PanelEscenario({
   minimizada,

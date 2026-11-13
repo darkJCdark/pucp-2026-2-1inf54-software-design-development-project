@@ -17,6 +17,7 @@ import {
 import type {
   TipoVehiculoResponseDto,
 } from "@/api/flota.dto";
+import { nivelSemaforo } from "@/features/configuracion/semaforo";
 
 import {
   claveGrupoVehiculo,
@@ -323,6 +324,8 @@ function CapaVehiculosBase({
                 capacidadTotal={
                   capacidadTotal
                 }
+                verdeHasta={verdeHasta}
+                ambarHasta={ambarHasta}
                 posicionNegocioX={
                   visibles[0].x
                 }
@@ -554,13 +557,7 @@ function VehiculoMarkerBase({
   onTooltip,
   onLeave,
 }: VehiculoMarkerProps) {
-  const color =
-    vehiculo.estado ===
-    "NO_DISPONIBLE"
-      ? "#64748b"
-      : colorSemaforo(
-          nivelCarga,
-        );
+  const color = colorSemaforo(nivelCarga);
 
   const porcentajeCarga =
     capacidad > 0
@@ -918,6 +915,8 @@ const VehiculoMarker =
   );
 
 interface GrupoVehiculosMarkerProps {
+  verdeHasta: number;
+  ambarHasta: number;
   cantidad:
     number;
 
@@ -960,6 +959,8 @@ interface GrupoVehiculosMarkerProps {
 }
 
 function GrupoVehiculosMarkerBase({
+  verdeHasta,
+  ambarHasta,
   cantidad,
   autos,
   motos,
@@ -987,8 +988,8 @@ function GrupoVehiculosMarkerBase({
     nivelSemaforoCarga(
       cargaTotal,
       capacidadTotal,
-      60,
-      85,
+      verdeHasta,
+      ambarHasta,
     );
 
   const color =
@@ -1161,25 +1162,7 @@ function nivelSemaforoCarga(
         100
       : 0;
 
-  if (carga <= 0) {
-    return "VACIO";
-  }
-
-  if (
-    porcentaje <=
-    verdeHasta
-  ) {
-    return "VERDE";
-  }
-
-  if (
-    porcentaje <=
-    ambarHasta
-  ) {
-    return "AMBAR";
-  }
-
-  return "ROJO";
+  return nivelSemaforo(porcentaje, verdeHasta, ambarHasta);
 }
 
 function colorSemaforo(

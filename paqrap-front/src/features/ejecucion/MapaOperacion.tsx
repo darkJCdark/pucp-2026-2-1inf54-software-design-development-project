@@ -46,7 +46,7 @@ import type {
 } from "@/api/flota.dto";
 
 import {
-  useConfiguracion,
+  useUmbralesEjecucion,
 } from "@/context/ConfiguracionContext";
 
 import {
@@ -226,8 +226,8 @@ export function MapaOperacion({
     useElementSize<HTMLElement>();
 
   const {
-    configuracion,
-  } = useConfiguracion();
+    umbrales: configuracion,
+  } = useUmbralesEjecucion();
 
   const [
     vista,

@@ -18,6 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
 import com.pucp.paqrap.comun.error.RecursoNoEncontradoException;
@@ -622,12 +624,13 @@ class ReplanificacionSaServiceTest {
     }
 
     /** Indicación del profesor: tras una MINOR la unidad espera 2 horas y sigue su ruta con su carga, sin volver antes. */
-    @Test
-    void trasUnaAveriaMenorLaUnidadContinuaSuRutaDesdeDondeQuedo() {
+    @ParameterizedTest
+    @ValueSource(ints = {120, 60})
+    void trasUnaAveriaMenorLaUnidadContinuaSuRutaDesdeDondeQuedo(int minutos) {
         ReplanificacionResponse inicio = servicio.iniciar(EJECUCION, solicitud());
         RutaResponse afectada = rutaQueAunNoLlegaASuPrimeraEntrega(inicio);
         Instant t = H.plusSeconds(60);
-        BreakdownEvent averia = new BreakdownEvent(afectada.vehiculoId(), BreakdownType.MINOR, t, new Location(28, 14));
+        BreakdownEvent averia = new BreakdownEvent(afectada.vehiculoId(), BreakdownType.MINOR, t, new Location(28, 14), minutos);
 
         ReplanificacionResponse r = servicio.registrarAveria(EJECUCION, averia, t);
 
@@ -635,7 +638,7 @@ class ReplanificacionSaServiceTest {
                 .filter(ruta -> ruta.vehiculoId().equals(afectada.vehiculoId())).findFirst().orElseThrow();
         assertEquals(afectada.id() + "-CONT", continuacion.id());
         assertTrue(r.plan().violaciones().isEmpty(), () -> "violaciones: " + r.plan().violaciones());
-        assertEquals(t.plus(BreakdownType.MINOR.minimumUnavailable()), continuacion.salida());
+        assertEquals(t.plus(Duration.ofMinutes(minutos)), continuacion.salida());
         assertEquals(afectada.paradas().size(), continuacion.paradas().size());
         assertEquals(afectada.paradas().getFirst().cargaAntes(), continuacion.paradas().getFirst().cargaAntes());
         assertEquals(new ParadaResponse.Punto(28, 14), continuacion.paradas().getFirst().camino().getFirst());
@@ -754,6 +757,24 @@ class ReplanificacionSaServiceTest {
         assertEquals(huellas(inicio.plan().rutas()), huellas(r.plan().rutas()));
         assertEquals(List.of(libre), r.vehiculosNoDisponibles());
         assertFalse(luego.vehiculosNoDisponibles().contains(libre));
+    }
+
+    @Test
+    void minorMayorATresDiasConservaIndisponibilidadHastaSuFin() {
+        ReplanificacionResponse inicio = servicio.iniciar(EJECUCION, solicitud());
+        Set<String> usados = inicio.plan().rutas().stream().map(RutaResponse::vehiculoId).collect(Collectors.toSet());
+        String libre = InicializadorFlota.crearFlotaInicial().stream().map(Vehicle::id)
+                .filter(id -> !usados.contains(id)).reduce((a, b) -> b).orElseThrow();
+        Instant t = H.plusSeconds(1800);
+        Instant fin = t.plus(Duration.ofDays(4));
+        BreakdownEvent averia = new BreakdownEvent(libre, BreakdownType.MINOR, t, central().location(), 4 * 24 * 60);
+        servicio.registrarAveria(EJECUCION, averia, t);
+        Instant antes = t.plus(Duration.ofDays(3)).plusSeconds(60);
+        ReplanificacionResponse durante = servicio.registrarPedido(EJECUCION, p04(antes), antes);
+        Order pedido = new Order(String.valueOf(123456789), new Location(22, 10), 2, fin, fin.plusSeconds(36000));
+        ReplanificacionResponse despues = servicio.registrarPedido(EJECUCION, pedido, fin);
+        assertTrue(durante.vehiculosNoDisponibles().contains(libre));
+        assertFalse(despues.vehiculosNoDisponibles().contains(libre));
     }
 
     /**
