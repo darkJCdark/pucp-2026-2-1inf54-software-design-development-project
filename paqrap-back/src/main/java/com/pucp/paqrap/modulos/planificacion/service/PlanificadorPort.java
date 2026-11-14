@@ -37,7 +37,15 @@ public interface PlanificadorPort {
         /** Llegaron pedidos nuevos (de archivo al pasar su hora de registro, o registrados a mano). */
         NUEVO_PEDIDO,
         /** Una avería o un bloqueo afectó al plan vigente. */
-        INCIDENCIA
+        INCIDENCIA,
+        /** Alias histórico de una revisión del horizonte móvil. */
+        ROLLING_HORIZON,
+        /** El escaneo barato detectó una ETA comprometida con poca holgura. */
+        RIESGO_ETA,
+        /** Una unidad terminó su ruta y debe reingresar inmediatamente al pool. */
+        FIN_RUTA,
+        /** Un encuentro programado falló y ambas rutas deben reconstruirse. */
+        TRANSBORDO_FALLIDO
     }
 
     /**
@@ -48,13 +56,23 @@ public interface PlanificadorPort {
      */
     record SolicitudCiclo(long ejecucionId, Instant instante, Motivo motivo, List<RoadBlock> bloqueosIniciados,
                           List<RoadBlock> bloqueosTerminados, List<BreakdownEvent> averias,
-                          List<BreakdownEvent> averiasTerminadas, List<VehicleType> tiposFlotaActualizados) {
+                          List<BreakdownEvent> averiasTerminadas, List<VehicleType> tiposFlotaActualizados,
+                          List<FalloTransbordoOperativo> fallosTransbordo) {
         public SolicitudCiclo {
             bloqueosIniciados = bloqueosIniciados == null ? List.of() : List.copyOf(bloqueosIniciados);
             bloqueosTerminados = bloqueosTerminados == null ? List.of() : List.copyOf(bloqueosTerminados);
             averias = averias == null ? List.of() : List.copyOf(averias);
             averiasTerminadas = averiasTerminadas == null ? List.of() : List.copyOf(averiasTerminadas);
             tiposFlotaActualizados = tiposFlotaActualizados == null ? List.of() : List.copyOf(tiposFlotaActualizados);
+            fallosTransbordo = fallosTransbordo == null ? List.of() : List.copyOf(fallosTransbordo);
+        }
+
+        /** Conserva el contrato anterior de ocho argumentos. */
+        public SolicitudCiclo(long ejecucionId, Instant instante, Motivo motivo, List<RoadBlock> bloqueosIniciados,
+                              List<RoadBlock> bloqueosTerminados, List<BreakdownEvent> averias,
+                              List<BreakdownEvent> averiasTerminadas, List<VehicleType> tiposFlotaActualizados) {
+            this(ejecucionId, instante, motivo, bloqueosIniciados, bloqueosTerminados, averias,
+                    averiasTerminadas, tiposFlotaActualizados, List.of());
         }
 
         /** Conserva el contrato anterior: sin averías terminadas explícitas. */
@@ -62,23 +80,23 @@ public interface PlanificadorPort {
                               List<RoadBlock> bloqueosTerminados, List<BreakdownEvent> averias,
                               List<VehicleType> tiposFlotaActualizados) {
             this(ejecucionId, instante, motivo, bloqueosIniciados, bloqueosTerminados, averias,
-                    List.of(), tiposFlotaActualizados);
+                    List.of(), tiposFlotaActualizados, List.of());
         }
 
         public SolicitudCiclo(long ejecucionId, Instant instante, Motivo motivo, List<RoadBlock> bloqueosIniciados,
                               List<RoadBlock> bloqueosTerminados, List<BreakdownEvent> averias) {
             this(ejecucionId, instante, motivo, bloqueosIniciados, bloqueosTerminados, averias,
-                    List.of(), List.of());
+                    List.of(), List.of(), List.of());
         }
 
         public SolicitudCiclo(long ejecucionId, Instant instante, Motivo motivo, List<RoadBlock> bloqueosIniciados,
                               List<BreakdownEvent> averias) {
             this(ejecucionId, instante, motivo, bloqueosIniciados, List.of(), averias,
-                    List.of(), List.of());
+                    List.of(), List.of(), List.of());
         }
 
         public SolicitudCiclo(long ejecucionId, Instant instante, Motivo motivo) {
-            this(ejecucionId, instante, motivo, List.of(), List.of(), List.of(), List.of(), List.of());
+            this(ejecucionId, instante, motivo, List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         }
     }
 

@@ -25,6 +25,8 @@ public enum PlanViolationType {
     INSUFFICIENT_INVENTORY,
     RETURN_TO_EMPTY_WAREHOUSE,
     MAINTENANCE_OR_BREAKDOWN,
+    INVALID_TRANSFER_PAIR,
+    TRANSFER_NOT_SYNCHRONIZED,
     /** A single leg between two consecutive stops exceeds the configured
      *  per-leg limit (historically the fleet sheet's 80 km). Only reported
      *  when the evaluator is built with a positive limit; the default

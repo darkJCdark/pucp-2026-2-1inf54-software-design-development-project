@@ -8,6 +8,8 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -41,6 +43,7 @@ import com.pucp.paqrap.modulos.planificacion.dto.PlanResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.RutaResponse;
 import com.pucp.paqrap.modulos.planificacion.entity.ShiftSchedule;
 import com.pucp.paqrap.modulos.planificacion.service.PlanVigente;
+import com.pucp.paqrap.modulos.planificacion.service.FalloTransbordoOperativo;
 import com.pucp.paqrap.modulos.planificacion.service.PosicionRuta;
 import com.pucp.paqrap.modulos.redvial.entity.Location;
 
@@ -86,6 +89,14 @@ public class EjecutorPlanService {
     /** Resultados acumulados de una ejecución. */
     public record Metricas(int pedidosEntregados, int entregadosATiempo, int paquetesEntregados, double distanciaKm,
                            double costo) {
+    }
+
+    /** Telemetría separada para no romper el contrato histórico de Metricas. */
+    public record MetricasTransferencias(int completadas, int canceladas) {
+    }
+
+    /** Entrega comprometida cuya ETA está cerca o después del deadline. */
+    public record PedidoEnRiesgo(String pedidoId, String vehiculoId, Instant eta, Instant deadline, Duration holgura) {
     }
 
     /**
@@ -264,6 +275,102 @@ public Optional<Instant> refrigerioHasta(
         return Optional.ofNullable(estados.get(ejecucionId)).map(EstadoEjecucion::metricas);
     }
 
+    public Optional<MetricasTransferencias> metricasTransferencias(long ejecucionId) {
+        return Optional.ofNullable(estados.get(ejecucionId))
+                .map(estado -> new MetricasTransferencias(
+                        estado.transferenciasCompletadas,
+                        estado.transferenciasCanceladas));
+    }
+
+    /**
+     * Escaneo barato del plan vigente. No ejecuta ALNS: solo identifica ETAs
+     * comprometidas con holgura menor o igual que la ventana configurada.
+     */
+    public List<PedidoEnRiesgo> pedidosEnRiesgo(
+            long ejecucionId,
+            Instant ahora,
+            Duration ventana
+    ) {
+        EstadoEjecucion estado = estados.get(ejecucionId);
+        if (estado == null || estado.plan == null) {
+            return List.of();
+        }
+
+        record EntregaProgramada(String pedidoId, String vehiculoId, Instant eta) {
+        }
+
+        List<EntregaProgramada> entregas = new ArrayList<>();
+        Set<String> ids = new LinkedHashSet<>();
+        for (RutaResponse ruta : estado.plan.rutas()) {
+            for (ParadaResponse parada : ruta.paradas()) {
+                if (!ParadaResponse.ENTREGA.equals(parada.tipo())
+                        || parada.pedidoId() == null
+                        || parada.llegada() == null
+                        || !parada.llegada().isAfter(ahora)) {
+                    continue;
+                }
+                entregas.add(new EntregaProgramada(
+                        parada.pedidoId(), ruta.vehiculoId(), parada.llegada()));
+                ids.add(parada.pedidoId());
+            }
+        }
+        if (entregas.isEmpty()) {
+            return List.of();
+        }
+
+        /* Una sola consulta para todo el plan, evitando un N+1 cada 15 minutos. */
+        Map<String, OrderEntity> pedidos = new HashMap<>();
+        pedidoRepository.findAllById(ids).forEach(pedido -> pedidos.put(pedido.getOrderId(), pedido));
+
+        Map<String, PedidoEnRiesgo> peorPorPedido = new LinkedHashMap<>();
+        for (EntregaProgramada entrega : entregas) {
+            OrderEntity pedido = pedidos.get(entrega.pedidoId());
+            if (pedido == null || pedido.getStatus() == OrderStatus.DELIVERED) {
+                continue;
+            }
+            Duration holgura = Duration.between(entrega.eta(), pedido.getDeadline());
+            if (holgura.compareTo(ventana) > 0) {
+                continue;
+            }
+            PedidoEnRiesgo riesgo = new PedidoEnRiesgo(
+                    pedido.getOrderId(), entrega.vehiculoId(), entrega.eta(),
+                    pedido.getDeadline(), holgura);
+            peorPorPedido.merge(pedido.getOrderId(), riesgo,
+                    (a, b) -> a.eta().isAfter(b.eta()) ? a : b);
+        }
+        return peorPorPedido.values().stream()
+                .sorted(Comparator.comparing(PedidoEnRiesgo::holgura))
+                .toList();
+    }
+
+    /** Devuelve y limpia las finalizaciones detectadas desde la última consulta. */
+    public boolean consumirFinRuta(long ejecucionId) {
+        EstadoEjecucion estado = estados.get(ejecucionId);
+        if (estado == null) {
+            return false;
+        }
+        boolean habia = estado.finRutaPendiente;
+        estado.finRutaPendiente = false;
+        return habia;
+    }
+
+    /** Devuelve y limpia los encuentros cancelados que requieren recuperación física. */
+    public List<FalloTransbordoOperativo> consumirFallosTransbordo(long ejecucionId) {
+        EstadoEjecucion estado = estados.get(ejecucionId);
+        if (estado == null || estado.fallosTransbordoPendientes.isEmpty()) {
+            return List.of();
+        }
+        List<FalloTransbordoOperativo> resultado =
+                List.copyOf(estado.fallosTransbordoPendientes);
+        estado.fallosTransbordoPendientes.clear();
+        return resultado;
+    }
+
+    /** Compatibilidad con llamadas antiguas que solo necesitaban una señal booleana. */
+    public boolean consumirFalloTransbordo(long ejecucionId) {
+        return !consumirFallosTransbordo(ejecucionId).isEmpty();
+    }
+
     /** Los vehículos que iban en ruta y no aparecen en el plan nuevo quedan disponibles donde están. */
     private void liberarVehiculosSinRuta(EstadoEjecucion estado, PlanResponse nuevo) {
         for (RutaEnCurso enCurso : estado.rutas.values()) {
@@ -284,7 +391,9 @@ public Optional<Instant> refrigerioHasta(
      * interrumpe antes de que se ejecute ese tramo o entrega. La salida queda antes para que una avería exactamente
      * en ella sea descartada por {@link #iniciarRuta(long, EstadoEjecucion, RutaResponse, List)}.
      */
-    private enum TipoEvento { SALIDA, AVERIA, PARTIDA_HACIA_PARADA, LLEGADA_A_PARADA, FIN_RUTA }
+    private enum TipoEvento {
+        SALIDA, AVERIA, PARTIDA_HACIA_PARADA, LLEGADA_A_PARADA, TRANSBORDO, FIN_RUTA
+    }
 
     /** {@code parada}: índice de la parada; -1 en SALIDA, AVERIA y FIN_RUTA. */
     private record Evento(Instant instante, TipoEvento tipo, RutaResponse ruta, int parada, BreakdownEvent averia) {
@@ -314,6 +423,9 @@ public Optional<Instant> refrigerioHasta(
                     agregar(eventos, partida, TipoEvento.PARTIDA_HACIA_PARADA, ruta, i, desde, hasta);
                 }
                 agregar(eventos, parada.llegada(), TipoEvento.LLEGADA_A_PARADA, ruta, i, desde, hasta);
+                if (parada.esTransbordo() && parada.inicioServicio() != null) {
+                    agregar(eventos, parada.inicioServicio(), TipoEvento.TRANSBORDO, ruta, i, desde, hasta);
+                }
                 partida = parada.fin() != null ? parada.fin() : parada.llegada();
             }
             agregar(eventos, ruta.llegadaFinal(), TipoEvento.FIN_RUTA, ruta, -1, desde, hasta);
@@ -358,7 +470,8 @@ public Optional<Instant> refrigerioHasta(
         switch (evento.tipo()) {
             case PARTIDA_HACIA_PARADA -> partirHacia(ruta.paradas().get(evento.parada()), ruta, evento.instante());
             case LLEGADA_A_PARADA -> llegarA(ejecucionId, estado, enCurso, evento.parada(), evento.instante());
-            case FIN_RUTA -> terminarRuta(enCurso);
+            case TRANSBORDO -> ejecutarTransbordo(estado, enCurso, evento.parada(), evento.instante());
+            case FIN_RUTA -> terminarRuta(estado, enCurso);
             default -> { }
         }
     }
@@ -420,11 +533,16 @@ public Optional<Instant> refrigerioHasta(
         enCurso.x = parada.x();
         enCurso.y = parada.y();
 
+        boolean esTransbordo = parada.esTransbordo();
         boolean cargaConfirmada = !ParadaResponse.ALMACEN.equals(parada.tipo()) || parada.paquetes() <= 0
                 || despachar(ejecucionId, ruta, indice, instante);
         vehiculoRepository.findById(ruta.vehiculoId()).ifPresent(vehiculo -> {
-            int carga = cargaConfirmada && parada.cargaDespues() != null
-                    ? parada.cargaDespues() : vehiculo.getCurrentLoad();
+            /* La carga del transbordo cambia solo cuando ambas unidades están presentes. */
+            int carga = esTransbordo
+                    ? vehiculo.getCurrentLoad()
+                    : cargaConfirmada && parada.cargaDespues() != null
+                    ? parada.cargaDespues()
+                    : vehiculo.getCurrentLoad();
             vehiculo.moverA(parada.x(), parada.y(), carga);
         });
         if (ParadaResponse.ENTREGA.equals(parada.tipo())) {
@@ -474,10 +592,185 @@ public Optional<Instant> refrigerioHasta(
         }
         return ruta.routePersistedId();
     }
-    private void terminarRuta(RutaEnCurso enCurso) {
+    /** Aplica el movimiento de carga una sola vez y solo con ambos vehículos en el nodo. */
+    private void ejecutarTransbordo(
+            EstadoEjecucion estado,
+            RutaEnCurso participante,
+            int indice,
+            Instant instante
+    ) {
+        ParadaResponse parada = participante.ruta.paradas().get(indice);
+        String transferenciaId = parada.transferenciaId();
+        if (transferenciaId == null
+                || estado.transferenciasEjecutadas.contains(transferenciaId)
+                || estado.transferenciasCanceladasIds.contains(transferenciaId)) {
+            return;
+        }
+
+        RutaEnCurso contraparte = estado.rutas.get(parada.vehiculoContraparteId());
+        ParadaResponse paradaContraparte = contraparte == null ? null
+                : contraparte.ruta.paradas().stream()
+                .filter(p -> transferenciaId.equals(p.transferenciaId()))
+                .findFirst().orElse(null);
+
+        if (contraparte == null || contraparte.interrumpida || paradaContraparte == null
+                || !paradaContraparte.esTransbordo()
+                || !participante.ruta.vehiculoId().equals(paradaContraparte.vehiculoContraparteId())
+                || parada.inicioServicio() == null || paradaContraparte.inicioServicio() == null
+                || !parada.inicioServicio().equals(instante)
+                || !paradaContraparte.inicioServicio().equals(instante)
+                || parada.paquetes() != paradaContraparte.paquetes()
+                || !java.util.Objects.equals(parada.pedidoId(), paradaContraparte.pedidoId())) {
+            cancelarTransbordo(estado, participante, contraparte, transferenciaId, instante,
+                    "participantes o programación inconsistentes");
+            return;
+        }
+
+        VehicleEntity actual = vehiculoRepository.findById(participante.ruta.vehiculoId()).orElse(null);
+        VehicleEntity otro = vehiculoRepository.findById(contraparte.ruta.vehiculoId()).orElse(null);
+        if (actual == null || otro == null
+                || actual.getCurrentX() != parada.x() || actual.getCurrentY() != parada.y()
+                || otro.getCurrentX() != parada.x() || otro.getCurrentY() != parada.y()) {
+            cancelarTransbordo(estado, participante, contraparte, transferenciaId, instante,
+                    "los vehículos no coincidieron en el nodo");
+            return;
+        }
+
+        boolean actualDona = ParadaResponse.TRANSBORDO_SALIDA.equals(parada.tipo());
+        VehicleEntity donante = actualDona ? actual : otro;
+        VehicleEntity receptor = actualDona ? otro : actual;
+        ParadaResponse paradaDonante = actualDona ? parada : paradaContraparte;
+        ParadaResponse paradaReceptor = actualDona ? paradaContraparte : parada;
+        int cantidad = parada.paquetes();
+
+        boolean cargasCoherentes = donante.getCurrentLoad() >= cantidad
+                && paradaDonante.cargaAntes() != null
+                && paradaDonante.cargaDespues() != null
+                && paradaReceptor.cargaAntes() != null
+                && paradaReceptor.cargaDespues() != null
+                && paradaDonante.cargaAntes().equals(donante.getCurrentLoad())
+                && paradaReceptor.cargaAntes().equals(receptor.getCurrentLoad())
+                && paradaDonante.cargaDespues() == donante.getCurrentLoad() - cantidad
+                && paradaReceptor.cargaDespues() == receptor.getCurrentLoad() + cantidad;
+
+        if (!cargasCoherentes) {
+            cancelarTransbordo(estado, participante, contraparte, transferenciaId, instante,
+                    "la carga física no coincide con la carga planificada");
+            return;
+        }
+
+        donante.moverA(parada.x(), parada.y(), donante.getCurrentLoad() - cantidad);
+        receptor.moverA(parada.x(), parada.y(), receptor.getCurrentLoad() + cantidad);
+        pedidoRepository.findById(parada.pedidoId())
+                .filter(pedido -> pedido.getStatus() != OrderStatus.DELIVERED)
+                .ifPresent(pedido -> cambiarEstado(
+                        pedido, OrderStatus.IN_TRANSIT, instante, receptor.getVehicleId()));
+        estado.transferenciasEjecutadas.add(transferenciaId);
+        estado.transferenciasCompletadas++;
+        log.info("Transbordo {} completado: {} paquetes del pedido {}",
+                transferenciaId, cantidad, parada.pedidoId());
+    }
+
+    private void cancelarTransbordo(
+            EstadoEjecucion estado,
+            RutaEnCurso primera,
+            RutaEnCurso segunda,
+            String transferenciaId,
+            Instant instante,
+            String causa
+    ) {
+        if (!estado.transferenciasCanceladasIds.add(transferenciaId)) {
+            return;
+        }
+        estado.transferenciasCanceladas++;
+        registrarFalloTransbordo(
+                estado, primera, segunda, transferenciaId, instante, causa);
+        interrumpirPorTransbordo(primera, instante);
+        if (segunda != null) {
+            interrumpirPorTransbordo(segunda, instante);
+        }
+        log.warn("Transbordo {} cancelado: {}. Se solicita replanificación", transferenciaId, causa);
+    }
+
+    private void registrarFalloTransbordo(
+            EstadoEjecucion estado,
+            RutaEnCurso primera,
+            RutaEnCurso segunda,
+            String transferenciaId,
+            Instant instante,
+            String causa
+    ) {
+        ParadaResponse paradaPrimera = buscarParadaTransbordo(primera, transferenciaId);
+        ParadaResponse paradaSegunda = buscarParadaTransbordo(segunda, transferenciaId);
+        ParadaResponse referencia = paradaPrimera != null ? paradaPrimera : paradaSegunda;
+        if (referencia == null || referencia.pedidoId() == null
+                || referencia.vehiculoContraparteId() == null) {
+            log.error("No se pudo conservar el manifiesto del transbordo {} cancelado", transferenciaId);
+            return;
+        }
+
+        String vehiculoReferencia = paradaPrimera != null && primera != null
+                ? primera.ruta.vehiculoId()
+                : segunda.ruta.vehiculoId();
+        String donante;
+        String receptor;
+        if (ParadaResponse.TRANSBORDO_SALIDA.equals(referencia.tipo())) {
+            donante = vehiculoReferencia;
+            receptor = referencia.vehiculoContraparteId();
+        } else {
+            donante = referencia.vehiculoContraparteId();
+            receptor = vehiculoReferencia;
+        }
+
+        estado.fallosTransbordoPendientes.add(new FalloTransbordoOperativo(
+                transferenciaId,
+                referencia.pedidoId(),
+                referencia.paquetes(),
+                donante,
+                receptor,
+                new Location(referencia.x(), referencia.y()),
+                instante,
+                causa));
+    }
+
+    private static ParadaResponse buscarParadaTransbordo(
+            RutaEnCurso enCurso,
+            String transferenciaId
+    ) {
+        if (enCurso == null) {
+            return null;
+        }
+        return enCurso.ruta.paradas().stream()
+                .filter(parada -> transferenciaId.equals(parada.transferenciaId()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private void interrumpirPorTransbordo(RutaEnCurso enCurso, Instant instante) {
+        if (enCurso.interrumpida) {
+            return;
+        }
+        enCurso.interrumpida = true;
+        vehiculoRepository.findById(enCurso.ruta.vehiculoId())
+                .ifPresent(vehiculo -> vehiculo.setOperationalStatus(VehicleOperationalStatus.AVAILABLE));
+        for (ParadaResponse parada : enCurso.ruta.paradas()) {
+            if (ParadaResponse.ENTREGA.equals(parada.tipo())
+                    && parada.llegada() != null
+                    && parada.llegada().isAfter(instante)) {
+                pedidoRepository.findById(parada.pedidoId())
+                        .filter(pedido -> pedido.getStatus() == OrderStatus.ASSIGNED
+                                || pedido.getStatus() == OrderStatus.IN_TRANSIT)
+                        .ifPresent(pedido -> cambiarEstado(pedido, OrderStatus.REGISTERED, instante,
+                                enCurso.ruta.vehiculoId()));
+            }
+        }
+    }
+
+    private void terminarRuta(EstadoEjecucion estado, RutaEnCurso enCurso) {
         vehiculoRepository.findById(enCurso.ruta.vehiculoId())
                 .filter(vehiculo -> vehiculo.getOperationalStatus() == VehicleOperationalStatus.IN_ROUTE)
-                .ifPresent(vehiculo -> vehiculo.setOperationalStatus(VehicleOperationalStatus.AVAILABLE));
+                .ifPresent(vehiculo -> vehiculo.finalizarRutaEn(enCurso.ruta.llegadaFinal()));
+        estado.finRutaPendiente = true;
     }
 
     // ------------------------------------------------------------------ averías
@@ -539,6 +832,13 @@ public Optional<Instant> refrigerioHasta(
         private final Set<RutaResponse> continuadas =
                 Collections.newSetFromMap(new IdentityHashMap<>());
         private final Map<String, Integer> paquetesPorPedido = new HashMap<>();
+        private final Set<String> transferenciasEjecutadas = new java.util.HashSet<>();
+        private final Set<String> transferenciasCanceladasIds = new java.util.HashSet<>();
+        private boolean finRutaPendiente;
+        private final List<FalloTransbordoOperativo> fallosTransbordoPendientes =
+                new ArrayList<>();
+        private int transferenciasCompletadas;
+        private int transferenciasCanceladas;
         private int pedidosEntregados;
         private int entregadosATiempo;
         private int paquetesEntregados;

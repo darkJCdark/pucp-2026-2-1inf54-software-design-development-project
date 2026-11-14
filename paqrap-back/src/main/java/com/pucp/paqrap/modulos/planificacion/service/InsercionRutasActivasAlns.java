@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import com.pucp.paqrap.modulos.almacenes.entity.InventorySnapshot;
 import com.pucp.paqrap.modulos.almacenes.entity.Warehouse;
 import com.pucp.paqrap.modulos.pedidos.entity.Order;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.OperationalPlanEvaluator;
@@ -21,6 +22,7 @@ import com.pucp.paqrap.modulos.planificacion.algoritmo.common.PlanViolation;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.PlanViolationType;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.ScheduledDeliveryRoute;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.ScheduledRouteStop;
+import com.pucp.paqrap.modulos.planificacion.algoritmo.common.WarehouseSelectionPolicy;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryRoute;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryStop;
 import com.pucp.paqrap.modulos.planificacion.entity.OperationalPlan;
@@ -28,6 +30,7 @@ import com.pucp.paqrap.modulos.planificacion.entity.RouteStop;
 import com.pucp.paqrap.modulos.planificacion.entity.WarehouseVisit;
 import com.pucp.paqrap.modulos.planificacion.policy.PoliticaPlanificacion;
 import com.pucp.paqrap.modulos.planificacion.policy.PrioridadPedido;
+import com.pucp.paqrap.modulos.redvial.entity.Location;
 import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 
 /**
@@ -80,6 +83,9 @@ final class InsercionRutasActivasAlns {
 
     private final UrgencyRemovalAlnsService urgencyRemoval;
 
+    private final WarehouseSelectionPolicy warehouseSelection =
+            new WarehouseSelectionPolicy();
+
     InsercionRutasActivasAlns(
             OperationalPlanEvaluator evaluador
     ) {
@@ -129,6 +135,39 @@ final class InsercionRutasActivasAlns {
             long deadlineNanos
     ) {
 
+        InventorySnapshot inventarioDisponible =
+                rutasActivas.isEmpty()
+
+                        ? InventorySnapshot.from(
+                                List.of(central)
+                        )
+
+                        : rutasActivas
+                                .getFirst()
+                                .snapshotOrigen()
+                                .inventory();
+
+        return insertar(
+                ahora,
+                rutasActivas,
+                pendientes,
+                central,
+                inventarioDisponible,
+                bloqueos,
+                deadlineNanos
+        );
+    }
+
+    Resultado insertar(
+            Instant ahora,
+            List<RutaVigente> rutasActivas,
+            List<Order> pendientes,
+            Warehouse central,
+            InventorySnapshot inventarioDisponible,
+            List<RoadBlock> bloqueos,
+            long deadlineNanos
+    ) {
+
         Objects.requireNonNull(
                 ahora,
                 "ahora es requerido"
@@ -147,6 +186,11 @@ final class InsercionRutasActivasAlns {
         Objects.requireNonNull(
                 central,
                 "central es requerido"
+        );
+
+        Objects.requireNonNull(
+                inventarioDisponible,
+                "inventarioDisponible es requerido"
         );
 
         Objects.requireNonNull(
@@ -364,6 +408,7 @@ final class InsercionRutasActivasAlns {
                                 pedido,
                                 prioridad,
                                 central,
+                                inventarioDisponible,
                                 bloqueos,
                                 indiceRuta,
                                 deadlineNanos
@@ -514,6 +559,13 @@ final class InsercionRutasActivasAlns {
                     rutaAnterior
                             .ruta()
                             .id();
+
+            inventarioDisponible =
+                    retirarStockAdicional(
+                            inventarioDisponible,
+                            rutaAnterior.ruta(),
+                            mejor.ruta().ruta()
+                    );
 
             actuales.set(
                     mejor.indiceRuta(),
@@ -722,6 +774,7 @@ final class InsercionRutasActivasAlns {
             Order pedido,
             PrioridadPedido prioridad,
             Warehouse central,
+            InventorySnapshot inventarioDisponible,
             List<RoadBlock> bloqueos,
             int indiceRuta,
             long deadlineNanos
@@ -855,42 +908,66 @@ final class InsercionRutasActivasAlns {
                             capacidad
             ) {
 
-                DeliveryRoute conRecarga =
-                        original
-                                .withInsertedStop(
-                                        posicion,
+                Location origenRecarga =
+                        posicion == 0
 
-                                        new WarehouseVisit(
-                                                central,
-                                                pedido.packages()
+                                ? original.startLocation()
+
+                                : original
+                                        .stops()
+                                        .get(
+                                                posicion - 1
                                         )
+                                        .location();
+
+                for (
+                        Warehouse almacen :
+                        warehouseSelection
+                                .rankedSupplyWarehouses(
+                                        origenRecarga,
+                                        pedido,
+                                        pedido.packages(),
+                                        inventarioDisponible
                                 )
+                ) {
 
-                                .withInsertedStop(
-                                        posicion + 1,
+                    DeliveryRoute conRecarga =
+                            original
+                                    .withInsertedStop(
+                                            posicion,
 
-                                        new DeliveryStop(
-                                                pedido,
-                                                pedido.packages()
-                                        )
-                                );
+                                            new WarehouseVisit(
+                                                    almacen,
+                                                    pedido.packages()
+                                            )
+                                    )
 
-                Candidato recarga =
-                        validar(
-                                vigente,
-                                conRecarga,
-                                pedido,
-                                bloqueos,
-                                indiceRuta,
-                                false
-                        );
+                                    .withInsertedStop(
+                                            posicion + 1,
 
-                mejor =
-                        elegirMejor(
-                                mejor,
-                                recarga,
-                                prioridad
-                        );
+                                            new DeliveryStop(
+                                                    pedido,
+                                                    pedido.packages()
+                                            )
+                                    );
+
+                    Candidato recarga =
+                            validar(
+                                    vigente,
+                                    conRecarga,
+                                    pedido,
+                                    bloqueos,
+                                    indiceRuta,
+                                    false
+                            );
+
+                    mejor =
+                            elegirMejor(
+                                    mejor,
+                                    recarga,
+                                    prioridad
+                            );
+                }
             }
         }
 
@@ -1300,6 +1377,85 @@ final class InsercionRutasActivasAlns {
         }
 
         return actual;
+    }
+
+    private InventorySnapshot retirarStockAdicional(
+            InventorySnapshot inventario,
+            DeliveryRoute anterior,
+            DeliveryRoute actualizada
+    ) {
+
+        Map<String, Integer> retirosAntes =
+                retirosIntermedios(
+                        anterior
+                );
+
+        Map<String, Integer> retirosDespues =
+                retirosIntermedios(
+                        actualizada
+                );
+
+        InventorySnapshot resultado =
+                inventario;
+
+        for (
+                Map.Entry<String, Integer> retiro :
+                retirosDespues.entrySet()
+        ) {
+
+            int adicional =
+                    retiro.getValue()
+                            -
+                            retirosAntes.getOrDefault(
+                                    retiro.getKey(),
+                                    0
+                            );
+
+            if (
+                    adicional > 0
+            ) {
+
+                resultado =
+                        resultado.withdraw(
+                                retiro.getKey(),
+                                adicional
+                        );
+            }
+        }
+
+        return resultado;
+    }
+
+    private Map<String, Integer> retirosIntermedios(
+            DeliveryRoute ruta
+    ) {
+
+        Map<String, Integer> retiros =
+                new HashMap<>();
+
+        for (
+                RouteStop parada :
+                ruta.stops()
+        ) {
+
+            if (
+                    parada instanceof
+                            WarehouseVisit visita
+                    &&
+                    !visita.warehouse().isCentral()
+                    &&
+                    visita.pickupPackages() > 0
+            ) {
+
+                retiros.merge(
+                        visita.warehouse().id(),
+                        visita.pickupPackages(),
+                        Integer::sum
+                );
+            }
+        }
+
+        return retiros;
     }
 
     /*

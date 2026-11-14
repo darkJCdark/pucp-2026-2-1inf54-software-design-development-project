@@ -7,6 +7,7 @@ import java.util.Optional;
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
 import com.pucp.paqrap.modulos.pedidos.entity.Order;
+import com.pucp.paqrap.modulos.planificacion.dto.MotivoReplanificacion;
 import com.pucp.paqrap.modulos.planificacion.dto.ReplanificacionResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.SolicitudPlanificacion;
 import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
@@ -59,9 +60,10 @@ public interface ReplanificacionService {
     /** Eventos que se aplican juntos en una replanificación; cualquiera de las listas puede venir vacía. */
     record Eventos(List<Order> pedidos, List<RoadBlock> bloqueos, List<RoadBlock> bloqueosTerminados,
                    List<BreakdownEvent> averias, List<BreakdownEvent> averiasTerminadas,
-                   List<VehicleType> tiposFlotaActualizados) {
+                   List<VehicleType> tiposFlotaActualizados, MotivoReplanificacion motivoSolicitado,
+                   List<FalloTransbordoOperativo> fallosTransbordo) {
         public static final Eventos NINGUNO = new Eventos(
-                List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null, List.of());
 
         public Eventos {
             pedidos = pedidos == null ? List.of() : List.copyOf(pedidos);
@@ -70,26 +72,44 @@ public interface ReplanificacionService {
             averias = averias == null ? List.of() : List.copyOf(averias);
             averiasTerminadas = averiasTerminadas == null ? List.of() : List.copyOf(averiasTerminadas);
             tiposFlotaActualizados = tiposFlotaActualizados == null ? List.of() : List.copyOf(tiposFlotaActualizados);
+            fallosTransbordo = fallosTransbordo == null ? List.of() : List.copyOf(fallosTransbordo);
+        }
+
+        /** Conserva el contrato anterior de siete argumentos. */
+        public Eventos(List<Order> pedidos, List<RoadBlock> bloqueos, List<RoadBlock> bloqueosTerminados,
+                       List<BreakdownEvent> averias, List<BreakdownEvent> averiasTerminadas,
+                       List<VehicleType> tiposFlotaActualizados, MotivoReplanificacion motivoSolicitado) {
+            this(pedidos, bloqueos, bloqueosTerminados, averias, averiasTerminadas,
+                    tiposFlotaActualizados, motivoSolicitado, List.of());
+        }
+
+        /** Conserva el contrato anterior de seis argumentos. */
+        public Eventos(List<Order> pedidos, List<RoadBlock> bloqueos, List<RoadBlock> bloqueosTerminados,
+                       List<BreakdownEvent> averias, List<BreakdownEvent> averiasTerminadas,
+                       List<VehicleType> tiposFlotaActualizados) {
+            this(pedidos, bloqueos, bloqueosTerminados, averias, averiasTerminadas,
+                    tiposFlotaActualizados, null, List.of());
         }
 
         /** Conserva el contrato anterior: sin averías terminadas explícitas. */
         public Eventos(List<Order> pedidos, List<RoadBlock> bloqueos, List<RoadBlock> bloqueosTerminados,
                        List<BreakdownEvent> averias, List<VehicleType> tiposFlotaActualizados) {
-            this(pedidos, bloqueos, bloqueosTerminados, averias, List.of(), tiposFlotaActualizados);
+            this(pedidos, bloqueos, bloqueosTerminados, averias, List.of(), tiposFlotaActualizados, null, List.of());
         }
 
         public Eventos(List<Order> pedidos, List<RoadBlock> bloqueos, List<RoadBlock> bloqueosTerminados,
                        List<BreakdownEvent> averias) {
-            this(pedidos, bloqueos, bloqueosTerminados, averias, List.of(), List.of());
+            this(pedidos, bloqueos, bloqueosTerminados, averias, List.of(), List.of(), null, List.of());
         }
 
         public Eventos(List<Order> pedidos, List<RoadBlock> bloqueos, List<BreakdownEvent> averias) {
-            this(pedidos, bloqueos, List.of(), averias, List.of(), List.of());
+            this(pedidos, bloqueos, List.of(), averias, List.of(), List.of(), null, List.of());
         }
 
         public boolean vacios() {
             return pedidos.isEmpty() && bloqueos.isEmpty() && bloqueosTerminados.isEmpty()
-                    && averias.isEmpty() && averiasTerminadas.isEmpty();
+                    && averias.isEmpty() && averiasTerminadas.isEmpty() && fallosTransbordo.isEmpty();
         }
     }
+
 }

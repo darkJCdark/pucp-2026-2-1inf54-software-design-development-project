@@ -41,84 +41,49 @@ server:
   port: ${PAQRAP_PORT:8080}
 
 paqrap:
-
   escenarios:
-
-    # Cada cuánto tiempo REAL despierta el motor
-    # para revisar el escenario.
     tick: ${PAQRAP_ESCENARIOS_TICK:1s}
-
-    # FIVE_DAY:
-    # 120 horas simuladas / 160
-    # = 0.75 horas reales
-    # = aproximadamente 45 minutos.
     factor-cinco-dias: ${PAQRAP_FACTOR_CINCO_DIAS:160}
-
-    # COLLAPSE:
-    # 24 horas simuladas por minuto real.
     factor-colapso: ${PAQRAP_FACTOR_COLAPSO:1440}
-
-    # Intervalo SIMULADO entre planificaciones.
-    #
-    # DAY_TO_DAY:
-    #   cada 1 hora real.
-    #
-    # FIVE_DAY:
-    #   cada 22.5 segundos reales aprox.
-    #
-    # COLLAPSE:
-    #   cada 2.5 segundos reales aprox.
     intervalo-planificacion: ${PAQRAP_INTERVALO_PLANIFICACION:1h}
+    intervalo-revision-rolling: ${PAQRAP_ROLLING_INTERVALO_REVISION:15m}
+    ventana-riesgo-rolling: ${PAQRAP_ROLLING_VENTANA_RIESGO:60m}
+    horizonte-decision: ${PAQRAP_ROLLING_HORIZONTE:36h}
+    replanificar-fin-ruta: ${PAQRAP_ROLLING_REPLANIFICAR_FIN_RUTA:true}
 
   planificacion:
-
-    # Motor activo.
-    #
-    # Valores:
-    # SA
-    # ALNS
-    #
-    # Se mantiene SA por defecto para no cambiar
-    # automáticamente los tests y escenarios antiguos.
     algoritmo: ${PAQRAP_PLAN_ALGORITMO:SA}
+    objetivo: ${PAQRAP_PLAN_OBJETIVO:SERVICE_THEN_COST}
 
-    # Límite histórico para SA.
     max-pedidos: ${PAQRAP_PLAN_MAX_PEDIDOS:100}
-
-    # Presupuesto máximo de cómputo por ciclo.
     presupuesto-ms: ${PAQRAP_PLAN_PRESUPUESTO_MS:1500}
-
-    # 0 = sin límite.
     max-tramo-km: ${PAQRAP_PLAN_MAX_TRAMO_KM:0}
 
+    rescate-preventivo:
+      enabled: ${PAQRAP_RESCATE_PREVENTIVO:true}
+      transbordos-enabled: ${PAQRAP_TRANSBORDOS:true}
+      ventana-riesgo: ${PAQRAP_RESCATE_VENTANA_RIESGO:60m}
+      mejora-minima-eta: ${PAQRAP_RESCATE_MEJORA_MINIMA:15m}
+      espera-maxima-encuentro: ${PAQRAP_TRANSBORDO_ESPERA_MAXIMA:15m}
+      cooldown-reasignacion: ${PAQRAP_RESCATE_COOLDOWN:30m}
+      max-reasignaciones-por-pedido: ${PAQRAP_RESCATE_MAX_REASIGNACIONES:2}
+      max-rescates-por-ciclo: ${PAQRAP_RESCATE_MAX_POR_CICLO:1}
+      fraccion-presupuesto: ${PAQRAP_RESCATE_FRACCION_PRESUPUESTO:0.10}
+      presupuesto-minimo: ${PAQRAP_RESCATE_PRESUPUESTO_MIN:25ms}
+      presupuesto-maximo: ${PAQRAP_RESCATE_PRESUPUESTO_MAX:150ms}
+
     alns:
-
-      # ALNS no queda artificialmente limitado
-      # a 100 pedidos.
       max-pedidos: ${PAQRAP_ALNS_MAX_PEDIDOS:20000}
-
-      # Construcción inicial por lotes.
       initial-batch-size: ${PAQRAP_ALNS_INITIAL_BATCH_SIZE:32}
-
-      # Vehículos que se evalúan en profundidad
-      # para cada inserción.
       candidate-vehicles: ${PAQRAP_ALNS_CANDIDATE_VEHICLES:6}
 
-      # Intensidad del destroy.
       min-routes-to-remove: ${PAQRAP_ALNS_MIN_ROUTES_TO_REMOVE:1}
       max-routes-to-remove: ${PAQRAP_ALNS_MAX_ROUTES_TO_REMOVE:6}
 
-      # Límites de búsqueda.
       max-iterations: ${PAQRAP_ALNS_MAX_ITERATIONS:800}
-
       max-iterations-without-improvement: ${PAQRAP_ALNS_MAX_NO_IMPROVEMENT:200}
 
-      # Criterio de aceptación tipo SA.
       initial-temperature: ${PAQRAP_ALNS_INITIAL_TEMPERATURE:50.0}
-
       minimum-temperature: ${PAQRAP_ALNS_MINIMUM_TEMPERATURE:0.5}
-
       cooling-factor: ${PAQRAP_ALNS_COOLING_FACTOR:0.995}
-
-      # Adaptación de pesos destroy/repair.
       reaction-factor: ${PAQRAP_ALNS_REACTION_FACTOR:0.20}

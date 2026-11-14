@@ -246,6 +246,7 @@ final class ContinuacionRutaService {
                             primera.stop(),
                             combinado,
                             primera.arrivedAt(),
+                            primera.serviceStartedAt(),
                             primera.completedAt(),
                             primera.loadBefore(),
                             primera.loadAfter()

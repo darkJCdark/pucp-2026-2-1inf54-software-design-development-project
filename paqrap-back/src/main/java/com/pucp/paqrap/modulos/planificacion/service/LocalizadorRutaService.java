@@ -9,6 +9,7 @@ import com.pucp.paqrap.modulos.planificacion.algoritmo.common.ScheduledDeliveryR
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.ScheduledRouteStop;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryRoute;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryStop;
+import com.pucp.paqrap.modulos.planificacion.entity.TransferStop;
 import com.pucp.paqrap.modulos.redvial.entity.Location;
 import com.pucp.paqrap.modulos.redvial.entity.RoadLeg;
 
@@ -608,6 +609,10 @@ public final class LocalizadorRutaService {
                     .plus(
                             DeliveryStop.SERVICE_TIME
                     );
+        }
+
+        if (parada.stop() instanceof TransferStop) {
+            return parada.serviceStartedAt().plus(TransferStop.SERVICE_TIME);
         }
 
         /*

@@ -19,6 +19,7 @@ import com.pucp.paqrap.modulos.planificacion.dto.PlanResponse;
 import com.pucp.paqrap.modulos.planificacion.dto.RutaResponse;
 import com.pucp.paqrap.modulos.planificacion.entity.ShiftSchedule;
 import com.pucp.paqrap.modulos.planificacion.service.PlanVigente;
+import com.pucp.paqrap.modulos.redvial.entity.Location;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -95,11 +96,53 @@ public class DetalleOperacionService {
                 .thenComparingInt(VehiculoDetalleResponse.ProximaEntrega::orden));
         MonitoreoResponse.MotivoDetencion motivo = refrigerioHasta == null ? null
                 : MonitoreoResponse.MotivoDetencion.REFRIGERIO;
-        return new VehiculoDetalleResponse(vehiculo.id(), vehiculo.tipo(), vehiculo.estado(), vehiculo.x(),
-                vehiculo.y(), vehiculo.cargaActual(), capacidad, vehiculo.disponibleDesde(), motivo, refrigerioHasta, instante,
-                new VehiculoDetalleResponse.Turno(turno.startsAt(), turno.endsAt()),
-                new VehiculoDetalleResponse.Turno(alimentacion.startsAt(), alimentacion.endsAt()),
-                rutaId, List.copyOf(proximas));
+        Location posicion =
+                vehiculo.estado() ==
+                        VehicleOperationalStatus.IN_ROUTE
+
+                        ? ejecutorPlan
+                                .posicionEstimada(
+                                        ejecucionId,
+                                        id,
+                                        instante
+                                )
+                                .orElse(
+                                        new Location(
+                                                vehiculo.x(),
+                                                vehiculo.y()
+                                        )
+                                )
+
+                        : new Location(
+                                vehiculo.x(),
+                                vehiculo.y()
+                        );
+
+        return new VehiculoDetalleResponse(
+                vehiculo.id(),
+                vehiculo.tipo(),
+                vehiculo.estado(),
+                posicion.x(),
+                posicion.y(),
+                vehiculo.cargaActual(),
+                capacidad,
+                vehiculo.disponibleDesde(),
+                motivo,
+                refrigerioHasta,
+                instante,
+                new VehiculoDetalleResponse.Turno(
+                        turno.startsAt(),
+                        turno.endsAt()
+                ),
+                new VehiculoDetalleResponse.Turno(
+                        alimentacion.startsAt(),
+                        alimentacion.endsAt()
+                ),
+                rutaId,
+                List.copyOf(
+                        proximas
+                )
+        );
     }
 
     public AlmacenDetalleResponse almacen(String id, long ejecucionId, int horas) {

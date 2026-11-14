@@ -9,6 +9,7 @@ import java.util.Optional;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.ScheduledDeliveryRoute;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.ScheduledRouteStop;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryStop;
+import com.pucp.paqrap.modulos.planificacion.entity.TransferStop;
 import com.pucp.paqrap.modulos.redvial.entity.RoadLeg;
 
 /**
@@ -108,6 +109,7 @@ final class CheckpointRutaService {
                             actual.stop(),
                             actual.approach(),
                             actual.arrivedAt(),
+                            actual.serviceStartedAt(),
                             finServicio,
                             actual.loadBefore(),
                             actual.loadAfter()
@@ -330,11 +332,15 @@ final class CheckpointRutaService {
         ) {
 
             return parada
-                    .arrivedAt()
+                    .serviceStartedAt()
                     .plus(
                             DeliveryStop
                                     .SERVICE_TIME
                     );
+        }
+
+        if (parada.stop() instanceof TransferStop) {
+            return parada.serviceStartedAt().plus(TransferStop.SERVICE_TIME);
         }
 
         return parada.arrivedAt();

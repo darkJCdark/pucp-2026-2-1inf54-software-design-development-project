@@ -1,26 +1,25 @@
 services:
-
   # ==========================================
   # MYSQL
   # ==========================================
-
   db:
     image: mysql:8.4
     restart: unless-stopped
 
     environment:
-      MYSQL_DATABASE: ${PAQRAP_DB_NAME}
-      MYSQL_USER: ${PAQRAP_DB_USER}
-      MYSQL_PASSWORD: ${PAQRAP_DB_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${PAQRAP_DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${PAQRAP_DB_NAME:-paqrap}
+      MYSQL_USER: ${PAQRAP_DB_USER:-paqrap}
+      MYSQL_PASSWORD: ${PAQRAP_DB_PASSWORD:-paqrap_dev}
+      MYSQL_ROOT_PASSWORD: ${PAQRAP_DB_ROOT_PASSWORD:-paqrap_root_dev}
 
+    # IMPORTANTE:
+    # Publicamos MySQL para poder ejecutar Spring Boot
+    # directamente desde Windows.
     ports:
-      - "127.0.0.1:330:3306"
+      - "3306:3306"
 
     volumes:
       - paqrap_mysql_data:/var/lib/mysql
-      - ./paqrap-back/database/paqrap_schema_v2.sql:/docker-entrypoint-initdb.d/01_schema_v2.sql:ro
-      - ./paqrap-back/database/paqrap_seed_v2.sql:/docker-entrypoint-initdb.d/02_seed_v2.sql:ro
 
     healthcheck:
       test:
@@ -33,11 +32,13 @@ services:
       retries: 20
       start_period: 20s
 
-
   # ==========================================
   # BACKEND SPRING BOOT
   # ==========================================
-
+  #
+  # Este servicio queda disponible para despliegue Docker,
+  # aunque para desarrollo tú puedes ejecutar el backend
+  # directamente con mvn spring-boot:run.
   backend:
     build:
       context: ./paqrap-back
@@ -45,20 +46,35 @@ services:
     restart: unless-stopped
 
     environment:
-      PAQRAP_DB_URL: "jdbc:mysql://db:3306/${PAQRAP_DB_NAME}?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&rewriteBatchedStatements=true&useSSL=false&allowPublicKeyRetrieval=true"
-      PAQRAP_DB_USER: ${PAQRAP_DB_USER}
-      PAQRAP_DB_PASSWORD: ${PAQRAP_DB_PASSWORD}
+      PAQRAP_DB_URL: "jdbc:mysql://db:3306/${PAQRAP_DB_NAME:-paqrap}?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&rewriteBatchedStatements=true&useSSL=false&allowPublicKeyRetrieval=true"
+      PAQRAP_DB_USER: ${PAQRAP_DB_USER:-paqrap}
+      PAQRAP_DB_PASSWORD: ${PAQRAP_DB_PASSWORD:-paqrap_dev}
 
       PAQRAP_PORT: 8080
 
-      PAQRAP_ESCENARIOS_TICK: ${PAQRAP_ESCENARIOS_TICK}
-      PAQRAP_FACTOR_CINCO_DIAS: ${PAQRAP_FACTOR_CINCO_DIAS}
-      PAQRAP_FACTOR_COLAPSO: ${PAQRAP_FACTOR_COLAPSO}
-      PAQRAP_INTERVALO_PLANIFICACION: ${PAQRAP_INTERVALO_PLANIFICACION}
+      PAQRAP_ESCENARIOS_TICK: ${PAQRAP_ESCENARIOS_TICK:-1s}
+      PAQRAP_FACTOR_CINCO_DIAS: ${PAQRAP_FACTOR_CINCO_DIAS:-160}
+      PAQRAP_FACTOR_COLAPSO: ${PAQRAP_FACTOR_COLAPSO:-1440}
+      PAQRAP_INTERVALO_PLANIFICACION: ${PAQRAP_INTERVALO_PLANIFICACION:-1h}
 
-      PAQRAP_PLAN_MAX_PEDIDOS: ${PAQRAP_PLAN_MAX_PEDIDOS}
-      PAQRAP_PLAN_PRESUPUESTO_MS: ${PAQRAP_PLAN_PRESUPUESTO_MS}
-      PAQRAP_PLAN_MAX_TRAMO_KM: ${PAQRAP_PLAN_MAX_TRAMO_KM}
+      PAQRAP_PLAN_ALGORITMO: ${PAQRAP_PLAN_ALGORITMO:-SA}
+      PAQRAP_PLAN_OBJETIVO: ${PAQRAP_PLAN_OBJETIVO:-SERVICE_THEN_COST}
+
+      PAQRAP_PLAN_MAX_PEDIDOS: ${PAQRAP_PLAN_MAX_PEDIDOS:-100}
+      PAQRAP_PLAN_PRESUPUESTO_MS: ${PAQRAP_PLAN_PRESUPUESTO_MS:-1500}
+      PAQRAP_PLAN_MAX_TRAMO_KM: ${PAQRAP_PLAN_MAX_TRAMO_KM:-0}
+
+      PAQRAP_ALNS_MAX_PEDIDOS: ${PAQRAP_ALNS_MAX_PEDIDOS:-20000}
+      PAQRAP_ALNS_INITIAL_BATCH_SIZE: ${PAQRAP_ALNS_INITIAL_BATCH_SIZE:-32}
+      PAQRAP_ALNS_CANDIDATE_VEHICLES: ${PAQRAP_ALNS_CANDIDATE_VEHICLES:-6}
+      PAQRAP_ALNS_MIN_ROUTES_TO_REMOVE: ${PAQRAP_ALNS_MIN_ROUTES_TO_REMOVE:-1}
+      PAQRAP_ALNS_MAX_ROUTES_TO_REMOVE: ${PAQRAP_ALNS_MAX_ROUTES_TO_REMOVE:-6}
+      PAQRAP_ALNS_MAX_ITERATIONS: ${PAQRAP_ALNS_MAX_ITERATIONS:-800}
+      PAQRAP_ALNS_MAX_NO_IMPROVEMENT: ${PAQRAP_ALNS_MAX_NO_IMPROVEMENT:-200}
+      PAQRAP_ALNS_INITIAL_TEMPERATURE: ${PAQRAP_ALNS_INITIAL_TEMPERATURE:-50.0}
+      PAQRAP_ALNS_MINIMUM_TEMPERATURE: ${PAQRAP_ALNS_MINIMUM_TEMPERATURE:-0.5}
+      PAQRAP_ALNS_COOLING_FACTOR: ${PAQRAP_ALNS_COOLING_FACTOR:-0.995}
+      PAQRAP_ALNS_REACTION_FACTOR: ${PAQRAP_ALNS_REACTION_FACTOR:-0.20}
 
     depends_on:
       db:
@@ -67,11 +83,9 @@ services:
     ports:
       - "127.0.0.1:8081:8080"
 
-
   # ==========================================
   # FRONTEND REACT + NGINX
   # ==========================================
-
   frontend:
     build:
       context: ./paqrap-front
@@ -85,9 +99,8 @@ services:
       - "127.0.0.1:3000:80"
 
 
-# ============================================
+# ==========================================
 # VOLUMEN PERSISTENTE MYSQL
-# ============================================
-
+# ==========================================
 volumes:
   paqrap_mysql_data:

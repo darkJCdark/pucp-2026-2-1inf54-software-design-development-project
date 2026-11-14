@@ -1,0 +1,26 @@
+VALIDACIÓN REALIZADA EN EL ENTORNO DE ENTREGA
+Fecha: 2026-11-11
+
+Limitación del entorno:
+- Maven no estaba instalado.
+- No se pudo ejecutar la resolución completa de dependencias ni la suite Surefire.
+- Se utilizó OpenJDK 21 y las clases compiladas incluidas en el ZIP, con stubs mínimos
+  solo para comprobar sintaxis y enlaces de los archivos modificados.
+
+Resultados:
+1. Compilación de 13 archivos principales modificados/nuevos: OK
+2. Compilación de 4 pruebas JUnit nuevas: OK
+3. Smoke WarehouseSelectionPolicy:
+   WAREHOUSE_POLICY_OK supply=EAST terminal=EAST
+4. Smoke ALNS multi-almacén y operadores:
+   ALNS_MULTIWAREHOUSE_OK terminalEast=true pickupEast=true
+   destroy=[related-route-removal, random-route-removal, worst-route-removal]
+   repair=[regret-3-insertion, cheapest-insertion, regret-2-insertion]
+5. Smoke posición/carga de ruta activa:
+   POSITION_STATE_OK location=28,14 load=7 availableAt=2028-12-01T02:24:00Z
+6. Smoke inserción en ruta activa:
+   ACTIVE_MULTIWAREHOUSE_OK stops=4
+
+Validación obligatoria en la máquina del proyecto:
+- Ejecutar .\VALIDAR_CAMBIOS_ALNS.ps1
+- Confirmar mvn test completo en verde.

@@ -7,3 +7,8 @@ paqrap-front/node_modules/
 paqrap-front/dist/
 
 .idea/
+# Backups locales de MySQL
+paqrap-back/backup_*.sql
+
+# Backups locales de BD
+paqrap-back/backup_*.sql

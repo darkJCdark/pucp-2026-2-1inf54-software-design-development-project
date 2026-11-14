@@ -77,6 +77,12 @@ public class VehicleEntity {
         this.operationalStatus = operationalStatus;
     }
 
+    /** Inicio de la disponibilidad tras acabar una ruta; sirve para detectar ociosidad. */
+    public void finalizarRutaEn(Instant instante) {
+        this.operationalStatus = VehicleOperationalStatus.AVAILABLE;
+        this.availableAt = java.util.Objects.requireNonNull(instante);
+    }
+
     /** Posición y carga actuales mientras se ejecuta una ruta. */
     public void moverA(int x, int y, int carga) {
         this.currentX = x;

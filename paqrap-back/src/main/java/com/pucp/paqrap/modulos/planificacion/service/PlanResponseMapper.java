@@ -21,6 +21,7 @@ import com.pucp.paqrap.modulos.planificacion.dto.ViolacionResponse;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryRoute;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryStop;
 import com.pucp.paqrap.modulos.planificacion.entity.RouteStop;
+import com.pucp.paqrap.modulos.planificacion.entity.TransferStop;
 import com.pucp.paqrap.modulos.planificacion.entity.WarehouseVisit;
 import com.pucp.paqrap.modulos.redvial.entity.RoadLeg;
 import com.pucp.paqrap.modulos.redvial.entity.RoadPath;
@@ -229,6 +230,8 @@ final class PlanResponseMapper {
 
                                 llegada,
 
+                                parada.serviceStartedAt(),
+
                                 parada.completedAt(),
 
                                 parada.loadBefore(),
@@ -258,6 +261,7 @@ final class PlanResponseMapper {
                         aParada(
                                 orden++,
                                 parada,
+                                null,
                                 null,
                                 null,
                                 null,
@@ -329,10 +333,14 @@ final class PlanResponseMapper {
         ) {
 
             return parada
-                    .arrivedAt()
+                    .serviceStartedAt()
                     .plus(
                             DeliveryStop.SERVICE_TIME
                     );
+        }
+
+        if (parada.stop() instanceof TransferStop) {
+            return parada.serviceStartedAt().plus(TransferStop.SERVICE_TIME);
         }
 
         /*
@@ -406,6 +414,7 @@ final class PlanResponseMapper {
             int orden,
             RouteStop parada,
             Instant llegada,
+            Instant inicioServicio,
             Instant fin,
             Integer cargaAntes,
             Integer cargaDespues,
@@ -450,7 +459,15 @@ final class PlanResponseMapper {
 
                             inicioRefrigerio,
 
-                            camino
+                            camino,
+
+                            inicioServicio,
+
+                            null,
+
+                            null,
+
+                            null
                     );
 
             case WarehouseVisit almacen ->
@@ -486,7 +503,55 @@ final class PlanResponseMapper {
 
                             inicioRefrigerio,
 
-                            camino
+                            camino,
+
+                            inicioServicio,
+
+                            null,
+
+                            null,
+
+                            null
+                    );
+
+
+            case TransferStop transfer ->
+                    new ParadaResponse(
+                            orden,
+
+                            transfer.donates()
+                                    ? ParadaResponse.TRANSBORDO_SALIDA
+                                    : ParadaResponse.TRANSBORDO_ENTRADA,
+
+                            transfer.order().id(),
+
+                            null,
+
+                            transfer.location().x(),
+
+                            transfer.location().y(),
+
+                            transfer.packages(),
+
+                            llegada,
+
+                            fin,
+
+                            cargaAntes,
+
+                            cargaDespues,
+
+                            inicioRefrigerio,
+
+                            camino,
+
+                            inicioServicio,
+
+                            transfer.transferId(),
+
+                            transfer.counterpartyVehicleId(),
+
+                            transfer.direction().name()
                     );
         };
     }

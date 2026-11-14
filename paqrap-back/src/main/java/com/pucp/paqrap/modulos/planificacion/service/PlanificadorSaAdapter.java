@@ -4,12 +4,14 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
@@ -19,6 +21,7 @@ import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository
 import com.pucp.paqrap.modulos.pedidos.entity.Order;
 import com.pucp.paqrap.modulos.pedidos.persistence.OrderEntity;
 import com.pucp.paqrap.modulos.pedidos.repository.OrderRepository;
+import com.pucp.paqrap.modulos.planificacion.algoritmo.common.ObjetivoPlanificacion;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.simulatedannealing.AnnealingConfig;
 import com.pucp.paqrap.modulos.planificacion.dto.ModoOperacion;
 import com.pucp.paqrap.modulos.planificacion.dto.PlanResponse;
@@ -29,29 +32,48 @@ import com.pucp.paqrap.modulos.redvial.persistence.RoadBlockEntity;
 import com.pucp.paqrap.modulos.redvial.repository.RoadBlockRepository;
 
 /**
- * Conecta MotorEscenarios con el planificador.
+ * Adaptador entre el motor de escenarios y la planificación.
  *
- * El nombre histórico PlanificadorSaAdapter se
- * conserva por compatibilidad.
+ * Conserva el nombre histórico PlanificadorSaAdapter para no
+ * romper la arquitectura existente, pero el algoritmo real
+ * puede ser:
  *
- * El algoritmo activo puede ser SA o ALNS.
+ *     SA
+ *
+ * o:
+ *
+ *     ALNS
+ *
+ * según:
+ *
+ *     paqrap.planificacion.algoritmo
+ *
+ * Cuando se usa ALNS, también muestra el objetivo:
+ *
+ *     ALNS/SERVICE_MAX
+ *
+ * o:
+ *
+ *     ALNS/SERVICE_THEN_COST
  */
 @Component
 public class PlanificadorSaAdapter
-        implements PlanificadorPort, PlanVigente {
+        implements PlanificadorPort,
+        PlanVigente {
 
     private static final Logger log =
             LoggerFactory.getLogger(
                     PlanificadorSaAdapter.class
             );
 
-    private static final Duration HORIZONTE =
-            Duration.ofHours(
-                    36
-            );
-
     private static final int TAMANO_PAGINA =
             500;
+
+    /*
+     * =====================================================
+     * DEPENDENCIAS
+     * =====================================================
+     */
 
     private final ReplanificacionService replanificacion;
 
@@ -61,36 +83,47 @@ public class PlanificadorSaAdapter
 
     private final ScenarioExecutionRepository ejecucionRepository;
 
-    private final AlgoritmoPlanificacion algoritmo;
-
     /*
-     * SA mantiene el tope histórico.
+     * =====================================================
+     * CONFIGURACIÓN
+     * =====================================================
      */
+
     private final int maxPedidosSa;
 
-    /*
-     * ALNS puede recibir una cantidad mucho mayor.
-     */
     private final int maxPedidosAlns;
 
     private final long presupuestoMs;
 
-    private final Map<
-            Long,
-            ReplanificacionResponse
-            > ultimaReplanificacion =
+    private final String algoritmo;
+
+    private final ObjetivoPlanificacion objetivo;
+
+    /** Horizonte móvil usado para consultar restricciones futuras relevantes. */
+    private final Duration horizonteDecision;
+
+    /*
+     * =====================================================
+     * ESTADO
+     * =====================================================
+     */
+
+    private final Map<Long, ReplanificacionResponse>
+            ultimaReplanificacion =
             new ConcurrentHashMap<>();
 
+    /*
+     * =====================================================
+     * CONSTRUCTOR SPRING
+     * =====================================================
+     */
+
+    @Autowired
     public PlanificadorSaAdapter(
             ReplanificacionService replanificacion,
             OrderRepository pedidoRepository,
             RoadBlockRepository bloqueoRepository,
             ScenarioExecutionRepository ejecucionRepository,
-
-            @Value(
-                    "${paqrap.planificacion.algoritmo:SA}"
-            )
-            String algoritmo,
 
             @Value(
                     "${paqrap.planificacion.max-pedidos:100}"
@@ -105,7 +138,22 @@ public class PlanificadorSaAdapter
             @Value(
                     "${paqrap.planificacion.presupuesto-ms:1500}"
             )
-            long presupuestoMs
+            long presupuestoMs,
+
+            @Value(
+                    "${paqrap.planificacion.algoritmo:SA}"
+            )
+            String algoritmo,
+
+            @Value(
+                    "${paqrap.planificacion.objetivo:SERVICE_THEN_COST}"
+            )
+            String objetivo,
+
+            @Value(
+                    "${paqrap.escenarios.horizonte-decision:36h}"
+            )
+            Duration horizonteDecision
     ) {
 
         this.replanificacion =
@@ -120,17 +168,12 @@ public class PlanificadorSaAdapter
         this.ejecucionRepository =
                 ejecucionRepository;
 
-        this.algoritmo =
-                AlgoritmoPlanificacion.desde(
-                        algoritmo
-                );
-
         if (
                 maxPedidosSa <= 0
         ) {
 
             throw new IllegalArgumentException(
-                    "paqrap.planificacion.max-pedidos debe ser positivo"
+                    "maxPedidosSa debe ser positivo"
             );
         }
 
@@ -139,7 +182,16 @@ public class PlanificadorSaAdapter
         ) {
 
             throw new IllegalArgumentException(
-                    "paqrap.planificacion.alns.max-pedidos debe ser positivo"
+                    "maxPedidosAlns debe ser positivo"
+            );
+        }
+
+        if (
+                presupuestoMs <= 0
+        ) {
+
+            throw new IllegalArgumentException(
+                    "presupuestoMs debe ser positivo"
             );
         }
 
@@ -151,7 +203,74 @@ public class PlanificadorSaAdapter
 
         this.presupuestoMs =
                 presupuestoMs;
+
+        this.algoritmo =
+                normalizarAlgoritmo(
+                        algoritmo
+                );
+
+        this.objetivo =
+                ObjetivoPlanificacion.parse(
+                        objetivo
+                );
+
+        this.horizonteDecision =
+                horizonteDecision == null
+                        || horizonteDecision.isZero()
+                        || horizonteDecision.isNegative()
+                        ? Duration.ofHours(36)
+                        : horizonteDecision;
     }
+
+    /*
+     * =====================================================
+     * CONSTRUCTOR COMPATIBLE CON TESTS ANTIGUOS
+     * =====================================================
+     *
+     * Cualquier test que todavía construya:
+     *
+     * new PlanificadorSaAdapter(
+     *     replanificacion,
+     *     orderRepository,
+     *     roadBlockRepository,
+     *     executionRepository,
+     *     100,
+     *     1500
+     * )
+     *
+     * sigue compilando.
+     */
+
+    public PlanificadorSaAdapter(
+            ReplanificacionService replanificacion,
+            OrderRepository pedidoRepository,
+            RoadBlockRepository bloqueoRepository,
+            ScenarioExecutionRepository ejecucionRepository,
+            int maxPedidos,
+            long presupuestoMs
+    ) {
+
+        this(
+                replanificacion,
+                pedidoRepository,
+                bloqueoRepository,
+                ejecucionRepository,
+                maxPedidos,
+                20_000,
+                presupuestoMs,
+                "SA",
+                ObjetivoPlanificacion
+                        .SERVICE_THEN_COST
+                        .name(),
+                Duration.ofHours(36)
+        );
+    }
+
+    /*
+     * =====================================================
+     * CICLO
+     * =====================================================
+     */
 
     @Override
     public ResultadoCiclo planificar(
@@ -173,10 +292,15 @@ public class PlanificadorSaAdapter
                                 null
                         );
 
+        /*
+         * Cada escenario solo puede conocer pedidos que
+         * llegaron desde su inicio simulado.
+         */
         Instant inicio =
                 ejecucion != null
-                        ? ejecucion
-                                .getSimulationStartedAt()
+
+                        ? ejecucion.getSimulationStartedAt()
+
                         : Instant.EPOCH;
 
         List<RoadBlock> horizonte =
@@ -184,7 +308,7 @@ public class PlanificadorSaAdapter
                         .buscarQueSeCruzan(
                                 instante,
                                 instante.plus(
-                                        HORIZONTE
+                                        horizonteDecision
                                 )
                         )
                         .stream()
@@ -197,20 +321,22 @@ public class PlanificadorSaAdapter
 
         ReplanificacionResponse respuesta;
 
-        /*
-         * =================================================
-         * PLAN INICIAL
-         * =================================================
-         */
-
         if (
-                solicitud.motivo() ==
-                        Motivo.INICIAL ||
+                solicitud.motivo()
+                        ==
+                        Motivo.INICIAL
 
+                ||
                 !replanificacion.estaIniciada(
                         ejecucionId
                 )
         ) {
+
+            /*
+             * =================================================
+             * PLAN INICIAL
+             * =================================================
+             */
 
             replanificacion.finalizar(
                     ejecucionId
@@ -240,8 +366,7 @@ public class PlanificadorSaAdapter
 
                                     ejecucion == null
                                             ? null
-                                            : ejecucion
-                                                    .getSaSeed(),
+                                            : ejecucion.getSaSeed(),
 
                                     presupuestoMs,
 
@@ -254,9 +379,9 @@ public class PlanificadorSaAdapter
         } else {
 
             /*
-             * =============================================
+             * =================================================
              * REPLANIFICACIÓN
-             * =============================================
+             * =================================================
              */
 
             List<RoadBlock> bloqueos =
@@ -265,8 +390,7 @@ public class PlanificadorSaAdapter
                     );
 
             bloqueos.addAll(
-                    solicitud
-                            .bloqueosIniciados()
+                    solicitud.bloqueosIniciados()
             );
 
             respuesta =
@@ -282,17 +406,17 @@ public class PlanificadorSaAdapter
 
                                     bloqueos,
 
-                                    solicitud
-                                            .bloqueosTerminados(),
+                                    solicitud.bloqueosTerminados(),
 
-                                    solicitud
-                                            .averias(),
+                                    solicitud.averias(),
 
-                                    solicitud
-                                            .averiasTerminadas(),
+                                    solicitud.averiasTerminadas(),
 
-                                    solicitud
-                                            .tiposFlotaActualizados()
+                                    solicitud.tiposFlotaActualizados(),
+
+                                    motivoReplanificacionDe(solicitud.motivo()),
+
+                                    solicitud.fallosTransbordo()
                             ),
 
                             instante
@@ -307,22 +431,39 @@ public class PlanificadorSaAdapter
         PlanResponse plan =
                 respuesta.plan();
 
-        /*
-         * Ahora el log indica qué algoritmo
-         * produjo el plan.
-         */
         log.info(
-                "Ejecución {} [{}] ({} -> {} n.º {} en {}): {} rutas ({} conservadas, {} nuevas), {} no atendidos, {} ms",
+                "Ejecución {} [{}] ({} -> {} n.º {} en {}): "
+                        +
+                        "{} rutas ({} conservadas, {} nuevas), "
+                        +
+                        "{} no atendidos, {} ms",
+
                 ejecucionId,
-                algoritmo,
+
+                etiquetaAlgoritmo(),
+
                 solicitud.motivo(),
+
                 respuesta.motivo(),
+
                 respuesta.numeroReplanificacion(),
+
                 instante,
+
                 plan.rutas().size(),
-                respuesta.rutasConservadas().size(),
-                respuesta.rutasNuevas().size(),
-                plan.noAtendidos().size(),
+
+                respuesta
+                        .rutasConservadas()
+                        .size(),
+
+                respuesta
+                        .rutasNuevas()
+                        .size(),
+
+                plan
+                        .noAtendidos()
+                        .size(),
+
                 plan.duracionMs()
         );
 
@@ -330,6 +471,27 @@ public class PlanificadorSaAdapter
                 plan.colapso()
         );
     }
+
+    private static com.pucp.paqrap.modulos.planificacion.dto.MotivoReplanificacion
+    motivoReplanificacionDe(Motivo motivo) {
+        return switch (motivo) {
+            case ROLLING_HORIZON ->
+                    com.pucp.paqrap.modulos.planificacion.dto.MotivoReplanificacion.ROLLING_HORIZON;
+            case RIESGO_ETA ->
+                    com.pucp.paqrap.modulos.planificacion.dto.MotivoReplanificacion.RIESGO_ETA;
+            case FIN_RUTA ->
+                    com.pucp.paqrap.modulos.planificacion.dto.MotivoReplanificacion.FIN_RUTA;
+            case TRANSBORDO_FALLIDO ->
+                    com.pucp.paqrap.modulos.planificacion.dto.MotivoReplanificacion.TRANSBORDO_FALLIDO;
+            default -> null;
+        };
+    }
+
+    /*
+     * =====================================================
+     * FINALIZACIÓN
+     * =====================================================
+     */
 
     @Override
     public void finalizar(
@@ -340,6 +502,12 @@ public class PlanificadorSaAdapter
                 ejecucionId
         );
     }
+
+    /*
+     * =====================================================
+     * MÉTRICAS
+     * =====================================================
+     */
 
     @Override
     public Optional<
@@ -353,6 +521,12 @@ public class PlanificadorSaAdapter
         );
     }
 
+    /*
+     * =====================================================
+     * PLAN VIGENTE
+     * =====================================================
+     */
+
     @Override
     public Optional<PlanResponse> ultimoPlan(
             long ejecucionId
@@ -360,12 +534,22 @@ public class PlanificadorSaAdapter
 
         return ultimaReplanificacion(
                 ejecucionId
-        ).map(
-                ReplanificacionResponse::plan
-        );
+        )
+                .map(
+                        ReplanificacionResponse::plan
+                );
     }
 
-    public Optional<ReplanificacionResponse> ultimaReplanificacion(
+    /**
+     * Último resultado de replanificación con:
+     *
+     * - rutas conservadas;
+     * - rutas nuevas;
+     * - reasignaciones;
+     * - unidades no disponibles.
+     */
+    public Optional<ReplanificacionResponse>
+    ultimaReplanificacion(
             long ejecucionId
     ) {
 
@@ -378,27 +562,27 @@ public class PlanificadorSaAdapter
 
     /*
      * =====================================================
-     * PEDIDOS NUEVOS
+     * PEDIDOS
      * =====================================================
      */
 
+    /**
+     * Devuelve pedidos que:
+     *
+     * - ya llegaron;
+     * - pertenecen al periodo actual;
+     * - todavía no son conocidos por la ejecución.
+     *
+     * Nunca conoce pedidos futuros.
+     */
     private List<Order> pedidosNuevos(
             long ejecucionId,
             Instant inicio,
             Instant instante
     ) {
 
-        /*
-         * Aquí eliminamos finalmente el cuello de
-         * botella artificial de 100 pedidos cuando
-         * estamos usando ALNS.
-         */
         int limite =
-                algoritmo ==
-                        AlgoritmoPlanificacion.ALNS
-
-                        ? maxPedidosAlns
-                        : maxPedidosSa;
+                maxPedidosActual();
 
         List<Order> nuevos =
                 new ArrayList<>();
@@ -410,16 +594,15 @@ public class PlanificadorSaAdapter
         ) {
 
             List<OrderEntity> registrados =
-                    pedidoRepository
-                            .registradosEnDesde(
-                                    inicio,
-                                    instante,
+                    pedidoRepository.registradosEnDesde(
+                            inicio,
+                            instante,
 
-                                    PageRequest.of(
-                                            pagina,
-                                            TAMANO_PAGINA
-                                    )
-                            );
+                            PageRequest.of(
+                                    pagina,
+                                    TAMANO_PAGINA
+                            )
+                    );
 
             for (
                     OrderEntity pedido :
@@ -427,15 +610,13 @@ public class PlanificadorSaAdapter
             ) {
 
                 if (
-                        nuevos.size() <
-                                limite &&
+                        nuevos.size() < limite
 
-                        !replanificacion
-                                .conocePedido(
-                                        ejecucionId,
-                                        pedido
-                                                .getOrderId()
-                                )
+                        &&
+                        !replanificacion.conocePedido(
+                                ejecucionId,
+                                pedido.getOrderId()
+                        )
                 ) {
 
                     nuevos.add(
@@ -445,7 +626,8 @@ public class PlanificadorSaAdapter
             }
 
             if (
-                    registrados.size() <
+                    registrados.size()
+                            <
                             TAMANO_PAGINA
             ) {
 
@@ -458,39 +640,36 @@ public class PlanificadorSaAdapter
 
     /*
      * =====================================================
-     * CONFIGURACIÓN SA
+     * CONFIGURACIÓN SA DEL ESCENARIO
      * =====================================================
-     *
-     * Se mantiene porque ScenarioExecutionEntity todavía
-     * almacena los parámetros históricos de SA.
-     *
-     * Si ALNS está seleccionado, PlanificadorSaService
-     * simplemente los ignora.
      */
 
     private AnnealingConfig configuracionSa(
             ScenarioExecutionEntity ejecucion
     ) {
 
-        return ejecucion == null
-                ? PlanificadorSaService
-                        .configuracionPorDefecto()
+        if (
+                ejecucion == null
+        ) {
 
-                : PlanificadorSaService
-                        .configuracionConParametros(
-                                ejecucion
-                                        .getSaInitialTemperature(),
+            return PlanificadorSaService
+                    .configuracionPorDefecto();
+        }
 
-                                ejecucion
-                                        .getSaMinimumTemperature(),
-
-                                ejecucion
-                                        .getSaCoolingFactor(),
-
-                                ejecucion
-                                        .getSaIterationsPerTemperature()
-                        );
+        return PlanificadorSaService
+                .configuracionConParametros(
+                        ejecucion.getSaInitialTemperature(),
+                        ejecucion.getSaMinimumTemperature(),
+                        ejecucion.getSaCoolingFactor(),
+                        ejecucion.getSaIterationsPerTemperature()
+                );
     }
+
+    /*
+     * =====================================================
+     * MODO
+     * =====================================================
+     */
 
     private ModoOperacion modo(
             ScenarioExecutionEntity ejecucion
@@ -500,8 +679,7 @@ public class PlanificadorSaAdapter
                 ejecucion == null
         ) {
 
-            return ModoOperacion
-                    .SIMULACION_5D;
+            return ModoOperacion.SIMULACION_5D;
         }
 
         return switch (
@@ -509,16 +687,87 @@ public class PlanificadorSaAdapter
         ) {
 
             case DAY_TO_DAY ->
-                    ModoOperacion
-                            .DIA_A_DIA;
+                    ModoOperacion.DIA_A_DIA;
 
             case FIVE_DAY ->
-                    ModoOperacion
-                            .SIMULACION_5D;
+                    ModoOperacion.SIMULACION_5D;
 
             case COLLAPSE ->
-                    ModoOperacion
-                            .COLAPSO;
+                    ModoOperacion.COLAPSO;
+        };
+    }
+
+    /*
+     * =====================================================
+     * ALGORITMO
+     * =====================================================
+     */
+
+    private int maxPedidosActual() {
+
+        return "ALNS".equals(
+                algoritmo
+        )
+                ? maxPedidosAlns
+                : maxPedidosSa;
+    }
+
+    private String etiquetaAlgoritmo() {
+
+        if (
+                "ALNS".equals(
+                        algoritmo
+                )
+        ) {
+
+            return "ALNS/"
+                    +
+                    objetivo.name();
+        }
+
+        return "SA";
+    }
+
+    private static String normalizarAlgoritmo(
+            String algoritmo
+    ) {
+
+        if (
+                algoritmo == null
+                ||
+                algoritmo.isBlank()
+        ) {
+
+            return "SA";
+        }
+
+        String normalized =
+                algoritmo
+                        .trim()
+                        .toUpperCase(
+                                Locale.ROOT
+                        );
+
+        return switch (
+                normalized
+        ) {
+
+            case "SA",
+                 "SIMULATED_ANNEALING" ->
+
+                    "SA";
+
+            case "ALNS" ->
+
+                    "ALNS";
+
+            default ->
+
+                    throw new IllegalArgumentException(
+                            "Algoritmo desconocido: "
+                                    +
+                                    algoritmo
+                    );
         };
     }
 }

@@ -17,6 +17,7 @@ import com.pucp.paqrap.modulos.incidencias.dto.AveriaResponse;
 import com.pucp.paqrap.modulos.incidencias.service.AveriaService;
 import com.pucp.paqrap.modulos.monitoreo.dto.MonitoreoResponse;
 import com.pucp.paqrap.modulos.pedidos.service.PedidoService;
+import com.pucp.paqrap.modulos.redvial.entity.Location;
 import com.pucp.paqrap.modulos.redvial.service.BloqueoService;
 import org.springframework.stereotype.Service;
 
@@ -106,8 +107,39 @@ public class MonitoreoService {
                         motivo = MonitoreoResponse.MotivoDetencion.REFRIGERIO;
                         hasta = refrigerio.get();
                     }
-                    return new MonitoreoResponse.Vehiculo(v.id(), v.tipo(), v.estado(), v.x(), v.y(),
-                            v.cargaActual(), averiadoHasta.get(v.id()), motivo, hasta);
+                    Location posicion =
+                            v.estado() ==
+                                    VehicleOperationalStatus.IN_ROUTE
+
+                                    ? ejecutorPlan
+                                            .posicionEstimada(
+                                                    ejecucionId,
+                                                    v.id(),
+                                                    instante
+                                            )
+                                            .orElse(
+                                                    new Location(
+                                                            v.x(),
+                                                            v.y()
+                                                    )
+                                            )
+
+                                    : new Location(
+                                            v.x(),
+                                            v.y()
+                                    );
+
+                    return new MonitoreoResponse.Vehiculo(
+                            v.id(),
+                            v.tipo(),
+                            v.estado(),
+                            posicion.x(),
+                            posicion.y(),
+                            v.cargaActual(),
+                            averiadoHasta.get(v.id()),
+                            motivo,
+                            hasta
+                    );
                 })
                 .toList();
 

@@ -14,6 +14,7 @@ import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
 import com.pucp.paqrap.modulos.pedidos.entity.PedidoRegistrado;
 import com.pucp.paqrap.modulos.pedidos.repository.OrderRepository;
 import com.pucp.paqrap.modulos.planificacion.service.PlanificadorPort;
+import com.pucp.paqrap.modulos.planificacion.service.FalloTransbordoOperativo;
 import com.pucp.paqrap.modulos.planificacion.service.ReplanificacionService;
 import com.pucp.paqrap.modulos.planificacion.service.PlanificadorSinOperacion;
 import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
@@ -76,12 +77,16 @@ public class MotorEscenarios {
         private final ScenarioType tipo;
         private final SimulationClock reloj;
         private Instant proximaPlanificacion;
+        /** Próximo escaneo barato de ETAs comprometidas. */
+        private Instant proximaRevisionRolling;
         /** Los eventos de la simulación ya se procesaron hasta este instante simulado. */
         private Instant procesadoHasta;
         /** Bloqueos que empezaron y averías ocurridas desde el último plan: exigen replanificar en el próximo tick. */
         private final List<RoadBlock> bloqueosPendientes = new ArrayList<>();
         private final List<RoadBlock> bloqueosTerminadosPendientes = new ArrayList<>();
         private final List<BreakdownEvent> averiasPendientes = new ArrayList<>();
+        /** Encuentros cancelados cuyo manifiesto físico debe recuperarse en el siguiente plan. */
+        private final List<FalloTransbordoOperativo> fallosTransbordoPendientes = new ArrayList<>();
         /** Averías cuya ventana de indisponibilidad terminó desde el último plan. */
         private final List<BreakdownEvent> averiasTerminadasPendientes = new ArrayList<>();
         /** Llegaron pedidos desde el último plan: se replanifica en el próximo tick. */
@@ -293,6 +298,19 @@ public class MotorEscenarios {
                 activo.pedidosPendientes = true;
             }
         }
+        List<FalloTransbordoOperativo> fallosTransbordo =
+                ejecutorPlan.consumirFallosTransbordo(ejecucionId);
+        activo.fallosTransbordoPendientes.addAll(fallosTransbordo);
+        boolean finRuta = ejecutorPlan.consumirFinRuta(ejecucionId);
+        boolean revisionRollingVencida = activo.proximaRevisionRolling == null
+                || !ahora.isBefore(activo.proximaRevisionRolling);
+        List<EjecutorPlanService.PedidoEnRiesgo> riesgos = revisionRollingVencida
+                ? ejecutorPlan.pedidosEnRiesgo(
+                        ejecucionId,
+                        activo.procesadoHasta,
+                        propiedades.ventanaRiesgoRolling())
+                : List.of();
+
         if (revisarColapso(ejecucionId, activo)) {
             return;
         }
@@ -305,9 +323,28 @@ public class MotorEscenarios {
             planificar(ejecucionId, activo, PlanificadorPort.Motivo.INCIDENCIA);
         } else if (activo.pedidosPendientes) {
             planificar(ejecucionId, activo, PlanificadorPort.Motivo.NUEVO_PEDIDO);
+        } else if (!activo.fallosTransbordoPendientes.isEmpty()) {
+            planificar(ejecucionId, activo, PlanificadorPort.Motivo.TRANSBORDO_FALLIDO);
         } else if (!activo.tiposFlotaCambiados.isEmpty() || !ahora.isBefore(activo.proximaPlanificacion)) {
             planificar(ejecucionId, activo, PlanificadorPort.Motivo.PERIODICO);
+        } else if (propiedades.replanificarFinRuta() && finRuta) {
+            /* Reactiva inmediatamente la flota que terminó, sin esperar la hora siguiente. */
+            planificar(ejecucionId, activo, PlanificadorPort.Motivo.FIN_RUTA);
+        } else if (revisionRollingVencida && !riesgos.isEmpty()) {
+            log.info("Ejecución {}: rolling horizon detectó {} pedidos con ETA en riesgo",
+                    ejecucionId, riesgos.size());
+            planificar(ejecucionId, activo, PlanificadorPort.Motivo.RIESGO_ETA);
+        } else if (revisionRollingVencida) {
+            activo.proximaRevisionRolling = activo.procesadoHasta
+                    .plus(propiedades.intervaloRevisionRolling());
         }
+    }
+
+    private static boolean esRevisionLocal(PlanificadorPort.Motivo motivo) {
+        return motivo == PlanificadorPort.Motivo.ROLLING_HORIZON
+                || motivo == PlanificadorPort.Motivo.RIESGO_ETA
+                || motivo == PlanificadorPort.Motivo.FIN_RUTA
+                || motivo == PlanificadorPort.Motivo.TRANSBORDO_FALLIDO;
     }
 
     /**
@@ -320,12 +357,21 @@ public class MotorEscenarios {
         planificador().planificar(new PlanificadorPort.SolicitudCiclo(
                 ejecucionId, ahora, motivo, activo.bloqueosPendientes, activo.bloqueosTerminadosPendientes,
                 activo.averiasPendientes, activo.averiasTerminadasPendientes,
-                List.copyOf(activo.tiposFlotaCambiados)));
-        activo.proximaPlanificacion = ahora.plus(propiedades.intervaloPlanificacion());
+                List.copyOf(activo.tiposFlotaCambiados),
+                List.copyOf(activo.fallosTransbordoPendientes)));
+        /*
+         * Una revisión local no desplaza la optimización global periódica.
+         * Así evitamos que muchos rescates pospongan indefinidamente el ciclo completo.
+         */
+        if (!esRevisionLocal(motivo) || activo.proximaPlanificacion == null) {
+            activo.proximaPlanificacion = ahora.plus(propiedades.intervaloPlanificacion());
+        }
+        activo.proximaRevisionRolling = ahora.plus(propiedades.intervaloRevisionRolling());
         activo.bloqueosPendientes.clear();
         activo.bloqueosTerminadosPendientes.clear();
         activo.averiasPendientes.clear();
         activo.averiasTerminadasPendientes.clear();
+        activo.fallosTransbordoPendientes.clear();
         activo.pedidosPendientes = false;
         activo.tiposFlotaCambiados.clear();
     }

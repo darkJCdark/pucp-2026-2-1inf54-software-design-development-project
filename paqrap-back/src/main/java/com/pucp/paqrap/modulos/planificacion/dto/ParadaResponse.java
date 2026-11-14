@@ -4,101 +4,68 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Parada de una ruta.
+ * Parada programada de una ruta.
  *
- * {@code tipo} es:
+ * <p>Tipos soportados:</p>
+ * <ul>
+ *   <li>ENTREGA: utiliza {@code pedidoId}.</li>
+ *   <li>ALMACEN: utiliza {@code almacenId}.</li>
+ *   <li>TRANSBORDO_SALIDA / TRANSBORDO_ENTRADA: utiliza los campos de transferencia.</li>
+ * </ul>
  *
- * - ENTREGA: utiliza pedidoId.
- * - ALMACEN: utiliza almacenId.
- *
- * El campo que no corresponde es null.
- *
- * En una entrega, {@code paquetes} representa
- * paquetes entregados.
- *
- * En un almacén, representa paquetes recargados.
- *
- * Tiempos:
- *
- * {@code llegada}
- *     Hora física en la que el vehículo llega
- *     a la parada. Para un pedido, esta es la
- *     hora utilizada para comprobar el SLA.
- *
- * {@code inicioRefrigerio}
- *     Si el conductor toma refrigerio después
- *     de atender esta parada, indica cuándo
- *     comienza el refrigerio.
- *
- *     En una entrega normalmente equivale a:
- *
- *       llegada + 1 hora de servicio.
- *
- *     Es null cuando no se toma refrigerio.
- *
- * {@code fin}
- *     Hora en la que el vehículo puede abandonar
- *     la parada.
- *
- *     Incluye:
- *
- *       servicio
- *       +
- *       refrigerio, cuando corresponda.
- *
- * {@code camino}
- *     Nodos reales de la cuadrícula utilizados
- *     para llegar a esta parada. Incluye origen
- *     y destino y respeta los bloqueos.
+ * <p>{@code inicioServicio} puede ser posterior a {@code llegada} cuando la
+ * unidad debe esperar a su contraparte en un encuentro sincronizado.</p>
  */
 public record ParadaResponse(
-
         int orden,
-
         String tipo,
-
         String pedidoId,
-
         String almacenId,
-
         int x,
-
         int y,
-
         int paquetes,
-
         Instant llegada,
-
         Instant fin,
-
         Integer cargaAntes,
-
         Integer cargaDespues,
-
         Instant inicioRefrigerio,
-
-        List<Punto> camino
-
+        List<Punto> camino,
+        Instant inicioServicio,
+        String transferenciaId,
+        String vehiculoContraparteId,
+        String direccionTransferencia
 ) {
 
-    public static final String ENTREGA =
-            "ENTREGA";
+    public static final String ENTREGA = "ENTREGA";
+    public static final String ALMACEN = "ALMACEN";
+    public static final String TRANSBORDO_SALIDA = "TRANSBORDO_SALIDA";
+    public static final String TRANSBORDO_ENTRADA = "TRANSBORDO_ENTRADA";
 
-    public static final String ALMACEN =
-            "ALMACEN";
-
-    /**
-     * Nodo de la cuadrícula.
-     */
-    public record Punto(
-            int x,
-            int y
-    ) {
+    public record Punto(int x, int y) {
     }
 
-    /**
-     * Parada sin refrigerio ni camino conocido.
-     */
+    /** Conserva el contrato JSON/Java anterior. */
+    public ParadaResponse(
+            int orden,
+            String tipo,
+            String pedidoId,
+            String almacenId,
+            int x,
+            int y,
+            int paquetes,
+            Instant llegada,
+            Instant fin,
+            Integer cargaAntes,
+            Integer cargaDespues,
+            Instant inicioRefrigerio,
+            List<Punto> camino
+    ) {
+        this(orden, tipo, pedidoId, almacenId, x, y, paquetes, llegada, fin,
+                cargaAntes, cargaDespues, inicioRefrigerio, camino,
+                llegada, null, null, null);
+    }
+
+    /** Parada sin refrigerio ni camino conocido. */
     public ParadaResponse(
             int orden,
             String tipo,
@@ -112,27 +79,11 @@ public record ParadaResponse(
             Integer cargaAntes,
             Integer cargaDespues
     ) {
-
-        this(
-                orden,
-                tipo,
-                pedidoId,
-                almacenId,
-                x,
-                y,
-                paquetes,
-                llegada,
-                fin,
-                cargaAntes,
-                cargaDespues,
-                null,
-                null
-        );
+        this(orden, tipo, pedidoId, almacenId, x, y, paquetes, llegada, fin,
+                cargaAntes, cargaDespues, null, null, llegada, null, null, null);
     }
 
-    /**
-     * Parada sin camino conocido.
-     */
+    /** Parada sin camino conocido. */
     public ParadaResponse(
             int orden,
             String tipo,
@@ -147,21 +98,12 @@ public record ParadaResponse(
             Integer cargaDespues,
             Instant inicioRefrigerio
     ) {
+        this(orden, tipo, pedidoId, almacenId, x, y, paquetes, llegada, fin,
+                cargaAntes, cargaDespues, inicioRefrigerio, null,
+                llegada, null, null, null);
+    }
 
-        this(
-                orden,
-                tipo,
-                pedidoId,
-                almacenId,
-                x,
-                y,
-                paquetes,
-                llegada,
-                fin,
-                cargaAntes,
-                cargaDespues,
-                inicioRefrigerio,
-                null
-        );
+    public boolean esTransbordo() {
+        return TRANSBORDO_SALIDA.equals(tipo) || TRANSBORDO_ENTRADA.equals(tipo);
     }
 }

@@ -1,7 +1,6 @@
 package com.pucp.paqrap.modulos.escenarios.service;
 
 import com.pucp.paqrap.modulos.almacenes.persistence.WarehouseEntity;
-import com.pucp.paqrap.modulos.almacenes.persistence.WarehouseKind;
 import com.pucp.paqrap.modulos.almacenes.repository.WarehouseRepository;
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleEntity;
@@ -35,9 +34,10 @@ import java.util.stream.Collectors;
  * <ul>
  *   <li>{@link Causa#PLAZO_VENCIDO}: un pedido llegó a su plazo sin entregarse, o se entregó después (dato real del
  *       ejecutor del plan). El colapso ocurre en ese plazo.</li>
- *   <li>{@link Causa#PLAZO_INALCANZABLE}: un pedido que aún no salió no llegaría a tiempo ni en el mejor caso: salir
- *       ahora del central, por el camino más corto sin bloqueos (distancia Manhattan), con el tipo de vehículo más
- *       rápido que tenga unidades habilitadas. Como esa cota es optimista, el incumplimiento es seguro.</li>
+ *   <li>{@link Causa#PLAZO_INALCANZABLE}: un pedido no llegaría a tiempo ni en una cota deliberadamente optimista:
+ *       salir ahora desde el mejor origen entre todos los almacenes y las posiciones actuales de la flota, por distancia
+ *       Manhattan, sin bloqueos ni tiempo de carga, usando la velocidad máxima habilitada. Como la cota favorece al
+ *       sistema, solo se declara imposibilidad cuando incluso ese mejor caso incumple.</li>
  * </ul>
  * Se guarda el primer colapso de cada ejecución con las condiciones de ese momento (RF_106).
  */
@@ -118,25 +118,39 @@ public class DetectorColapso {
     }
 
     private Optional<Colapso> plazoInalcanzable(Instant inicio, Instant instante, List<VehicleEntity> habilitados) {
-        Optional<WarehouseEntity> central = almacenRepository.findAll().stream()
-                .filter(almacen -> almacen.getWarehouseKind() == WarehouseKind.CENTRAL)
-                .findFirst();
+        List<WarehouseEntity> almacenes = almacenRepository.findAll();
         Set<VehicleType> tipos = habilitados.stream().map(VehicleEntity::getVehicleType)
                 .collect(Collectors.toCollection(() -> EnumSet.noneOf(VehicleType.class)));
         OptionalDouble velocidad = tipoRepository.findAll().stream()
                 .filter(tipo -> tipos.contains(tipo.getVehicleType()))
                 .mapToDouble(tipo -> tipo.toDomain().speedKmPerHour())
                 .max();
-        // Sin central o sin flota no hay cota que calcular; el plazo vencido lo detectará.
-        if (central.isEmpty() || velocidad.isEmpty() || velocidad.getAsDouble() <= 0) {
+
+        // Sin ningún origen o sin flota no hay una cota útil; PLAZO_VENCIDO lo detectará.
+        if ((almacenes.isEmpty() && habilitados.isEmpty())
+                || velocidad.isEmpty() || velocidad.getAsDouble() <= 0) {
             return Optional.empty();
         }
+
         for (int pagina = 0; ; pagina++) {
-            List<OrderEntity> pendientes = pedidoRepository.registradosEnDesde(inicio, instante,
+            List<OrderEntity> pendientes = pedidoRepository.pendientesEnDesde(inicio, instante,
                     PageRequest.of(pagina, TAMANO_PAGINA));
             for (OrderEntity pedido : pendientes) {
-                double km = Math.abs(pedido.getDestinationX() - central.get().getX())
-                        + Math.abs(pedido.getDestinationY() - central.get().getY());
+                double kmAlmacen = almacenes.stream()
+                        .mapToDouble(almacen -> distanciaManhattan(
+                                pedido.getDestinationX(), pedido.getDestinationY(),
+                                almacen.getX(), almacen.getY()))
+                        .min()
+                        .orElse(Double.POSITIVE_INFINITY);
+
+                double kmVehiculo = habilitados.stream()
+                        .mapToDouble(vehiculo -> distanciaManhattan(
+                                pedido.getDestinationX(), pedido.getDestinationY(),
+                                vehiculo.getCurrentX(), vehiculo.getCurrentY()))
+                        .min()
+                        .orElse(Double.POSITIVE_INFINITY);
+
+                double km = Math.min(kmAlmacen, kmVehiculo);
                 Instant llegadaMinima = instante.plus(
                         Duration.ofMillis(Math.round(km / velocidad.getAsDouble() * 3_600_000)));
                 if (llegadaMinima.isAfter(pedido.getDeadline())) {
@@ -148,6 +162,10 @@ public class DetectorColapso {
                 return Optional.empty();
             }
         }
+    }
+
+    private static double distanciaManhattan(int x1, int y1, int x2, int y2) {
+        return Math.abs(x1 - x2) + Math.abs(y1 - y2);
     }
 
     private Colapso colapso(Instant momento, Causa causa, OrderEntity pedido, Instant llegadaMinima, Instant inicio,

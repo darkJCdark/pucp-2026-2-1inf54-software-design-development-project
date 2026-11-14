@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import java.time.Clock;
 
 @Configuration
-@EnableConfigurationProperties(EscenariosProperties.class)
+@EnableConfigurationProperties({EscenariosProperties.class, RescatePreventivoProperties.class})
 public class EscenariosConfig {
 
     /** Reloj real del sistema; los tests lo reemplazan con un bean {@code @Primary} controlable. */

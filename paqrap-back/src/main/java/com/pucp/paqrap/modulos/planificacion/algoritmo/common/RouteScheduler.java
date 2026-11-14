@@ -13,6 +13,7 @@ import com.pucp.paqrap.modulos.planificacion.entity.DeliveryStop;
 import com.pucp.paqrap.modulos.planificacion.entity.OperationalSnapshot;
 import com.pucp.paqrap.modulos.planificacion.entity.RouteStop;
 import com.pucp.paqrap.modulos.planificacion.entity.ShiftSchedule;
+import com.pucp.paqrap.modulos.planificacion.entity.TransferStop;
 import com.pucp.paqrap.modulos.planificacion.entity.WarehouseVisit;
 import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 import com.pucp.paqrap.modulos.redvial.entity.RoadPath;
@@ -269,6 +270,7 @@ public final class RouteScheduler {
              * =================================================
              */
 
+            Instant serviceStartedAt = arrivedAt;
             Instant serviceCompletedAt;
 
             if (
@@ -281,7 +283,7 @@ public final class RouteScheduler {
                                 .deliveredPackages();
 
                 serviceCompletedAt =
-                        arrivedAt.plus(
+                        serviceStartedAt.plus(
                                 DeliveryStop
                                         .SERVICE_TIME
                         );
@@ -295,7 +297,29 @@ public final class RouteScheduler {
                         visit.pickupPackages();
 
                 serviceCompletedAt =
-                        arrivedAt;
+                        serviceStartedAt;
+
+            } else if (
+                    stop instanceof
+                            TransferStop transfer
+            ) {
+
+                /*
+                 * El vehículo puede llegar antes y esperar en el nodo seguro.
+                 * Si llega tarde, el evaluador de pares rechazará el encuentro.
+                 */
+                if (transfer.meetingAt().isAfter(serviceStartedAt)) {
+                    serviceStartedAt = transfer.meetingAt();
+                }
+
+                loadAfter += transfer.receives()
+                        ? transfer.packages()
+                        : -transfer.packages();
+
+                serviceCompletedAt =
+                        serviceStartedAt.plus(
+                                TransferStop.SERVICE_TIME
+                        );
 
             } else {
 
@@ -368,6 +392,7 @@ public final class RouteScheduler {
                             stop,
                             approach,
                             arrivedAt,
+                            serviceStartedAt,
                             completedAt,
                             loadBefore,
                             loadAfter
@@ -607,6 +632,18 @@ public final class RouteScheduler {
                     DeliveryStop
                             .SERVICE_TIME
             );
+        }
+
+        if (
+                stop instanceof
+                        TransferStop transfer
+        ) {
+
+            Instant inicio = transfer.meetingAt().isAfter(llegada)
+                    ? transfer.meetingAt()
+                    : llegada;
+
+            return inicio.plus(TransferStop.SERVICE_TIME);
         }
 
         /*

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
@@ -21,9 +22,11 @@ import com.pucp.paqrap.modulos.flota.service.MaintenanceCalendar;
 import com.pucp.paqrap.modulos.pedidos.entity.Order;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.OperationalPlanEvaluator;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.RouteScheduler;
+import com.pucp.paqrap.modulos.planificacion.entity.DeliveryStop;
 import com.pucp.paqrap.modulos.planificacion.entity.OperationalPlan;
 import com.pucp.paqrap.modulos.planificacion.entity.OperationalSnapshot;
 import com.pucp.paqrap.modulos.planificacion.entity.ShiftSchedule;
+import com.pucp.paqrap.modulos.planificacion.entity.WarehouseVisit;
 import com.pucp.paqrap.modulos.redvial.entity.Location;
 import com.pucp.paqrap.modulos.redvial.service.RoadNetwork;
 
@@ -243,6 +246,48 @@ class SlaRescueInsertionSupportTest {
                         .orElseThrow()
                         .vehicleId()
         );
+    }
+
+    @Test
+    void reutilizaCargaResidualSinForzarUnaRecargaEnAlmacen() {
+
+        Warehouse central = Warehouse.central(
+                "CENTRAL", new Location(27, 14));
+        Warehouse east = Warehouse.intermediate(
+                "EAST", new Location(57, 27), 1_000);
+        Vehicle vehicle = new Vehicle(
+                "TM01", VehicleType.MOTORCYCLE, true);
+        OperationalSnapshot snapshot = new OperationalSnapshot(
+                T0,
+                FleetProfile.defaults(),
+                InventorySnapshot.from(List.of(central, east)),
+                Map.of(vehicle.id(), new VehicleOperationalState(
+                        vehicle, VehicleStatus.AVAILABLE,
+                        east.location(), 3, T0)),
+                new MaintenanceCalendar(
+                        ShiftSchedule.DEFAULT_ZONE, List.of()),
+                ShiftSchedule.defaultSchedule(),
+                List.of());
+        Order order = new Order(
+                "CARGA-RESIDUAL", new Location(59, 27), 3,
+                T0, T0.plus(Duration.ofHours(2)));
+
+        var resultado = support.bestValidatedInsertion(
+                OperationalPlan.empty(),
+                new DeliveryDemand(order, order.packages()),
+                snapshot,
+                List.of(order),
+                List.of(),
+                Long.MAX_VALUE);
+
+        assertTrue(resultado.isPresent());
+        var route = resultado.orElseThrow().plan().routes().iterator().next();
+        assertEquals(3, route.initialLoad());
+        assertTrue(route.stops().getFirst() instanceof DeliveryStop);
+        assertFalse(route.stops().stream()
+                .filter(WarehouseVisit.class::isInstance)
+                .map(WarehouseVisit.class::cast)
+                .anyMatch(visit -> visit.pickupPackages() > 0));
     }
 
     private Fixture fixture() {

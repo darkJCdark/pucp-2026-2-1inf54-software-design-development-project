@@ -8,18 +8,22 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import com.pucp.paqrap.modulos.almacenes.entity.InventorySnapshot;
 import com.pucp.paqrap.modulos.almacenes.entity.Warehouse;
 import com.pucp.paqrap.modulos.flota.entity.VehicleOperationalState;
 import com.pucp.paqrap.modulos.pedidos.entity.Order;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.OperationalPlanEvaluator;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.PlanEvaluation;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.ScheduledRouteStop;
+import com.pucp.paqrap.modulos.planificacion.algoritmo.common.WarehouseSelectionPolicy;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryRoute;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryStop;
 import com.pucp.paqrap.modulos.planificacion.entity.OperationalPlan;
 import com.pucp.paqrap.modulos.planificacion.entity.OperationalSnapshot;
 import com.pucp.paqrap.modulos.planificacion.entity.RouteStop;
+import com.pucp.paqrap.modulos.planificacion.entity.TransferStop;
 import com.pucp.paqrap.modulos.planificacion.entity.WarehouseVisit;
+import com.pucp.paqrap.modulos.redvial.entity.Location;
 import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 
 final class InsertionSupport {
@@ -30,6 +34,9 @@ final class InsertionSupport {
 
     private final VehicleSelectionPolicy vehicleSelection =
             new VehicleSelectionPolicy();
+
+    private final WarehouseSelectionPolicy warehouseSelection =
+            new WarehouseSelectionPolicy();
 
     InsertionSupport(
             OperationalPlanEvaluator evaluator,
@@ -256,25 +263,12 @@ final class InsertionSupport {
          * Para SLA prioritario usamos llegada solamente
          * como desempate.
          */
-        valid.sort(
-                Comparator
-                        .comparingDouble(
-                                (InsertionCandidate candidate) ->
-                                        candidate
-                                                .evaluation()
-                                                .totalCost()
-                        )
-
-                        .thenComparing(
-                                (InsertionCandidate candidate) ->
-                                        slaRescue
-                                                ? arrivalForOrder(
-                                                        candidate.evaluation(),
-                                                        demand.order().id()
-                                                )
-                                                : Instant.MAX
-                        )
-        );
+        valid.sort(Comparator
+                .comparingDouble((InsertionCandidate candidate) ->
+                        candidate.evaluation().totalCost())
+                .thenComparing(candidate ->
+                        arrivalForOrder(candidate.evaluation(), demand.order().id()))
+                .thenComparing(InsertionCandidate::vehicleId));
 
         return valid;
     }
@@ -318,64 +312,23 @@ final class InsertionSupport {
             Order order,
             boolean slaRescue
     ) {
-
-        int costComparison =
-                Double.compare(
-                        candidate
-                                .evaluation()
-                                .totalCost(),
-
-                        current
-                                .evaluation()
-                                .totalCost()
-                );
-
-        if (
-                costComparison < 0
-        ) {
-            return true;
-        }
-
-        if (
-                costComparison > 0
-        ) {
-            return false;
-        }
-
         /*
-         * Mismo costo:
-         *
-         * para pedidos prioritarios preferimos el que
-         * llegue antes.
+         * El gate SLA ya amplió la búsqueda y el evaluador descartó todas las
+         * alternativas tardías. Entre soluciones factibles vuelve a dominar el
+         * costo; la ETA solo desempata y evita gastar vehículos rápidos sin
+         * beneficio de servicio.
          */
-        if (
-                slaRescue
-        ) {
-
-            Instant candidateArrival =
-                    arrivalForOrder(
-                            candidate.evaluation(),
-                            order.id()
-                    );
-
-            Instant currentArrival =
-                    arrivalForOrder(
-                            current.evaluation(),
-                            order.id()
-                    );
-
-            return candidateArrival.isBefore(
-                    currentArrival
-            );
+        int cost = Double.compare(candidate.evaluation().totalCost(),
+                                  current.evaluation().totalCost());
+        if (cost != 0) {
+            return cost < 0;
         }
-
-        return candidate
-                .vehicleId()
-                .compareTo(
-                        current.vehicleId()
-                )
-                <
-                0;
+        int arrival = arrivalForOrder(candidate.evaluation(), order.id())
+                .compareTo(arrivalForOrder(current.evaluation(), order.id()));
+        if (arrival != 0) {
+            return arrival < 0;
+        }
+        return candidate.vehicleId().compareTo(current.vehicleId()) < 0;
     }
 
     private Instant arrivalForOrder(
@@ -504,6 +457,13 @@ final class InsertionSupport {
                             capacity
                     );
 
+            InventorySnapshot availableInventory =
+                    remainingInventory(
+                            snapshot.inventory(),
+                            updated
+                    );
+
+            OperationalPlan planBeforeAppend = updated;
             DeliveryRoute route =
                     updated
                             .routeForVehicle(
@@ -516,9 +476,11 @@ final class InsertionSupport {
                                     existing ->
                                             appendAfterReturn(
                                                     existing,
-                                                    central,
                                                     demand.order(),
-                                                    quantity
+                                                    quantity,
+                                                    snapshot,
+                                                    availableInventory,
+                                                    planBeforeAppend
                                             )
                             )
 
@@ -529,7 +491,9 @@ final class InsertionSupport {
                                                     central,
                                                     demand.order(),
                                                     quantity,
-                                                    snapshot
+                                                    snapshot,
+                                                    availableInventory,
+                                                    planBeforeAppend
                                             )
                             );
 
@@ -550,11 +514,39 @@ final class InsertionSupport {
             Warehouse central,
             Order order,
             int quantity,
-            OperationalSnapshot snapshot
+            OperationalSnapshot snapshot,
+            InventorySnapshot availableInventory,
+            OperationalPlan partialPlan
     ) {
+
+        Warehouse terminal =
+                warehouseSelection
+                        .bestTerminalWarehouse(
+                                order.destination(),
+                                snapshot,
+                                partialPlan,
+                                order,
+                                state.vehicle().id()
+                        );
+
+        int suppliedFromVehicle =
+                Math.min(
+                        state.carriedPackages(),
+                        quantity
+                );
+
+        int pickupQuantity =
+                quantity
+                        -
+                        suppliedFromVehicle;
 
         DeliveryRoute route;
 
+        /*
+         * Regla del caso: la primera salida vacía del escenario parte del
+         * Central. Una unidad que ya conserva producto P reutiliza primero esa
+         * carga y recoge únicamente la cantidad faltante.
+         */
         if (
                 state
                         .location()
@@ -610,33 +602,51 @@ final class InsertionSupport {
                                     state.carriedPackages(),
 
                                     snapshot.planningTime()
-                            )
-
-                            .withAppendedStop(
-                                    new WarehouseVisit(
-                                            central,
-                                            quantity
-                                    )
-                            )
-
-                            .withAppendedStop(
-                                    new DeliveryStop(
-                                            order,
-                                            quantity
-                                    )
                             );
+
+            if (
+                    pickupQuantity > 0
+            ) {
+
+                Warehouse supply =
+                        warehouseSelection
+                                .bestSupplyWarehouse(
+                                        state.location(),
+                                        order,
+                                        pickupQuantity,
+                                        availableInventory
+                                );
+
+                route =
+                        route.withAppendedStop(
+                                new WarehouseVisit(
+                                        supply,
+                                        pickupQuantity
+                                )
+                        );
+            }
+
+            route =
+                    route.withAppendedStop(
+                            new DeliveryStop(
+                                    order,
+                                    quantity
+                            )
+                    );
         }
 
         return route.returningTo(
-                central
+                terminal
         );
     }
 
     private DeliveryRoute appendAfterReturn(
             DeliveryRoute route,
-            Warehouse central,
             Order order,
-            int quantity
+            int quantity,
+            OperationalSnapshot snapshot,
+            InventorySnapshot availableInventory,
+            OperationalPlan partialPlan
     ) {
 
         List<RouteStop> stops =
@@ -655,18 +665,70 @@ final class InsertionSupport {
             stops.removeLast();
         }
 
-        return route
-                .withReplacedStops(
+        DeliveryRoute withoutReturn =
+                route.withReplacedStops(
                         stops
-                )
+                );
 
-                .withAppendedStop(
-                        new WarehouseVisit(
-                                central,
-                                quantity
+        Location origin =
+                stops.isEmpty()
+                        ? route.startLocation()
+                        : stops
+                                .getLast()
+                                .location();
+
+        int availableLoad =
+                Math.max(
+                        0,
+                        projectedFinalLoad(
+                                withoutReturn
                         )
-                )
+                );
 
+        int pickupQuantity =
+                quantity
+                        -
+                        Math.min(
+                                availableLoad,
+                                quantity
+                        );
+
+        DeliveryRoute extended =
+                withoutReturn;
+
+        if (
+                pickupQuantity > 0
+        ) {
+
+            Warehouse supply =
+                    warehouseSelection
+                            .bestSupplyWarehouse(
+                                    origin,
+                                    order,
+                                    pickupQuantity,
+                                    availableInventory
+                            );
+
+            extended =
+                    extended.withAppendedStop(
+                            new WarehouseVisit(
+                                    supply,
+                                    pickupQuantity
+                            )
+                    );
+        }
+
+        Warehouse terminal =
+                warehouseSelection
+                        .bestTerminalWarehouse(
+                                order.destination(),
+                                snapshot,
+                                partialPlan,
+                                order,
+                                route.vehicle().id()
+                        );
+
+        return extended
                 .withAppendedStop(
                         new DeliveryStop(
                                 order,
@@ -675,8 +737,97 @@ final class InsertionSupport {
                 )
 
                 .returningTo(
-                        central
+                        terminal
                 );
+    }
+
+    private int projectedFinalLoad(
+            DeliveryRoute route
+    ) {
+
+        int load =
+                route.initialLoad();
+
+        for (
+                RouteStop stop :
+                route.stops()
+        ) {
+
+            if (
+                    stop instanceof WarehouseVisit visit
+            ) {
+                load +=
+                        visit.pickupPackages();
+
+            } else if (
+                    stop instanceof DeliveryStop delivery
+            ) {
+                load -=
+                        delivery.deliveredPackages();
+
+            } else if (
+                    stop instanceof TransferStop transfer
+            ) {
+                load +=
+                        transfer.receives()
+                                ? transfer.packages()
+                                : -transfer.packages();
+            }
+        }
+
+        return load;
+    }
+
+    private InventorySnapshot remainingInventory(
+            InventorySnapshot inventory,
+            OperationalPlan plan
+    ) {
+
+        InventorySnapshot remaining =
+                inventory;
+
+        for (
+                DeliveryRoute route :
+                plan.routes()
+        ) {
+
+            for (
+                    RouteStop stop :
+                    route.stops()
+            ) {
+
+                if (
+                        stop instanceof
+                                WarehouseVisit visit
+                        &&
+                        visit.pickupPackages() > 0
+                ) {
+
+                    if (
+                            !remaining.hasStockFor(
+                                    visit.warehouse().id(),
+                                    visit.pickupPackages()
+                            )
+                    ) {
+
+                        /*
+                         * El evaluador rechazará el plan. Para el
+                         * ranking heurístico evitamos ocultar el
+                         * problema usando stock ficticio.
+                         */
+                        return remaining;
+                    }
+
+                    remaining =
+                            remaining.withdraw(
+                                    visit.warehouse().id(),
+                                    visit.pickupPackages()
+                            );
+                }
+            }
+        }
+
+        return remaining;
     }
 
     private boolean deadlineReached(

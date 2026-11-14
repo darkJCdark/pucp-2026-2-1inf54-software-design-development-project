@@ -13,6 +13,6 @@ import com.pucp.paqrap.modulos.redvial.service.*;
 import com.pucp.paqrap.modulos.redvial.entity.Location;
 
 /** A physical stop in an operational delivery route. */
-public sealed interface RouteStop permits DeliveryStop, WarehouseVisit {
+public sealed interface RouteStop permits DeliveryStop, WarehouseVisit, TransferStop {
     Location location();
 }

@@ -10,6 +10,7 @@ import com.pucp.paqrap.modulos.planificacion.dto.MotivoReplanificacion;
 import com.pucp.paqrap.modulos.planificacion.dto.PlanResponse;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryRoute;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryStop;
+import com.pucp.paqrap.modulos.planificacion.entity.TransferStop;
 import com.pucp.paqrap.modulos.planificacion.entity.OperationalPlan;
 import com.pucp.paqrap.modulos.planificacion.entity.RouteStop;
 import com.pucp.paqrap.modulos.planificacion.entity.WarehouseVisit;
@@ -112,14 +113,23 @@ public class PlanPersistenceService {
         List<RouteStopEntity> paradas = new ArrayList<>();
         for (int indice = 0; indice < ruta.stops().size(); indice++) {
             RouteStop parada = ruta.stops().get(indice);
-            Instant llegada = indice < programadas.size() ? programadas.get(indice).arrivedAt() : null;
+            ScheduledRouteStop paradaProgramada = indice < programadas.size() ? programadas.get(indice) : null;
+            Instant llegada = paradaProgramada == null ? null : paradaProgramada.arrivedAt();
+            Instant inicioServicio = paradaProgramada == null ? null : paradaProgramada.serviceStartedAt();
             paradas.add(switch (parada) {
                 case DeliveryStop entrega -> new RouteStopEntity(rutaPersistida, indice + 1, RouteStopEntity.DELIVERY,
                         referencia(OrderEntity.class, entrega.order().id()), null, entrega.deliveredPackages(),
-                        entrega.location().x(), entrega.location().y(), llegada);
+                        null, null, null, null, entrega.location().x(), entrega.location().y(),
+                        llegada, inicioServicio);
                 case WarehouseVisit almacen -> new RouteStopEntity(rutaPersistida, indice + 1,
                         RouteStopEntity.WAREHOUSE, null, referencia(WarehouseEntity.class, almacen.warehouse().id()),
-                        null, almacen.location().x(), almacen.location().y(), llegada);
+                        null, null, null, null, null, almacen.location().x(), almacen.location().y(),
+                        llegada, inicioServicio);
+                case TransferStop transfer -> new RouteStopEntity(rutaPersistida, indice + 1,
+                        RouteStopEntity.TRANSFER, referencia(OrderEntity.class, transfer.order().id()), null,
+                        null, transfer.packages(), transfer.transferId(), transfer.counterpartyVehicleId(),
+                        transfer.direction().name(), transfer.location().x(), transfer.location().y(),
+                        llegada, inicioServicio);
             });
         }
         return paradas;

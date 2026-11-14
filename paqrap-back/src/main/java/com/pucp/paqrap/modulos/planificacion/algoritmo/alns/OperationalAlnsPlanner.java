@@ -277,7 +277,8 @@ public final class OperationalAlnsPlanner {
         List<DestroyOperator> destroyOperators =
                 List.of(
                         new RandomRouteRemoval(),
-                        new WorstRouteRemoval()
+                        new WorstRouteRemoval(),
+                        new RelatedRouteRemoval()
                 );
 
         List<RepairOperator> repairOperators =
@@ -288,6 +289,11 @@ public final class OperationalAlnsPlanner {
                         ),
 
                         new Regret2InsertionRepair(
+                                evaluator,
+                                config
+                        ),
+
+                        new Regret3InsertionRepair(
                                 evaluator,
                                 config
                         )

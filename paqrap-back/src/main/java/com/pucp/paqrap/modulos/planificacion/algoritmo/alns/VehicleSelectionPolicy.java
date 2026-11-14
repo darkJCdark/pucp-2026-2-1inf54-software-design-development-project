@@ -12,12 +12,16 @@ import com.pucp.paqrap.modulos.almacenes.entity.Warehouse;
 import com.pucp.paqrap.modulos.flota.entity.VehicleOperationalState;
 import com.pucp.paqrap.modulos.flota.entity.VehicleParameters;
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
+import com.pucp.paqrap.modulos.flota.entity.VehicleStatus;
 import com.pucp.paqrap.modulos.pedidos.entity.Order;
+import com.pucp.paqrap.modulos.planificacion.algoritmo.common.WarehouseSelectionPolicy;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryRoute;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryStop;
 import com.pucp.paqrap.modulos.planificacion.entity.OperationalPlan;
 import com.pucp.paqrap.modulos.planificacion.entity.OperationalSnapshot;
 import com.pucp.paqrap.modulos.planificacion.entity.RouteStop;
+import com.pucp.paqrap.modulos.planificacion.entity.TransferStop;
+import com.pucp.paqrap.modulos.planificacion.entity.WarehouseVisit;
 import com.pucp.paqrap.modulos.planificacion.policy.PoliticaPlanificacion;
 import com.pucp.paqrap.modulos.planificacion.policy.PrioridadPedido;
 import com.pucp.paqrap.modulos.redvial.entity.Location;
@@ -47,6 +51,15 @@ final class VehicleSelectionPolicy {
     private final PoliticaPlanificacion politica =
             new PoliticaPlanificacion();
 
+    private final WarehouseSelectionPolicy warehouseSelection =
+            new WarehouseSelectionPolicy();
+
+    /** Un vehículo que terminó su ruta y espera >=30 min no debe quedar fuera del top-K. */
+    static final Duration UMBRAL_OCIOSIDAD = Duration.ofMinutes(30);
+    /** No forzamos candidatos ociosos excesivamente lejos del pedido. */
+    static final Duration MARGEN_LLEGADA_OCIOSA = Duration.ofMinutes(45);
+
+
     List<VehicleOperationalState> rank(
             OperationalPlan plan,
             Order order,
@@ -68,22 +81,6 @@ final class VehicleSelectionPolicy {
                 "snapshot is required"
         );
 
-        Warehouse central =
-                snapshot
-                        .inventory()
-                        .warehouses()
-                        .stream()
-                        .filter(
-                                Warehouse::isCentral
-                        )
-                        .findFirst()
-                        .orElseThrow(
-                                () ->
-                                        new IllegalStateException(
-                                                "The snapshot requires a central warehouse"
-                                        )
-                        );
-
         List<ScoredVehicle> scored =
                 snapshot
                         .vehiclesById()
@@ -97,23 +94,12 @@ final class VehicleSelectionPolicy {
                                                 snapshot.planningTime()
                                         )
                         )
-
-                        /*
-                         * Las rutas activas con carga física
-                         * se manejan por la capa dinámica.
-                         */
-                        .filter(
-                                state ->
-                                        state.carriedPackages() == 0
-                        )
-
                         .map(
                                 state ->
                                         score(
                                                 plan,
                                                 order,
                                                 snapshot,
-                                                central,
                                                 state
                                         )
                         )
@@ -197,14 +183,28 @@ final class VehicleSelectionPolicy {
         ) {
 
             if (
-                    !diversified.contains(
-                            candidate
-                    )
+                    !diversified.contains(candidate)
             ) {
+                diversified.add(candidate);
+            }
+        }
 
-                diversified.add(
-                        candidate
-                );
+        // Reactivación: abrir al menos una plaza del top-K a una unidad que lleva
+        // >=30 min libre en un intermedio, si tiene una ETA competitiva y SLA viable.
+        // La primera opción original se conserva. Bajo presión el ranking de SLA
+        // ya evalúa TODOS los vehículos, por lo que no hace falta preferencia extra.
+        if (!warehouseSelection.urgent(order, snapshot) && diversified.size() > 1) {
+            ScoredVehicle mejor = diversified.getFirst();
+            ScoredVehicle ocioso = scored.stream()
+                    .filter(v -> idleAtIntermediate(v.state(), snapshot))
+                    .filter(v -> !v.estimatedSlaMiss())
+                    .filter(v -> !v.latestDeliveryArrival().isAfter(
+                            mejor.latestDeliveryArrival().plus(MARGEN_LLEGADA_OCIOSA)))
+                    .findFirst()
+                    .orElse(null);
+            if (ocioso != null && !ocioso.equals(mejor)) {
+                diversified.remove(ocioso);
+                diversified.add(1, ocioso);
             }
         }
 
@@ -232,16 +232,25 @@ final class VehicleSelectionPolicy {
                         snapshot
                 );
 
-        return politica.priorizaLlegadaSobreCosto(
-                prioridad
-        );
+        return politica.priorizaLlegadaSobreCosto(prioridad)
+                || warehouseSelection.urgent(order, snapshot);
+    }
+
+    private boolean idleAtIntermediate(VehicleOperationalState state, OperationalSnapshot snapshot) {
+        if (state.status() != VehicleStatus.AVAILABLE
+                || state.availableAt().isAfter(snapshot.planningTime())
+                || Duration.between(state.availableAt(), snapshot.planningTime())
+                            .compareTo(UMBRAL_OCIOSIDAD) < 0) {
+            return false;
+        }
+        return snapshot.inventory().warehouses().stream()
+                .anyMatch(w -> !w.isCentral() && w.location().equals(state.location()));
     }
 
     private ScoredVehicle score(
             OperationalPlan plan,
             Order order,
             OperationalSnapshot snapshot,
-            Warehouse central,
             VehicleOperationalState state
     ) {
 
@@ -260,11 +269,20 @@ final class VehicleSelectionPolicy {
                         parameters.capacity()
                 );
 
-        double oneWayKm =
-                central
-                        .location()
-                        .manhattanDistanceTo(
-                                order.destination()
+        Warehouse central =
+                snapshot
+                        .inventory()
+                        .warehouses()
+                        .stream()
+                        .filter(
+                                Warehouse::isCentral
+                        )
+                        .findFirst()
+                        .orElseThrow(
+                                () ->
+                                        new IllegalStateException(
+                                                "The snapshot requires a central warehouse"
+                                        )
                         );
 
         boolean routeAlreadyOpen =
@@ -278,8 +296,9 @@ final class VehicleSelectionPolicy {
 
         Instant demandStartsAt;
 
-        double approachCentralKm =
-                0.0;
+        Location origin;
+
+        int availableLoad;
 
         if (
                 routeAlreadyOpen
@@ -300,6 +319,17 @@ final class VehicleSelectionPolicy {
                             parameters.speedKmPerHour()
                     );
 
+            origin =
+                    routeEndLocation(
+                            route
+                    );
+
+            availableLoad =
+                    Math.max(
+                            0,
+                            projectedFinalLoad(route)
+                    );
+
         } else {
 
             demandStartsAt =
@@ -308,58 +338,33 @@ final class VehicleSelectionPolicy {
                             state.availableAt()
                     );
 
-            if (
-                    !state
-                            .location()
-                            .equals(
-                                    central.location()
-                            )
-            ) {
+            origin =
+                    state.location();
 
-                approachCentralKm =
+            availableLoad =
+                    state.carriedPackages();
+        }
+
+        boolean firstRouteStartsAtCentral =
+                !routeAlreadyOpen
+                        &&
                         state
                                 .location()
-                                .manhattanDistanceTo(
+                                .equals(
                                         central.location()
                                 );
 
-                demandStartsAt =
-                        plusTravel(
-                                demandStartsAt,
-                                approachCentralKm,
-                                parameters.speedKmPerHour()
-                        );
-            }
-        }
-
-        /*
-         * =================================================
-         * COSTO MARGINAL
-         * =================================================
-         */
-
         double marginalDistanceKm =
-                approachCentralKm
-                        +
-                        2.0
-                                *
-                                oneWayKm
-                                *
-                                trips;
-
-        double marginalCost =
-                marginalDistanceKm
-                        *
-                        parameters.costPerKm();
-
-        /*
-         * =================================================
-         * LLEGADA ESTIMADA
-         * =================================================
-         */
+                0.0;
 
         Instant latestDeliveryArrival =
                 demandStartsAt;
+
+        Location tripOrigin =
+                origin;
+
+        int remaining =
+                order.packages();
 
         for (
                 int trip = 0;
@@ -367,10 +372,100 @@ final class VehicleSelectionPolicy {
                 trip++
         ) {
 
+            int quantity =
+                    Math.min(
+                            remaining,
+                            parameters.capacity()
+                    );
+
+            int suppliedFromVehicle =
+                    Math.min(
+                            availableLoad,
+                            quantity
+                    );
+
+            int pickupQuantity =
+                    quantity
+                            -
+                            suppliedFromVehicle;
+
+            Warehouse terminal =
+                    warehouseSelection
+                            .bestTerminalWarehouse(
+                                    order.destination(),
+                                    snapshot.inventory()
+                            );
+
+            double approachSupplyKm;
+            double deliveryKm;
+
+            if (
+                    pickupQuantity == 0
+            ) {
+
+                /*
+                 * La unidad ya lleva suficiente producto P. No la obligamos a
+                 * entrar a un almacén únicamente para reconstruir una carga que
+                 * ya existe físicamente.
+                 */
+                approachSupplyKm = 0.0;
+                deliveryKm =
+                        tripOrigin
+                                .manhattanDistanceTo(
+                                        order.destination()
+                                );
+
+            } else {
+
+                Warehouse supply =
+                        trip == 0
+                                &&
+                                firstRouteStartsAtCentral
+
+                                ? central
+
+                                : warehouseSelection
+                                        .bestSupplyWarehouse(
+                                                tripOrigin,
+                                                order,
+                                                pickupQuantity,
+                                                snapshot.inventory()
+                                        );
+
+                approachSupplyKm =
+                        tripOrigin
+                                .manhattanDistanceTo(
+                                        supply.location()
+                                );
+
+                deliveryKm =
+                        supply
+                                .location()
+                                .manhattanDistanceTo(
+                                        order.destination()
+                                );
+            }
+
+            double repositionKm =
+                    order
+                            .destination()
+                            .manhattanDistanceTo(
+                                    terminal.location()
+                            );
+
+            marginalDistanceKm +=
+                    approachSupplyKm
+                            +
+                            deliveryKm
+                            +
+                            repositionKm;
+
             latestDeliveryArrival =
                     plusTravel(
                             latestDeliveryArrival,
-                            oneWayKm,
+                            approachSupplyKm
+                                    +
+                                    deliveryKm,
                             parameters.speedKmPerHour()
                     );
 
@@ -382,15 +477,22 @@ final class VehicleSelectionPolicy {
                         latestDeliveryArrival.plus(
                                 DeliveryStop.SERVICE_TIME
                         );
-
-                latestDeliveryArrival =
-                        plusTravel(
-                                latestDeliveryArrival,
-                                oneWayKm,
-                                parameters.speedKmPerHour()
-                        );
             }
+
+            availableLoad -=
+                    suppliedFromVehicle;
+
+            tripOrigin =
+                    terminal.location();
+
+            remaining -=
+                    quantity;
         }
+
+        double marginalCost =
+                marginalDistanceKm
+                        *
+                        parameters.costPerKm();
 
         boolean estimatedSlaMiss =
                 latestDeliveryArrival.isAfter(
@@ -405,6 +507,60 @@ final class VehicleSelectionPolicy {
                 latestDeliveryArrival,
                 trips
         );
+    }
+
+
+    private int projectedFinalLoad(
+            DeliveryRoute route
+    ) {
+
+        int load =
+                route.initialLoad();
+
+        for (
+                RouteStop stop :
+                route.stops()
+        ) {
+
+            if (
+                    stop instanceof WarehouseVisit visit
+            ) {
+                load +=
+                        visit.pickupPackages();
+
+            } else if (
+                    stop instanceof DeliveryStop delivery
+            ) {
+                load -=
+                        delivery.deliveredPackages();
+
+            } else if (
+                    stop instanceof TransferStop transfer
+            ) {
+                load +=
+                        transfer.receives()
+                                ? transfer.packages()
+                                : -transfer.packages();
+            }
+        }
+
+        return load;
+    }
+
+    private Location routeEndLocation(
+            DeliveryRoute route
+    ) {
+
+        if (
+                route.stops().isEmpty()
+        ) {
+            return route.startLocation();
+        }
+
+        return route
+                .stops()
+                .getLast()
+                .location();
     }
 
     private Comparator<ScoredVehicle> scoreComparator() {

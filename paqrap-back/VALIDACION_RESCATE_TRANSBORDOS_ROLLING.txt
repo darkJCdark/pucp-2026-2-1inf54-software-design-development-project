@@ -1,0 +1,35 @@
+VALIDACIÓN REALIZADA EN EL ENTORNO DE ENTREGA
+=============================================
+
+Fecha: 2026-11-11
+Java: 21
+Base: paqrap-back-gate-cupo-ociosidad(1).zip
+
+Resultados:
+- Compilación focalizada de todos los archivos Java de producción modificados: OK
+- Pruebas focalizadas únicas ejecutadas: 45
+- Fallos focalizados: 0
+
+Cobertura focalizada:
+- programación y sincronización de transbordos
+- conservación de carga
+- rechazo de transbordo sin contraparte
+- rescate preventivo cargado/no cargado
+- transbordos desactivados
+- recuperación física de transbordo fallido
+- protección de compromisos pendientes de ambos vehículos
+- posición/carga durante espera de encuentro
+- política de almacenes moderada
+- reutilización de carga residual
+- ranking costo/ETA bajo SLA
+- mapeo DTO de transferencia
+- continuidad, localización, refrigerio e inserción multi-almacén
+
+No ejecutado aquí:
+- mvn clean test
+- arranque completo del contexto Spring
+- migración sobre MySQL real
+- simulación FIVE_DAY
+
+Motivo: Maven no estaba instalado en el entorno de preparación.
+Ejecutar VALIDAR_RESCATE_TRANSBORDOS_ROLLING.ps1 en la máquina del proyecto.

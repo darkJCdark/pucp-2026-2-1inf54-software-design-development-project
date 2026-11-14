@@ -43,6 +43,14 @@ final class EstadoEjecucion {
     List<BreakdownEvent> averias = new ArrayList<>();
     /** Estado de vehículos cuya ruta se interrumpió por avería. */
     Map<String, VehicleOperationalState> estadosForzados = new HashMap<>();
+    /** Número de veces que una entrega comprometida cambió de vehículo. */
+    Map<String, Integer> reasignacionesPreventivas = new HashMap<>();
+    /** Histéresis para evitar que un pedido rebote entre vehículos. */
+    Map<String, Instant> cooldownRescateHasta = new HashMap<>();
+    /** Manifiestos que siguen físicamente a bordo del donante tras un encuentro fallido. */
+    Map<String, RecuperacionTransbordoFallidoService.Pendiente> fallosTransbordoPendientes = new HashMap<>();
+    long rescatesPreventivos;
+    long transbordosPlanificados;
     List<RutaVigente> rutas = List.of();
     ReplanificacionResponse ultimaRespuesta;
 

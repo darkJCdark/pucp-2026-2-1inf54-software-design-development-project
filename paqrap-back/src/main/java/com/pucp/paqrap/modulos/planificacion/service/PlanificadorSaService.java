@@ -3,6 +3,7 @@ package com.pucp.paqrap.modulos.planificacion.service;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
@@ -19,7 +20,8 @@ import com.pucp.paqrap.modulos.flota.entity.VehicleOperationalState;
 import com.pucp.paqrap.modulos.flota.entity.VehicleStatus;
 import com.pucp.paqrap.modulos.pedidos.entity.Order;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.alns.AlnsConfig;
-import com.pucp.paqrap.modulos.planificacion.algoritmo.alns.OperationalAlnsPlanner;
+import com.pucp.paqrap.modulos.planificacion.algoritmo.alns.OperationalAlnsObjectivePlanner;
+import com.pucp.paqrap.modulos.planificacion.algoritmo.common.ObjetivoPlanificacion;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.OperationalPlanEvaluator;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.ResultadoPlanificacion;
 import com.pucp.paqrap.modulos.planificacion.algoritmo.common.RouteScheduler;
@@ -33,15 +35,37 @@ import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 import com.pucp.paqrap.modulos.redvial.service.RoadNetwork;
 
 /**
- * Servicio de planificación operacional.
+ * Servicio principal de planificación.
  *
- * Se conserva el nombre histórico PlanificadorSaService
- * para no romper el resto del backend.
+ * El nombre histórico se conserva como PlanificadorSaService
+ * para no romper la integración existente con:
  *
- * Dependiendo de la configuración puede ejecutar:
+ * - ReplanificacionService
+ * - PlanificadorSaAdapter
+ * - pruebas existentes
  *
- * - Simulated Annealing (SA)
- * - Adaptive Large Neighborhood Search (ALNS)
+ * Sin embargo, el algoritmo utilizado es configurable:
+ *
+ *     paqrap.planificacion.algoritmo=SA
+ *
+ * o:
+ *
+ *     paqrap.planificacion.algoritmo=ALNS
+ *
+ * Para ALNS también puede configurarse el objetivo:
+ *
+ *     SERVICE_THEN_COST
+ *     SERVICE_MAX
+ *
+ * SERVICE_MAX:
+ *
+ *     intenta maximizar el número de pedidos atendidos
+ *     dentro del SLA antes de considerar costo.
+ *
+ * SERVICE_THEN_COST:
+ *
+ *     mantiene el comportamiento operacional normal:
+ *     preservar servicio y optimizar costo.
  */
 @Service
 public class PlanificadorSaService
@@ -53,6 +77,9 @@ public class PlanificadorSaService
      * =====================================================
      */
 
+    /**
+     * Parámetros históricos/formales de Simulated Annealing.
+     */
     static final AnnealingConfig CONFIG_POR_DEFECTO =
             new AnnealingConfig(
                     1000.0,
@@ -63,28 +90,44 @@ public class PlanificadorSaService
                     1_000_000
             );
 
+    /**
+     * Presupuesto por defecto cuando la solicitud no trae uno.
+     */
+    static final long PRESUPUESTO_POR_DEFECTO_MS =
+            1_500L;
+
     /*
      * =====================================================
-     * CONFIGURACIÓN ALNS
+     * CONFIGURACIÓN ALNS DEFAULT
      * =====================================================
+     *
+     * Los valores reales de producción llegan normalmente
+     * desde application.yml.
+     *
+     * Este objeto existe principalmente para mantener
+     * compatibles los constructores utilizados directamente
+     * por tests que no arrancan Spring.
      */
 
-    static final AlnsConfig CONFIG_ALNS_POR_DEFECTO =
+    static final AlnsConfig ALNS_CONFIG_POR_DEFECTO =
             new AlnsConfig(
                     32,
                     6,
                     1,
-                    6,
+                    8,
                     800,
-                    200,
-                    50.0,
-                    0.5,
-                    0.995,
+                    800,
+                    1000.0,
+                    1.0,
+                    0.95,
                     0.20
             );
 
-    static final long PRESUPUESTO_POR_DEFECTO_MS =
-            1_500L;
+    /*
+     * =====================================================
+     * DEPENDENCIAS
+     * =====================================================
+     */
 
     private final FuenteDatosOperativos fuente;
 
@@ -92,19 +135,261 @@ public class PlanificadorSaService
 
     private final AlnsConfig configAlns;
 
-    private final AlgoritmoPlanificacion algoritmo;
-
-    /*
-     * SA y ALNS comparten exactamente el mismo evaluador.
-     */
     private final OperationalPlanEvaluator evaluador;
 
     private final OperationalSimulatedAnnealingPlanner planificadorSa;
 
-    private final OperationalAlnsPlanner planificadorAlns;
+    private final OperationalAlnsObjectivePlanner planificadorAlns;
 
     private final PlanResponseMapper mapper =
             new PlanResponseMapper();
+
+    /*
+     * =====================================================
+     * CONFIGURACIÓN ACTIVA
+     * =====================================================
+     */
+
+    private final String algoritmo;
+
+    private final ObjetivoPlanificacion objetivo;
+
+    /*
+     * =====================================================
+     * CONSTRUCTOR SPRING
+     * =====================================================
+     */
+
+    @Autowired
+    public PlanificadorSaService(
+            FuenteDatosOperativos fuente,
+
+            @Value(
+                    "${paqrap.planificacion.max-tramo-km:0}"
+            )
+            double maxTramoKm,
+
+            @Value(
+                    "${paqrap.planificacion.algoritmo:SA}"
+            )
+            String algoritmo,
+
+            @Value(
+                    "${paqrap.planificacion.objetivo:SERVICE_THEN_COST}"
+            )
+            String objetivo,
+
+            @Value(
+                    "${paqrap.planificacion.alns.initial-batch-size:32}"
+            )
+            int initialBatchSize,
+
+            @Value(
+                    "${paqrap.planificacion.alns.candidate-vehicles:6}"
+            )
+            int candidateVehicles,
+
+            @Value(
+                    "${paqrap.planificacion.alns.minimum-removal:1}"
+            )
+            int minimumRemoval,
+
+            @Value(
+                    "${paqrap.planificacion.alns.maximum-removal:8}"
+            )
+            int maximumRemoval,
+
+            @Value(
+                    "${paqrap.planificacion.alns.maximum-iterations:800}"
+            )
+            int maximumIterations,
+
+            @Value(
+                    "${paqrap.planificacion.alns.maximum-iterations-without-improvement:800}"
+            )
+            int maximumIterationsWithoutImprovement,
+
+            @Value(
+                    "${paqrap.planificacion.alns.initial-temperature:1000}"
+            )
+            double initialTemperature,
+
+            @Value(
+                    "${paqrap.planificacion.alns.minimum-temperature:1}"
+            )
+            double minimumTemperature,
+
+            @Value(
+                    "${paqrap.planificacion.alns.cooling-factor:0.95}"
+            )
+            double coolingFactor,
+
+            @Value(
+                    "${paqrap.planificacion.alns.reaction-factor:0.20}"
+            )
+            double reactionFactor
+    ) {
+
+        this(
+                fuente,
+
+                CONFIG_POR_DEFECTO,
+
+                new AlnsConfig(
+                        initialBatchSize,
+                        candidateVehicles,
+                        minimumRemoval,
+                        maximumRemoval,
+                        maximumIterations,
+                        maximumIterationsWithoutImprovement,
+                        initialTemperature,
+                        minimumTemperature,
+                        coolingFactor,
+                        reactionFactor
+                ),
+
+                maxTramoKm,
+
+                algoritmo,
+
+                ObjetivoPlanificacion.parse(
+                        objetivo
+                )
+        );
+    }
+
+    /*
+     * =====================================================
+     * CONSTRUCTORES PARA TESTS EXISTENTES
+     * =====================================================
+     */
+
+PlanificadorSaService(
+        FuenteDatosOperativos fuente
+) {
+
+    this(
+            fuente,
+            CONFIG_POR_DEFECTO,
+            ALNS_CONFIG_POR_DEFECTO,
+            0.0,
+            "SA",
+            ObjetivoPlanificacion.SERVICE_THEN_COST
+    );
+}
+
+/**
+ * Constructor histórico mantenido para compatibilidad
+ * con tests y subclases existentes.
+ */
+PlanificadorSaService(
+        FuenteDatosOperativos fuente,
+        double maxTramoKm
+) {
+
+    this(
+            fuente,
+            CONFIG_POR_DEFECTO,
+            ALNS_CONFIG_POR_DEFECTO,
+            maxTramoKm,
+            "SA",
+            ObjetivoPlanificacion.SERVICE_THEN_COST
+    );
+}
+
+PlanificadorSaService(
+        FuenteDatosOperativos fuente,
+        AnnealingConfig config
+) {
+
+    this(
+            fuente,
+            config,
+            ALNS_CONFIG_POR_DEFECTO,
+            0.0,
+            "SA",
+            ObjetivoPlanificacion.SERVICE_THEN_COST
+    );
+}
+
+PlanificadorSaService(
+        FuenteDatosOperativos fuente,
+        AnnealingConfig config,
+        double maxTramoKm
+) {
+
+    this(
+            fuente,
+            config,
+            ALNS_CONFIG_POR_DEFECTO,
+            maxTramoKm,
+            "SA",
+            ObjetivoPlanificacion.SERVICE_THEN_COST
+    );
+}
+
+    /*
+     * =====================================================
+     * CONSTRUCTOR CENTRAL
+     * =====================================================
+     */
+
+    private PlanificadorSaService(
+            FuenteDatosOperativos fuente,
+            AnnealingConfig configSa,
+            AlnsConfig configAlns,
+            double maxTramoKm,
+            String algoritmo,
+            ObjetivoPlanificacion objetivo
+    ) {
+
+        this.fuente =
+                Objects.requireNonNull(
+                        fuente,
+                        "fuente es requerida"
+                );
+
+        this.configSa =
+                Objects.requireNonNull(
+                        configSa,
+                        "config SA es requerida"
+                );
+
+        this.configAlns =
+                Objects.requireNonNull(
+                        configAlns,
+                        "config ALNS es requerida"
+                );
+
+        this.algoritmo =
+                normalizarAlgoritmo(
+                        algoritmo
+                );
+
+        this.objetivo =
+                Objects.requireNonNull(
+                        objetivo,
+                        "objetivo es requerido"
+                );
+
+        this.evaluador =
+                new OperationalPlanEvaluator(
+                        new RouteScheduler(
+                                new RoadNetwork()
+                        ),
+                        maxTramoKm
+                );
+
+        this.planificadorSa =
+                new OperationalSimulatedAnnealingPlanner(
+                        evaluador
+                );
+
+        this.planificadorAlns =
+                new OperationalAlnsObjectivePlanner(
+                        evaluador
+                );
+    }
 
     /*
      * =====================================================
@@ -134,265 +419,73 @@ public class PlanificadorSaService
         );
     }
 
-    /*
-     * =====================================================
-     * CONSTRUCTOR SPRING
-     * =====================================================
+    /**
+     * Algoritmo seleccionado en configuración.
+     *
+     * Retorna:
+     *
+     *     SA
+     *
+     * o:
+     *
+     *     ALNS
      */
+    public String algoritmoConfigurado() {
 
-    @Autowired
-    public PlanificadorSaService(
-            FuenteDatosOperativos fuente,
+    return algoritmo;
+}
 
-            @Value(
-                    "${paqrap.planificacion.max-tramo-km:0}"
-            )
-            double maxTramoKm,
+/**
+ * Alias mantenido por compatibilidad con las pruebas
+ * y componentes existentes.
+ */
+public AlgoritmoPlanificacion algoritmo() {
 
-            @Value(
-                    "${paqrap.planificacion.algoritmo:SA}"
-            )
-            String algoritmo,
+    return AlgoritmoPlanificacion.valueOf(
+            algoritmo
+    );
+}
 
-            @Value(
-                    "${paqrap.planificacion.alns.initial-batch-size:32}"
-            )
-            int initialBatchSize,
+    /**
+     * Objetivo configurado.
+     *
+     * Actualmente afecta ALNS.
+     *
+     * SA todavía mantiene su objetivo tradicional hasta que
+     * Jorge porte esta misma política al algoritmo.
+     */
+    public ObjetivoPlanificacion objetivoConfigurado() {
 
-            @Value(
-                    "${paqrap.planificacion.alns.candidate-vehicles:6}"
-            )
-            int candidateVehicles,
+        return objetivo;
+    }
 
-            @Value(
-                    "${paqrap.planificacion.alns.min-routes-to-remove:1}"
-            )
-            int minimumRoutesToRemove,
+    public boolean usaAlns() {
 
-            @Value(
-                    "${paqrap.planificacion.alns.max-routes-to-remove:6}"
-            )
-            int maximumRoutesToRemove,
-
-            @Value(
-                    "${paqrap.planificacion.alns.max-iterations:800}"
-            )
-            int maximumIterations,
-
-            @Value(
-                    "${paqrap.planificacion.alns.max-iterations-without-improvement:200}"
-            )
-            int maximumIterationsWithoutImprovement,
-
-            @Value(
-                    "${paqrap.planificacion.alns.initial-temperature:50.0}"
-            )
-            double initialTemperature,
-
-            @Value(
-                    "${paqrap.planificacion.alns.minimum-temperature:0.5}"
-            )
-            double minimumTemperature,
-
-            @Value(
-                    "${paqrap.planificacion.alns.cooling-factor:0.995}"
-            )
-            double coolingFactor,
-
-            @Value(
-                    "${paqrap.planificacion.alns.reaction-factor:0.20}"
-            )
-            double reactionFactor
-    ) {
-
-        this(
-                fuente,
-
-                CONFIG_POR_DEFECTO,
-
-                new AlnsConfig(
-                        initialBatchSize,
-                        candidateVehicles,
-                        minimumRoutesToRemove,
-                        maximumRoutesToRemove,
-                        maximumIterations,
-                        maximumIterationsWithoutImprovement,
-                        initialTemperature,
-                        minimumTemperature,
-                        coolingFactor,
-                        reactionFactor
-                ),
-
-                AlgoritmoPlanificacion.desde(
-                        algoritmo
-                ),
-
-                maxTramoKm
+        return "ALNS".equals(
+                algoritmo
         );
     }
 
     /*
      * =====================================================
-     * CONSTRUCTORES HISTÓRICOS
-     * =====================================================
-     *
-     * Se conservan porque varios tests antiguos crean
-     * directamente este servicio.
-     */
-
-    PlanificadorSaService(
-            FuenteDatosOperativos fuente
-    ) {
-
-        this(
-                fuente,
-                CONFIG_POR_DEFECTO,
-                CONFIG_ALNS_POR_DEFECTO,
-                AlgoritmoPlanificacion.SA,
-                0
-        );
-    }
-
-    /**
-     * Constructor necesario para:
-     *
-     * ConfiguracionSaEscenarioIntegrationTest
-     *
-     * que utiliza:
-     *
-     * super(fuente, maxTramoKm)
-     */
-    PlanificadorSaService(
-            FuenteDatosOperativos fuente,
-            double maxTramoKm
-    ) {
-
-        this(
-                fuente,
-                CONFIG_POR_DEFECTO,
-                CONFIG_ALNS_POR_DEFECTO,
-                AlgoritmoPlanificacion.SA,
-                maxTramoKm
-        );
-    }
-
-    PlanificadorSaService(
-            FuenteDatosOperativos fuente,
-            AnnealingConfig config
-    ) {
-
-        this(
-                fuente,
-                config,
-                CONFIG_ALNS_POR_DEFECTO,
-                AlgoritmoPlanificacion.SA,
-                0
-        );
-    }
-
-    PlanificadorSaService(
-            FuenteDatosOperativos fuente,
-            AnnealingConfig config,
-            double maxTramoKm
-    ) {
-
-        this(
-                fuente,
-                config,
-                CONFIG_ALNS_POR_DEFECTO,
-                AlgoritmoPlanificacion.SA,
-                maxTramoKm
-        );
-    }
-
-    /**
-     * Constructor general usado internamente.
-     */
-    PlanificadorSaService(
-            FuenteDatosOperativos fuente,
-            AnnealingConfig configSa,
-            AlnsConfig configAlns,
-            AlgoritmoPlanificacion algoritmo,
-            double maxTramoKm
-    ) {
-
-        this.fuente =
-                Objects.requireNonNull(
-                        fuente,
-                        "fuente es requerida"
-                );
-
-        this.configSa =
-                Objects.requireNonNull(
-                        configSa,
-                        "configSa es requerida"
-                );
-
-        this.configAlns =
-                Objects.requireNonNull(
-                        configAlns,
-                        "configAlns es requerida"
-                );
-
-        this.algoritmo =
-                Objects.requireNonNull(
-                        algoritmo,
-                        "algoritmo es requerido"
-                );
-
-        /*
-         * Evaluador único.
-         *
-         * Esto garantiza que SA y ALNS utilicen las mismas
-         * reglas de factibilidad.
-         */
-        this.evaluador =
-                new OperationalPlanEvaluator(
-                        new RouteScheduler(
-                                new RoadNetwork()
-                        ),
-                        maxTramoKm
-                );
-
-        this.planificadorSa =
-                new OperationalSimulatedAnnealingPlanner(
-                        evaluador
-                );
-
-        this.planificadorAlns =
-                new OperationalAlnsPlanner(
-                        evaluador
-                );
-    }
-
-    /*
-     * =====================================================
-     * API INTERNA
+     * EVALUADOR
      * =====================================================
      */
 
     /**
-     * ReplanificacionSaService utiliza este mismo evaluador
-     * para comprobar rutas conservadas y rutas activas
-     * modificadas.
+     * Evaluador común utilizado tanto por SA como por ALNS.
+     *
+     * ReplanificacionService también lo reutiliza para
+     * validar rutas conservadas.
      */
     OperationalPlanEvaluator evaluador() {
 
         return evaluador;
     }
 
-    /**
-     * Permite a la replanificación saber si debe aplicar
-     * comportamiento específico de ALNS.
-     */
-    AlgoritmoPlanificacion algoritmo() {
-
-        return algoritmo;
-    }
-
     /*
      * =====================================================
-     * PLANIFICACIÓN NORMAL
+     * PLANIFICACIÓN
      * =====================================================
      */
 
@@ -422,12 +515,14 @@ public class PlanificadorSaService
                 );
 
         AnnealingConfig configuracionSa =
-                solicitud.configuracionSa() != null
+                solicitud.configuracionSa()
+                        != null
+
                         ? solicitud.configuracionSa()
                         : configSa;
 
         EjecucionSa ejecucion =
-                ejecutar(
+                ejecutarSa(
                         snapshot,
                         solicitud.pedidosPendientes(),
                         solicitud.bloqueosActivos(),
@@ -448,13 +543,13 @@ public class PlanificadorSaService
 
     /*
      * =====================================================
-     * RESULTADO INTERNO
+     * EJECUCIÓN
      * =====================================================
      *
-     * Se conserva el nombre histórico EjecucionSa para
-     * mantener compatibilidad.
+     * El nombre ejecutarSa se conserva porque
+     * ReplanificacionSaService ya depende de este método.
      *
-     * Puede contener una ejecución SA o ALNS.
+     * Internamente puede ejecutar SA o ALNS.
      */
 
     record EjecucionSa(
@@ -462,16 +557,6 @@ public class PlanificadorSaService
             long duracionMs
     ) {
     }
-
-    /*
-     * =====================================================
-     * MÉTODOS HISTÓRICOS
-     * =====================================================
-     *
-     * ReplanificacionSaService continúa llamando ejecutarSa().
-     *
-     * Internamente este método selecciona SA o ALNS.
-     */
 
     EjecucionSa ejecutarSa(
             OperationalSnapshot snapshot,
@@ -481,7 +566,7 @@ public class PlanificadorSaService
             long presupuestoMs
     ) {
 
-        return ejecutar(
+        return ejecutarSa(
                 snapshot,
                 pedidos,
                 bloqueos,
@@ -500,45 +585,25 @@ public class PlanificadorSaService
             long presupuestoMs
     ) {
 
-        return ejecutar(
-                snapshot,
-                pedidos,
-                bloqueos,
-                configuracionSa,
-                semilla,
-                presupuestoMs
-        );
-    }
-
-    /*
-     * =====================================================
-     * SELECTOR SA / ALNS
-     * =====================================================
-     */
-
-    private EjecucionSa ejecutar(
-            OperationalSnapshot snapshot,
-            List<Order> pedidos,
-            List<RoadBlock> bloqueos,
-            AnnealingConfig configuracionSa,
-            long semilla,
-            long presupuestoMs
-    ) {
-
         long inicio =
                 System.nanoTime();
 
         ResultadoPlanificacion resultado;
 
         if (
-                algoritmo ==
-                        AlgoritmoPlanificacion.ALNS
+                usaAlns()
         ) {
 
             /*
-             * =============================================
+             * =================================================
              * ALNS
-             * =============================================
+             * =================================================
+             *
+             * SERVICE_MAX:
+             *   ALNS + rescate orientado a servicio.
+             *
+             * SERVICE_THEN_COST:
+             *   comportamiento ALNS normal.
              */
 
             resultado =
@@ -550,15 +615,22 @@ public class PlanificadorSaService
                             new Random(
                                     semilla
                             ),
-                            presupuestoMs
+                            presupuestoMs,
+                            objetivo
                     );
 
         } else {
 
             /*
-             * =============================================
-             * SIMULATED ANNEALING
-             * =============================================
+             * =================================================
+             * SA
+             * =================================================
+             *
+             * Por ahora SA conserva su comportamiento actual.
+             *
+             * Más adelante utilizará el mismo
+             * ObjetivoPlanificacion para la comparación formal
+             * SA vs ALNS.
              */
 
             resultado =
@@ -581,7 +653,7 @@ public class PlanificadorSaService
                                 inicio
                 )
                         /
-                        1_000_000L;
+                        1_000_000;
 
         return new EjecucionSa(
                 resultado,
@@ -591,7 +663,7 @@ public class PlanificadorSaService
 
     /*
      * =====================================================
-     * SEMILLA / PRESUPUESTO
+     * SOLICITUD
      * =====================================================
      */
 
@@ -599,8 +671,11 @@ public class PlanificadorSaService
             SolicitudPlanificacion solicitud
     ) {
 
-        return solicitud.semilla() != null
+        return solicitud.semilla()
+                        != null
+
                 ? solicitud.semilla()
+
                 : ThreadLocalRandom
                         .current()
                         .nextLong();
@@ -610,8 +685,11 @@ public class PlanificadorSaService
             SolicitudPlanificacion solicitud
     ) {
 
-        return solicitud.presupuestoMs() != null
+        return solicitud.presupuestoMs()
+                        != null
+
                 ? solicitud.presupuestoMs()
+
                 : PRESUPUESTO_POR_DEFECTO_MS;
     }
 
@@ -621,6 +699,13 @@ public class PlanificadorSaService
      * =====================================================
      */
 
+    /**
+     * Para una planificación inicial todos los vehículos
+     * disponibles se colocan en el almacén central.
+     *
+     * En replanificación, ReplanificacionService construye
+     * el snapshot correspondiente al estado operativo real.
+     */
     private OperationalSnapshot construirSnapshot(
             Instant hora
     ) {
@@ -629,10 +714,13 @@ public class PlanificadorSaService
                 fuente
                         .almacenes()
                         .stream()
+
                         .filter(
                                 Warehouse::isCentral
                         )
+
                         .findFirst()
+
                         .orElseThrow(
                                 () ->
                                         new IllegalStateException(
@@ -640,10 +728,7 @@ public class PlanificadorSaService
                                         )
                         );
 
-        Map<
-                String,
-                VehicleOperationalState
-                > estados =
+        Map<String, VehicleOperationalState> estados =
                 new LinkedHashMap<>();
 
         for (
@@ -665,24 +750,67 @@ public class PlanificadorSaService
 
         return new OperationalSnapshot(
                 hora,
-
                 fuente.perfilFlota(),
-
                 InventorySnapshot.from(
                         fuente.almacenes()
                 ),
-
                 estados,
-
                 fuente.calendarioMantenimiento(),
-
                 new ShiftSchedule(
                         ShiftSchedule.DEFAULT_ZONE
                 ),
-
                 fuente.averias(
                         null
                 )
         );
+    }
+
+    /*
+     * =====================================================
+     * VALIDACIÓN CONFIG
+     * =====================================================
+     */
+
+    private static String normalizarAlgoritmo(
+            String algoritmo
+    ) {
+
+        if (
+                algoritmo == null
+                ||
+                algoritmo.isBlank()
+        ) {
+
+            return "SA";
+        }
+
+        String normalized =
+                algoritmo
+                        .trim()
+                        .toUpperCase(
+                                Locale.ROOT
+                        );
+
+        return switch (
+                normalized
+        ) {
+
+            case "SA",
+                 "SIMULATED_ANNEALING" ->
+
+                    "SA";
+
+            case "ALNS" ->
+
+                    "ALNS";
+
+            default ->
+
+                    throw new IllegalArgumentException(
+                            "Algoritmo de planificación desconocido: "
+                                    +
+                                    algoritmo
+                    );
+        };
     }
 }

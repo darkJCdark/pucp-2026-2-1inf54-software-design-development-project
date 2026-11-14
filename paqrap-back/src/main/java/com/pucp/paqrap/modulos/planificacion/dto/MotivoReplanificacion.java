@@ -9,5 +9,9 @@ public enum MotivoReplanificacion {
     NUEVO_PEDIDO,
     BLOQUEO,
     AVERIA,
+    ROLLING_HORIZON,
+    RIESGO_ETA,
+    FIN_RUTA,
+    TRANSBORDO_FALLIDO,
     PERIODICO
 }

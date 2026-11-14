@@ -20,6 +20,8 @@ import com.pucp.paqrap.modulos.planificacion.dto.ViolacionResponse;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryRoute;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryStop;
 import com.pucp.paqrap.modulos.planificacion.entity.OperationalPlan;
+import com.pucp.paqrap.modulos.planificacion.entity.TransferDirection;
+import com.pucp.paqrap.modulos.planificacion.entity.TransferStop;
 import com.pucp.paqrap.modulos.planificacion.entity.WarehouseVisit;
 import com.pucp.paqrap.modulos.redvial.entity.Location;
 import com.pucp.paqrap.modulos.redvial.entity.RoadPath;
@@ -163,6 +165,53 @@ class PlanResponseMapperTest {
     }
 
     @Test
+    void mapeaUnTransbordoConEsperaYManifiestoCompleto() {
+        Order pedido = pedido("P-TR", 30, 20, 5);
+        Instant llegada = HORA.plusSeconds(300);
+        Instant encuentro = HORA.plusSeconds(600);
+        TransferStop transferencia = new TransferStop(
+                "TR-P-TR-1", pedido, 3, "TM01", TransferDirection.DONATE,
+                new Location(12, 12), encuentro);
+        WarehouseVisit regreso = new WarehouseVisit(CENTRAL, 0);
+        DeliveryRoute ruta = DeliveryRoute.startScenarioAtCentral("R-TR", TA01, CENTRAL, 5, HORA)
+                .withAppendedStop(transferencia)
+                .withAppendedStop(regreso);
+
+        RoadPath aproximacion = new RoadPath(
+                transferencia.location(), transferencia.location(), llegada, List.of());
+        ScheduledRouteStop paradaTransferencia = new ScheduledRouteStop(
+                transferencia, aproximacion, llegada, encuentro,
+                encuentro.plus(TransferStop.SERVICE_TIME), 5, 2);
+        ScheduledRouteStop paradaRegreso = programada(
+                regreso, encuentro.plusSeconds(900), encuentro.plusSeconds(900), 2, 2);
+        ScheduledDeliveryRoute programada = new ScheduledDeliveryRoute(
+                ruta, List.of(paradaTransferencia, paradaRegreso),
+                paradaRegreso.completedAt(), 7.0, 56.0);
+        ResultadoPlanificacion resultado = new ResultadoPlanificacion(
+                OperationalPlan.empty().withRoute(ruta),
+                evaluacion(Map.of(ruta.id(), programada), List.of(), 56.0),
+                List.of());
+
+        ParadaResponse parada = mapper.aResponse(
+                        ModoOperacion.SIMULACION_5D, HORA, resultado, 1L, 0L, 1_500L)
+                .rutas().getFirst().paradas().getFirst();
+
+        assertEquals(ParadaResponse.TRANSBORDO_SALIDA, parada.tipo());
+        assertTrue(parada.esTransbordo());
+        assertEquals(pedido.id(), parada.pedidoId());
+        assertNull(parada.almacenId());
+        assertEquals(3, parada.paquetes());
+        assertEquals(llegada, parada.llegada());
+        assertEquals(encuentro, parada.inicioServicio());
+        assertEquals(encuentro.plus(TransferStop.SERVICE_TIME), parada.fin());
+        assertEquals(Integer.valueOf(5), parada.cargaAntes());
+        assertEquals(Integer.valueOf(2), parada.cargaDespues());
+        assertEquals("TR-P-TR-1", parada.transferenciaId());
+        assertEquals("TM01", parada.vehiculoContraparteId());
+        assertEquals(TransferDirection.DONATE.name(), parada.direccionTransferencia());
+    }
+
+    @Test
     void ordenaLasRutasPorVehiculoYSumaLasDistanciasProgramadas() {
         Escenario ta = escenarioTa01();
         Order p02 = pedido("P02", 10, 12, 4);
@@ -279,7 +328,7 @@ class PlanResponseMapperTest {
                 .rutas().getFirst();
 
         assertEquals(e.ruta().id(), ruta.id());
-        assertEquals(41L, ruta.planPersistedId());
-        assertEquals(73L, ruta.routePersistedId());
+        assertEquals(Long.valueOf(41L), ruta.planPersistedId());
+        assertEquals(Long.valueOf(73L), ruta.routePersistedId());
         assertEquals(2, ruta.paradas().get(1).orden(), "orden coincide con sequence_no persistido de la ruta");
     }}

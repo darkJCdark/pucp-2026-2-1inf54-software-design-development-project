@@ -1,7 +1,7 @@
--- ============================================================
+﻿-- ============================================================
 -- PaqRap
--- Schema V2 - creación limpia desde cero
--- Producto operativo: Simulated Annealing como único algoritmo
+-- Schema V2 - creaciÃ³n limpia desde cero
+-- Producto operativo: Simulated Annealing como Ãºnico algoritmo
 -- ============================================================
 
 CREATE DATABASE IF NOT EXISTS paqrap
@@ -11,7 +11,7 @@ CREATE DATABASE IF NOT EXISTS paqrap
 USE paqrap;
 
 -- ============================================================
--- 1. PARÁMETROS POR TIPO DE VEHÍCULO
+-- 1. PARÃMETROS POR TIPO DE VEHÃCULO
 -- ============================================================
 
 CREATE TABLE vehicle_type_parameters (
@@ -64,7 +64,7 @@ CREATE TABLE warehouses (
 ) ENGINE = InnoDB;
 
 -- ============================================================
--- 3. VEHÍCULOS
+-- 3. VEHÃCULOS
 -- ============================================================
 
 CREATE TABLE vehicles (
@@ -193,7 +193,7 @@ CREATE TABLE road_block_nodes (
 
 -- ============================================================
 -- 7. EJECUCIONES DE ESCENARIOS
--- Se persiste la configuración funcional de SA por ejecución; los límites internos permanecen en backend.
+-- Se persiste la configuraciÃ³n funcional de SA por ejecuciÃ³n; los lÃ­mites internos permanecen en backend.
 -- ============================================================
 
 CREATE TABLE scenario_executions (
@@ -234,7 +234,7 @@ CREATE TABLE scenario_executions (
 ) ENGINE = InnoDB;
 
 -- ============================================================
--- 8. AVERÍAS
+-- 8. AVERÃAS
 -- ============================================================
 
 CREATE TABLE breakdown_events (
@@ -309,7 +309,7 @@ CREATE TABLE order_status_history (
 ) ENGINE = InnoDB;
 
 -- ============================================================
--- 10. RESULTADOS DE EJECUCIÓN
+-- 10. RESULTADOS DE EJECUCIÃ“N
 -- ============================================================
 
 CREATE TABLE scenario_results (
@@ -447,14 +447,21 @@ CREATE TABLE route_stops (
     order_id VARCHAR(64) NULL,
     warehouse_id VARCHAR(32) NULL,
     delivered_packages INT UNSIGNED NULL,
+    transfer_packages INT UNSIGNED NULL,
+    transfer_id VARCHAR(96) NULL,
+    counterparty_vehicle_id VARCHAR(8) NULL,
+    transfer_direction VARCHAR(12) NULL,
     x SMALLINT UNSIGNED NOT NULL,
     y SMALLINT UNSIGNED NOT NULL,
     planned_arrival_at TIMESTAMP(6) NULL,
+    planned_service_start_at TIMESTAMP(6) NULL,
 
     PRIMARY KEY (route_stop_id),
     UNIQUE KEY uq_route_stops_sequence (route_id, sequence_no),
     KEY idx_route_stops_order (order_id),
     KEY idx_route_stops_warehouse (warehouse_id),
+    KEY idx_route_stops_transfer (transfer_id),
+    KEY idx_route_stops_counterparty_vehicle (counterparty_vehicle_id),
 
     CONSTRAINT fk_route_stops_route
         FOREIGN KEY (route_id)
@@ -471,16 +478,21 @@ CREATE TABLE route_stops (
         REFERENCES warehouses (warehouse_id)
         ON UPDATE RESTRICT
         ON DELETE RESTRICT,
+    CONSTRAINT fk_route_stops_counterparty_vehicle
+        FOREIGN KEY (counterparty_vehicle_id)
+        REFERENCES vehicles (vehicle_id)
+        ON UPDATE RESTRICT
+        ON DELETE RESTRICT,
 
     CONSTRAINT chk_route_stops_sequence
         CHECK (sequence_no > 0),
     CONSTRAINT chk_route_stops_type
-        CHECK (stop_type IN ('DELIVERY', 'WAREHOUSE')),
+        CHECK (stop_type IN ('DELIVERY', 'WAREHOUSE', 'TRANSFER')),
     CONSTRAINT chk_route_stops_x
         CHECK (x BETWEEN 0 AND 70),
     CONSTRAINT chk_route_stops_y
         CHECK (y BETWEEN 0 AND 50),
-    CONSTRAINT chk_route_stops_delivery
+    CONSTRAINT chk_route_stops_payload
         CHECK (
             (
                 stop_type = 'DELIVERY'
@@ -488,6 +500,8 @@ CREATE TABLE route_stops (
                 AND warehouse_id IS NULL
                 AND delivered_packages IS NOT NULL
                 AND delivered_packages > 0
+                AND transfer_packages IS NULL
+                AND transfer_id IS NULL
             )
             OR
             (
@@ -495,9 +509,23 @@ CREATE TABLE route_stops (
                 AND warehouse_id IS NOT NULL
                 AND order_id IS NULL
                 AND delivered_packages IS NULL
+                AND transfer_packages IS NULL
+                AND transfer_id IS NULL
             )
-        )
-) ENGINE = InnoDB;
+            OR
+            (
+                stop_type = 'TRANSFER'
+                AND order_id IS NOT NULL
+                AND warehouse_id IS NULL
+                AND delivered_packages IS NULL
+                AND transfer_packages IS NOT NULL
+                AND transfer_packages > 0
+                AND transfer_id IS NOT NULL
+                AND counterparty_vehicle_id IS NOT NULL
+                AND transfer_direction IN ('DONATE', 'RECEIVE')
+                AND planned_service_start_at IS NOT NULL
+            )
+        )) ENGINE = InnoDB;
 
 -- ============================================================
 -- 14. MOVIMIENTOS DE INVENTARIO / KARDEX
@@ -543,3 +571,4 @@ CREATE TABLE inventory_movements (
     CONSTRAINT chk_inventory_movements_quantity
         CHECK (quantity > 0)
 ) ENGINE = InnoDB;
+

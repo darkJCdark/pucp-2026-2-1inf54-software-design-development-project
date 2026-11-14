@@ -18,6 +18,8 @@ import com.pucp.paqrap.modulos.planificacion.entity.DeliveryRoute;
 import com.pucp.paqrap.modulos.planificacion.entity.DeliveryStop;
 import com.pucp.paqrap.modulos.planificacion.entity.OperationalPlan;
 import com.pucp.paqrap.modulos.planificacion.entity.OperationalSnapshot;
+import com.pucp.paqrap.modulos.planificacion.entity.TransferDirection;
+import com.pucp.paqrap.modulos.planificacion.entity.TransferStop;
 import com.pucp.paqrap.modulos.planificacion.entity.WarehouseVisit;
 import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 
@@ -307,6 +309,11 @@ public final class OperationalPlanEvaluator {
                 );
             }
         }
+
+        validateTransferPairs(
+                schedules,
+                violations
+        );
 
         validateDeliveredQuantities(
                 ordersById,
@@ -642,8 +649,120 @@ public final class OperationalPlanEvaluator {
                                 visit.pickupPackages()
                         )
                 );
+
+            } else if (
+                    stop.stop() instanceof TransferStop transfer
+            ) {
+
+                Order expected = requiredOrders.get(transfer.order().id());
+
+                if (expected == null || !expected.equals(transfer.order())) {
+                    violations.add(
+                            violation(
+                                    PlanViolationType.UNKNOWN_ORDER,
+                                    route,
+                                    "Transfer does not refer to the required order set"
+                            )
+                    );
+                }
             }
         }
+    }
+
+    /**
+     * Valida que cada encuentro tenga exactamente un donante y un receptor,
+     * con el mismo pedido, cantidad, nodo e instante. La ruta puede llegar
+     * antes y esperar, pero ninguna unidad puede llegar después del encuentro.
+     */
+    private void validateTransferPairs(
+            Map<String, ScheduledDeliveryRoute> schedules,
+            List<PlanViolation> violations
+    ) {
+
+        Map<String, List<TransferOccurrence>> byId = new LinkedHashMap<>();
+
+        for (ScheduledDeliveryRoute schedule : schedules.values()) {
+            for (ScheduledRouteStop scheduled : schedule.scheduledStops()) {
+                if (scheduled.stop() instanceof TransferStop transfer) {
+                    byId.computeIfAbsent(transfer.transferId(), ignored -> new ArrayList<>())
+                            .add(new TransferOccurrence(
+                                    schedule.route().id(),
+                                    schedule.route().vehicle().id(),
+                                    transfer,
+                                    scheduled
+                            ));
+                }
+            }
+        }
+
+        for (Map.Entry<String, List<TransferOccurrence>> entry : byId.entrySet()) {
+            List<TransferOccurrence> occurrences = entry.getValue();
+            if (occurrences.size() != 2) {
+                for (TransferOccurrence occurrence : occurrences) {
+                    violations.add(new PlanViolation(
+                            PlanViolationType.INVALID_TRANSFER_PAIR,
+                            occurrence.routeId(),
+                            "Transfer " + entry.getKey() + " requires exactly two participants"
+                    ));
+                }
+                continue;
+            }
+
+            TransferOccurrence first = occurrences.get(0);
+            TransferOccurrence second = occurrences.get(1);
+            TransferOccurrence donor = first.stop().direction() == TransferDirection.DONATE ? first : second;
+            TransferOccurrence receiver = donor == first ? second : first;
+
+            boolean reciprocal = donor.stop().direction() == TransferDirection.DONATE
+                    && receiver.stop().direction() == TransferDirection.RECEIVE
+                    && donor.stop().order().equals(receiver.stop().order())
+                    && donor.stop().packages() == receiver.stop().packages()
+                    && donor.stop().location().equals(receiver.stop().location())
+                    && donor.stop().meetingAt().equals(receiver.stop().meetingAt())
+                    && donor.stop().counterpartyVehicleId().equals(receiver.vehicleId())
+                    && receiver.stop().counterpartyVehicleId().equals(donor.vehicleId());
+
+            if (!reciprocal) {
+                violations.add(new PlanViolation(
+                        PlanViolationType.INVALID_TRANSFER_PAIR,
+                        donor.routeId(),
+                        "Transfer " + entry.getKey() + " has inconsistent participants or cargo"
+                ));
+                violations.add(new PlanViolation(
+                        PlanViolationType.INVALID_TRANSFER_PAIR,
+                        receiver.routeId(),
+                        "Transfer " + entry.getKey() + " has inconsistent participants or cargo"
+                ));
+                continue;
+            }
+
+            Instant meeting = donor.stop().meetingAt();
+            boolean synchronizedPair = !donor.scheduled().arrivedAt().isAfter(meeting)
+                    && !receiver.scheduled().arrivedAt().isAfter(meeting)
+                    && donor.scheduled().serviceStartedAt().equals(meeting)
+                    && receiver.scheduled().serviceStartedAt().equals(meeting);
+
+            if (!synchronizedPair) {
+                violations.add(new PlanViolation(
+                        PlanViolationType.TRANSFER_NOT_SYNCHRONIZED,
+                        donor.routeId(),
+                        "Transfer " + entry.getKey() + " cannot start simultaneously"
+                ));
+                violations.add(new PlanViolation(
+                        PlanViolationType.TRANSFER_NOT_SYNCHRONIZED,
+                        receiver.routeId(),
+                        "Transfer " + entry.getKey() + " cannot start simultaneously"
+                ));
+            }
+        }
+    }
+
+    private record TransferOccurrence(
+            String routeId,
+            String vehicleId,
+            TransferStop stop,
+            ScheduledRouteStop scheduled
+    ) {
     }
 
     private void validateDeliveredQuantities(

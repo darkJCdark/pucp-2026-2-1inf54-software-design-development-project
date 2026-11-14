@@ -24,6 +24,7 @@ public class RouteStopEntity {
 
     public static final String DELIVERY = "DELIVERY";
     public static final String WAREHOUSE = "WAREHOUSE";
+    public static final String TRANSFER = "TRANSFER";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -52,6 +53,18 @@ public class RouteStopEntity {
     @Column(name = "delivered_packages")
     private Integer deliveredPackages;
 
+    @Column(name = "transfer_packages")
+    private Integer transferPackages;
+
+    @Column(name = "transfer_id", length = 96)
+    private String transferId;
+
+    @Column(name = "counterparty_vehicle_id", length = 8)
+    private String counterpartyVehicleId;
+
+    @Column(name = "transfer_direction", length = 12)
+    private String transferDirection;
+
     @JdbcTypeCode(SqlTypes.SMALLINT)
     @Column(name = "x", nullable = false)
     private int x;
@@ -63,21 +76,39 @@ public class RouteStopEntity {
     @Column(name = "planned_arrival_at")
     private Instant plannedArrivalAt;
 
+    @Column(name = "planned_service_start_at")
+    private Instant plannedServiceStartAt;
+
     protected RouteStopEntity() {
     }
 
+    /** Conserva compatibilidad con paradas históricas. */
     public RouteStopEntity(RouteEntity route, int sequenceNo, String stopType, OrderEntity order,
                            WarehouseEntity warehouse, Integer deliveredPackages, int x, int y,
                            Instant plannedArrivalAt) {
+        this(route, sequenceNo, stopType, order, warehouse, deliveredPackages,
+                null, null, null, null, x, y, plannedArrivalAt, plannedArrivalAt);
+    }
+
+    public RouteStopEntity(RouteEntity route, int sequenceNo, String stopType, OrderEntity order,
+                           WarehouseEntity warehouse, Integer deliveredPackages,
+                           Integer transferPackages, String transferId, String counterpartyVehicleId,
+                           String transferDirection, int x, int y, Instant plannedArrivalAt,
+                           Instant plannedServiceStartAt) {
         this.route = route;
         this.sequenceNo = sequenceNo;
         this.stopType = stopType;
         this.order = order;
         this.warehouse = warehouse;
         this.deliveredPackages = deliveredPackages;
+        this.transferPackages = transferPackages;
+        this.transferId = transferId;
+        this.counterpartyVehicleId = counterpartyVehicleId;
+        this.transferDirection = transferDirection;
         this.x = x;
         this.y = y;
         this.plannedArrivalAt = plannedArrivalAt;
+        this.plannedServiceStartAt = plannedServiceStartAt;
     }
 
     public Long getRouteStopId() { return routeStopId; }
@@ -87,7 +118,12 @@ public class RouteStopEntity {
     public OrderEntity getOrder() { return order; }
     public WarehouseEntity getWarehouse() { return warehouse; }
     public Integer getDeliveredPackages() { return deliveredPackages; }
+    public Integer getTransferPackages() { return transferPackages; }
+    public String getTransferId() { return transferId; }
+    public String getCounterpartyVehicleId() { return counterpartyVehicleId; }
+    public String getTransferDirection() { return transferDirection; }
     public int getX() { return x; }
     public int getY() { return y; }
     public Instant getPlannedArrivalAt() { return plannedArrivalAt; }
+    public Instant getPlannedServiceStartAt() { return plannedServiceStartAt; }
 }

@@ -5,6 +5,7 @@ import com.pucp.paqrap.modulos.almacenes.persistence.WarehouseEntity;
 import com.pucp.paqrap.modulos.almacenes.repository.WarehouseRepository;
 import com.pucp.paqrap.modulos.flota.entity.FleetProfile;
 import com.pucp.paqrap.modulos.flota.entity.Vehicle;
+import com.pucp.paqrap.modulos.flota.entity.VehicleOperationalState;
 import com.pucp.paqrap.modulos.flota.entity.VehicleParameters;
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
 import com.pucp.paqrap.modulos.flota.persistence.MaintenanceDayEntity;
@@ -21,8 +22,10 @@ import com.pucp.paqrap.modulos.planificacion.entity.ShiftSchedule;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -58,6 +61,32 @@ public class FuenteDatosOperativosBd implements FuenteDatosOperativos {
     @Override
     public Collection<Warehouse> almacenes() {
         return almacenRepository.findAll().stream().map(WarehouseEntity::toDomain).toList();
+    }
+
+    @Override
+    public Map<String, VehicleOperationalState> estadosFlota(
+            Instant instante
+    ) {
+
+        Map<String, VehicleOperationalState> estados =
+                new LinkedHashMap<>();
+
+        for (
+                VehicleEntity vehiculo :
+                vehiculoRepository.findAll()
+        ) {
+
+            estados.put(
+                    vehiculo.getVehicleId(),
+                    vehiculo.toOperationalState(
+                            instante
+                    )
+            );
+        }
+
+        return Map.copyOf(
+                estados
+        );
     }
 
     @Override
