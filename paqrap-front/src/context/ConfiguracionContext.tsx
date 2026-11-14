@@ -19,15 +19,17 @@ interface ConfiguracionContextType {
     cambios: Partial<ConfiguracionPlanificador>,
   ) => void;
 
+  // Contrato anterior, conservado para pantallas que cargan un solo archivo.
   archivoPedidos: File | null;
-  setArchivoPedidos: (
-    archivo: File | null,
-  ) => void;
-
+  setArchivoPedidos: (archivo: File | null) => void;
   archivoBloqueos: File | null;
-  setArchivoBloqueos: (
-    archivo: File | null,
-  ) => void;
+  setArchivoBloqueos: (archivo: File | null) => void;
+
+  // Nuevos selectores de hasta dos meses consecutivos.
+  archivosPedidos: File[];
+  setArchivosPedidos: (archivos: File[]) => void;
+  archivosBloqueos: File[];
+  setArchivosBloqueos: (archivos: File[]) => void;
 }
 
 const configuracionInicial: ConfiguracionPlanificador = {
@@ -82,11 +84,15 @@ export function ConfiguracionProvider({
     }
   }, [configuracion]);
 
-  const [archivoPedidos, setArchivoPedidos] =
-    useState<File | null>(null);
+  const [archivosPedidos, setArchivosPedidos] = useState<File[]>([]);
+  const [archivosBloqueos, setArchivosBloqueos] = useState<File[]>([]);
 
-  const [archivoBloqueos, setArchivoBloqueos] =
-    useState<File | null>(null);
+  const archivoPedidos = archivosPedidos[0] ?? null;
+  const archivoBloqueos = archivosBloqueos[0] ?? null;
+  const setArchivoPedidos = (archivo: File | null) =>
+    setArchivosPedidos(archivo ? [archivo] : []);
+  const setArchivoBloqueos = (archivo: File | null) =>
+    setArchivosBloqueos(archivo ? [archivo] : []);
 
   function actualizarConfiguracion(
     cambios: Partial<ConfiguracionPlanificador>,
@@ -106,6 +112,10 @@ export function ConfiguracionProvider({
         setArchivoPedidos,
         archivoBloqueos,
         setArchivoBloqueos,
+        archivosPedidos,
+        setArchivosPedidos,
+        archivosBloqueos,
+        setArchivosBloqueos,
       }}
     >
       {children}

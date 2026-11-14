@@ -51,13 +51,17 @@ import java.util.function.Consumer;
  * cuando termina (5D por tiempo, colapso cuando {@link DetectorColapso} lo declara) o la detiene el operario.
  *
  * <p>Los relojes viven en memoria: si el backend se reinicia, las ejecuciones que estaban activas se marcan como
- * FAILED al arrancar. Solo puede haber una ejecución activa a la vez, porque todas comparten la flota.
+ * FAILED al arrancar. Puede coexistir un DAY_TO_DAY con una simulación (FIVE_DAY o COLLAPSE);
+ * las simulaciones utilizan copias aisladas de pedidos y vehículos.
  */
 @Service
 public class MotorEscenarios {
 
     private static final Logger log = LoggerFactory.getLogger(MotorEscenarios.class);
     private static final Set<ScenarioStatus> ACTIVOS = Set.of(ScenarioStatus.RUNNING, ScenarioStatus.PAUSED);
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.pucp.paqrap.modulos.escenarios.service.EstadoOperativoEscenarios estadoOperativo;
 
     private final ScenarioExecutionRepository ejecucionRepository;
     private final TransactionTemplate transaccion;
@@ -162,7 +166,9 @@ public class MotorEscenarios {
      */
     @TransactionalEventListener(fallbackExecution = true)
     public synchronized void alRegistrarPedido(PedidoRegistrado pedido) {
-        for (EscenarioActivo activo : activos.values()) {
+        for (Map.Entry<Long, EscenarioActivo> entrada : activos.entrySet()) {
+            if (pedido.ejecucionId() != null && !pedido.ejecucionId().equals(entrada.getKey())) continue;
+            EscenarioActivo activo = entrada.getValue();
             if (!pedido.registradoEn().isBefore(activo.reloj.inicioSimulado())
                     && !pedido.registradoEn().isAfter(activo.procesadoHasta)) {
                 activo.pedidosProcesados.add(pedido.pedidoId());
@@ -202,11 +208,15 @@ public class MotorEscenarios {
     }
 
     public synchronized void iniciar(long ejecucionId) {
-        if (!ejecucionRepository.existsById(ejecucionId)) {
-            throw new RecursoNoEncontradoException("Ejecución", ejecucionId);
-        }
-        if (ejecucionRepository.existsByStatusIn(ACTIVOS)) {
-            throw new ReglaNegocioException("Ya hay un escenario en ejecución o en pausa; deténgalo antes de iniciar otro");
+        ScenarioExecutionEntity solicitada = ejecucionRepository.findById(ejecucionId)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Ejecución", ejecucionId));
+        boolean diaADia = solicitada.getScenarioType() == ScenarioType.DAY_TO_DAY;
+        boolean ocupado = ejecucionRepository.findByStatusIn(ACTIVOS).stream()
+                .anyMatch(e -> (e.getScenarioType() == ScenarioType.DAY_TO_DAY) == diaADia);
+        if (ocupado) {
+            throw new ReglaNegocioException("Ya hay un escenario "
+                    + (diaADia ? "Día a Día" : "de simulación (5D/Colapso)")
+                    + " en ejecución o en pausa; deténgalo antes de iniciar otro del mismo grupo");
         }
         ScenarioExecutionEntity ejecucion = actualizar(ejecucionId, e -> e.iniciar(relojReal.instant()));
 
@@ -215,8 +225,13 @@ public class MotorEscenarios {
         reloj.reanudar();
         EscenarioActivo activo = new EscenarioActivo(ejecucion.getScenarioType(), reloj);
         activos.put(ejecucionId, activo);
+        if (estadoOperativo != null) {
+            estadoOperativo.iniciar(ejecucionId, ejecucion.getScenarioType(), ejecucion.getSimulationStartedAt());
+        }
         ejecutorPlan.prepararInicio(ejecucionId, ejecucion.getSimulationStartedAt());
-        activo.pedidosProcesados.addAll(pedidoRepository.idsRegistradosEn(ejecucion.getSimulationStartedAt()));
+        activo.pedidosProcesados.addAll(estadoOperativo != null
+                ? estadoOperativo.idsEn(ejecucionId, ejecucion.getSimulationStartedAt())
+                : pedidoRepository.idsRegistradosEn(ejecucion.getSimulationStartedAt()));
         detectorColapso.reiniciar(ejecucionId);
         planificar(ejecucionId, activo, PlanificadorPort.Motivo.INICIAL);
         revisarColapso(ejecucionId, activo);
@@ -247,6 +262,7 @@ public class MotorEscenarios {
                 instanteSimulado != null ? instanteSimulado : e.getSimulationStartedAt()));
         persistirResultado(ejecucionId, activo);
         activos.remove(ejecucionId);
+        if (estadoOperativo != null) estadoOperativo.finalizar(ejecucionId);
         if (!finalizacionDiferida) {
             planificador().finalizar(ejecucionId);
         }
@@ -430,13 +446,13 @@ public class MotorEscenarios {
     }
 
     /**
-     * Registra el primer colapso de la ejecución (en 5D y Día a Día solo se informa en el monitoreo); el escenario
-     * de colapso termina en el instante del colapso. Devuelve true si la ejecución terminó.
+     * Registra el primer colapso. FIVE_DAY y COLLAPSE terminan; DAY_TO_DAY continúa
+     * operando y mantiene la alerta en el monitoreo. Devuelve true si la ejecución terminó.
      */
     private boolean revisarColapso(long ejecucionId, EscenarioActivo activo) {
         Optional<DetectorColapso.Colapso> colapso = detectorColapso.revisar(ejecucionId,
                 activo.reloj.inicioSimulado(), activo.procesadoHasta);
-        if (colapso.isPresent() && activo.tipo == ScenarioType.COLLAPSE) {
+        if (colapso.isPresent() && activo.tipo != ScenarioType.DAY_TO_DAY) {
             finalizar(ejecucionId, ScenarioStatus.COLLAPSED, colapso.get().instante());
             return true;
         }
@@ -448,6 +464,7 @@ public class MotorEscenarios {
         EscenarioActivo activo = activos.get(ejecucionId);
         persistirResultado(ejecucionId, activo);
         activos.remove(ejecucionId);
+        if (estadoOperativo != null) estadoOperativo.finalizar(ejecucionId);
         planificador().finalizar(ejecucionId);
     }
 

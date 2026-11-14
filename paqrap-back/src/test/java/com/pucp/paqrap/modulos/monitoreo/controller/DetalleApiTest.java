@@ -223,9 +223,10 @@ class DetalleApiTest {
         VehicleEntity vehiculo = vehiculoRepository.findById("TA01").orElseThrow();
         vehiculo.setOperationalStatus(VehicleOperationalStatus.IN_ROUTE);
         vehiculoRepository.save(vehiculo);
+        // Llega 06:00Z, atiende hasta 07:00Z y toma refrigerio de 07:00Z a 08:00Z.
         planes.planes.put(id, plan(new RutaResponse("SA-TA01", "TA01", "CAR", hora("05:00"), hora("08:00"),
                 3.0, 24.0, List.of(new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 2,
-                hora("07:00"), hora("08:00"), 2, 0, hora("06:00"))))));
+                hora("06:00"), hora("08:00"), 2, 0, hora("07:00"))))));
         ejecutorPlan.avanzar(id, INICIO, INICIO);
 
         mvc.perform(get("/api/flota/vehiculos/TA01/detalle").param("ejecucionId", String.valueOf(id)))
@@ -233,13 +234,19 @@ class DetalleApiTest {
                 .andExpect(jsonPath("$.motivoDetencion").value((Object) null))
                 .andExpect(jsonPath("$.detenidoHasta").value((Object) null));
 
-        reloj.avanzar(Duration.ofSeconds(23)); // 06:01:20Z simulado: dentro de 06:00Z a 07:00Z.
+        reloj.avanzar(Duration.ofSeconds(23)); // 06:01:20Z simulado: atiende, aún no descansa.
+        mvc.perform(get("/api/flota/vehiculos/TA01/detalle").param("ejecucionId", String.valueOf(id)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.motivoDetencion").value((Object) null))
+                .andExpect(jsonPath("$.detenidoHasta").value((Object) null));
+
+        reloj.avanzar(Duration.ofSeconds(23)); // 07:02:40Z: está tomando refrigerio.
         mvc.perform(get("/api/flota/vehiculos/TA01/detalle").param("ejecucionId", String.valueOf(id)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.motivoDetencion").value("REFRIGERIO"))
-                .andExpect(jsonPath("$.detenidoHasta").value("2026-01-01T07:00:00Z"));
+                .andExpect(jsonPath("$.detenidoHasta").value("2026-01-01T08:00:00Z"));
 
-        reloj.avanzar(Duration.ofSeconds(23)); // 07:02:40Z simulado: el refrigerio ya terminó.
+        reloj.avanzar(Duration.ofSeconds(23)); // 08:04:00Z: el refrigerio ya terminó.
         mvc.perform(get("/api/flota/vehiculos/TA01/detalle").param("ejecucionId", String.valueOf(id)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.motivoDetencion").value((Object) null))

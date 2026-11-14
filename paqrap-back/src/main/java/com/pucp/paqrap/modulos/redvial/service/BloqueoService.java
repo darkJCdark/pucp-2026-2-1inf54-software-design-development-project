@@ -4,6 +4,7 @@ import com.pucp.paqrap.comun.error.RecursoNoEncontradoException;
 import com.pucp.paqrap.modulos.planificacion.entity.ShiftSchedule;
 import com.pucp.paqrap.modulos.redvial.dto.BloqueoResponse;
 import com.pucp.paqrap.modulos.redvial.dto.CargaBloqueosResponse;
+import com.pucp.paqrap.modulos.redvial.dto.CargaBloqueosMultipleResponse;
 import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 import com.pucp.paqrap.modulos.redvial.persistence.RoadBlockEntity;
 import com.pucp.paqrap.modulos.redvial.repository.RoadBlockRepository;
@@ -51,6 +52,28 @@ public class BloqueoService {
 
         bloqueoRepository.saveAll(bloqueos.stream().map(RoadBlockEntity::desde).toList());
         return new CargaBloqueosResponse(nombreArchivo, periodoEfectivo, reemplazados, bloqueos.size());
+    }
+
+    public record ArchivoMensual(String nombre, String contenido) { }
+
+    /** Carga atómica de hasta dos meses; el reemplazo sigue limitado al mes de cada archivo. */
+    @Transactional
+    public CargaBloqueosMultipleResponse cargarMultiples(List<ArchivoMensual> archivos) {
+        if (archivos == null || archivos.isEmpty() || archivos.size() > 2) {
+            throw new IllegalArgumentException("Seleccione uno o dos archivos mensuales de bloqueos");
+        }
+        java.util.Set<YearMonth> periodos = new java.util.HashSet<>();
+        for (ArchivoMensual archivo : archivos) {
+            if (archivo == null || archivo.contenido() == null || archivo.contenido().isBlank()) {
+                throw new IllegalArgumentException("Ningún archivo puede estar vacío");
+            }
+            YearMonth periodo = periodoDesdeNombre(archivo.nombre());
+            if (!periodos.add(periodo)) throw new IllegalArgumentException("Mes de bloqueos repetido: " + periodo);
+            cargador.cargar(archivo.contenido().replace("\uFEFF", "").lines().toList(), periodo, ZONA);
+        }
+        java.util.ArrayList<CargaBloqueosResponse> resultados = new java.util.ArrayList<>();
+        for (ArchivoMensual archivo : archivos) resultados.add(cargar(archivo.nombre(), archivo.contenido(), null));
+        return CargaBloqueosMultipleResponse.de(resultados);
     }
 
     /** Si se indica {@code vigenteEn}, devuelve los bloqueos activos en ese instante; si no, los que se cruzan con [desde, hasta). */

@@ -1,0 +1,27 @@
+PaqRap - validacion local de esta entrega
+Base: PaqRap(20261114-193858).zip
+
+Compilacion: Java 21, 20 fuentes de produccion modificadas/nuevas, sin errores.
+Classpath de comprobacion: clases base y stubs de APIs. No es build Maven.
+Ejecucion: pruebas de logica con repositorios dobles y anotaciones stub.
+No se inicio Spring/H2/MySQL ni se ejecuto FIVE_DAY completo.
+
+PASS archivoBloqueosInvalidoNoReemplazaMesAnterior
+PASS ejecucionDeEntregaSoloModificaLaSimulacion
+PASS registroManualPrefiereDiaADiaYPermiteElegirSimulacion
+PASS regresion01
+PASS regresion02
+PASS regresion03
+PASS regresion04
+PASS regresion05
+PASS regresion06
+PASS regresion07
+PASS regresion08
+PASS regresion09
+PASS regresion10
+PASS regresion11
+PASS regresion12
+PASS regresion13
+PASS regresion14
+PASS regresion15
+Total: 18 pruebas de logica OK. Repositorios dobles y stubs API. No es Maven/Spring/JPA real.

@@ -56,7 +56,7 @@ public class OrderEntity implements Persistable<String> {
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "status", nullable = false, length = 20)
-    private OrderStatus status;
+    private volatile OrderStatus status;
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
@@ -68,7 +68,7 @@ public class OrderEntity implements Persistable<String> {
     private Integer promisedHours;
 
     @Column(name = "delivered_at")
-    private Instant deliveredAt;
+    private volatile Instant deliveredAt;
 
     /** Con id asignado, Spring Data haría un SELECT por cada save() para saber si es nuevo; así se evita. */
     @Transient
@@ -107,8 +107,8 @@ public class OrderEntity implements Persistable<String> {
 
     /** {@code llegada}: hora de llegada de la última entrega (el acondicionamiento no cuenta en el plazo). */
     public void entregar(Instant llegada) {
-        this.status = OrderStatus.DELIVERED;
         this.deliveredAt = llegada.truncatedTo(ChronoUnit.MICROS);
+        this.status = OrderStatus.DELIVERED;
     }
 
     public boolean entregadoATiempo() {

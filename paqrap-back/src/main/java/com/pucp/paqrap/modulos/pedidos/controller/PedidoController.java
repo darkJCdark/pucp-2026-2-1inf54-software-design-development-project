@@ -2,6 +2,7 @@ package com.pucp.paqrap.modulos.pedidos.controller;
 
 import com.pucp.paqrap.comun.api.PaginaResponse;
 import com.pucp.paqrap.modulos.pedidos.dto.CargaPedidosResponse;
+import com.pucp.paqrap.modulos.pedidos.dto.CargaPedidosMultipleResponse;
 import com.pucp.paqrap.modulos.pedidos.dto.PedidoDetalleResponse;
 import com.pucp.paqrap.modulos.pedidos.dto.PedidoResponse;
 import com.pucp.paqrap.modulos.pedidos.dto.PeriodoCargadoResponse;
@@ -48,8 +49,9 @@ public class PedidoController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public PedidoResponse registrar(@Valid @RequestBody RegistrarPedidoRequest request) {
-        return pedidoService.registrar(request);
+    public PedidoResponse registrar(@Valid @RequestBody RegistrarPedidoRequest request,
+                                     @RequestParam(required = false) Long ejecucionId) {
+        return pedidoService.registrar(request, ejecucionId);
     }
 
     /** Recibe un archivo ventas.AAAAMM.txt en el campo multipart {@code archivo}. */
@@ -65,12 +67,30 @@ public class PedidoController {
         return pedidoService.cargar(archivo.getOriginalFilename(), contenido, periodo);
     }
 
+    /** Un campo multipart 'archivos' por archivo: ventas.AAAAMM.txt. Conserva /carga de un archivo. */
+    @PostMapping(path = "/carga-multiple", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    public CargaPedidosMultipleResponse cargarMultiples(@RequestParam("archivos") List<MultipartFile> archivos)
+            throws IOException {
+        if (archivos.isEmpty() || archivos.size() > 2) {
+            throw new IllegalArgumentException("Seleccione uno o dos archivos mensuales de pedidos");
+        }
+        java.util.ArrayList<PedidoService.ArchivoMensual> entradas = new java.util.ArrayList<>();
+        for (MultipartFile archivo : archivos) {
+            if (archivo.isEmpty()) throw new IllegalArgumentException("El archivo está vacío: " + archivo.getOriginalFilename());
+            entradas.add(new PedidoService.ArchivoMensual(archivo.getOriginalFilename(),
+                    new String(archivo.getBytes(), StandardCharsets.UTF_8)));
+        }
+        return pedidoService.cargarMultiples(entradas);
+    }
+
     /**
      * Paginado con {@code page} (desde 0), {@code size} (máx. 500) y {@code sort} con nombres de la API:
      * id, clienteId, paquetes, registradoEn, vence o estado (p. ej. {@code sort=vence,asc}).
      */
     @GetMapping
     public PaginaResponse<PedidoResponse> listar(
+            @RequestParam(required = false) Long ejecucionId,
             @RequestParam(required = false) String clienteId,
             @RequestParam(required = false) OrderStatus estado,
             @RequestParam(required = false) DeliveryType tipoEntrega,
@@ -80,7 +100,7 @@ public class PedidoController {
             @PageableDefault(size = 50, sort = {"registradoEn", "id"}, direction = Sort.Direction.ASC)
             Pageable pageable) {
         return pedidoService.listar(clienteId, estado, tipoEntrega, registradoDesde, registradoHasta, venceHasta,
-                pageable);
+                pageable, ejecucionId);
     }
 
     /** Meses con pedidos cargados desde archivos ventas.AAAAMM.txt y cuántos pedidos tiene cada uno. */
@@ -92,7 +112,8 @@ public class PedidoController {
     /** {@code instante} (opcional, simulado) permite saber si un pedido aún no entregado ya incumplió su plazo. */
     @GetMapping("/{id}")
     public PedidoDetalleResponse obtener(@PathVariable String id,
+            @RequestParam(required = false) Long ejecucionId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant instante) {
-        return pedidoService.obtener(id, instante);
+        return pedidoService.obtener(id, instante, ejecucionId);
     }
 }

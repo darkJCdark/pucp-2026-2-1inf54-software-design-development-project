@@ -1,6 +1,7 @@
 import type {
   BloqueoResponseDto,
   CargaBloqueosResponseDto,
+  CargaBloqueosMultipleResponseDto,
 } from "@/api/bloqueos.dto";
 
 import {
@@ -8,6 +9,18 @@ import {
 } from "@/services/api";
 
 export const bloqueosService = {
+  cargarArchivos(archivos: File[]): Promise<CargaBloqueosMultipleResponseDto> {
+    if (archivos.length < 1 || archivos.length > 2) {
+      return Promise.reject(new Error("Selecciona uno o dos archivos mensuales de bloqueos."));
+    }
+    const formData = new FormData();
+    archivos.forEach((archivo) => formData.append("archivos", archivo));
+    return apiRequest<CargaBloqueosMultipleResponseDto>("/api/red-vial/bloqueos/carga-multiple", {
+      method: "POST",
+      body: formData,
+    });
+  },
+
   cargarArchivo(
     archivo: File,
     periodo?: string,

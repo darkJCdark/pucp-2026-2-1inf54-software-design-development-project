@@ -1,9 +1,4 @@
-import {
-  useRef,
-  useState,
-  type ChangeEvent,
-} from "react";
-
+import { useRef, useState, type ChangeEvent } from "react";
 import {
   CheckCircle2,
   Database,
@@ -16,7 +11,6 @@ import {
 import type { PeriodoCargadoResponseDto } from "@/api/pedidos.dto";
 import { Card } from "@/components/ui/card";
 import { useConfiguracion } from "@/context/ConfiguracionContext";
-
 import {
   archivoVentasEsperado,
   periodoDesdeArchivoBloqueos,
@@ -41,66 +35,83 @@ export function OrigenDatos({
   const inputBloqueosRef = useRef<HTMLInputElement>(null);
   const [errorPedidos, setErrorPedidos] = useState<string | null>(null);
   const [errorBloqueos, setErrorBloqueos] = useState<string | null>(null);
-
   const {
     configuracion,
     actualizarConfiguracion,
-    archivoPedidos,
-    setArchivoPedidos,
-    archivoBloqueos,
-    setArchivoBloqueos,
+    archivosPedidos,
+    setArchivosPedidos,
+    archivosBloqueos,
+    setArchivosBloqueos,
   } = useConfiguracion();
 
   const usaDatosHistoricos = configuracion.escenario !== "DIA_A_DIA";
 
   function handlePedidos(event: ChangeEvent<HTMLInputElement>) {
-    const archivo = event.target.files?.[0] ?? null;
+    const seleccion = Array.from(event.target.files ?? []);
+    event.target.value = ""; // permite volver a elegir los mismos archivos
+    if (seleccion.length === 0) return;
 
-    if (!archivo) {
-      setArchivoPedidos(null);
-      setErrorPedidos(null);
+    const periodos = seleccion.map((archivo) => periodoDesdeArchivoVentas(archivo.name));
+    if (seleccion.length > 2) {
+      setErrorPedidos("Selecciona como máximo dos archivos mensuales de pedidos.");
+      return;
+    }
+    if (periodos.some((periodo) => !periodo)) {
+      setErrorPedidos("Los archivos deben llamarse ventas.AAAAMM.txt, por ejemplo ventas.202601.txt.");
+      return;
+    }
+    if (new Set(periodos).size !== periodos.length) {
+      setErrorPedidos("Selecciona meses distintos; no se puede cargar el mismo mes dos veces.");
       return;
     }
 
-    const periodo = periodoDesdeArchivoVentas(archivo.name);
-    if (!periodo) {
-      setArchivoPedidos(null);
-      setErrorPedidos(
-        "El archivo debe llamarse ventas.AAAAMM.txt, por ejemplo ventas.202603.txt.",
-      );
-      event.target.value = "";
+    // Se pueden agregar los dos meses en selecciones separadas.
+    // Si se vuelve a escoger un mes, se sustituye solo ese archivo.
+    const nuevosPeriodos = new Set(periodos);
+    const anteriores = archivosPedidos.filter((archivo) =>
+      !nuevosPeriodos.has(periodoDesdeArchivoVentas(archivo.name)),
+    );
+    const ordenados = [...anteriores, ...seleccion].sort((a, b) => a.name.localeCompare(b.name));
+    if (ordenados.length > 2) {
+      setErrorPedidos("Ya seleccionaste dos meses. Quita la selección para elegir otros.");
       return;
     }
-
-    setArchivoPedidos(archivo);
+    setArchivosPedidos(ordenados);
     setErrorPedidos(null);
-
     if (!configuracion.inicioSimulado) {
-      actualizarConfiguracion({
-        inicioSimulado: `${periodo}-01T00:00`,
-      });
+      const primero = periodoDesdeArchivoVentas(ordenados[0].name);
+      if (primero) actualizarConfiguracion({ inicioSimulado: `${primero}-01T00:00` });
     }
   }
 
   function handleBloqueos(event: ChangeEvent<HTMLInputElement>) {
-    const archivo = event.target.files?.[0] ?? null;
+    const seleccion = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (seleccion.length === 0) return;
 
-    if (!archivo) {
-      setArchivoBloqueos(null);
-      setErrorBloqueos(null);
+    const periodos = seleccion.map((archivo) => periodoDesdeArchivoBloqueos(archivo.name));
+    if (seleccion.length > 2) {
+      setErrorBloqueos("Selecciona como máximo dos archivos mensuales de bloqueos.");
       return;
     }
-
-    if (!periodoDesdeArchivoBloqueos(archivo.name)) {
-      setArchivoBloqueos(null);
-      setErrorBloqueos(
-        "El archivo debe llamarse bloqueo.AAMM.txt, por ejemplo bloqueo.2603.txt.",
-      );
-      event.target.value = "";
+    if (periodos.some((periodo) => !periodo)) {
+      setErrorBloqueos("Los archivos deben llamarse bloqueo.AAMM.txt, por ejemplo bloqueo.2601.txt.");
       return;
     }
-
-    setArchivoBloqueos(archivo);
+    if (new Set(periodos).size !== periodos.length) {
+      setErrorBloqueos("Selecciona bloqueos de meses distintos.");
+      return;
+    }
+    const nuevosPeriodos = new Set(periodos);
+    const anteriores = archivosBloqueos.filter((archivo) =>
+      !nuevosPeriodos.has(periodoDesdeArchivoBloqueos(archivo.name)),
+    );
+    const ordenados = [...anteriores, ...seleccion].sort((a, b) => a.name.localeCompare(b.name));
+    if (ordenados.length > 2) {
+      setErrorBloqueos("Ya seleccionaste dos meses. Quita la selección para elegir otros.");
+      return;
+    }
+    setArchivosBloqueos(ordenados);
     setErrorBloqueos(null);
   }
 
@@ -119,6 +130,9 @@ export function OrigenDatos({
   }
 
   const periodosPorNombre = new Map(periodosCargados.map((item) => [item.periodo, item]));
+  const pedidosSeleccionados = new Map(
+    archivosPedidos.map((archivo) => [periodoDesdeArchivoVentas(archivo.name), archivo.name]),
+  );
 
   return (
     <Card className="h-fit border-slate-800 bg-[#151b23] p-4">
@@ -130,9 +144,7 @@ export function OrigenDatos({
       <div className="mt-4 rounded-lg border border-slate-800 bg-[#11161d] p-3">
         <div className="flex items-center gap-2">
           <Database className="size-4 text-sky-400" />
-          <p className="text-xs font-semibold uppercase text-slate-400">
-            Cobertura requerida
-          </p>
+          <p className="text-xs font-semibold uppercase text-slate-400">Cobertura requerida</p>
         </div>
 
         {consultandoPeriodos ? (
@@ -148,14 +160,10 @@ export function OrigenDatos({
           <ul className="mt-3 space-y-2">
             {mesesRequeridos.map((periodo) => {
               const cargado = periodosPorNombre.get(periodo);
-              const cubiertoPorArchivo = periodoDesdeArchivoVentas(archivoPedidos?.name ?? "") === periodo;
-              const disponible = Boolean(cargado) || cubiertoPorArchivo;
-
+              const nombreSeleccionado = pedidosSeleccionados.get(periodo);
+              const disponible = Boolean(cargado || nombreSeleccionado);
               return (
-                <li
-                  key={periodo}
-                  className="flex items-center justify-between gap-3 rounded-md bg-slate-900/70 px-2.5 py-2"
-                >
+                <li key={periodo} className="flex items-center justify-between gap-3 rounded-md bg-slate-900/70 px-2.5 py-2">
                   <div className="flex items-center gap-2">
                     {disponible ? (
                       <CheckCircle2 className="size-4 text-green-400" />
@@ -167,9 +175,7 @@ export function OrigenDatos({
                   <span className="text-[10px] text-slate-500">
                     {cargado
                       ? `${cargado.pedidos.toLocaleString("es-PE")} pedidos en BD`
-                      : cubiertoPorArchivo
-                        ? archivoPedidos?.name
-                        : archivoVentasEsperado(periodo)}
+                      : nombreSeleccionado ?? archivoVentasEsperado(periodo)}
                   </span>
                 </li>
               );
@@ -182,15 +188,14 @@ export function OrigenDatos({
         <ArchivoSelector
           titulo={mesesFaltantes.length > 0 ? "Pedidos requeridos" : "Pedidos (opcional)"}
           descripcion="ventas.AAAAMM.txt"
-          archivo={archivoPedidos}
+          archivos={archivosPedidos}
           inputRef={inputPedidosRef}
           onChange={handlePedidos}
           onAbrir={() => inputPedidosRef.current?.click()}
-          ayuda={
-            mesesFaltantes.length > 0
-              ? `Falta: ${mesesFaltantes.map(archivoVentasEsperado).join(", ")}`
-              : "La cobertura necesaria ya está disponible en la base de datos."
-          }
+          onLimpiar={() => { setArchivosPedidos([]); setErrorPedidos(null); }}
+          ayuda={mesesFaltantes.length > 0
+            ? `Falta: ${mesesFaltantes.map(archivoVentasEsperado).join(", ")}`
+            : "La cobertura necesaria ya está disponible en la base de datos."}
           error={errorPedidos}
         />
       </div>
@@ -199,11 +204,12 @@ export function OrigenDatos({
         <ArchivoSelector
           titulo="Bloqueos (opcional)"
           descripcion="bloqueo.AAMM.txt"
-          archivo={archivoBloqueos}
+          archivos={archivosBloqueos}
           inputRef={inputBloqueosRef}
           onChange={handleBloqueos}
           onAbrir={() => inputBloqueosRef.current?.click()}
-          ayuda="Al cargar otro archivo del mismo mes, el backend reemplaza los bloqueos anteriores."
+          onLimpiar={() => { setArchivosBloqueos([]); setErrorBloqueos(null); }}
+          ayuda="Puedes seleccionar los bloqueos de ambos meses; cada mes se reemplaza por separado."
           error={errorBloqueos}
         />
       </div>
@@ -214,56 +220,68 @@ export function OrigenDatos({
 function ArchivoSelector({
   titulo,
   descripcion,
-  archivo,
+  archivos,
   inputRef,
   onChange,
   onAbrir,
+  onLimpiar,
   ayuda,
   error,
 }: {
   titulo: string;
   descripcion: string;
-  archivo: File | null;
+  archivos: File[];
   inputRef: React.RefObject<HTMLInputElement | null>;
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onAbrir: () => void;
+  onLimpiar: () => void;
   ayuda: string;
   error: string | null;
 }) {
   return (
     <div>
       <p className="mb-2 text-xs font-semibold uppercase text-slate-400">{titulo}</p>
-
       <input
         ref={inputRef}
         type="file"
         accept=".txt,text/plain"
+        multiple
         className="hidden"
         onChange={onChange}
       />
-
       <button
         type="button"
         onClick={onAbrir}
         className={[
           "flex min-h-24 w-full flex-col items-center justify-center rounded-md border border-dashed px-4 transition",
-          archivo
+          archivos.length > 0
             ? "border-green-700 bg-green-950/10"
             : "border-slate-700 bg-[#11161d] hover:border-orange-500",
         ].join(" ")}
       >
-        {archivo ? (
+        {archivos.length > 0 ? (
           <FileCheck2 className="mb-2 size-6 text-green-400" />
         ) : (
           <FileUp className="mb-2 size-6 text-slate-400" />
         )}
-
         <span className="text-sm text-slate-300">
-          {archivo ? archivo.name : `Selecciona ${descripcion}`}
+          {archivos.length > 0 ? `${archivos.length} archivo(s) seleccionado(s)` : `Selecciona hasta 2 archivos ${descripcion}`}
         </span>
+        {archivos.map((archivo) => (
+          <span className="mt-1 text-xs text-green-300" key={archivo.name}>
+            {archivo.name}
+          </span>
+        ))}
         <span className="mt-1 text-[11px] text-slate-500">{ayuda}</span>
+        <span className="mt-1 text-[11px] text-slate-500">
+          Puedes agregar los meses uno por uno, o seleccionar ambos con Ctrl + clic.
+        </span>
       </button>
-
+      {archivos.length > 0 && (
+        <button type="button" onClick={onLimpiar} className="mt-2 text-xs text-slate-400 underline hover:text-slate-200">
+          Quitar selección
+        </button>
+      )}
       {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
     </div>
   );

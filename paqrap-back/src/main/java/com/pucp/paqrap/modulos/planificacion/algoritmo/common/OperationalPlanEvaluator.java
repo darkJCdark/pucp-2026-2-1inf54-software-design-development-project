@@ -1,22 +1,4 @@
 package com.pucp.paqrap.modulos.planificacion.algoritmo.common;
-import com.pucp.paqrap.modulos.almacenes.entity.*;
-import com.pucp.paqrap.modulos.flota.entity.*;
-import com.pucp.paqrap.modulos.flota.service.*;
-import com.pucp.paqrap.modulos.incidencias.entity.*;
-import com.pucp.paqrap.modulos.incidencias.service.*;
-import com.pucp.paqrap.modulos.pedidos.entity.*;
-import com.pucp.paqrap.modulos.planificacion.algoritmo.common.*;
-import com.pucp.paqrap.modulos.planificacion.entity.*;
-import com.pucp.paqrap.modulos.redvial.entity.*;
-import com.pucp.paqrap.modulos.redvial.service.*;
-
-import com.pucp.paqrap.modulos.almacenes.entity.InventorySnapshot;
-import com.pucp.paqrap.modulos.planificacion.entity.OperationalSnapshot;
-import com.pucp.paqrap.modulos.pedidos.entity.Order;
-import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
-import com.pucp.paqrap.modulos.flota.entity.VehicleOperationalState;
-import com.pucp.paqrap.modulos.almacenes.entity.Warehouse;
-
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -26,6 +8,17 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import com.pucp.paqrap.modulos.almacenes.entity.InventorySnapshot;
+import com.pucp.paqrap.modulos.almacenes.entity.Warehouse;
+import com.pucp.paqrap.modulos.flota.entity.VehicleOperationalState;
+import com.pucp.paqrap.modulos.pedidos.entity.Order;
+import com.pucp.paqrap.modulos.planificacion.entity.DeliveryRoute;
+import com.pucp.paqrap.modulos.planificacion.entity.DeliveryStop;
+import com.pucp.paqrap.modulos.planificacion.entity.OperationalPlan;
+import com.pucp.paqrap.modulos.planificacion.entity.OperationalSnapshot;
+import com.pucp.paqrap.modulos.planificacion.entity.WarehouseVisit;
+import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
 
 /** Validates all hard business rules and returns the operational cost only for feasible plans. */
 public final class OperationalPlanEvaluator {
@@ -108,6 +101,98 @@ public final class OperationalPlanEvaluator {
         validateDeliveredQuantities(ordersById, deliveredByOrderId, violations);
         InventorySnapshot remainingInventory = evaluateInventory(snapshot, inventoryEvents, violations);
         return new PlanEvaluation(schedules, violations, remainingInventory, totalCost);
+    }
+
+    /**
+     * Valida una ruta que ya fue temporizada externamente.
+     *
+     * <p>Este punto de entrada se usa cuando una ruta en marcha cambia de
+     * velocidad: la programación hasta la siguiente parada se conserva y solo
+     * el sufijo se vuelve a temporizar. Volver a llamar a {@link RouteScheduler}
+     * sobre la ruta completa destruiría esa continuidad física.
+     */
+    public PlanEvaluation evaluateScheduledRoute(
+            DeliveryRoute route,
+            ScheduledDeliveryRoute schedule,
+            OperationalSnapshot snapshot,
+            Collection<Order> requiredOrders
+    ) {
+        Objects.requireNonNull(route, "route is required");
+        Objects.requireNonNull(schedule, "schedule is required");
+        Objects.requireNonNull(snapshot, "snapshot is required");
+        Objects.requireNonNull(requiredOrders, "requiredOrders are required");
+
+        Map<String, Order> ordersById = indexOrders(requiredOrders);
+        List<PlanViolation> violations = new ArrayList<>();
+        Map<String, ScheduledDeliveryRoute> schedules = new LinkedHashMap<>();
+        List<InventoryEvent> inventoryEvents = new ArrayList<>();
+        Map<String, Integer> deliveredByOrderId = new HashMap<>();
+
+        VehicleOperationalState vehicleState =
+                snapshot.vehiclesById().get(route.vehicle().id());
+
+        if (vehicleState == null) {
+            violations.add(
+                    violation(
+                            PlanViolationType.UNKNOWN_VEHICLE,
+                            route,
+                            "Vehicle is absent from the snapshot"
+                    )
+            );
+        } else {
+            validateRouteStart(
+                    route,
+                    vehicleState,
+                    snapshot,
+                    violations,
+                    inventoryEvents
+            );
+
+            if (!snapshot.isVehiclePlannableAt(
+                    route.vehicle().id(),
+                    route.departureAt()
+            )) {
+                violations.add(
+                        violation(
+                                PlanViolationType.VEHICLE_UNAVAILABLE,
+                                route,
+                                "Vehicle is not plannable at route departure"
+                        )
+                );
+            }
+
+            schedules.put(route.id(), schedule);
+
+            validateSchedule(
+                    route,
+                    schedule,
+                    snapshot,
+                    ordersById,
+                    deliveredByOrderId,
+                    inventoryEvents,
+                    violations
+            );
+        }
+
+        validateDeliveredQuantities(
+                ordersById,
+                deliveredByOrderId,
+                violations
+        );
+
+        InventorySnapshot remainingInventory =
+                evaluateInventory(
+                        snapshot,
+                        inventoryEvents,
+                        violations
+                );
+
+        return new PlanEvaluation(
+                schedules,
+                violations,
+                remainingInventory,
+                schedule.totalCost()
+        );
     }
 
     private Map<String, Order> indexOrders(Collection<Order> orders) {

@@ -1,5 +1,6 @@
 import type {
   CargaPedidosResponseDto,
+  CargaPedidosMultipleResponseDto,
   EstadoPedidoBackend,
   PaginaResponseDto,
   PedidoDetalleResponseDto,
@@ -169,6 +170,18 @@ export const pedidosService = {
         body: JSON.stringify(request),
       },
     );
+  },
+
+  cargarArchivos(archivos: File[]): Promise<CargaPedidosMultipleResponseDto> {
+    if (archivos.length < 1 || archivos.length > 2) {
+      return Promise.reject(new Error("Selecciona uno o dos archivos mensuales de pedidos."));
+    }
+    const formData = new FormData();
+    archivos.forEach((archivo) => formData.append("archivos", archivo));
+    return apiRequest<CargaPedidosMultipleResponseDto>("/api/pedidos/carga-multiple", {
+      method: "POST",
+      body: formData,
+    });
   },
 
   cargarArchivo(

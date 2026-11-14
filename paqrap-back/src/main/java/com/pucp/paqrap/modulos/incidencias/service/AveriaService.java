@@ -53,12 +53,12 @@ public class AveriaService {
         if ((request.x() == null) != (request.y() == null)) {
             throw new IllegalArgumentException("Indique ambas coordenadas 'x' e 'y', o ninguna");
         }
-        VehiculoResponse vehiculo = flotaService.obtenerVehiculo(request.vehiculoId());
+        long ejecucionId = ejecucionDe(request);
+        VehiculoResponse vehiculo = flotaService.obtenerVehiculo(request.vehiculoId(), ejecucionId);
         if (vehiculo.estado() == VehicleOperationalStatus.UNAVAILABLE) {
             throw new ReglaNegocioException("El vehículo " + vehiculo.id()
                     + " está fuera de servicio (UNAVAILABLE); no puede registrarse una avería");
         }
-        long ejecucionId = ejecucionDe(request);
         Instant ocurridaEn = horaDeLaAveria(ejecucionId, request.ocurridaEn());
         Location ubicacion = ubicacionDeLaAveria(ejecucionId, vehiculo, ocurridaEn, request);
 

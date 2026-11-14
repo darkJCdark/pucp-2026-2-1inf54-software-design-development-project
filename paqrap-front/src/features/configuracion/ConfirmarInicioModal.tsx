@@ -6,7 +6,7 @@ import type { ConfiguracionPlanificador } from "./configuracion.types";
 interface ConfirmarInicioModalProps {
   abierto: boolean;
   configuracion: ConfiguracionPlanificador;
-  archivoBloqueos: File | null;
+  archivosBloqueos: File[];
   confirmando: boolean;
   fuentePedidos: string;
   onConfirmar: () => void;
@@ -16,7 +16,7 @@ interface ConfirmarInicioModalProps {
 export function ConfirmarInicioModal({
   abierto,
   configuracion,
-  archivoBloqueos,
+  archivosBloqueos,
   confirmando,
   fuentePedidos,
   onConfirmar,
@@ -55,7 +55,7 @@ export function ConfirmarInicioModal({
         <ResumenDato
           icono={<FileText className="size-4" />}
           label="Archivo de bloqueos"
-          value={archivoBloqueos?.name ?? "Sin archivo"}
+          value={archivosBloqueos.map((archivo) => archivo.name).join(" · ") || "Sin archivo"}
         />
         <ResumenDato
           icono={<Boxes className="size-4" />}

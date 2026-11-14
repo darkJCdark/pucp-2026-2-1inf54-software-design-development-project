@@ -14,13 +14,14 @@ export function ResumenConfiguracion({
   mesesRequeridos,
   mesesFaltantes,
 }: ResumenConfiguracionProps) {
-  const { configuracion, archivoPedidos, archivoBloqueos } = useConfiguracion();
+  const { configuracion, archivosPedidos, archivosBloqueos } = useConfiguracion();
 
   const fuentePedidos =
     configuracion.escenario === "DIA_A_DIA"
       ? "Registro en línea"
-      : archivoPedidos?.name ??
-        (mesesFaltantes.length === 0 && mesesRequeridos.length > 0
+      : archivosPedidos.length > 0
+        ? archivosPedidos.map((archivo) => archivo.name).join(" · ")
+        : (mesesFaltantes.length === 0 && mesesRequeridos.length > 0
           ? `Base de datos · ${mesesRequeridos.map(periodoLegible).join(", ")}`
           : mesesFaltantes.length > 0
             ? `Falta ${mesesFaltantes.map(periodoLegible).join(", ")}`
@@ -35,7 +36,7 @@ export function ResumenConfiguracion({
 
       {configuracion.escenario !== "DIA_A_DIA" && (
         <>
-          <Fila label="Bloqueos" value={archivoBloqueos?.name ?? "Sin archivo"} />
+          <Fila label="Bloqueos" value={archivosBloqueos.map((archivo) => archivo.name).join(" · ") || "Sin archivo"} />
           <Fila label="Inicio" value={configuracion.inicioSimulado || "—"} />
         </>
       )}

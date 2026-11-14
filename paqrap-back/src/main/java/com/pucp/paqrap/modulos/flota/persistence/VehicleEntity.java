@@ -32,19 +32,19 @@ public class VehicleEntity {
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "operational_status", nullable = false, length = 20)
-    private VehicleOperationalStatus operationalStatus;
+    private volatile VehicleOperationalStatus operationalStatus;
 
     @JdbcTypeCode(SqlTypes.SMALLINT)
     @Column(name = "current_x", nullable = false)
-    private Integer currentX;
+    private volatile Integer currentX;
 
     @JdbcTypeCode(SqlTypes.SMALLINT)
     @Column(name = "current_y", nullable = false)
-    private Integer currentY;
+    private volatile Integer currentY;
 
     @JdbcTypeCode(SqlTypes.SMALLINT)
     @Column(name = "current_load", nullable = false)
-    private Integer currentLoad;
+    private volatile Integer currentLoad;
 
     /** Desde cuándo puede volver a planificarse; NULL = ya disponible. */
     @Column(name = "available_at")

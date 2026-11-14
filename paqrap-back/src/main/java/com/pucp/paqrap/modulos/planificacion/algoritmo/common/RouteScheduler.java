@@ -85,6 +85,29 @@ public final class RouteScheduler {
             OperationalSnapshot snapshot,
             List<RoadBlock> blocks
     ) {
+        return schedule(
+                route,
+                snapshot,
+                blocks,
+                null
+        );
+    }
+
+    /**
+     * Programa una continuación de ruta conservando el turno en el que el
+     * conductor ya tomó refrigerio.
+     *
+     * <p>Se usa al cambiar parámetros de flota durante una ruta: el viaje ya
+     * iniciado hasta la siguiente parada permanece congelado y el sufijo se
+     * programa desde esa parada con el nuevo perfil. Sin este estado inicial,
+     * el sufijo podría asignar un segundo refrigerio dentro del mismo turno.
+     */
+    public ScheduledDeliveryRoute schedule(
+            DeliveryRoute route,
+            OperationalSnapshot snapshot,
+            List<RoadBlock> blocks,
+            Instant turnoConRefrigerioTomadoInicial
+    ) {
         Objects.requireNonNull(
                 route,
                 "route is required"
@@ -139,7 +162,7 @@ public final class RouteScheduler {
          * refrigerio por turno.
          */
         Instant turnoConRefrigerioTomado =
-                null;
+                turnoConRefrigerioTomadoInicial;
 
         List<RouteStop> paradas =
                 route.stops();

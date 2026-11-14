@@ -57,6 +57,9 @@ public class EjecutorPlanService {
 
     private static final Logger log = LoggerFactory.getLogger(EjecutorPlanService.class);
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.pucp.paqrap.modulos.escenarios.service.EstadoOperativoEscenarios estadoOperativo;
+
     private final PlanVigente planVigente;
     private final OrderRepository pedidoRepository;
     private final OrderStatusHistoryRepository historialRepository;
@@ -93,6 +96,10 @@ public class EjecutorPlanService {
     @Transactional
     public void prepararInicio(long ejecucionId, Instant inicioSimulado) {
         estados.put(ejecucionId, new EstadoEjecucion());
+        if (estadoOperativo != null && estadoOperativo.aislada(ejecucionId)) {
+            log.info("Ejecución {}: estado virtual aislado preparado; no se reinician datos de Día a Día", ejecucionId);
+            return;
+        }
         historialRepository.borrarEjecucionDesde(inicioSimulado);
         int pedidos = pedidoRepository.reiniciarDesde(inicioSimulado);
 
@@ -124,7 +131,7 @@ public class EjecutorPlanService {
                 .toList();
         Optional<PlanResponse> vigente = planVigente.ultimoPlan(ejecucionId);
         if (vigente.isEmpty()) {
-            trasladarAveriadosAlCentral(averias, desde, hasta);
+            trasladarAveriadosAlCentral(ejecucionId, averias, desde, hasta);
             return;
         }
         PlanResponse plan = vigente.get();
@@ -132,7 +139,7 @@ public class EjecutorPlanService {
         if (plan != estado.plan) {
             // Plan nuevo: reemplaza al anterior desde su hora de planificación (incluida). Las rutas en curso que la
             // replanificación conservó siguen ejecutándose con su versión del plan nuevo.
-            liberarVehiculosSinRuta(estado, plan);
+            liberarVehiculosSinRuta(ejecucionId, estado, plan);
             Map<String, RutaEnCurso> continuadas = continuadas(estado, plan);
             estado.plan = plan;
             estado.rutas.clear();
@@ -147,7 +154,7 @@ public class EjecutorPlanService {
         for (Evento evento : eventos(plan, inicioVentana, desde, estado.continuadas, hasta, averias)) {
             aplicar(ejecucionId, estado, evento, averias);
         }
-        trasladarAveriadosAlCentral(averias, desde, hasta);
+        trasladarAveriadosAlCentral(ejecucionId, averias, desde, hasta);
     }
 
     /** Rutas en curso que siguen en el plan nuevo (mismo vehículo, id y salida), ya ligadas a su versión nueva. */
@@ -170,7 +177,7 @@ public class EjecutorPlanService {
      */
     public Optional<Location> posicionEstimada(long ejecucionId, String vehiculoId, Instant instante) {
         EstadoEjecucion estado = estados.get(ejecucionId);
-        VehicleEntity vehiculo = vehiculoRepository.findById(vehiculoId).orElse(null);
+        VehicleEntity vehiculo = vehiculo(ejecucionId, vehiculoId).orElse(null);
         if (estado == null || estado.plan == null || vehiculo == null
                 || vehiculo.getOperationalStatus() != VehicleOperationalStatus.IN_ROUTE) {
             return Optional.empty();
@@ -263,12 +270,12 @@ public Optional<Instant> refrigerioHasta(
     }
 
     /** Los vehículos que iban en ruta y no aparecen en el plan nuevo quedan disponibles donde están. */
-    private void liberarVehiculosSinRuta(EstadoEjecucion estado, PlanResponse nuevo) {
+    private void liberarVehiculosSinRuta(long ejecucionId, EstadoEjecucion estado, PlanResponse nuevo) {
         for (RutaEnCurso enCurso : estado.rutas.values()) {
             String vehiculoId = enCurso.ruta.vehiculoId();
             boolean sigue = nuevo.rutas().stream().anyMatch(ruta -> ruta.vehiculoId().equals(vehiculoId));
             if (!sigue) {
-                vehiculoRepository.findById(vehiculoId)
+                vehiculo(ejecucionId, vehiculoId)
                         .filter(vehiculo -> vehiculo.getOperationalStatus() == VehicleOperationalStatus.IN_ROUTE)
                         .ifPresent(vehiculo -> vehiculo.setOperationalStatus(VehicleOperationalStatus.AVAILABLE));
             }
@@ -350,19 +357,19 @@ public Optional<Instant> refrigerioHasta(
             return; // la ruta no llegó a salir, es de otro plan o la interrumpió una avería
         }
         if (evento.tipo() == TipoEvento.AVERIA) {
-            interrumpir(enCurso, evento.averia());
+            interrumpir(ejecucionId, enCurso, evento.averia());
             return;
         }
         switch (evento.tipo()) {
-            case PARTIDA_HACIA_PARADA -> partirHacia(ruta.paradas().get(evento.parada()), ruta, evento.instante());
+            case PARTIDA_HACIA_PARADA -> partirHacia(ejecucionId, ruta.paradas().get(evento.parada()), ruta, evento.instante());
             case LLEGADA_A_PARADA -> llegarA(ejecucionId, estado, enCurso, evento.parada(), evento.instante());
-            case FIN_RUTA -> terminarRuta(enCurso);
+            case FIN_RUTA -> terminarRuta(ejecucionId, enCurso);
             default -> { }
         }
     }
 
     private void iniciarRuta(long ejecucionId, EstadoEjecucion estado, RutaResponse ruta, List<BreakdownEvent> averias) {
-        VehicleEntity vehiculo = vehiculoRepository.findById(ruta.vehiculoId()).orElse(null);
+        VehicleEntity vehiculo = vehiculo(ejecucionId, ruta.vehiculoId()).orElse(null);
         if (vehiculo == null || averiaDurante(averias, ruta.vehiculoId(), Instant.MIN, ruta.salida())
                 .filter(a -> calculadoraAverias.resolve(a).unavailableUntil().isAfter(ruta.salida())).isPresent()) {
             return;
@@ -380,9 +387,9 @@ public Optional<Instant> refrigerioHasta(
         vehiculo.moverA(vehiculo.getCurrentX(), vehiculo.getCurrentY(), cargaPlanificada);
         for (ParadaResponse parada : ruta.paradas()) {
             if (ParadaResponse.ENTREGA.equals(parada.tipo())) {
-                pedidoRepository.findById(parada.pedidoId())
+                pedido(ejecucionId, parada.pedidoId())
                         .filter(pedido -> pedido.getStatus() == OrderStatus.REGISTERED)
-                        .ifPresent(pedido -> cambiarEstado(pedido, OrderStatus.ASSIGNED, ruta.salida(), ruta.vehiculoId()));
+                        .ifPresent(pedido -> cambiarEstado(ejecucionId, pedido, OrderStatus.ASSIGNED, ruta.salida(), ruta.vehiculoId()));
             }
         }
     }
@@ -401,11 +408,11 @@ public Optional<Instant> refrigerioHasta(
             return false;
         }
     }
-    private void partirHacia(ParadaResponse parada, RutaResponse ruta, Instant instante) {
-        pedidoRepository.findById(parada.pedidoId())
+    private void partirHacia(long ejecucionId, ParadaResponse parada, RutaResponse ruta, Instant instante) {
+        pedido(ejecucionId, parada.pedidoId())
                 .filter(pedido -> pedido.getStatus() == OrderStatus.ASSIGNED
                         || pedido.getStatus() == OrderStatus.REGISTERED)
-                .ifPresent(pedido -> cambiarEstado(pedido, OrderStatus.IN_TRANSIT, instante, ruta.vehiculoId()));
+                .ifPresent(pedido -> cambiarEstado(ejecucionId, pedido, OrderStatus.IN_TRANSIT, instante, ruta.vehiculoId()));
     }
 
     private void llegarA(long ejecucionId, EstadoEjecucion estado, RutaEnCurso enCurso, int indice, Instant instante) {
@@ -420,18 +427,18 @@ public Optional<Instant> refrigerioHasta(
 
         boolean cargaConfirmada = !ParadaResponse.ALMACEN.equals(parada.tipo()) || parada.paquetes() <= 0
                 || despachar(ejecucionId, ruta, indice, instante);
-        vehiculoRepository.findById(ruta.vehiculoId()).ifPresent(vehiculo -> {
+        vehiculo(ejecucionId, ruta.vehiculoId()).ifPresent(vehiculo -> {
             int carga = cargaConfirmada && parada.cargaDespues() != null
                     ? parada.cargaDespues() : vehiculo.getCurrentLoad();
             vehiculo.moverA(parada.x(), parada.y(), carga);
         });
         if (ParadaResponse.ENTREGA.equals(parada.tipo())) {
-            entregar(estado, parada, ruta.vehiculoId(), instante);
+            entregar(ejecucionId, estado, parada, ruta.vehiculoId(), instante);
         }
     }
     /** Suma la entrega (puede ser parcial); el pedido queda DELIVERED al completar todos sus paquetes. */
-    private void entregar(EstadoEjecucion estado, ParadaResponse parada, String vehiculoId, Instant llegada) {
-        OrderEntity pedido = pedidoRepository.findById(parada.pedidoId()).orElse(null);
+    private void entregar(long ejecucionId, EstadoEjecucion estado, ParadaResponse parada, String vehiculoId, Instant llegada) {
+        OrderEntity pedido = pedido(ejecucionId, parada.pedidoId()).orElse(null);
         if (pedido == null || pedido.getStatus() == OrderStatus.DELIVERED) {
             return;
         }
@@ -439,7 +446,7 @@ public Optional<Instant> refrigerioHasta(
         estado.paquetesEntregados += parada.paquetes();
         if (entregados >= pedido.getPackages()) {
             pedido.entregar(llegada);
-            historialRepository.save(OrderStatusHistoryEntity.cambio(pedido, OrderStatus.DELIVERED, llegada, vehiculoId));
+            guardarHistorial(ejecucionId, pedido, OrderStatus.DELIVERED, llegada, vehiculoId);
             estado.pedidosEntregados++;
             if (pedido.entregadoATiempo()) {
                 estado.entregadosATiempo++;
@@ -472,8 +479,8 @@ public Optional<Instant> refrigerioHasta(
         }
         return ruta.routePersistedId();
     }
-    private void terminarRuta(RutaEnCurso enCurso) {
-        vehiculoRepository.findById(enCurso.ruta.vehiculoId())
+    private void terminarRuta(long ejecucionId, RutaEnCurso enCurso) {
+        vehiculo(ejecucionId, enCurso.ruta.vehiculoId())
                 .filter(vehiculo -> vehiculo.getOperationalStatus() == VehicleOperationalStatus.IN_ROUTE)
                 .ifPresent(vehiculo -> vehiculo.setOperationalStatus(VehicleOperationalStatus.AVAILABLE));
     }
@@ -481,26 +488,26 @@ public Optional<Instant> refrigerioHasta(
     // ------------------------------------------------------------------ averías
 
     /** El vehículo queda en el lugar de la avería. Sus pedidos sin entregar vuelven a REGISTERED para replanificarse. */
-    private void interrumpir(RutaEnCurso enCurso, BreakdownEvent averia) {
+    private void interrumpir(long ejecucionId, RutaEnCurso enCurso, BreakdownEvent averia) {
         enCurso.interrumpida = true;
         RutaResponse ruta = enCurso.ruta;
-        vehiculoRepository.findById(ruta.vehiculoId()).ifPresent(vehiculo -> {
+        vehiculo(ejecucionId, ruta.vehiculoId()).ifPresent(vehiculo -> {
             vehiculo.moverA(averia.location().x(), averia.location().y(), vehiculo.getCurrentLoad());
             vehiculo.setOperationalStatus(VehicleOperationalStatus.AVAILABLE);
         });
         for (ParadaResponse parada : ruta.paradas()) {
             if (ParadaResponse.ENTREGA.equals(parada.tipo())) {
-                pedidoRepository.findById(parada.pedidoId())
+                pedido(ejecucionId, parada.pedidoId())
                         .filter(pedido -> pedido.getStatus() == OrderStatus.ASSIGNED
                                 || pedido.getStatus() == OrderStatus.IN_TRANSIT)
-                        .ifPresent(pedido -> cambiarEstado(pedido, OrderStatus.REGISTERED, averia.occurredAt(),
+                        .ifPresent(pedido -> cambiarEstado(ejecucionId, pedido, OrderStatus.REGISTERED, averia.occurredAt(),
                                 ruta.vehiculoId()));
             }
         }
     }
 
     /** Averías intermedias y mayores: a las 4 horas la unidad pasa al central con la carga no trasvasada. */
-    private void trasladarAveriadosAlCentral(List<BreakdownEvent> averias, Instant desde, Instant hasta) {
+    private void trasladarAveriadosAlCentral(long ejecucionId, List<BreakdownEvent> averias, Instant desde, Instant hasta) {
         Optional<WarehouseEntity> central = averias.isEmpty() ? Optional.empty() : almacenRepository.findAll().stream()
                 .filter(almacen -> almacen.getWarehouseKind() == WarehouseKind.CENTRAL)
                 .findFirst();
@@ -508,7 +515,7 @@ public Optional<Instant> refrigerioHasta(
             BreakdownResolution resolucion = calculadoraAverias.resolve(averia);
             Instant traslado = resolucion.returnsToCentralAt();
             if (traslado != null && traslado.isAfter(desde) && !traslado.isAfter(hasta) && central.isPresent()) {
-                vehiculoRepository.findById(averia.vehicleId())
+                vehiculo(ejecucionId, averia.vehicleId())
                         .ifPresent(vehiculo -> vehiculo.moverA(central.get().getX(), central.get().getY(), 0));
             }
         }
@@ -522,9 +529,26 @@ public Optional<Instant> refrigerioHasta(
                 .findFirst();
     }
 
-    private void cambiarEstado(OrderEntity pedido, OrderStatus nuevoEstado, Instant instante, String vehiculoId) {
+    private void cambiarEstado(long ejecucionId, OrderEntity pedido, OrderStatus nuevoEstado, Instant instante, String vehiculoId) {
         pedido.cambiarEstado(nuevoEstado);
-        historialRepository.save(OrderStatusHistoryEntity.cambio(pedido, nuevoEstado, instante, vehiculoId));
+        guardarHistorial(ejecucionId, pedido, nuevoEstado, instante, vehiculoId);
+    }
+
+    private Optional<VehicleEntity> vehiculo(long ejecucionId, String id) {
+        return estadoOperativo == null ? vehiculoRepository.findById(id) : estadoOperativo.vehiculo(ejecucionId, id);
+    }
+
+    private Optional<OrderEntity> pedido(long ejecucionId, String id) {
+        return estadoOperativo == null ? pedidoRepository.findById(id) : estadoOperativo.pedido(ejecucionId, id);
+    }
+
+    private void guardarHistorial(long ejecucionId, OrderEntity pedido, OrderStatus estado,
+                                   Instant instante, String vehiculoId) {
+        if (estadoOperativo == null) {
+            historialRepository.save(OrderStatusHistoryEntity.cambio(pedido, estado, instante, vehiculoId));
+        } else {
+            estadoOperativo.guardarHistorial(ejecucionId, pedido, estado, instante, vehiculoId);
+        }
     }
 
     // ------------------------------------------------------------------ estado en memoria

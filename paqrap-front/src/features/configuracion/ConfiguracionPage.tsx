@@ -56,8 +56,8 @@ export default function ConfiguracionPage() {
   const {
     configuracion,
     actualizarConfiguracion,
-    archivoPedidos,
-    archivoBloqueos,
+    archivosPedidos,
+    archivosBloqueos,
   } = useConfiguracion();
 
   const [iniciando, setIniciando] = useState(false);
@@ -83,10 +83,9 @@ export default function ConfiguracionPage() {
     configuracion.inicioSimulado,
   );
 
-  const periodoArchivoPedidos =
-    periodoDesdeArchivoVentas(
-      archivoPedidos?.name ?? "",
-    );
+  const periodosArchivosPedidos = archivosPedidos.map(
+    (archivo) => periodoDesdeArchivoVentas(archivo.name),
+  );
 
   const periodosDisponibles =
     new Set(
@@ -95,10 +94,8 @@ export default function ConfiguracionPage() {
       ),
     );
 
-  if (periodoArchivoPedidos) {
-    periodosDisponibles.add(
-      periodoArchivoPedidos,
-    );
+  for (const periodo of periodosArchivosPedidos) {
+    if (periodo) periodosDisponibles.add(periodo);
   }
 
   const mesesFaltantes =
@@ -468,47 +465,34 @@ async function buscarEscenarioActivo():
       return "La fecha inicial no es válida.";
     }
 
-    if (archivoPedidos) {
-      if (
-        !periodoArchivoPedidos
-      ) {
-        return "El archivo de pedidos debe llamarse ventas.AAAAMM.txt.";
-      }
+    if (archivosPedidos.length > 2 || archivosBloqueos.length > 2) {
+      return "Selecciona como máximo dos archivos de pedidos y dos de bloqueos.";
+    }
 
-      if (
-        !mesesRequeridos.includes(
-          periodoArchivoPedidos,
-        )
-      ) {
-        return `El archivo ${archivoPedidos.name} no corresponde a los meses requeridos por el escenario.`;
+    if (periodosArchivosPedidos.some((periodo) => !periodo)) {
+      return "Los archivos de pedidos deben llamarse ventas.AAAAMM.txt.";
+    }
+    if (new Set(periodosArchivosPedidos).size !== periodosArchivosPedidos.length) {
+      return "No puedes seleccionar dos archivos de pedidos del mismo mes.";
+    }
+    for (let i = 0; i < archivosPedidos.length; i++) {
+      if (!mesesRequeridos.includes(periodosArchivosPedidos[i]!)) {
+        return `El archivo ${archivosPedidos[i].name} no corresponde a los meses requeridos por el escenario.`;
       }
     }
 
-    if (archivoBloqueos) {
-      const periodoBloqueo =
-        periodoDesdeArchivoBloqueos(
-          archivoBloqueos.name,
-        );
-
-      if (!periodoBloqueo) {
-        return "El archivo de bloqueos debe llamarse bloqueo.AAMM.txt.";
-      }
-
-      if (
-        archivoPedidos &&
-        periodoArchivoPedidos !==
-          periodoBloqueo
-      ) {
-        return "Los archivos de pedidos y bloqueos deben corresponder al mismo periodo.";
-      }
-
-      if (
-        !archivoPedidos &&
-        !mesesRequeridos.includes(
-          periodoBloqueo,
-        )
-      ) {
-        return `El archivo ${archivoBloqueos.name} no corresponde a los meses requeridos por el escenario.`;
+    const periodosBloqueos = archivosBloqueos.map((archivo) =>
+      periodoDesdeArchivoBloqueos(archivo.name),
+    );
+    if (periodosBloqueos.some((periodo) => !periodo)) {
+      return "Los archivos de bloqueos deben llamarse bloqueo.AAMM.txt.";
+    }
+    if (new Set(periodosBloqueos).size !== periodosBloqueos.length) {
+      return "No puedes seleccionar dos archivos de bloqueos del mismo mes.";
+    }
+    for (let i = 0; i < archivosBloqueos.length; i++) {
+      if (!mesesRequeridos.includes(periodosBloqueos[i]!)) {
+        return `El archivo ${archivosBloqueos[i].name} no corresponde a los meses requeridos por el escenario.`;
       }
     }
 
@@ -586,14 +570,12 @@ async function buscarEscenarioActivo():
 
     if (
       usaDatosHistoricos &&
-      archivoPedidos
+      archivosPedidos.length > 0
     ) {
-      etapa = "cargar archivo de pedidos";
+      etapa = "cargar archivos de pedidos";
 
       const carga =
-        await pedidosService.cargarArchivo(
-          archivoPedidos,
-        );
+        await pedidosService.cargarArchivos(archivosPedidos);
 
       if (!carga) {
         throw new Error(
@@ -626,20 +608,12 @@ async function buscarEscenarioActivo():
 
     if (
       usaDatosHistoricos &&
-      archivoBloqueos
+      archivosBloqueos.length > 0
     ) {
       etapa = "cargar bloqueos";
 
-      const periodo =
-        periodoDesdeArchivoBloqueos(
-          archivoBloqueos.name,
-        );
-
       const carga =
-        await bloqueosService.cargarArchivo(
-          archivoBloqueos,
-          periodo ?? undefined,
-        );
+        await bloqueosService.cargarArchivos(archivosBloqueos);
 
       if (!carga) {
         throw new Error(
@@ -650,7 +624,7 @@ async function buscarEscenarioActivo():
       mostrarToast({
         titulo: "Bloqueos cargados",
         descripcion:
-          `${carga.registrados} registrados · ${carga.reemplazados} reemplazados en ${carga.periodo}`,
+          `${carga.registrados} registrados · ${carga.reemplazados} reemplazados en ${carga.archivos.length} mes(es)`,
         variante: "success",
       });
     }
@@ -1114,9 +1088,7 @@ async function actualizarParametrosFlota() {
         configuracion={
           configuracion
         }
-        archivoBloqueos={
-          archivoBloqueos
-        }
+        archivosBloqueos={archivosBloqueos}
         confirmando={
           iniciando
         }
@@ -1129,10 +1101,9 @@ async function actualizarParametrosFlota() {
           configuracion.escenario ===
           "DIA_A_DIA"
             ? "Registro en línea"
-            : archivoPedidos?.name ??
-              `Base de datos · ${mesesRequeridos.join(
-                ", ",
-              )}`
+            : archivosPedidos.length > 0
+              ? archivosPedidos.map((archivo) => archivo.name).join(" · ")
+              : `Base de datos · ${mesesRequeridos.join(", ")}`
         }
         onConfirmar={() =>
           void handleIniciarSimulacion()
