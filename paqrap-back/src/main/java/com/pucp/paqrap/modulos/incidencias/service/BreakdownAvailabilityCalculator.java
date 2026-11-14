@@ -28,7 +28,7 @@ public final class BreakdownAvailabilityCalculator {
         Objects.requireNonNull(event, "event is required");
         Instant occurredAt = event.occurredAt();
         return switch (event.type()) {
-            case MINOR -> new BreakdownResolution(occurredAt.plus(BreakdownType.MINOR.minimumUnavailable()), null);
+            case MINOR -> new BreakdownResolution(occurredAt.plus(event.repairDuration()), null);
             case INTERMEDIATE -> new BreakdownResolution(
                     min(shiftSchedule.endOfNextShift(occurredAt), occurredAt.plus(BreakdownType.INTERMEDIATE.minimumUnavailable())),
                     occurredAt.plus(AUTOMATIC_RETURN_DELAY));

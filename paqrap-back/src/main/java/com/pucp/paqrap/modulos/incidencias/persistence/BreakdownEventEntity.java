@@ -49,6 +49,9 @@ public class BreakdownEventEntity {
     @Column(name = "location_y", nullable = false)
     private Integer locationY;
 
+    @Column(name = "minor_repair_minutes")
+    private Integer minorRepairMinutes;
+
     protected BreakdownEventEntity() {
     }
 
@@ -59,10 +62,11 @@ public class BreakdownEventEntity {
         this.occurredAt = evento.occurredAt();
         this.locationX = evento.location().x();
         this.locationY = evento.location().y();
+        this.minorRepairMinutes = evento.minorRepairMinutes();
     }
 
     public BreakdownEvent toDomain() {
-        return new BreakdownEvent(vehicleId, breakdownType, occurredAt, new Location(locationX, locationY));
+        return new BreakdownEvent(vehicleId, breakdownType, occurredAt, new Location(locationX, locationY), minorRepairMinutes);
     }
 
     public Long getBreakdownId() { return breakdownId; }

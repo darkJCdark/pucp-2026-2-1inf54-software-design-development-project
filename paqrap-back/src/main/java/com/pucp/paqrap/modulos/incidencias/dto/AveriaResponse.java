@@ -11,11 +11,12 @@ import java.time.Instant;
  * planificarse y, para averías intermedias y mayores, cuándo es remolcada al almacén central (null en las menores).
  */
 public record AveriaResponse(Long id, Long ejecucionId, String vehiculoId, BreakdownType tipo, Instant ocurridaEn,
-                             int x, int y, Instant indisponibleHasta, Instant regresaAlCentralEn) {
+                             int x, int y, Instant indisponibleHasta, Instant regresaAlCentralEn, Integer duracionReparacionMinutos) {
 
     public static AveriaResponse de(BreakdownEventEntity entity, BreakdownResolution resolucion) {
         return new AveriaResponse(entity.getBreakdownId(), entity.getExecutionId(), entity.getVehicleId(),
                 entity.getBreakdownType(), entity.getOccurredAt(), entity.getLocationX(), entity.getLocationY(),
-                resolucion.unavailableUntil(), resolucion.returnsToCentralAt());
+                resolucion.unavailableUntil(), resolucion.returnsToCentralAt(),
+                entity.getBreakdownType() == BreakdownType.MINOR ? (int) entity.toDomain().repairDuration().toMinutes() : null);
     }
 }

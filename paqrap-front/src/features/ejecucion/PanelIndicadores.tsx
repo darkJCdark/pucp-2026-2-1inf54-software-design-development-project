@@ -4,7 +4,8 @@ import { Check, ChevronLeft, ChevronRight, Loader2, Pencil, X } from "lucide-rea
 import type { TipoVehiculoBackend, TipoVehiculoResponseDto } from "@/api/flota.dto";
 import type { PlanResponseDto, ReplanificacionResponseDto } from "@/api/planificacion.dto";
 import { Card } from "@/components/ui/card";
-import { useConfiguracion } from "@/context/ConfiguracionContext";
+import { useUmbralesEjecucion } from "@/context/ConfiguracionContext";
+import { nivelSemaforo, type NivelSemaforo } from "@/features/configuracion/semaforo";
 import { Progress } from "@/components/ui/progress";
 import type {
   AlmacenMapa,
@@ -47,8 +48,8 @@ export function PanelIndicadores({
   onAlternarPlegado,
 }: PanelIndicadoresProps) {
   const {
-    configuracion,
-  } = useConfiguracion();
+    umbrales: configuracion,
+  } = useUmbralesEjecucion();
 
   const intermedios = almacenes.filter((almacen) => almacen.tipo === "INTERMEDIO");
   const totalPorTipo = (tipo: TipoVehiculo) =>
@@ -174,7 +175,7 @@ export function PanelIndicadores({
         <IndicadorSemaforo
           label="Ocupación de carga de la flota"
           porcentaje={ocupacionFlota}
-          nivel={nivelCargaGlobal(
+          nivel={nivelSemaforo(
             ocupacionFlota,
             configuracion.vehiculoVerdeHasta,
             configuracion.vehiculoAmbarHasta,
@@ -185,7 +186,7 @@ export function PanelIndicadores({
         <IndicadorSemaforo
           label="Nivel de llenado de almacenes intermedios"
           porcentaje={ocupacionAlmacenes}
-          nivel={nivelStockGlobal(
+          nivel={nivelSemaforo(
             ocupacionAlmacenes,
             configuracion.almacenVerdeHasta,
             configuracion.almacenAmbarHasta,
@@ -233,6 +234,7 @@ export function PanelIndicadores({
           const stock = almacen.stock ?? 0;
           const capacidad = almacen.capacidad ?? 1000;
           const porcentajeDisponible = capacidad > 0 ? (stock / capacidad) * 100 : 0;
+          const nivel = nivelSemaforo(porcentajeDisponible, configuracion.almacenVerdeHasta, configuracion.almacenAmbarHasta);
 
           return (
             <button
@@ -247,23 +249,9 @@ export function PanelIndicadores({
                   <p className="text-xs text-slate-500">{almacen.id}</p>
                 </div>
                 <span
-                  className={
-                    porcentajeDisponible <= 0
-                      ? "rounded-full bg-slate-600 px-2 py-1 text-[10px] text-white"
-                      : porcentajeDisponible <= configuracion.almacenVerdeHasta
-                        ? "rounded-full bg-green-500 px-2 py-1 text-[10px] text-black"
-                        : porcentajeDisponible <= configuracion.almacenAmbarHasta
-                          ? "rounded-full bg-amber-500 px-2 py-1 text-[10px] text-black"
-                          : "rounded-full bg-red-500 px-2 py-1 text-[10px] text-white"
-                  }
+                  className={`rounded-full px-2 py-1 text-[10px] ${claseNivelIndicador(nivel)}`}
                 >
-                  {porcentajeDisponible <= 0
-                    ? "Vacío"
-                    : porcentajeDisponible <= configuracion.almacenVerdeHasta
-                      ? "Verde"
-                      : porcentajeDisponible <= configuracion.almacenAmbarHasta
-                        ? "Ámbar"
-                        : "Rojo"}
+                  {nombreNivelIndicador(nivel)}
                 </span>
               </div>
 
@@ -403,7 +391,16 @@ function UsoFlota({ nombre, actual, total }: { nombre: string; actual: number; t
   );
 }
 
-type NivelIndicador = "VACIO" | "VERDE" | "AMBAR" | "ROJO";
+type NivelIndicador = NivelSemaforo;
+
+function claseNivelIndicador(nivel: NivelIndicador) {
+  return nivel === "VACIO" ? "bg-slate-600 text-white" : nivel === "VERDE" ? "bg-green-500 text-black" :
+    nivel === "AMBAR" ? "bg-amber-500 text-black" : "bg-red-500 text-white";
+}
+
+function nombreNivelIndicador(nivel: NivelIndicador) {
+  return nivel === "AMBAR" ? "Ámbar" : nivel === "VACIO" ? "Vacío" : nivel.charAt(0) + nivel.slice(1).toLowerCase();
+}
 
 function IndicadorSemaforo({
   label,
@@ -416,21 +413,14 @@ function IndicadorSemaforo({
   nivel: NivelIndicador;
   detalle: string;
 }) {
-  const clases =
-    nivel === "VACIO"
-      ? "bg-slate-600 text-white"
-      : nivel === "VERDE"
-      ? "bg-green-500 text-black"
-      : nivel === "AMBAR"
-        ? "bg-amber-500 text-black"
-        : "bg-red-500 text-white";
+  const clases = claseNivelIndicador(nivel);
 
   return (
     <div className="mb-4 last:mb-0">
       <div className="mb-1 flex items-center justify-between gap-3 text-xs">
         <span className="text-slate-400">{label}</span>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${clases}`}>
-          {nivel === "AMBAR" ? "Ámbar" : nivel === "VACIO" ? "Vacío" : nivel.charAt(0) + nivel.slice(1).toLowerCase()}
+          {nombreNivelIndicador(nivel)}
         </span>
       </div>
       <Progress value={porcentaje} className="h-2" />
@@ -440,27 +430,6 @@ function IndicadorSemaforo({
       </div>
     </div>
   );
-}
-
-function nivelCargaGlobal(
-  porcentaje: number,
-  verdeHasta: number,
-  ambarHasta: number,
-): NivelIndicador {
-  if (porcentaje <= verdeHasta) return "VERDE";
-  if (porcentaje <= ambarHasta) return "AMBAR";
-  return "ROJO";
-}
-
-function nivelStockGlobal(
-  porcentaje: number,
-  verdeHasta: number,
-  ambarHasta: number,
-): NivelIndicador {
-  if (porcentaje <= 0) return "VACIO";
-  if (porcentaje <= verdeHasta) return "VERDE";
-  if (porcentaje <= ambarHasta) return "AMBAR";
-  return "ROJO";
 }
 
 function Dato({ label, value }: { label: string; value: string }) {

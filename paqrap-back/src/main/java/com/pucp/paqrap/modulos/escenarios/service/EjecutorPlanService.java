@@ -56,8 +56,6 @@ import com.pucp.paqrap.modulos.redvial.entity.Location;
 public class EjecutorPlanService {
 
     private static final Logger log = LoggerFactory.getLogger(EjecutorPlanService.class);
-    /** Una avería mayor inhabilita como máximo unos 3 días; las anteriores ya no afectan. */
-    private static final Duration ALCANCE_AVERIAS = Duration.ofDays(4);
 
     private final PlanVigente planVigente;
     private final OrderRepository pedidoRepository;
@@ -121,7 +119,7 @@ public class EjecutorPlanService {
     public void avanzar(long ejecucionId, Instant desde, Instant hasta) {
         EstadoEjecucion estado = estados.computeIfAbsent(ejecucionId, id -> new EstadoEjecucion());
         List<BreakdownEvent> averias = averiaRepository
-                .buscar(null, null, ejecucionId, hasta.minus(ALCANCE_AVERIAS), hasta.plusNanos(1)).stream()
+                .buscar(null, null, ejecucionId, null, hasta.plusNanos(1)).stream()
                 .map(BreakdownEventEntity::toDomain)
                 .toList();
         Optional<PlanResponse> vigente = planVigente.ultimoPlan(ejecucionId);

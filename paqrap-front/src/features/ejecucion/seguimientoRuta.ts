@@ -403,6 +403,13 @@ export function nombreParada(
   parada:
     ParadaMapa,
 ) {
+  if (
+    parada.tipo ===
+    "TRASVASE"
+  ) {
+    return "Trasvase";
+  }
+
   return parada.tipo ===
     "ALMACEN"
     ? `Almacén ${

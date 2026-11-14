@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   ChevronDown,
+  ArrowLeft,
   Clock3,
   Loader2,
   Minus,
@@ -20,7 +21,7 @@ import { detallesService } from "@/services/detalles.service";
 
 export type SeleccionDetalleOperacion =
   | { tipo: "VEHICULO"; id: string }
-  | { tipo: "PEDIDO"; id: string }
+  | { tipo: "PEDIDO"; id: string; origenVehiculo?: { id: string; ejecucionId: number } }
   | { tipo: "ALMACEN"; id: string };
 
 interface Props {
@@ -28,6 +29,7 @@ interface Props {
   ejecucionId: number;
   instante: string;
   onCerrar: () => void;
+  onSeleccionar: (seleccion: SeleccionDetalleOperacion) => void;
 }
 
 type RespuestaDetalle =
@@ -35,7 +37,7 @@ type RespuestaDetalle =
   | { tipo: "PEDIDO"; data: PedidoDetalleResponseDto }
   | { tipo: "ALMACEN"; data: AlmacenDetalleResponseDto };
 
-export function DetalleOperacionPanel({ seleccion, ejecucionId, instante, onCerrar }: Props) {
+export function DetalleOperacionPanel({ seleccion, ejecucionId, instante, onCerrar, onSeleccionar }: Props) {
   const [respuesta, setRespuesta] = useState<RespuestaDetalle | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -125,6 +127,12 @@ export function DetalleOperacionPanel({ seleccion, ejecucionId, instante, onCerr
 
       {!minimizado && (
       <div className="max-h-[45vh] overflow-y-auto p-4">
+        {seleccion.tipo === "PEDIDO" && seleccion.origenVehiculo?.ejecucionId === ejecucionId && (
+          <button type="button" className="mb-3 inline-flex items-center gap-1 text-xs text-orange-300 hover:text-orange-200 focus-visible:outline focus-visible:outline-orange-400"
+            onClick={() => onSeleccionar({ tipo: "VEHICULO", id: seleccion.origenVehiculo!.id })}>
+            <ArrowLeft className="size-3.5" /> Volver a {seleccion.origenVehiculo.id}
+          </button>
+        )}
         {cargando && !respuesta && (
           <div className="flex items-center justify-center py-10 text-sm text-slate-400">
             <Loader2 className="mr-2 size-4 animate-spin" /> Cargando detalle...
@@ -138,7 +146,7 @@ export function DetalleOperacionPanel({ seleccion, ejecucionId, instante, onCerr
         )}
 
         {respuesta?.tipo === "VEHICULO" && (
-          <DetalleVehiculo detalle={respuesta.data} />
+          <DetalleVehiculo detalle={respuesta.data} ejecucionId={ejecucionId} onSeleccionar={onSeleccionar} />
         )}
         {respuesta?.tipo === "PEDIDO" && (
           <DetallePedido detalle={respuesta.data} />
@@ -152,7 +160,11 @@ export function DetalleOperacionPanel({ seleccion, ejecucionId, instante, onCerr
   );
 }
 
-function DetalleVehiculo({ detalle }: { detalle: VehiculoDetalleResponseDto }) {
+function DetalleVehiculo({ detalle, ejecucionId, onSeleccionar }: {
+  detalle: VehiculoDetalleResponseDto;
+  ejecucionId: number;
+  onSeleccionar: Props["onSeleccionar"];
+}) {
   return (
     <div className="space-y-4">
       <ResumenIcono icono={<Truck className="size-5" />} titulo={`${detalle.tipo} · ${detalle.estado}`}>
@@ -173,7 +185,9 @@ function DetalleVehiculo({ detalle }: { detalle: VehiculoDetalleResponseDto }) {
           <Vacio texto="No tiene entregas pendientes." />
         ) : (
           detalle.proximasEntregas.map((entrega) => (
-            <div key={`${entrega.pedidoId}-${entrega.orden}`} className="rounded-md bg-slate-800/60 p-2">
+            <button type="button" key={`${entrega.pedidoId}-${entrega.orden}`}
+              onClick={() => onSeleccionar({ tipo: "PEDIDO", id: entrega.pedidoId, origenVehiculo: { id: detalle.id, ejecucionId } })}
+              className="w-full rounded-md bg-slate-800/60 p-2 text-left hover:bg-slate-700 focus-visible:outline focus-visible:outline-orange-400">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-medium">#{entrega.orden} · {entrega.pedidoId}</span>
                 <span className="text-[10px] text-slate-500">{entrega.paquetes} paq.</span>
@@ -181,7 +195,7 @@ function DetalleVehiculo({ detalle }: { detalle: VehiculoDetalleResponseDto }) {
               <p className="mt-1 text-[10px] text-slate-400">
                 ({entrega.x}, {entrega.y}) · ETA {formatearFecha(entrega.llegadaPrevista)}
               </p>
-            </div>
+            </button>
           ))
         )}
       </Bloque>

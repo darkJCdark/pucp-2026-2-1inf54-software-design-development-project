@@ -18,6 +18,10 @@ import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
  */
 public interface ReplanificacionService {
 
+    /** Resultado calculado que todavía no cambió el plan vigente ni creó un snapshot persistido. */
+    interface Candidato {
+    }
+
     /** Métricas acumuladas de los ciclos SA ya ejecutados para una ejecución viva. */
     record MetricasPlanificacion(long totalComputationMs, int replanningCount) {
     }
@@ -30,6 +34,15 @@ public interface ReplanificacionService {
      * periódico: replanifica lo pendiente conservando las rutas en marcha.
      */
     ReplanificacionResponse replanificar(long ejecucionId, Eventos eventos, Instant ahora);
+
+    /** Calcula una replanificación sin publicarla. */
+    Candidato prepararReplanificacion(long ejecucionId, Eventos eventos, Instant ahora);
+
+    /** Persiste y publica un candidato previamente calculado. */
+    ReplanificacionResponse confirmar(Candidato candidato);
+
+    /** Descarta un candidato que dejó de representar el estado de la ejecución. */
+    void descartar(Candidato candidato);
 
     default ReplanificacionResponse registrarPedido(long ejecucionId, Order pedido, Instant ahora) {
         return replanificar(ejecucionId, new Eventos(List.of(pedido), List.of(), List.of()), ahora);

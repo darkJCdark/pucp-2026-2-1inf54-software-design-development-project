@@ -34,7 +34,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * ejecución aún no conoce y los bloqueos del horizonte, y guarda el último plan de cada ejecución (en memoria).
  */
 @Component
-public class PlanificadorSaAdapter implements PlanificadorPort, PlanVigente {
+public class PlanificadorSaAdapter implements PlanificadorCandidato, PlanVigente {
 
     private static final Logger log = LoggerFactory.getLogger(PlanificadorSaAdapter.class);
     /** El plazo más largo de un pedido: los bloqueos posteriores no afectan al plan. */
@@ -94,6 +94,56 @@ public class PlanificadorSaAdapter implements PlanificadorPort, PlanVigente {
         return new ResultadoCiclo(plan.colapso());
     }
 
+  @Override
+    public Candidato preparar(SolicitudCiclo solicitud) {
+        long ejecucionId = solicitud.ejecucionId();
+        if (solicitud.motivo() == Motivo.INICIAL || !replanificacion.estaIniciada(ejecucionId)) {
+            throw new IllegalStateException("El plan inicial debe publicarse de forma síncrona");
+        }
+        Instant instante = solicitud.instante();
+        ScenarioExecutionEntity ejecucion = ejecucionRepository.findById(ejecucionId).orElse(null);
+        Instant inicio = ejecucion != null ? ejecucion.getSimulationStartedAt() : Instant.EPOCH;
+        List<RoadBlock> horizonte = bloqueoRepository.buscarQueSeCruzan(instante, instante.plus(HORIZONTE)).stream()
+                .map(RoadBlockEntity::toDomain).toList();
+        List<RoadBlock> bloqueos = new ArrayList<>(horizonte);
+        bloqueos.addAll(solicitud.bloqueosIniciados());
+        ReplanificacionService.Candidato preparado = replanificacion.prepararReplanificacion(ejecucionId,
+                new ReplanificacionService.Eventos(pedidosNuevos(ejecucionId, inicio, instante), bloqueos,
+                        solicitud.bloqueosTerminados(), solicitud.averias(), solicitud.averiasTerminadas(),
+                        solicitud.tiposFlotaActualizados()), instante);
+        return new CandidatoSa(ejecucionId, solicitud.motivo(), instante, preparado);
+    }
+
+    @Override
+    public ResultadoCiclo confirmar(Candidato candidato) {
+        if (!(candidato instanceof CandidatoSa preparado)) {
+            throw new IllegalArgumentException("El candidato no pertenece a PlanificadorSaAdapter");
+        }
+        ReplanificacionResponse respuesta = replanificacion.confirmar(preparado.candidato());
+        publicar(preparado.ejecucionId(), preparado.motivo(), preparado.instante(), respuesta);
+        return new ResultadoCiclo(respuesta.plan().colapso());
+    }
+
+    @Override
+    public void descartar(Candidato candidato) {
+        if (!(candidato instanceof CandidatoSa preparado)) {
+            throw new IllegalArgumentException("El candidato no pertenece a PlanificadorSaAdapter");
+        }
+        replanificacion.descartar(preparado.candidato());
+    }
+
+    private void publicar(long ejecucionId, Motivo motivoSolicitado, Instant instante, ReplanificacionResponse respuesta) {
+        ultimaReplanificacion.put(ejecucionId, respuesta);
+        PlanResponse plan = respuesta.plan();
+        log.info("Ejecución {} ({} -> {} n.º {} en {}): {} rutas ({} conservadas, {} nuevas), {} no atendidos, {} ms",
+                ejecucionId, motivoSolicitado, respuesta.motivo(), respuesta.numeroReplanificacion(), instante,
+                plan.rutas().size(), respuesta.rutasConservadas().size(), respuesta.rutasNuevas().size(),
+                plan.noAtendidos().size(), plan.duracionMs());
+    }
+
+    private record CandidatoSa(long ejecucionId, Motivo motivo, Instant instante,
+                                ReplanificacionService.Candidato candidato) implements Candidato {
+    }
     /** El estado de la replanificación se libera; el último plan se conserva para consultarlo. */
     @Override
     public void finalizar(long ejecucionId) {

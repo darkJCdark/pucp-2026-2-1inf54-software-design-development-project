@@ -5,9 +5,18 @@ import type { MonitoreoResponseDto } from "@/api/monitoreo.dto";
 import type { PlanResponseDto } from "@/api/planificacion.dto";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { useConfiguracion } from "@/context/ConfiguracionContext";
+import { useUmbralesEjecucion } from "@/context/ConfiguracionContext";
+import { nivelSemaforo, type NivelSemaforo } from "@/features/configuracion/semaforo";
 
 import type { SeleccionLista } from "./ListaPedidosEjecucion";
+import { operacionesAlmacen } from "./operacionesAlmacen";
+
+type VentanaAlmacen = keyof ReturnType<typeof operacionesAlmacen>;
+const TITULOS = {
+  enTransito: "En tránsito al almacén (previsto)",
+  proximas4h: "Llegadas previstas en próximas 4 h",
+  atendidas4h: "Llegadas programadas en últimas 4 h",
+};
 
 interface ListaAlmacenesProps {
   monitoreo: MonitoreoResponseDto;
@@ -24,58 +33,11 @@ export function ListaAlmacenes({
   onSeleccionar,
 }: ListaAlmacenesProps) {
   const [busqueda, setBusqueda] = useState("");
-  const { configuracion } = useConfiguracion();
+  const [ventana, setVentana] = useState<{ almacenId: string; tipo: VentanaAlmacen } | null>(null);
+  const { umbrales: configuracion } = useUmbralesEjecucion();
   const ahora = new Date(monitoreo.instante).getTime();
-  const cuatroHoras = 4 * 60 * 60 * 1000;
-
-  const estadisticas = useMemo(() => {
-    const resultado = new Map<
-      string,
-      {
-        enTransito: number;
-        paquetesEnTransito: number;
-        proximas4h: number;
-        paquetesProximas4h: number;
-        atendidas4h: number;
-        paquetesAtendidas4h: number;
-      }
-    >();
-
-    for (const ruta of plan?.rutas ?? []) {
-      const salida = new Date(ruta.salida).getTime();
-
-      for (const parada of ruta.paradas) {
-        if (parada.tipo !== "ALMACEN" || !parada.almacenId || !parada.llegada) continue;
-
-        const llegada = new Date(parada.llegada).getTime();
-        const actual = resultado.get(parada.almacenId) ?? {
-          enTransito: 0,
-          paquetesEnTransito: 0,
-          proximas4h: 0,
-          paquetesProximas4h: 0,
-          atendidas4h: 0,
-          paquetesAtendidas4h: 0,
-        };
-        const paquetes = Math.max(0, parada.paquetes);
-
-        if (salida <= ahora && llegada > ahora) {
-          actual.enTransito += 1;
-          actual.paquetesEnTransito += paquetes;
-        }
-        if (llegada >= ahora && llegada <= ahora + cuatroHoras) {
-          actual.proximas4h += 1;
-          actual.paquetesProximas4h += paquetes;
-        }
-        if (llegada < ahora && llegada >= ahora - cuatroHoras) {
-          actual.atendidas4h += 1;
-          actual.paquetesAtendidas4h += paquetes;
-        }
-        resultado.set(parada.almacenId, actual);
-      }
-    }
-
-    return resultado;
-  }, [ahora, plan]);
+  const estadisticas = useMemo(() => new Map(monitoreo.almacenes.map((almacen) =>
+    [almacen.id, operacionesAlmacen(plan, almacen.id, ahora)])), [ahora, plan, monitoreo.almacenes]);
 
   const filtrados = monitoreo.almacenes.filter((almacen) => {
     const texto = busqueda.trim().toLowerCase();
@@ -113,26 +75,17 @@ export function ListaAlmacenes({
               : null;
           const nivel = central
             ? "ILIMITADO"
-            : nivelStock(
+            : nivelSemaforo(
                 porcentaje ?? 0,
                 configuracion.almacenVerdeHasta,
                 configuracion.almacenAmbarHasta,
               );
-          const datos = estadisticas.get(almacen.id) ?? {
-            enTransito: 0,
-            paquetesEnTransito: 0,
-            proximas4h: 0,
-            paquetesProximas4h: 0,
-            atendidas4h: 0,
-            paquetesAtendidas4h: 0,
-          };
+          const datos = estadisticas.get(almacen.id)!;
           const seleccionado = seleccionId === almacen.id;
 
           return (
             <li key={almacen.id}>
-              <button
-                type="button"
-                onClick={() => onSeleccionar({ tipo: "ALMACEN", id: almacen.id })}
+              <div
                 className={[
                   "w-full rounded-md border p-3 text-left transition",
                   seleccionado
@@ -140,6 +93,8 @@ export function ListaAlmacenes({
                     : "border-slate-800 bg-[#11161d] hover:border-orange-500/60",
                 ].join(" ")}
               >
+                <button type="button" className="w-full text-left"
+                  onClick={() => onSeleccionar({ tipo: "ALMACEN", id: almacen.id })}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium text-white">{nombreAlmacen(almacen.id)}</p>
@@ -162,24 +117,45 @@ export function ListaAlmacenes({
                   </>
                 )}
 
+                </button>
+                <p className="mt-2 text-[10px] text-slate-500">Operaciones de almacén · plan vigente, no entregas confirmadas</p>
                 <div className="mt-3 grid grid-cols-3 gap-1 text-center text-[9px]">
                   <MiniDato
                     label="En tránsito"
                     envios={datos.enTransito}
-                    paquetes={datos.paquetesEnTransito}
+                    onClick={() => setVentana({ almacenId: almacen.id, tipo: "enTransito" })}
                   />
                   <MiniDato
                     label="Próx. 4 h"
                     envios={datos.proximas4h}
-                    paquetes={datos.paquetesProximas4h}
+                    onClick={() => setVentana({ almacenId: almacen.id, tipo: "proximas4h" })}
                   />
                   <MiniDato
                     label="Últ. 4 h"
                     envios={datos.atendidas4h}
-                    paquetes={datos.paquetesAtendidas4h}
+                    onClick={() => setVentana({ almacenId: almacen.id, tipo: "atendidas4h" })}
                   />
                 </div>
-              </button>
+                {ventana?.almacenId === almacen.id && (
+                  <section className="mt-3 space-y-2 border-t border-slate-700 pt-2" aria-label={TITULOS[ventana.tipo]}>
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className="text-xs font-semibold">{TITULOS[ventana.tipo]}</h4>
+                      <button type="button" onClick={() => setVentana(null)} className="text-xs text-slate-400">Cerrar</button>
+                    </div>
+                    <p className="text-[10px] text-amber-300">Recargas/llegadas de rutas, sin identificador de pedido. El horario pasado no acredita una entrega. Historial limitado al plan vigente.</p>
+                    {datos[ventana.tipo].length === 0 && <p className="text-xs text-slate-500">Sin operaciones en esta ventana del plan vigente.</p>}
+                    {datos[ventana.tipo].map((op) => (
+                      <div key={`${op.rutaId}-${op.orden}`} className="break-words rounded bg-slate-800/60 p-2 text-[11px]">
+                        <p>Ruta {op.rutaId} · parada {op.orden}</p>
+                        <button type="button" className="text-orange-300 underline"
+                          onClick={() => onSeleccionar({ tipo: "VEHICULO", id: op.vehiculoId })}>UT {op.vehiculoId}</button>
+                        <p>{op.paquetes} paq. · llegada prevista {new Date(op.llegada).toLocaleString("es-PE", { timeZone: "America/Lima" })}</p>
+                        <p className="text-slate-400">{Date.parse(op.llegada) < ahora ? "Horario transcurrido; ejecución no confirmada" : Date.parse(op.salida) <= ahora ? "En ruta según programación" : "Programada"}</p>
+                      </div>
+                    ))}
+                  </section>
+                )}
+              </div>
             </li>
           );
         })}
@@ -191,18 +167,18 @@ export function ListaAlmacenes({
 function MiniDato({
   label,
   envios,
-  paquetes,
+  onClick,
 }: {
   label: string;
-  envios: number;
-  paquetes: number;
+  envios: ReturnType<typeof operacionesAlmacen>[VentanaAlmacen];
+  onClick: () => void;
 }) {
   return (
-    <div className="rounded bg-slate-800/70 px-1 py-1.5">
-      <p className="font-semibold text-slate-200">{envios} env.</p>
-      <p className="mt-0.5 text-slate-400">{paquetes} paq.</p>
+    <button type="button" onClick={onClick} aria-label={`Ver ${label}`} className="rounded bg-slate-800/70 px-1 py-1.5 hover:bg-slate-700 focus-visible:outline focus-visible:outline-orange-400">
+      <p className="font-semibold text-slate-200">{envios.length} op.</p>
+      <p className="mt-0.5 text-slate-400">{envios.reduce((total, op) => total + Math.max(0, op.paquetes), 0)} paq.</p>
       <p className="mt-0.5 text-slate-500">{label}</p>
-    </div>
+    </button>
   );
 }
 
@@ -219,14 +195,7 @@ function nombreAlmacen(id: string) {
   }
 }
 
-function nivelStock(porcentaje: number, verdeHasta: number, ambarHasta: number) {
-  if (porcentaje <= 0) return "VACIO" as const;
-  if (porcentaje <= verdeHasta) return "VERDE" as const;
-  if (porcentaje <= ambarHasta) return "AMBAR" as const;
-  return "ROJO" as const;
-}
-
-type Nivel = ReturnType<typeof nivelStock> | "ILIMITADO";
+type Nivel = NivelSemaforo | "ILIMITADO";
 
 function claseNivel(nivel: Nivel) {
   switch (nivel) {

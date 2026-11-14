@@ -242,6 +242,7 @@ CREATE TABLE breakdown_events (
     execution_id BIGINT UNSIGNED NULL,
     vehicle_id VARCHAR(8) NOT NULL,
     breakdown_type VARCHAR(20) NOT NULL,
+    minor_repair_minutes INT NULL,
     occurred_at TIMESTAMP(6) NOT NULL,
     location_x SMALLINT UNSIGNED NOT NULL,
     location_y SMALLINT UNSIGNED NOT NULL,
@@ -543,3 +544,10 @@ CREATE TABLE inventory_movements (
     CONSTRAINT chk_inventory_movements_quantity
         CHECK (quantity > 0)
 ) ENGINE = InnoDB;
+
+-- B07: defaults are provided by the application when MINOR has no configured row.
+CREATE TABLE breakdown_type_settings (
+    breakdown_type VARCHAR(20) NOT NULL PRIMARY KEY,
+    repair_minutes INT NOT NULL,
+    CONSTRAINT chk_breakdown_repair_positive CHECK (repair_minutes > 0)
+) ENGINE=InnoDB;

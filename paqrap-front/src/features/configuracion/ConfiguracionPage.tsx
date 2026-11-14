@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useConfiguracion } from "@/context/ConfiguracionContext";
+import { claveUmbralesEjecucion, guardarUmbrales } from "./semaforo";
 
 import type {
   CrearEscenarioRequestDto,
@@ -34,6 +35,7 @@ import { OrigenDatos } from "./OrigenDatos";
 import { ParametrosOperacion } from "./ParametrosOperacion";
 import { FlotaConfiguracion } from "./FlotaConfiguracion";
 import { SemaforoConfiguracion } from "./SemaforoConfiguracion";
+import { AveriaConfiguracion } from "./AveriaConfiguracion";
 import { ResumenConfiguracion } from "./ResumenConfiguracion";
 import { ConfirmarInicioModal } from "./ConfirmarInicioModal";
 
@@ -377,6 +379,7 @@ async function buscarEscenarioActivo():
     if (
       umbrales.some(
         (valor) =>
+          !Number.isFinite(valor) ||
           valor < 0 ||
           valor > 100,
       )
@@ -671,6 +674,10 @@ async function buscarEscenarioActivo():
       throw new Error(
         "El backend no devolvió un escenario válido.",
       );
+    }
+
+    if (!guardarUmbrales(claveUmbralesEjecucion(creado.id), configuracion)) {
+      mostrarToast({ titulo: "Umbrales no guardados", descripcion: "Este navegador no permite conservar los umbrales de la ejecución.", variante: "warning" });
     }
 
     etapa = "iniciar escenario";
@@ -972,6 +979,7 @@ async function actualizarParametrosFlota() {
           <ParametrosOperacion />
           <FlotaConfiguracion />
           <SemaforoConfiguracion />
+          <AveriaConfiguracion />
         </section>
 
         <ResumenConfiguracion

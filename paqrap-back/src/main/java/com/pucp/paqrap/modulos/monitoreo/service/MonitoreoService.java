@@ -20,7 +20,7 @@ import com.pucp.paqrap.modulos.pedidos.service.PedidoService;
 import com.pucp.paqrap.modulos.redvial.service.BloqueoService;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -35,8 +35,6 @@ import java.util.stream.Collectors;
 @Service
 public class MonitoreoService {
 
-    /** Una avería mayor inhabilita como máximo unos 3 días; las anteriores ya no pueden estar en curso. */
-    private static final Duration ALCANCE_AVERIAS = Duration.ofDays(4);
     private static final ZoneId ZONA = ShiftSchedule.DEFAULT_ZONE;
 
     private final EscenarioService escenarioService;
@@ -77,7 +75,7 @@ public class MonitoreoService {
 
         // Solo las averías de este escenario, igual que el ejecutor y el planificador.
         List<AveriaResponse> averiasActivas = averiaService
-                .listar(null, null, ejecucionId, instante.minus(ALCANCE_AVERIAS), instante.plusNanos(1)).stream()
+                .listar(null, null, ejecucionId, null, instante.plusNanos(1)).stream()
                 .filter(averia -> averia.indisponibleHasta().isAfter(instante))
                 .toList();
         Map<String, Instant> averiadoHasta = averiasActivas.stream()

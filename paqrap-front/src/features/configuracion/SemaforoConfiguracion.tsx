@@ -15,6 +15,7 @@ export function SemaforoConfiguracion() {
       <h2 className="mb-5 font-semibold">
         Umbrales de semaforización
       </h2>
+      <p className="mb-4 text-xs text-slate-400">Vacío corresponde siempre al 0 %, antes del rango verde. Los umbrales se guardan en este navegador.</p>
 
       <div className="grid gap-8 md:grid-cols-2">
         <div>

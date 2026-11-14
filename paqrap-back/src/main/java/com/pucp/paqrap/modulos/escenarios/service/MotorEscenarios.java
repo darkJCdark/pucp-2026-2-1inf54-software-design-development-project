@@ -14,6 +14,7 @@ import com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent;
 import com.pucp.paqrap.modulos.pedidos.entity.PedidoRegistrado;
 import com.pucp.paqrap.modulos.pedidos.repository.OrderRepository;
 import com.pucp.paqrap.modulos.planificacion.service.PlanificadorPort;
+import com.pucp.paqrap.modulos.planificacion.service.PlanificadorCandidato;
 import com.pucp.paqrap.modulos.planificacion.service.ReplanificacionService;
 import com.pucp.paqrap.modulos.planificacion.service.PlanificadorSinOperacion;
 import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
@@ -97,6 +98,9 @@ public class MotorEscenarios {
         private final Set<Long> averiasProcesadas = new HashSet<>();
         /** Finalizaciones de avería ya procesadas, para no replanificar dos veces por el mismo evento. */
         private final Set<Long> averiasTerminadasProcesadas = new HashSet<>();
+        /** Un candidato se calcula fuera del monitor; la generación cambia ante pausa, detención o nuevos eventos. */
+        private boolean planificacionEnCurso;
+        private long generacion;
 
         private EscenarioActivo(ScenarioType tipo, SimulationClock reloj) {
             this.tipo = tipo;
@@ -105,6 +109,9 @@ public class MotorEscenarios {
         }
     }
 
+  private record TrabajoPlanificacion(long ejecucionId, EscenarioActivo activo, long generacion,
+                                        PlanificadorPort.SolicitudCiclo solicitud) {
+    }
     public MotorEscenarios(ScenarioExecutionRepository ejecucionRepository, PlatformTransactionManager transacciones,
                            Clock relojReal, EscenariosProperties propiedades,
                            ObjectProvider<PlanificadorPort> planificadores, EventosSimulacion eventos,
@@ -132,6 +139,7 @@ public class MotorEscenarios {
         EscenarioActivo activo = activos.get(averia.ejecucionId());
         if (activo != null && !averia.ocurridaEn().isAfter(activo.procesadoHasta)) {
             activo.averiasPendientes.add(averia.averia());
+            activo.generacion++;
         }
     }
 
@@ -144,6 +152,7 @@ public class MotorEscenarios {
     public synchronized void alActualizarParametrosFlota(ParametrosFlotaActualizados cambio) {
         for (EscenarioActivo activo : activos.values()) {
             activo.tiposFlotaCambiados.add(cambio.tipo());
+            activo.generacion++;
         }
     }
 
@@ -158,6 +167,7 @@ public class MotorEscenarios {
                     && !pedido.registradoEn().isAfter(activo.procesadoHasta)) {
                 activo.pedidosProcesados.add(pedido.pedidoId());
                 activo.pedidosPendientes = true;
+                activo.generacion++;
             }
         }
     }
@@ -214,22 +224,32 @@ public class MotorEscenarios {
 
     public synchronized void pausar(long ejecucionId) {
         actualizar(ejecucionId, ScenarioExecutionEntity::pausar);
-        activo(ejecucionId).reloj.pausar();
+        EscenarioActivo activo = activo(ejecucionId);
+        activo.reloj.pausar();
+        activo.generacion++;
     }
 
     public synchronized void reanudar(long ejecucionId) {
         actualizar(ejecucionId, ScenarioExecutionEntity::reanudar);
-        activo(ejecucionId).reloj.reanudar();
+        EscenarioActivo activo = activo(ejecucionId);
+        activo.reloj.reanudar();
+        activo.generacion++;
     }
 
     public synchronized void detener(long ejecucionId) {
         EscenarioActivo activo = activos.get(ejecucionId);
+        boolean finalizacionDiferida = activo != null && activo.planificacionEnCurso;
+        if (activo != null) {
+            activo.generacion++;
+        }
         Instant instanteSimulado = activo != null ? activo.reloj.ahora() : null;
         actualizar(ejecucionId, e -> e.terminar(ScenarioStatus.STOPPED, relojReal.instant(),
                 instanteSimulado != null ? instanteSimulado : e.getSimulationStartedAt()));
         persistirResultado(ejecucionId, activo);
         activos.remove(ejecucionId);
-        planificador().finalizar(ejecucionId);
+        if (!finalizacionDiferida) {
+            planificador().finalizar(ejecucionId);
+        }
     }
 
     /** Ids de las ejecuciones activas (en marcha o pausadas), en orden. */
@@ -248,23 +268,31 @@ public class MotorEscenarios {
     }
 
     /** Avanza todos los escenarios en marcha: cierra los que terminaron y pide los planes que tocan. */
-    public synchronized void tick() {
-        for (Map.Entry<Long, EscenarioActivo> entrada : List.copyOf(activos.entrySet())) {
-            long ejecucionId = entrada.getKey();
-            EscenarioActivo activo = entrada.getValue();
-            if (!activo.reloj.estaEnMarcha()) {
-                continue;
-            }
-            try {
-                avanzar(ejecucionId, activo);
-            } catch (RuntimeException excepcion) {
-                log.error("Falló el escenario {}; se marca como FAILED", ejecucionId, excepcion);
-                finalizar(ejecucionId, ScenarioStatus.FAILED, activo.reloj.ahora());
+  public void tick() {
+        List<TrabajoPlanificacion> trabajos = new ArrayList<>();
+        synchronized (this) {
+            for (Map.Entry<Long, EscenarioActivo> entrada : List.copyOf(activos.entrySet())) {
+                long ejecucionId = entrada.getKey();
+                EscenarioActivo activo = entrada.getValue();
+                if (!activo.reloj.estaEnMarcha() || activo.planificacionEnCurso) {
+                    continue;
+                }
+                try {
+                    TrabajoPlanificacion trabajo = avanzar(ejecucionId, activo);
+                    if (trabajo != null) {
+                        trabajos.add(trabajo);
+                    }
+                } catch (RuntimeException excepcion) {
+                    log.error("Falló el escenario {}; se marca como FAILED", ejecucionId, excepcion);
+                    finalizar(ejecucionId, ScenarioStatus.FAILED, activo.reloj.ahora());
+                }
             }
         }
+        for (TrabajoPlanificacion trabajo : trabajos) {
+            ejecutarPlanificacion(trabajo);
+        }
     }
-
-    private void avanzar(long ejecucionId, EscenarioActivo activo) {
+    private TrabajoPlanificacion avanzar(long ejecucionId, EscenarioActivo activo) {
         Instant ahora = activo.reloj.ahora();
         Optional<Instant> fin = activo.tipo.duracionSimulada().map(activo.reloj.inicioSimulado()::plus);
         Instant hasta = fin.filter(ahora::isAfter).orElse(ahora);
@@ -291,25 +319,96 @@ public class MotorEscenarios {
             activo.averiasPendientes.addAll(resumen.averias());
             if (!resumen.pedidosLlegadosIds().isEmpty()) {
                 activo.pedidosPendientes = true;
+                activo.generacion++;
             }
         }
         if (revisarColapso(ejecucionId, activo)) {
-            return;
+            return null;
         }
         if (fin.isPresent() && !ahora.isBefore(fin.get())) {
             finalizar(ejecucionId, ScenarioStatus.COMPLETED, fin.get());
-            return;
+            return null;
         }
         if (!activo.bloqueosPendientes.isEmpty() || !activo.bloqueosTerminadosPendientes.isEmpty()
                 || !activo.averiasPendientes.isEmpty() || !activo.averiasTerminadasPendientes.isEmpty()) {
-            planificar(ejecucionId, activo, PlanificadorPort.Motivo.INCIDENCIA);
+            return prepararPlanificacion(ejecucionId, activo, PlanificadorPort.Motivo.INCIDENCIA);
         } else if (activo.pedidosPendientes) {
-            planificar(ejecucionId, activo, PlanificadorPort.Motivo.NUEVO_PEDIDO);
+            return prepararPlanificacion(ejecucionId, activo, PlanificadorPort.Motivo.NUEVO_PEDIDO);
         } else if (!activo.tiposFlotaCambiados.isEmpty() || !ahora.isBefore(activo.proximaPlanificacion)) {
-            planificar(ejecucionId, activo, PlanificadorPort.Motivo.PERIODICO);
+            return prepararPlanificacion(ejecucionId, activo, PlanificadorPort.Motivo.PERIODICO);
+        }
+        return null;
+    }
+
+  private TrabajoPlanificacion prepararPlanificacion(long ejecucionId, EscenarioActivo activo,
+                                                        PlanificadorPort.Motivo motivo) {
+        activo.planificacionEnCurso = true;
+        return new TrabajoPlanificacion(ejecucionId, activo, activo.generacion,
+                new PlanificadorPort.SolicitudCiclo(ejecucionId, activo.procesadoHasta, motivo,
+                        activo.bloqueosPendientes, activo.bloqueosTerminadosPendientes,
+                        activo.averiasPendientes, activo.averiasTerminadasPendientes,
+                        List.copyOf(activo.tiposFlotaCambiados)));
+    }
+
+    private void ejecutarPlanificacion(TrabajoPlanificacion trabajo) {
+        PlanificadorPort planificador = planificador();
+        try {
+            if (planificador instanceof PlanificadorCandidato asincrono) {
+                PlanificadorCandidato.Candidato candidato = asincrono.preparar(trabajo.solicitud());
+                synchronized (this) {
+                    if (trabajoSigueVigente(trabajo)) {
+                        asincrono.confirmar(candidato);
+                        confirmarPlanificacion(trabajo);
+                    } else {
+                        asincrono.descartar(candidato);
+                        trabajo.activo().planificacionEnCurso = false;
+                        finalizarPlanificadorSiFueDetenido(trabajo.ejecucionId());
+                    }
+                }
+            } else {
+                PlanificadorPort.ResultadoCiclo resultado = planificador.planificar(trabajo.solicitud());
+                synchronized (this) {
+                    if (trabajoSigueVigente(trabajo)) {
+                        confirmarPlanificacion(trabajo);
+                    } else {
+                        trabajo.activo().planificacionEnCurso = false;
+                    }
+                }
+            }
+        } catch (RuntimeException excepcion) {
+            synchronized (this) {
+                trabajo.activo().planificacionEnCurso = false;
+                if (activos.get(trabajo.ejecucionId()) == trabajo.activo()) {
+                    log.error("Falló la planificación del escenario {}; se marca como FAILED", trabajo.ejecucionId(), excepcion);
+                    finalizar(trabajo.ejecucionId(), ScenarioStatus.FAILED, trabajo.activo().reloj.ahora());
+                }
+            }
         }
     }
 
+    private boolean trabajoSigueVigente(TrabajoPlanificacion trabajo) {
+        return activos.get(trabajo.ejecucionId()) == trabajo.activo()
+                && trabajo.activo().reloj.estaEnMarcha()
+                && trabajo.activo().generacion == trabajo.generacion();
+    }
+
+    private void confirmarPlanificacion(TrabajoPlanificacion trabajo) {
+        EscenarioActivo activo = trabajo.activo();
+        activo.proximaPlanificacion = trabajo.solicitud().instante().plus(propiedades.intervaloPlanificacion());
+        activo.bloqueosPendientes.clear();
+        activo.bloqueosTerminadosPendientes.clear();
+        activo.averiasPendientes.clear();
+        activo.averiasTerminadasPendientes.clear();
+        activo.pedidosPendientes = false;
+        activo.tiposFlotaCambiados.clear();
+        activo.planificacionEnCurso = false;
+    }
+
+    private void finalizarPlanificadorSiFueDetenido(long ejecucionId) {
+        if (!activos.containsKey(ejecucionId)) {
+            planificador().finalizar(ejecucionId);
+        }
+    }
     /**
      * El plan se pide para el instante hasta el que se ejecutó el plan vigente: así el corte de la replanificación
      * coincide con lo que el ejecutor ya aplicó.

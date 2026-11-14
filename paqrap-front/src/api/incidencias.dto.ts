@@ -26,4 +26,5 @@ export interface AveriaResponseDto {
 
   indisponibleHasta: string;
   regresaAlCentralEn: string | null;
+  duracionReparacionMinutos?: number | null;
 }

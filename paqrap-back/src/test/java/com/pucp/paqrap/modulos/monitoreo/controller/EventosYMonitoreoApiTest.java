@@ -387,4 +387,18 @@ class EventosYMonitoreoApiTest {
     void respondeNotFoundParaUnaEjecucionInexistente() throws Exception {
         mvc.perform(get("/api/monitoreo/999999")).andExpect(status().isNotFound());
     }
+    @Test
+    void unaMenorPersonalizadaSigueVisibleDespuesDeCuatroDias() throws Exception {
+        long id = iniciarCincoDias();
+        averiaRepository.save(new com.pucp.paqrap.modulos.incidencias.persistence.BreakdownEventEntity(id,
+                new com.pucp.paqrap.modulos.incidencias.entity.BreakdownEvent("TA01",
+                        com.pucp.paqrap.modulos.incidencias.entity.BreakdownType.MINOR, INICIO,
+                        new com.pucp.paqrap.modulos.redvial.entity.Location(27, 14), 8640)));
+        reloj.avanzar(Duration.ofSeconds(2200)); // 4 days + 1h 46m simulated, still inside FIVE_DAY.
+        motor.tick();
+        mvc.perform(get("/api/monitoreo/{id}", id)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.averiasActivas", hasSize(1)))
+                .andExpect(jsonPath("$.averiasActivas[0].duracionReparacionMinutos").value(8640))
+                .andExpect(jsonPath("$.averiasActivas[0].indisponibleHasta").value("2026-01-07T05:00:00Z"));
+    }
 }

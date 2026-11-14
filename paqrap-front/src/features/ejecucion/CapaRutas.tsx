@@ -1038,22 +1038,28 @@ function ParadaMarker({
             ? "#0ea5e9"
             : "#64748b";
 
+  const esTrasvase =
+    parada.tipo ===
+    "TRASVASE";
+
   const texto =
-    estado ===
-    "COMPLETADA"
-      ? "✓"
+    esTrasvase
+      ? "⇄"
       : estado ===
-          "REFRIGERIO"
-        ? "☕"
+          "COMPLETADA"
+        ? "✓"
         : estado ===
-            "EN_SERVICIO"
-          ? "●"
+            "REFRIGERIO"
+          ? "☕"
           : estado ===
-              "SIGUIENTE"
-            ? "▶"
-            : String(
-                parada.orden,
-              );
+              "EN_SERVICIO"
+            ? "●"
+            : estado ===
+                "SIGUIENTE"
+              ? "▶"
+              : String(
+                  parada.orden,
+                );
 
   return (
     <Group
@@ -1078,12 +1084,28 @@ function ParadaMarker({
       />
 
       <Text
-        x={-7}
-        y={-5}
-        width={14}
+        x={
+          esTrasvase
+            ? -9
+            : -7
+        }
+        y={
+          esTrasvase
+            ? -7
+            : -5
+        }
+        width={
+          esTrasvase
+            ? 18
+            : 14
+        }
         align="center"
         text={texto}
-        fontSize={9}
+        fontSize={
+          esTrasvase
+            ? 13
+            : 9
+        }
         fontStyle="bold"
         fill={color}
         listening={false}
