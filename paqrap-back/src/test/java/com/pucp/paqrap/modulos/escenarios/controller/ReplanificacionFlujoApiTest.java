@@ -114,6 +114,7 @@ class ReplanificacionFlujoApiTest {
     @Autowired private RoadBlockRepository bloqueoRepository;
     @Autowired private OrderRepository pedidoRepository;
     @Autowired private OrderStatusHistoryRepository historialRepository;
+    @Autowired private com.pucp.paqrap.modulos.escenarios.service.EstadoOperativoEscenarios estadoOperativo;
     @Autowired private PlanRepository planRepository;
     @Autowired private RouteRepository routeRepository;
     @Autowired private RouteStopRepository routeStopRepository;
@@ -212,7 +213,7 @@ class ReplanificacionFlujoApiTest {
         // 05:13:20: la ruta de P1 ya salió (el vehículo no vuelve al central por arte de magia).
         avanzar(Duration.ofSeconds(5));
         assertEquals(VehicleOperationalStatus.IN_ROUTE,
-                vehiculoRepository.findById(vehiculoP1).orElseThrow().getOperationalStatus());
+                estadoOperativo.vehiculo(id, vehiculoP1).orElseThrow().getOperationalStatus());
 
         // 05:26:40: llegó P2 (05:20) -> replanificación con la ruta de P1 conservada y P2 en otro vehículo.
         avanzar(Duration.ofSeconds(5));
@@ -256,15 +257,15 @@ class ReplanificacionFlujoApiTest {
         // Hasta el día siguiente: los dos pedidos se entregan una sola vez y la ejecución sigue en marcha.
         avanzar(Duration.ofMinutes(10));
         assertEquals(ScenarioStatus.RUNNING, estado(id));
-        assertEquals(OrderStatus.DELIVERED, pedidoRepository.findById("P1").orElseThrow().getStatus());
-        assertEquals(OrderStatus.DELIVERED, pedidoRepository.findById("P2").orElseThrow().getStatus());
+        assertEquals(OrderStatus.DELIVERED, estadoOperativo.pedido(id, "P1").orElseThrow().getStatus());
+        assertEquals(OrderStatus.DELIVERED, estadoOperativo.pedido(id, "P2").orElseThrow().getStatus());
         EjecutorPlanService.Metricas metricas = ejecutor.metricas(id).orElseThrow();
         assertEquals(2, metricas.pedidosEntregados());
         assertEquals(8, metricas.paquetesEntregados(), "ningún paquete se entrega dos veces");
         Map<String, Long> entregas = Map.of(
-                "P1", historialRepository.findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc("P1").stream()
+                "P1", estadoOperativo.historial(id, "P1").stream()
                         .filter(h -> h.getStatus() == OrderStatus.DELIVERED).count(),
-                "P2", historialRepository.findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc("P2").stream()
+                "P2", estadoOperativo.historial(id, "P2").stream()
                         .filter(h -> h.getStatus() == OrderStatus.DELIVERED).count());
         assertEquals(Map.of("P1", 1L, "P2", 1L), entregas);
         mvc.perform(get("/api/monitoreo/" + id))
@@ -288,13 +289,13 @@ class ReplanificacionFlujoApiTest {
 
         // La semilla es aleatoria: el SA puede visitar cualquiera de los dos primero.
         for (int tick = 0; tick < 45
-                && pedidoRepository.findById("P1").orElseThrow().getStatus() != OrderStatus.IN_TRANSIT
-                && pedidoRepository.findById("P2").orElseThrow().getStatus() != OrderStatus.IN_TRANSIT; tick++) {
+                && estadoOperativo.pedido(id, "P1").orElseThrow().getStatus() != OrderStatus.IN_TRANSIT
+                && estadoOperativo.pedido(id, "P2").orElseThrow().getStatus() != OrderStatus.IN_TRANSIT; tick++) {
             avanzar(Duration.ofSeconds(1));
         }
         assertEquals(Set.of(OrderStatus.IN_TRANSIT, OrderStatus.ASSIGNED),
-                Set.of(pedidoRepository.findById("P1").orElseThrow().getStatus(),
-                        pedidoRepository.findById("P2").orElseThrow().getStatus()));
+                Set.of(estadoOperativo.pedido(id, "P1").orElseThrow().getStatus(),
+                        estadoOperativo.pedido(id, "P2").orElseThrow().getStatus()));
 
         VehicleEntity sustituto = vehiculoRepository.findById("TA02").orElseThrow();
         sustituto.setOperationalStatus(VehicleOperationalStatus.AVAILABLE);
@@ -309,12 +310,10 @@ class ReplanificacionFlujoApiTest {
         String replanificado = replanificacion(id);
 
         assertEquals("AVERIA", leer(replanificado, "$.motivo"));
-        assertEquals(OrderStatus.REGISTERED, pedidoRepository.findById("P1").orElseThrow().getStatus());
-        assertEquals(OrderStatus.REGISTERED, pedidoRepository.findById("P2").orElseThrow().getStatus());
-        assertEquals(OrderStatus.REGISTERED, historialRepository
-                .findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc("P1").getLast().getStatus());
-        assertEquals(OrderStatus.REGISTERED, historialRepository
-                .findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc("P2").getLast().getStatus());
+        assertEquals(OrderStatus.REGISTERED, estadoOperativo.pedido(id, "P1").orElseThrow().getStatus());
+        assertEquals(OrderStatus.REGISTERED, estadoOperativo.pedido(id, "P2").orElseThrow().getStatus());
+        assertEquals(OrderStatus.REGISTERED, estadoOperativo.historial(id, "P1").getLast().getStatus());
+        assertEquals(OrderStatus.REGISTERED, estadoOperativo.historial(id, "P2").getLast().getStatus());
         assertNotEquals("TA01", vehiculoQueEntrega(replanificado, "P1"));
         assertNotEquals("TA01", vehiculoQueEntrega(replanificado, "P2"));
         assertTrue(leer(replanificado, "$.vehiculosNoDisponibles").toString().contains("TA01"), replanificado);

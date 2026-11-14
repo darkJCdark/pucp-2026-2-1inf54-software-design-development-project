@@ -4,6 +4,10 @@ import com.pucp.paqrap.comun.api.PaginaResponse;
 import com.pucp.paqrap.comun.error.RecursoNoEncontradoException;
 import com.pucp.paqrap.comun.error.ReglaNegocioException;
 import com.pucp.paqrap.modulos.escenarios.entity.ScenarioStatus;
+import com.pucp.paqrap.modulos.escenarios.entity.ScenarioType;
+import com.pucp.paqrap.modulos.escenarios.persistence.ScenarioExecutionEntity;
+import com.pucp.paqrap.modulos.pedidos.dto.CargaPedidosMultipleResponse;
+import org.springframework.data.domain.PageImpl;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
 import com.pucp.paqrap.modulos.escenarios.service.MotorEscenarios;
 import com.pucp.paqrap.modulos.pedidos.dto.CargaPedidosResponse;
@@ -32,6 +36,8 @@ import java.time.Instant;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,6 +69,9 @@ public class PedidoService {
         ATRIBUTOS_ORDENABLES.put("estado", "status");
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.pucp.paqrap.modulos.escenarios.service.EstadoOperativoEscenarios estadoOperativo;
+
     private final OrderRepository pedidoRepository;
     private final OrderStatusHistoryRepository historialRepository;
     private final ApplicationEventPublisher eventos;
@@ -82,40 +91,58 @@ public class PedidoService {
 
     @Transactional
     public PedidoResponse registrar(RegistrarPedidoRequest request) {
-        int horas = horasPrometidas(request.tipoEntrega(), request.horasPrometidas());
-        Instant registradoEn = resolverRegistradoEn(request.registradoEn());
-        validarContraEscenarioActivo(registradoEn);
-        OrderEntity pedido = new OrderEntity("M-" + UUID.randomUUID(), request.clienteId(),
-                new Location(request.x(), request.y()), request.paquetes(), registradoEn, request.tipoEntrega(), horas);
+        return registrar(request, null);
+    }
 
+    /** Sin id explícito se prefiere Día a Día; con una sola simulación se conserva el uso anterior. */
+    @Transactional
+    public PedidoResponse registrar(RegistrarPedidoRequest request, Long ejecucionId) {
+        ScenarioExecutionEntity destino = resolverDestino(ejecucionId, true);
+        int horas = horasPrometidas(request.tipoEntrega(), request.horasPrometidas());
+        Instant registradoEn = request.registradoEn() != null ? request.registradoEn()
+                : destino != null ? motorEscenarios.instanteSimulado(destino.getExecutionId()).orElseGet(Instant::now)
+                : Instant.now();
+        if (destino != null && registradoEn.isBefore(destino.getSimulationStartedAt())) {
+            throw new ReglaNegocioException("El pedido está registrado antes del inicio del escenario activo ("
+                    + destino.getSimulationStartedAt() + "); use una fecha igual o posterior");
+        }
+        Long idDestino = destino == null ? null : destino.getExecutionId();
+        String prefijo = destino != null && destino.getScenarioType() != ScenarioType.DAY_TO_DAY
+                ? "SIM-" + idDestino + "-" : "M-";
+        OrderEntity pedido = new OrderEntity(prefijo + UUID.randomUUID(), request.clienteId(),
+                new Location(request.x(), request.y()), request.paquetes(), registradoEn, request.tipoEntrega(), horas);
         pedidoRepository.save(pedido);
         historialRepository.save(OrderStatusHistoryEntity.registro(pedido));
-        // El motor de escenarios replanifica cuando esta transacción se confirma.
-        eventos.publishEvent(new PedidoRegistrado(pedido.getOrderId(), registradoEn));
+        if (estadoOperativo != null) estadoOperativo.incorporarAlConfirmar(idDestino, List.of(pedido));
+        eventos.publishEvent(new PedidoRegistrado(pedido.getOrderId(), registradoEn, idDestino));
         return PedidoResponse.de(pedido);
     }
 
-    /** Una alta manual durante una simulación en marcha pertenece al instante actual de esa simulación. */
-    private Instant resolverRegistradoEn(Instant solicitado) {
-        if (solicitado != null) {
-            return solicitado;
+    private ScenarioExecutionEntity resolverDestino(Long indicado, boolean exigirActivo) {
+        if (indicado != null) {
+            ScenarioExecutionEntity ejecucion = ejecucionRepository.findById(indicado)
+                    .orElseThrow(() -> new RecursoNoEncontradoException("Ejecución", indicado));
+            if (exigirActivo && !ESCENARIOS_ACTIVOS.contains(ejecucion.getStatus())) {
+                throw new ReglaNegocioException("La ejecución " + indicado + " no está activa");
+            }
+            return ejecucion;
         }
-        return ejecucionRepository.findByStatusIn(Set.of(ScenarioStatus.RUNNING)).stream()
-                .findFirst()
-                .flatMap(ejecucion -> motorEscenarios.instanteSimulado(ejecucion.getExecutionId()))
-                .orElseGet(Instant::now);
+        List<ScenarioExecutionEntity> activas = ejecucionRepository.findByStatusIn(ESCENARIOS_ACTIVOS);
+        return activas.stream().filter(e -> e.getScenarioType() == ScenarioType.DAY_TO_DAY).findFirst()
+                .orElseGet(() -> activas.size() == 1 ? activas.getFirst() : null);
     }
 
-    /** Regla de coherencia (d): un pedido manual no puede ser anterior al inicio del escenario activo. */
-    private void validarContraEscenarioActivo(Instant registradoEn) {
-        ejecucionRepository.findByStatusIn(ESCENARIOS_ACTIVOS).stream()
-                .map(ejecucion -> ejecucion.getSimulationStartedAt())
-                .filter(inicio -> registradoEn.isBefore(inicio))
-                .findFirst()
-                .ifPresent(inicio -> {
-                    throw new ReglaNegocioException("El pedido está registrado antes del inicio del escenario activo ("
-                            + inicio + "); use una fecha igual o posterior");
-                });
+    /** No devuelve el estado real cuando el cliente solicitó el estado de una simulación perdida al reiniciar. */
+    private Long resolverConsulta(Long indicado) {
+        ScenarioExecutionEntity destino = resolverDestino(indicado, false);
+        if (destino == null) return null;
+        if (destino.getScenarioType() != ScenarioType.DAY_TO_DAY
+                && (estadoOperativo == null || !estadoOperativo.aislada(destino.getExecutionId()))) {
+            if (indicado != null) throw new ReglaNegocioException(
+                    "El detalle operativo de esta simulación no está en memoria; consulte su resultado consolidado");
+            return null;
+        }
+        return destino.getExecutionId();
     }
 
     /**
@@ -138,18 +165,83 @@ public class PedidoService {
 
         pedidoRepository.saveAll(nuevos);
         historialRepository.saveAll(nuevos.stream().map(OrderStatusHistoryEntity::registro).toList());
+        if (estadoOperativo != null) estadoOperativo.incorporarAlConfirmar(null, nuevos);
         return new CargaPedidosResponse(nombreArchivo, periodoEfectivo, leidos.size(), nuevos.size(),
                 leidos.size() - nuevos.size());
+    }
+
+    public record ArchivoMensual(String nombre, String contenido) { }
+
+    /** Carga atómica de uno o dos archivos; nunca se borra el mes anterior. */
+    @Transactional
+    public CargaPedidosMultipleResponse cargarMultiples(List<ArchivoMensual> archivos) {
+        if (archivos == null || archivos.isEmpty() || archivos.size() > 2) {
+            throw new IllegalArgumentException("Seleccione uno o dos archivos mensuales de pedidos");
+        }
+        Set<YearMonth> periodos = new HashSet<>();
+        // Validar todos antes de guardar el primero. Un error en el segundo no deja una carga parcial.
+        for (ArchivoMensual archivo : archivos) {
+            if (archivo == null || archivo.contenido() == null || archivo.contenido().isBlank()) {
+                throw new IllegalArgumentException("Ningún archivo puede estar vacío");
+            }
+            YearMonth periodo = periodoDesdeNombre(archivo.nombre());
+            if (!periodos.add(periodo)) {
+                throw new IllegalArgumentException("Los dos archivos deben corresponder a meses distintos: " + periodo);
+            }
+            if (cargador.cargar(archivo.contenido().replace("\uFEFF", "").lines().toList(), periodo, ZONA).isEmpty()) {
+                throw new IllegalArgumentException("El archivo no contiene pedidos: " + archivo.nombre());
+            }
+        }
+        List<CargaPedidosResponse> resultados = new ArrayList<>();
+        for (ArchivoMensual archivo : archivos) resultados.add(cargar(archivo.nombre(), archivo.contenido(), null));
+        return CargaPedidosMultipleResponse.de(resultados);
     }
 
     public PaginaResponse<PedidoResponse> listar(String clienteId, OrderStatus estado, DeliveryType tipoEntrega,
                                                  Instant registradoDesde, Instant registradoHasta,
                                                  Instant venceHasta, Pageable pageable) {
+        return listar(clienteId, estado, tipoEntrega, registradoDesde, registradoHasta, venceHasta, pageable, null);
+    }
+
+    public PaginaResponse<PedidoResponse> listar(String clienteId, OrderStatus estado, DeliveryType tipoEntrega,
+                                                 Instant registradoDesde, Instant registradoHasta,
+                                                 Instant venceHasta, Pageable pageable, Long ejecucionId) {
         if (registradoDesde != null && registradoHasta != null && !registradoHasta.isAfter(registradoDesde)) {
             throw new IllegalArgumentException("'registradoHasta' debe ser posterior a 'registradoDesde'");
         }
+        Pageable orden = conOrdenDeEntidad(pageable);
+        Long destino = resolverConsulta(ejecucionId);
+        if (estadoOperativo != null && estadoOperativo.aislada(destino)) {
+            List<OrderEntity> filtrados = estadoOperativo.catalogo(destino).stream()
+                    .filter(p -> clienteId == null || clienteId.equals(p.getClientId()))
+                    .filter(p -> estado == null || estado == p.getStatus())
+                    .filter(p -> tipoEntrega == null || tipoEntrega == p.getDeliveryType())
+                    .filter(p -> registradoDesde == null || !p.getRegisteredAt().isBefore(registradoDesde))
+                    .filter(p -> registradoHasta == null || p.getRegisteredAt().isBefore(registradoHasta))
+                    .filter(p -> venceHasta == null || !p.getDeadline().isAfter(venceHasta))
+                    .sorted(comparador(orden.getSort())).toList();
+            List<OrderEntity> pagina = filtrados.stream().skip(orden.getOffset()).limit(orden.getPageSize()).toList();
+            return PaginaResponse.de(new PageImpl<>(pagina, orden, filtrados.size()), PedidoResponse::de);
+        }
         return PaginaResponse.de(pedidoRepository.buscar(clienteId, estado, tipoEntrega, registradoDesde,
-                registradoHasta, venceHasta, conOrdenDeEntidad(pageable)), PedidoResponse::de);
+                registradoHasta, venceHasta, orden), PedidoResponse::de);
+    }
+
+    private Comparator<OrderEntity> comparador(Sort orden) {
+        Comparator<OrderEntity> resultado = (a, b) -> 0;
+        for (Sort.Order campo : orden) {
+            Comparator<OrderEntity> siguiente = switch (campo.getProperty()) {
+                case "orderId" -> Comparator.comparing(OrderEntity::getOrderId);
+                case "clientId" -> Comparator.comparing(OrderEntity::getClientId);
+                case "packages" -> Comparator.comparing(OrderEntity::getPackages);
+                case "registeredAt" -> Comparator.comparing(OrderEntity::getRegisteredAt);
+                case "deadline" -> Comparator.comparing(OrderEntity::getDeadline);
+                case "status" -> Comparator.comparing(p -> p.getStatus().name());
+                default -> throw new IllegalArgumentException("Campo de orden no admitido");
+            };
+            resultado = resultado.thenComparing(campo.isDescending() ? siguiente.reversed() : siguiente);
+        }
+        return resultado.thenComparing(OrderEntity::getOrderId);
     }
 
     /** Traduce el {@code sort} expresado con los nombres de la API a los atributos de la entidad. */
@@ -178,16 +270,30 @@ public class PedidoService {
                 pedidoRepository.contarVencidosSinEntregar(desde, instante));
     }
 
+    public ResumenPedidos resumen(long ejecucionId, Instant desde, Instant instante) {
+        if (estadoOperativo == null) return resumen(desde, instante);
+        var resumen = estadoOperativo.resumen(ejecucionId, desde, instante);
+        return new ResumenPedidos(resumen.llegados(), resumen.pendientes(), resumen.vencidosSinEntregar());
+    }
+
     public PedidoDetalleResponse obtener(String id) {
         return obtener(id, null);
     }
 
     /** Con {@code instante} (simulado) calcula además si un pedido aún no entregado ya incumplió su plazo. */
     public PedidoDetalleResponse obtener(String id, Instant instante) {
-        OrderEntity pedido = pedidoRepository.findById(id)
+        return obtener(id, instante, null);
+    }
+
+    public PedidoDetalleResponse obtener(String id, Instant instante, Long ejecucionId) {
+        Long destino = resolverConsulta(ejecucionId);
+        boolean virtual = estadoOperativo != null && estadoOperativo.aislada(destino);
+        OrderEntity pedido = (virtual ? estadoOperativo.pedido(destino, id) : pedidoRepository.findById(id))
+                .filter(p -> virtual || !p.getOrderId().startsWith("SIM-"))
                 .orElseThrow(() -> new RecursoNoEncontradoException("Pedido", id));
         List<PedidoDetalleResponse.CambioEstado> historial =
-                historialRepository.findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc(id).stream()
+                (virtual ? estadoOperativo.historial(destino, id)
+                        : historialRepository.findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc(id)).stream()
                         .map(PedidoDetalleResponse.CambioEstado::de)
                         .toList();
         String unidadAsignada = historial.stream()

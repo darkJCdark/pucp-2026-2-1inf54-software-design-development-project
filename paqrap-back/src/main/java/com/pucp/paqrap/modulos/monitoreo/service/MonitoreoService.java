@@ -89,7 +89,7 @@ public class MonitoreoService {
                 .map(MantenimientoResponse::vehiculoId)
                 .collect(Collectors.toSet());
 
-        List<MonitoreoResponse.Vehiculo> vehiculos = flotaService.listarVehiculos(null, null).stream()
+        List<MonitoreoResponse.Vehiculo> vehiculos = flotaService.listarVehiculos(null, null, ejecucionId).stream()
                 .map(v -> {
                     MonitoreoResponse.MotivoDetencion motivo = null;
                     Instant hasta = null;
@@ -130,7 +130,7 @@ public class MonitoreoService {
                                 null, r.getTotalDistanceKm().doubleValue(), r.getTotalCost().doubleValue(), enRuta)))
                 .orElse(new MonitoreoResponse.Ejecucion(0, 0, 0, 0, 0, enRuta));
 
-        return new MonitoreoResponse(escenario, instante, pedidoService.resumen(escenario.inicioSimulado(), instante),
+        return new MonitoreoResponse(escenario, instante, pedidoService.resumen(ejecucionId, escenario.inicioSimulado(), instante),
                 vehiculos, almacenes, bloqueoService.listar(null, null, instante), averiasActivas, ejecucion,
                 detectorColapso.colapso(ejecucionId).orElse(null));
     }

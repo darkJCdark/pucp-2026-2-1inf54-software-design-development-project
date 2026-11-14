@@ -39,8 +39,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * O3: el plan informa en qué parada el conductor toma su refrigerio. TA01 sale 07:00 (Lima) a 10 km/h; la primera
- * entrega a 15 km la alcanza 08:30, dentro de la ventana del turno (08:00-14:00): descansa hasta las 09:30. La
- * segunda entrega, en el mismo turno, ya no tiene refrigerio.
+ * entrega a 15 km la alcanza físicamente a las 08:30. Atiende hasta las 09:30 y después toma refrigerio
+ * hasta las 10:30. La segunda entrega, en el mismo turno, ya no tiene refrigerio.
  */
 class PlanResponseMapperRefrigerioTest {
 
@@ -75,8 +75,12 @@ class PlanResponseMapperRefrigerioTest {
                 .aResponse(ModoOperacion.DIA_A_DIA, inicio, resultado, 1L, 0L, 1_500L)
                 .rutas().getFirst().paradas();
 
-        assertEquals(inicio.plusSeconds(90 * 60), paradas.get(0).inicioRefrigerio(), "llega al cliente a las 08:30");
-        assertEquals(inicio.plusSeconds(150 * 60), paradas.get(0).llegada(), "y lo atiende tras el refrigerio, 09:30");
+        assertEquals(inicio.plusSeconds(90 * 60), paradas.get(0).llegada(),
+                "la llegada física al cliente es a las 08:30");
+        assertEquals(inicio.plusSeconds(150 * 60), paradas.get(0).inicioRefrigerio(),
+                "la entrega termina a las 09:30 y entonces empieza el refrigerio");
+        assertEquals(inicio.plusSeconds(210 * 60), paradas.get(0).fin(),
+                "el refrigerio termina a las 10:30");
         assertNull(paradas.get(1).inicioRefrigerio(), "un solo refrigerio por turno");
     }
 }

@@ -61,7 +61,7 @@ public class DetalleOperacionService {
 
     public VehiculoDetalleResponse vehiculo(String id, long ejecucionId) {
         EscenarioResponse escenario = escenarioService.obtener(ejecucionId);
-        VehiculoResponse vehiculo = flotaService.obtenerVehiculo(id);
+        VehiculoResponse vehiculo = flotaService.obtenerVehiculo(id, ejecucionId);
         Instant instante = instante(escenario);
 
         ShiftSchedule.ShiftWindow turno = turnos.shiftAt(instante);

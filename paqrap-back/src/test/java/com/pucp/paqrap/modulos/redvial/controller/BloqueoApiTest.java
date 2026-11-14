@@ -108,4 +108,30 @@ class BloqueoApiTest {
         mvc.perform(get("/api/red-vial/bloqueos/999999"))
                 .andExpect(status().isNotFound());
     }
+
+    @Test
+    void cargaDosMesesDeBloqueosSinBorrarElPrimero() throws Exception {
+        mvc.perform(multipart("/api/red-vial/bloqueos/carga-multiple")
+                .file(new MockMultipartFile("archivos", "bloqueo.2611.txt", "text/plain",
+                        CONTENIDO.getBytes(StandardCharsets.UTF_8)))
+                .file(new MockMultipartFile("archivos", "bloqueo.2612.txt", "text/plain",
+                        CONTENIDO.getBytes(StandardCharsets.UTF_8))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.archivos", hasSize(2)))
+                .andExpect(jsonPath("$.registrados").value(4));
+        mvc.perform(get("/api/red-vial/bloqueos")).andExpect(jsonPath("$", hasSize(4)));
+    }
+
+    @Test
+    void noReemplazaBloqueosSiElSegundoArchivoDelLoteEsInvalido() throws Exception {
+        mvc.perform(multipart("/api/red-vial/bloqueos/carga")
+                .file(archivo("bloqueo.2611.txt", CONTENIDO))).andExpect(status().isCreated());
+        mvc.perform(multipart("/api/red-vial/bloqueos/carga-multiple")
+                .file(new MockMultipartFile("archivos", "bloqueo.2611.txt", "text/plain",
+                        "01d01h00m-01d02h00m:10,10,12,10\n".getBytes(StandardCharsets.UTF_8)))
+                .file(new MockMultipartFile("archivos", "bloqueo.2612.txt", "text/plain",
+                        "linea invalida\n".getBytes(StandardCharsets.UTF_8))))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/red-vial/bloqueos")).andExpect(jsonPath("$", hasSize(2)));
+    }
 }

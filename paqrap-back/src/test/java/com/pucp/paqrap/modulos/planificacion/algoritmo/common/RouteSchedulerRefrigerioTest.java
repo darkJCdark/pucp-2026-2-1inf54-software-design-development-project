@@ -44,9 +44,10 @@ class RouteSchedulerRefrigerioTest {
         Vehicle vehiculo = new Vehicle("TA01", VehicleType.CAR, true);
         OperationalSnapshot snapshot = snapshotConVelocidad(10.0, horaInicio, central, vehiculo);
 
-        // Primera entrega a 15 km (10 km/h -> 90 min): llegada sin
-        // refrigerio 08:30, cae dentro de la ventana del turno 07:00-15:00
-        // (ventana 08:00-14:00) -> debe sumar 1h una vez: llegada real 09:30.
+        // Primera entrega a 15 km (10 km/h -> 90 min): llega físicamente
+        // a las 08:30. Primero atiende hasta las 09:30 y después toma
+        // refrigerio hasta las 10:30. El descanso NO retrasa la llegada
+        // utilizada para evaluar el deadline del pedido.
         Order pedido1 = new Order("C-1", new Location(15, 0), 1, horaInicio, horaInicio.plusSeconds(20 * 3600));
         // Segunda entrega, 5 km mas adelante, mismo turno: NO debe sumar
         // otra hora (el refrigerio de este turno ya se tomo).
@@ -60,8 +61,11 @@ class RouteSchedulerRefrigerioTest {
         ScheduledDeliveryRoute programada = new RouteScheduler(roadNetwork).schedule(ruta, snapshot, List.of());
 
         Instant llegada1SinRefrigerio = horaInicio.plusSeconds(90 * 60);
-        assertEquals(llegada1SinRefrigerio.plusSeconds(3600), programada.scheduledStops().get(0).arrivedAt(),
-                "la primera parada debe incluir 1h de refrigerio");
+        assertEquals(llegada1SinRefrigerio, programada.scheduledStops().get(0).arrivedAt(),
+                "la llegada física del pedido no debe retrasarse por el refrigerio");
+        assertEquals(llegada1SinRefrigerio.plusSeconds(2 * 3600),
+                programada.scheduledStops().get(0).completedAt(),
+                "la primera parada incluye 1h de servicio y luego 1h de refrigerio");
 
         // completedAt de la parada 1 (llegada + 1h de servicio) + 5 km mas (30 min)
         Instant salidaHaciaParada2 = programada.scheduledStops().get(0).completedAt();

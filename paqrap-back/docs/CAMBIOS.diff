@@ -1,0 +1,1946 @@
+--- a/VALIDAR_CONCURRENCIA_COLAPSO_CARGA.ps1
++++ b/VALIDAR_CONCURRENCIA_COLAPSO_CARGA.ps1
+@@ -0,0 +1,19 @@
++$ErrorActionPreference = "Stop"
++Push-Location $PSScriptRoot
++try {
++    if (-not (Get-Command mvn -ErrorAction SilentlyContinue)) {
++        throw "Maven no esta en PATH. Configure Maven y Java 21 antes de ejecutar este script."
++    }
++    Write-Host "[1/2] Pruebas focalizadas de coexistencia, aislamiento, colapso y carga mensual..."
++    mvn clean test "-Dtest=ConcurrenciaYAislamientoTest,EscenarioApiTest,EventosYMonitoreoApiTest,PedidoApiTest,BloqueoApiTest,ReplanificacionFlujoApiTest,ParametrosFlotaReplanificacionApiTest"
++    if ($LASTEXITCODE -ne 0) { throw "Fallaron las pruebas focalizadas. Revise target/surefire-reports." }
++
++    Write-Host "[2/2] Suite completa..."
++    mvn test
++    if ($LASTEXITCODE -ne 0) { throw "Fallo la suite completa. Revise target/surefire-reports." }
++
++    Write-Host "VALIDACION COMPLETADA. Puede iniciar el backend con mvn spring-boot:run."
++}
++finally {
++    Pop-Location
++}
+--- a/src/main/java/com/pucp/paqrap/modulos/escenarios/service/DetectorColapso.java
++++ b/src/main/java/com/pucp/paqrap/modulos/escenarios/service/DetectorColapso.java
+@@ -65,6 +65,9 @@
+                           long vehiculosHabilitados) {
+     }
+ 
++    @org.springframework.beans.factory.annotation.Autowired
++    private com.pucp.paqrap.modulos.escenarios.service.EstadoOperativoEscenarios estadoOperativo;
++
+     private final OrderRepository pedidoRepository;
+     private final VehicleRepository vehiculoRepository;
+     private final VehicleTypeParametersRepository tipoRepository;
+@@ -89,11 +92,12 @@
+         if (previo != null) {
+             return Optional.of(previo);
+         }
+-        List<VehicleEntity> habilitados = vehiculoRepository.findAll().stream()
++        List<VehicleEntity> habilitados = (estadoOperativo != null
++                ? estadoOperativo.vehiculos(ejecucionId) : vehiculoRepository.findAll()).stream()
+                 .filter(vehiculo -> vehiculo.getOperationalStatus() != VehicleOperationalStatus.UNAVAILABLE)
+                 .toList();
+-        Optional<Colapso> colapso = plazoVencido(inicio, instante, habilitados.size())
+-                .or(() -> plazoInalcanzable(inicio, instante, habilitados));
++        Optional<Colapso> colapso = plazoVencido(ejecucionId, inicio, instante, habilitados.size())
++                .or(() -> plazoInalcanzable(ejecucionId, inicio, instante, habilitados));
+         colapso.ifPresent(c -> {
+             colapsos.put(ejecucionId, c);
+             log.warn("Ejecución {}: colapso logístico en {} ({}, pedido {} con plazo {})", ejecucionId, c.instante(),
+@@ -111,13 +115,15 @@
+         colapsos.remove(ejecucionId);
+     }
+ 
+-    private Optional<Colapso> plazoVencido(Instant inicio, Instant instante, long habilitados) {
+-        return pedidoRepository.incumplidosDesde(inicio, instante, PageRequest.of(0, 1)).stream().findFirst()
+-                .map(pedido -> colapso(pedido.getDeadline(), Causa.PLAZO_VENCIDO, pedido, null, inicio, instante,
++    private Optional<Colapso> plazoVencido(long ejecucionId, Instant inicio, Instant instante, long habilitados) {
++        return (estadoOperativo != null
++                ? estadoOperativo.incumplidos(ejecucionId, inicio, instante, PageRequest.of(0, 1))
++                : pedidoRepository.incumplidosDesde(inicio, instante, PageRequest.of(0, 1))).stream().findFirst()
++                .map(pedido -> colapso(ejecucionId, pedido.getDeadline(), Causa.PLAZO_VENCIDO, pedido, null, inicio, instante,
+                         habilitados));
+     }
+ 
+-    private Optional<Colapso> plazoInalcanzable(Instant inicio, Instant instante, List<VehicleEntity> habilitados) {
++    private Optional<Colapso> plazoInalcanzable(long ejecucionId, Instant inicio, Instant instante, List<VehicleEntity> habilitados) {
+         Optional<WarehouseEntity> central = almacenRepository.findAll().stream()
+                 .filter(almacen -> almacen.getWarehouseKind() == WarehouseKind.CENTRAL)
+                 .findFirst();
+@@ -132,15 +138,16 @@
+             return Optional.empty();
+         }
+         for (int pagina = 0; ; pagina++) {
+-            List<OrderEntity> pendientes = pedidoRepository.registradosEnDesde(inicio, instante,
+-                    PageRequest.of(pagina, TAMANO_PAGINA));
++            List<OrderEntity> pendientes = estadoOperativo != null
++                    ? estadoOperativo.registrados(ejecucionId, inicio, instante, PageRequest.of(pagina, TAMANO_PAGINA))
++                    : pedidoRepository.registradosEnDesde(inicio, instante, PageRequest.of(pagina, TAMANO_PAGINA));
+             for (OrderEntity pedido : pendientes) {
+                 double km = Math.abs(pedido.getDestinationX() - central.get().getX())
+                         + Math.abs(pedido.getDestinationY() - central.get().getY());
+                 Instant llegadaMinima = instante.plus(
+                         Duration.ofMillis(Math.round(km / velocidad.getAsDouble() * 3_600_000)));
+                 if (llegadaMinima.isAfter(pedido.getDeadline())) {
+-                    return Optional.of(colapso(instante, Causa.PLAZO_INALCANZABLE, pedido, llegadaMinima, inicio,
++                    return Optional.of(colapso(ejecucionId, instante, Causa.PLAZO_INALCANZABLE, pedido, llegadaMinima, inicio,
+                             instante, habilitados.size()));
+                 }
+             }
+@@ -150,8 +157,13 @@
+         }
+     }
+ 
+-    private Colapso colapso(Instant momento, Causa causa, OrderEntity pedido, Instant llegadaMinima, Instant inicio,
++    private Colapso colapso(long ejecucionId, Instant momento, Causa causa, OrderEntity pedido, Instant llegadaMinima, Instant inicio,
+                             Instant instante, long habilitados) {
++        if (estadoOperativo != null) {
++            EstadoOperativoEscenarios.Resumen resumen = estadoOperativo.resumen(ejecucionId, inicio, instante);
++            return new Colapso(momento, causa, pedido.getOrderId(), pedido.getDeadline(), llegadaMinima, instante,
++                    resumen.pendientes(), resumen.vencidosSinEntregar(), habilitados);
++        }
+         return new Colapso(momento, causa, pedido.getOrderId(), pedido.getDeadline(), llegadaMinima, instante,
+                 pedidoRepository.contarPendientesEnDesde(inicio, instante),
+                 pedidoRepository.contarVencidosSinEntregar(inicio, instante), habilitados);
+--- a/src/main/java/com/pucp/paqrap/modulos/escenarios/service/EjecutorPlanService.java
++++ b/src/main/java/com/pucp/paqrap/modulos/escenarios/service/EjecutorPlanService.java
+@@ -57,6 +57,9 @@
+ 
+     private static final Logger log = LoggerFactory.getLogger(EjecutorPlanService.class);
+ 
++    @org.springframework.beans.factory.annotation.Autowired
++    private com.pucp.paqrap.modulos.escenarios.service.EstadoOperativoEscenarios estadoOperativo;
++
+     private final PlanVigente planVigente;
+     private final OrderRepository pedidoRepository;
+     private final OrderStatusHistoryRepository historialRepository;
+@@ -93,6 +96,10 @@
+     @Transactional
+     public void prepararInicio(long ejecucionId, Instant inicioSimulado) {
+         estados.put(ejecucionId, new EstadoEjecucion());
++        if (estadoOperativo != null && estadoOperativo.aislada(ejecucionId)) {
++            log.info("Ejecución {}: estado virtual aislado preparado; no se reinician datos de Día a Día", ejecucionId);
++            return;
++        }
+         historialRepository.borrarEjecucionDesde(inicioSimulado);
+         int pedidos = pedidoRepository.reiniciarDesde(inicioSimulado);
+ 
+@@ -124,7 +131,7 @@
+                 .toList();
+         Optional<PlanResponse> vigente = planVigente.ultimoPlan(ejecucionId);
+         if (vigente.isEmpty()) {
+-            trasladarAveriadosAlCentral(averias, desde, hasta);
++            trasladarAveriadosAlCentral(ejecucionId, averias, desde, hasta);
+             return;
+         }
+         PlanResponse plan = vigente.get();
+@@ -132,7 +139,7 @@
+         if (plan != estado.plan) {
+             // Plan nuevo: reemplaza al anterior desde su hora de planificación (incluida). Las rutas en curso que la
+             // replanificación conservó siguen ejecutándose con su versión del plan nuevo.
+-            liberarVehiculosSinRuta(estado, plan);
++            liberarVehiculosSinRuta(ejecucionId, estado, plan);
+             Map<String, RutaEnCurso> continuadas = continuadas(estado, plan);
+             estado.plan = plan;
+             estado.rutas.clear();
+@@ -147,7 +154,7 @@
+         for (Evento evento : eventos(plan, inicioVentana, desde, estado.continuadas, hasta, averias)) {
+             aplicar(ejecucionId, estado, evento, averias);
+         }
+-        trasladarAveriadosAlCentral(averias, desde, hasta);
++        trasladarAveriadosAlCentral(ejecucionId, averias, desde, hasta);
+     }
+ 
+     /** Rutas en curso que siguen en el plan nuevo (mismo vehículo, id y salida), ya ligadas a su versión nueva. */
+@@ -170,7 +177,7 @@
+      */
+     public Optional<Location> posicionEstimada(long ejecucionId, String vehiculoId, Instant instante) {
+         EstadoEjecucion estado = estados.get(ejecucionId);
+-        VehicleEntity vehiculo = vehiculoRepository.findById(vehiculoId).orElse(null);
++        VehicleEntity vehiculo = vehiculo(ejecucionId, vehiculoId).orElse(null);
+         if (estado == null || estado.plan == null || vehiculo == null
+                 || vehiculo.getOperationalStatus() != VehicleOperationalStatus.IN_ROUTE) {
+             return Optional.empty();
+@@ -263,12 +270,12 @@
+     }
+ 
+     /** Los vehículos que iban en ruta y no aparecen en el plan nuevo quedan disponibles donde están. */
+-    private void liberarVehiculosSinRuta(EstadoEjecucion estado, PlanResponse nuevo) {
++    private void liberarVehiculosSinRuta(long ejecucionId, EstadoEjecucion estado, PlanResponse nuevo) {
+         for (RutaEnCurso enCurso : estado.rutas.values()) {
+             String vehiculoId = enCurso.ruta.vehiculoId();
+             boolean sigue = nuevo.rutas().stream().anyMatch(ruta -> ruta.vehiculoId().equals(vehiculoId));
+             if (!sigue) {
+-                vehiculoRepository.findById(vehiculoId)
++                vehiculo(ejecucionId, vehiculoId)
+                         .filter(vehiculo -> vehiculo.getOperationalStatus() == VehicleOperationalStatus.IN_ROUTE)
+                         .ifPresent(vehiculo -> vehiculo.setOperationalStatus(VehicleOperationalStatus.AVAILABLE));
+             }
+@@ -350,19 +357,19 @@
+             return; // la ruta no llegó a salir, es de otro plan o la interrumpió una avería
+         }
+         if (evento.tipo() == TipoEvento.AVERIA) {
+-            interrumpir(enCurso, evento.averia());
++            interrumpir(ejecucionId, enCurso, evento.averia());
+             return;
+         }
+         switch (evento.tipo()) {
+-            case PARTIDA_HACIA_PARADA -> partirHacia(ruta.paradas().get(evento.parada()), ruta, evento.instante());
++            case PARTIDA_HACIA_PARADA -> partirHacia(ejecucionId, ruta.paradas().get(evento.parada()), ruta, evento.instante());
+             case LLEGADA_A_PARADA -> llegarA(ejecucionId, estado, enCurso, evento.parada(), evento.instante());
+-            case FIN_RUTA -> terminarRuta(enCurso);
++            case FIN_RUTA -> terminarRuta(ejecucionId, enCurso);
+             default -> { }
+         }
+     }
+ 
+     private void iniciarRuta(long ejecucionId, EstadoEjecucion estado, RutaResponse ruta, List<BreakdownEvent> averias) {
+-        VehicleEntity vehiculo = vehiculoRepository.findById(ruta.vehiculoId()).orElse(null);
++        VehicleEntity vehiculo = vehiculo(ejecucionId, ruta.vehiculoId()).orElse(null);
+         if (vehiculo == null || averiaDurante(averias, ruta.vehiculoId(), Instant.MIN, ruta.salida())
+                 .filter(a -> calculadoraAverias.resolve(a).unavailableUntil().isAfter(ruta.salida())).isPresent()) {
+             return;
+@@ -380,9 +387,9 @@
+         vehiculo.moverA(vehiculo.getCurrentX(), vehiculo.getCurrentY(), cargaPlanificada);
+         for (ParadaResponse parada : ruta.paradas()) {
+             if (ParadaResponse.ENTREGA.equals(parada.tipo())) {
+-                pedidoRepository.findById(parada.pedidoId())
++                pedido(ejecucionId, parada.pedidoId())
+                         .filter(pedido -> pedido.getStatus() == OrderStatus.REGISTERED)
+-                        .ifPresent(pedido -> cambiarEstado(pedido, OrderStatus.ASSIGNED, ruta.salida(), ruta.vehiculoId()));
++                        .ifPresent(pedido -> cambiarEstado(ejecucionId, pedido, OrderStatus.ASSIGNED, ruta.salida(), ruta.vehiculoId()));
+             }
+         }
+     }
+@@ -401,11 +408,11 @@
+             return false;
+         }
+     }
+-    private void partirHacia(ParadaResponse parada, RutaResponse ruta, Instant instante) {
+-        pedidoRepository.findById(parada.pedidoId())
++    private void partirHacia(long ejecucionId, ParadaResponse parada, RutaResponse ruta, Instant instante) {
++        pedido(ejecucionId, parada.pedidoId())
+                 .filter(pedido -> pedido.getStatus() == OrderStatus.ASSIGNED
+                         || pedido.getStatus() == OrderStatus.REGISTERED)
+-                .ifPresent(pedido -> cambiarEstado(pedido, OrderStatus.IN_TRANSIT, instante, ruta.vehiculoId()));
++                .ifPresent(pedido -> cambiarEstado(ejecucionId, pedido, OrderStatus.IN_TRANSIT, instante, ruta.vehiculoId()));
+     }
+ 
+     private void llegarA(long ejecucionId, EstadoEjecucion estado, RutaEnCurso enCurso, int indice, Instant instante) {
+@@ -420,18 +427,18 @@
+ 
+         boolean cargaConfirmada = !ParadaResponse.ALMACEN.equals(parada.tipo()) || parada.paquetes() <= 0
+                 || despachar(ejecucionId, ruta, indice, instante);
+-        vehiculoRepository.findById(ruta.vehiculoId()).ifPresent(vehiculo -> {
++        vehiculo(ejecucionId, ruta.vehiculoId()).ifPresent(vehiculo -> {
+             int carga = cargaConfirmada && parada.cargaDespues() != null
+                     ? parada.cargaDespues() : vehiculo.getCurrentLoad();
+             vehiculo.moverA(parada.x(), parada.y(), carga);
+         });
+         if (ParadaResponse.ENTREGA.equals(parada.tipo())) {
+-            entregar(estado, parada, ruta.vehiculoId(), instante);
++            entregar(ejecucionId, estado, parada, ruta.vehiculoId(), instante);
+         }
+     }
+     /** Suma la entrega (puede ser parcial); el pedido queda DELIVERED al completar todos sus paquetes. */
+-    private void entregar(EstadoEjecucion estado, ParadaResponse parada, String vehiculoId, Instant llegada) {
+-        OrderEntity pedido = pedidoRepository.findById(parada.pedidoId()).orElse(null);
++    private void entregar(long ejecucionId, EstadoEjecucion estado, ParadaResponse parada, String vehiculoId, Instant llegada) {
++        OrderEntity pedido = pedido(ejecucionId, parada.pedidoId()).orElse(null);
+         if (pedido == null || pedido.getStatus() == OrderStatus.DELIVERED) {
+             return;
+         }
+@@ -439,7 +446,7 @@
+         estado.paquetesEntregados += parada.paquetes();
+         if (entregados >= pedido.getPackages()) {
+             pedido.entregar(llegada);
+-            historialRepository.save(OrderStatusHistoryEntity.cambio(pedido, OrderStatus.DELIVERED, llegada, vehiculoId));
++            guardarHistorial(ejecucionId, pedido, OrderStatus.DELIVERED, llegada, vehiculoId);
+             estado.pedidosEntregados++;
+             if (pedido.entregadoATiempo()) {
+                 estado.entregadosATiempo++;
+@@ -472,8 +479,8 @@
+         }
+         return ruta.routePersistedId();
+     }
+-    private void terminarRuta(RutaEnCurso enCurso) {
+-        vehiculoRepository.findById(enCurso.ruta.vehiculoId())
++    private void terminarRuta(long ejecucionId, RutaEnCurso enCurso) {
++        vehiculo(ejecucionId, enCurso.ruta.vehiculoId())
+                 .filter(vehiculo -> vehiculo.getOperationalStatus() == VehicleOperationalStatus.IN_ROUTE)
+                 .ifPresent(vehiculo -> vehiculo.setOperationalStatus(VehicleOperationalStatus.AVAILABLE));
+     }
+@@ -481,26 +488,26 @@
+     // ------------------------------------------------------------------ averías
+ 
+     /** El vehículo queda en el lugar de la avería. Sus pedidos sin entregar vuelven a REGISTERED para replanificarse. */
+-    private void interrumpir(RutaEnCurso enCurso, BreakdownEvent averia) {
++    private void interrumpir(long ejecucionId, RutaEnCurso enCurso, BreakdownEvent averia) {
+         enCurso.interrumpida = true;
+         RutaResponse ruta = enCurso.ruta;
+-        vehiculoRepository.findById(ruta.vehiculoId()).ifPresent(vehiculo -> {
++        vehiculo(ejecucionId, ruta.vehiculoId()).ifPresent(vehiculo -> {
+             vehiculo.moverA(averia.location().x(), averia.location().y(), vehiculo.getCurrentLoad());
+             vehiculo.setOperationalStatus(VehicleOperationalStatus.AVAILABLE);
+         });
+         for (ParadaResponse parada : ruta.paradas()) {
+             if (ParadaResponse.ENTREGA.equals(parada.tipo())) {
+-                pedidoRepository.findById(parada.pedidoId())
++                pedido(ejecucionId, parada.pedidoId())
+                         .filter(pedido -> pedido.getStatus() == OrderStatus.ASSIGNED
+                                 || pedido.getStatus() == OrderStatus.IN_TRANSIT)
+-                        .ifPresent(pedido -> cambiarEstado(pedido, OrderStatus.REGISTERED, averia.occurredAt(),
++                        .ifPresent(pedido -> cambiarEstado(ejecucionId, pedido, OrderStatus.REGISTERED, averia.occurredAt(),
+                                 ruta.vehiculoId()));
+             }
+         }
+     }
+ 
+     /** Averías intermedias y mayores: a las 4 horas la unidad pasa al central con la carga no trasvasada. */
+-    private void trasladarAveriadosAlCentral(List<BreakdownEvent> averias, Instant desde, Instant hasta) {
++    private void trasladarAveriadosAlCentral(long ejecucionId, List<BreakdownEvent> averias, Instant desde, Instant hasta) {
+         Optional<WarehouseEntity> central = averias.isEmpty() ? Optional.empty() : almacenRepository.findAll().stream()
+                 .filter(almacen -> almacen.getWarehouseKind() == WarehouseKind.CENTRAL)
+                 .findFirst();
+@@ -508,7 +515,7 @@
+             BreakdownResolution resolucion = calculadoraAverias.resolve(averia);
+             Instant traslado = resolucion.returnsToCentralAt();
+             if (traslado != null && traslado.isAfter(desde) && !traslado.isAfter(hasta) && central.isPresent()) {
+-                vehiculoRepository.findById(averia.vehicleId())
++                vehiculo(ejecucionId, averia.vehicleId())
+                         .ifPresent(vehiculo -> vehiculo.moverA(central.get().getX(), central.get().getY(), 0));
+             }
+         }
+@@ -522,9 +529,26 @@
+                 .findFirst();
+     }
+ 
+-    private void cambiarEstado(OrderEntity pedido, OrderStatus nuevoEstado, Instant instante, String vehiculoId) {
++    private void cambiarEstado(long ejecucionId, OrderEntity pedido, OrderStatus nuevoEstado, Instant instante, String vehiculoId) {
+         pedido.cambiarEstado(nuevoEstado);
+-        historialRepository.save(OrderStatusHistoryEntity.cambio(pedido, nuevoEstado, instante, vehiculoId));
++        guardarHistorial(ejecucionId, pedido, nuevoEstado, instante, vehiculoId);
++    }
++
++    private Optional<VehicleEntity> vehiculo(long ejecucionId, String id) {
++        return estadoOperativo == null ? vehiculoRepository.findById(id) : estadoOperativo.vehiculo(ejecucionId, id);
++    }
++
++    private Optional<OrderEntity> pedido(long ejecucionId, String id) {
++        return estadoOperativo == null ? pedidoRepository.findById(id) : estadoOperativo.pedido(ejecucionId, id);
++    }
++
++    private void guardarHistorial(long ejecucionId, OrderEntity pedido, OrderStatus estado,
++                                   Instant instante, String vehiculoId) {
++        if (estadoOperativo == null) {
++            historialRepository.save(OrderStatusHistoryEntity.cambio(pedido, estado, instante, vehiculoId));
++        } else {
++            estadoOperativo.guardarHistorial(ejecucionId, pedido, estado, instante, vehiculoId);
++        }
+     }
+ 
+     // ------------------------------------------------------------------ estado en memoria
+--- a/src/main/java/com/pucp/paqrap/modulos/escenarios/service/EstadoOperativoEscenarios.java
++++ b/src/main/java/com/pucp/paqrap/modulos/escenarios/service/EstadoOperativoEscenarios.java
+@@ -0,0 +1,243 @@
++package com.pucp.paqrap.modulos.escenarios.service;
++
++import com.pucp.paqrap.modulos.escenarios.entity.ScenarioType;
++import com.pucp.paqrap.modulos.flota.persistence.VehicleEntity;
++import com.pucp.paqrap.modulos.flota.persistence.VehicleOperationalStatus;
++import com.pucp.paqrap.modulos.flota.repository.VehicleRepository;
++import com.pucp.paqrap.modulos.almacenes.persistence.WarehouseKind;
++import com.pucp.paqrap.modulos.almacenes.repository.WarehouseRepository;
++import com.pucp.paqrap.modulos.pedidos.entity.OrderStatus;
++import com.pucp.paqrap.modulos.pedidos.persistence.OrderEntity;
++import com.pucp.paqrap.modulos.pedidos.persistence.OrderStatusHistoryEntity;
++import com.pucp.paqrap.modulos.pedidos.repository.OrderRepository;
++import com.pucp.paqrap.modulos.pedidos.repository.OrderStatusHistoryRepository;
++import com.pucp.paqrap.modulos.redvial.entity.Location;
++import org.springframework.data.domain.Pageable;
++import org.springframework.stereotype.Service;
++import org.springframework.transaction.support.TransactionSynchronization;
++import org.springframework.transaction.support.TransactionSynchronizationManager;
++
++import java.time.Instant;
++import java.util.Comparator;
++import java.util.List;
++import java.util.Map;
++import java.util.Optional;
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.CopyOnWriteArrayList;
++
++/**
++ * Aísla la operación virtual de FIVE_DAY/COLLAPSE de la operación real DAY_TO_DAY.
++ *
++ * <p>El catálogo de pedidos, la definición de la flota y los parámetros se comparten; el estado, la posición,
++ * la carga, la entrega y el historial de una simulación NO se escriben sobre las filas de Día a Día.
++ * Inventario, averías, planes y resultados ya tienen executionId en sus propios módulos.
++ *
++ * <p>Las copias virtuales viven tanto como los relojes/planes en memoria del motor. Los resultados consolidados,
++ * planes y kardex continúan persistiendo. Tras reiniciar no se reanuda una simulación (política existente).
++ */
++@Service
++public class EstadoOperativoEscenarios {
++    private static final Comparator<OrderEntity> POR_REGISTRO = Comparator
++            .comparing(OrderEntity::getRegisteredAt).thenComparing(OrderEntity::getOrderId);
++    private static final Comparator<OrderEntity> POR_PLAZO = Comparator
++            .comparing(OrderEntity::getDeadline).thenComparing(OrderEntity::getOrderId);
++
++    private final OrderRepository pedidos;
++    private final VehicleRepository vehiculos;
++    private final WarehouseRepository almacenes;
++    private final OrderStatusHistoryRepository historiales;
++    private final Map<Long, EstadoSimulado> simulaciones = new ConcurrentHashMap<>();
++
++    public EstadoOperativoEscenarios(OrderRepository pedidos, VehicleRepository vehiculos,
++                                     WarehouseRepository almacenes, OrderStatusHistoryRepository historiales) {
++        this.pedidos = pedidos;
++        this.vehiculos = vehiculos;
++        this.almacenes = almacenes;
++        this.historiales = historiales;
++    }
++
++    /** Se llama antes de preparar el ejecutor; nunca modifica las entidades JPA del catálogo. */
++    public void iniciar(long id, ScenarioType tipo, Instant inicio) {
++        simulaciones.remove(id);
++        if (tipo == ScenarioType.DAY_TO_DAY) {
++            return;
++        }
++        Instant fin = tipo.duracionSimulada().map(inicio::plus).orElse(null);
++        EstadoSimulado estado = new EstadoSimulado(inicio, fin);
++        Location central = almacenes.findAll().stream()
++                .filter(a -> a.getWarehouseKind() == WarehouseKind.CENTRAL)
++                .map(a -> new Location(a.getX(), a.getY())).findFirst().orElse(new Location(27, 14));
++        for (VehicleEntity original : vehiculos.findAll()) {
++            VehicleEntity copia = new VehicleEntity(original.getVehicleId(), original.getVehicleType(),
++                    original.getOperationalStatus() == VehicleOperationalStatus.UNAVAILABLE
++                            ? VehicleOperationalStatus.UNAVAILABLE : VehicleOperationalStatus.AVAILABLE);
++            copia.moverA(central.x(), central.y(), 0);
++            estado.vehiculos.put(copia.getVehicleId(), copia);
++        }
++        estado.agregar(id, pedidos.catalogoDelPeriodo(inicio, fin));
++        simulaciones.put(id, estado);
++    }
++
++    /** Congela la vista final: una importación posterior no altera una simulación ya cerrada. */
++    public void finalizar(long id) {
++        EstadoSimulado estado = simulaciones.get(id);
++        if (estado != null) estado.activa = false;
++    }
++
++    public boolean aislada(Long id) {
++        return id != null && simulaciones.containsKey(id);
++    }
++
++    public Optional<OrderEntity> pedido(long id, String pedidoId) {
++        EstadoSimulado estado = simulaciones.get(id);
++        return estado == null ? pedidos.findById(pedidoId).filter(p -> pertenece(id, p.getOrderId()))
++                : Optional.ofNullable(estado.pedidos.get(pedidoId));
++    }
++
++    public Optional<VehicleEntity> vehiculo(long id, String vehiculoId) {
++        EstadoSimulado estado = simulaciones.get(id);
++        return estado == null ? vehiculos.findById(vehiculoId)
++                : Optional.ofNullable(estado.vehiculos.get(vehiculoId));
++    }
++
++    public List<VehicleEntity> vehiculos(long id) {
++        EstadoSimulado estado = simulaciones.get(id);
++        return estado == null ? vehiculos.findAll() : estado.vehiculos.values().stream()
++                .sorted(Comparator.comparing(VehicleEntity::getVehicleId)).toList();
++    }
++
++    /** Catálogo de la copia virtual, con su estado local. Solo se utiliza si aislada(id) es true. */
++    public List<OrderEntity> catalogo(long id) {
++        EstadoSimulado estado = simulaciones.get(id);
++        if (estado == null) {
++            throw new IllegalStateException("La ejecución " + id + " no tiene estado virtual");
++        }
++        return estado.ordenados;
++    }
++
++    public List<OrderEntity> registrados(long id, Instant inicio, Instant instante, Pageable pagina) {
++        if (!aislada(id)) {
++            return pedidos.registradosEnDesde(inicio, instante, pagina);
++        }
++        return catalogo(id).stream().filter(p -> !p.getRegisteredAt().isBefore(inicio)
++                        && !p.getRegisteredAt().isAfter(instante) && p.getDeadline().isAfter(instante)
++                        && p.getStatus() == OrderStatus.REGISTERED)
++                .skip(pagina.getOffset()).limit(pagina.getPageSize()).toList();
++    }
++
++    public List<OrderEntity> incumplidos(long id, Instant inicio, Instant instante, Pageable pagina) {
++        if (!aislada(id)) {
++            return pedidos.incumplidosDesde(inicio, instante, pagina);
++        }
++        return catalogo(id).stream().filter(p -> !p.getRegisteredAt().isBefore(inicio)
++                        && !p.getDeadline().isAfter(instante)
++                        && (p.getStatus() != OrderStatus.DELIVERED || p.getDeliveredAt().isAfter(p.getDeadline())))
++                .sorted(POR_PLAZO).skip(pagina.getOffset()).limit(pagina.getPageSize()).toList();
++    }
++
++    public record Resumen(long llegados, long pendientes, long vencidosSinEntregar) { }
++
++    public Resumen resumen(long id, Instant inicio, Instant instante) {
++        if (!aislada(id)) {
++            return new Resumen(pedidos.countByRegisteredAtGreaterThanEqualAndRegisteredAtLessThanEqual(inicio, instante),
++                    pedidos.contarPendientesEnDesde(inicio, instante), pedidos.contarVencidosSinEntregar(inicio, instante));
++        }
++        long llegados = 0, pendientes = 0, vencidos = 0;
++        for (OrderEntity pedido : catalogo(id)) {
++            if (pedido.getRegisteredAt().isAfter(instante)) break;
++            if (pedido.getRegisteredAt().isBefore(inicio)) continue;
++            llegados++;
++            if (pedido.getStatus() != OrderStatus.DELIVERED) {
++                if (pedido.getDeadline().isAfter(instante)) pendientes++;
++                else vencidos++;
++            }
++        }
++        return new Resumen(llegados, pendientes, vencidos);
++    }
++
++    public List<String> idsEn(long id, Instant instante) {
++        if (!aislada(id)) return pedidos.idsRegistradosEn(instante);
++        return catalogo(id).stream().filter(p -> p.getRegisteredAt().equals(instante))
++                .map(OrderEntity::getOrderId).toList();
++    }
++
++    public List<String> idsEntre(long id, Instant desde, Instant hasta) {
++        if (!aislada(id)) return pedidos.idsRegistradosEntre(desde, hasta);
++        EstadoSimulado estado = simulaciones.get(id);
++        // Recoge también nuevas entradas escritas directamente al catálogo durante la ejecución.
++        if (estado.activa) estado.agregar(id, pedidos.catalogoRegistradoEntre(desde, hasta));
++        return catalogo(id).stream().filter(p -> p.getRegisteredAt().isAfter(desde)
++                        && !p.getRegisteredAt().isAfter(hasta)).map(OrderEntity::getOrderId).toList();
++    }
++
++    public void guardarHistorial(long id, OrderEntity pedido, OrderStatus estado, Instant instante, String vehiculoId) {
++        OrderStatusHistoryEntity cambio = OrderStatusHistoryEntity.cambio(pedido, estado, instante, vehiculoId);
++        EstadoSimulado simulado = simulaciones.get(id);
++        if (simulado == null) historiales.save(cambio);
++        else simulado.historiales.computeIfAbsent(pedido.getOrderId(), clave -> new CopyOnWriteArrayList<>()).add(cambio);
++    }
++
++    public List<OrderStatusHistoryEntity> historial(long id, String pedidoId) {
++        EstadoSimulado estado = simulaciones.get(id);
++        if (estado == null) return historiales.findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc(pedidoId);
++        return List.copyOf(estado.historiales.getOrDefault(pedidoId, List.of()));
++    }
++
++    /** El lote solo entra en las copias virtuales si la transacción de importación/registro se confirma. */
++    public void incorporarAlConfirmar(Long destino, List<OrderEntity> nuevos) {
++        List<OrderEntity> copias = nuevos.stream().map(EstadoOperativoEscenarios::copiaRegistrada).toList();
++        Runnable incorporar = () -> simulaciones.forEach((id, estado) -> {
++            if (estado.activa && (destino == null || destino.equals(id))) estado.agregar(id, copias);
++        });
++        if (TransactionSynchronizationManager.isSynchronizationActive()
++                && TransactionSynchronizationManager.isActualTransactionActive()) {
++            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
++                @Override public void afterCommit() { incorporar.run(); }
++            });
++        } else {
++            incorporar.run();
++        }
++    }
++
++    /** Un pedido manual de simulación no entra a otra ejecución ni a Día a Día. */
++    public static boolean pertenece(long id, String pedidoId) {
++        return !pedidoId.startsWith("SIM-") || pedidoId.startsWith("SIM-" + id + "-");
++    }
++
++    private static OrderEntity copiaRegistrada(OrderEntity original) {
++        return new OrderEntity(original.getOrderId(), original.getClientId(),
++                new Location(original.getDestinationX(), original.getDestinationY()), original.getPackages(),
++                original.getRegisteredAt(), original.getDeliveryType(), original.getPromisedHours());
++    }
++
++    private static final class EstadoSimulado {
++        final Instant inicio;
++        final Instant fin;
++        volatile boolean activa = true;
++        final Map<String, OrderEntity> pedidos = new ConcurrentHashMap<>();
++        final Map<String, VehicleEntity> vehiculos = new ConcurrentHashMap<>();
++        final Map<String, List<OrderStatusHistoryEntity>> historiales = new ConcurrentHashMap<>();
++        volatile List<OrderEntity> ordenados = List.of();
++
++        EstadoSimulado(Instant inicio, Instant fin) { this.inicio = inicio; this.fin = fin; }
++
++        synchronized void agregar(long id, List<OrderEntity> nuevos) {
++            boolean cambio = false;
++            for (OrderEntity original : nuevos) {
++                if (original.getRegisteredAt().isBefore(inicio)
++                        || (fin != null && !original.getRegisteredAt().isBefore(fin))
++                        // M- corresponde al registro manual real; SIM-<id>- al manual virtual.
++                        || original.getOrderId().startsWith("M-")
++                        || !pertenece(id, original.getOrderId())) continue;
++                if (pedidos.containsKey(original.getOrderId())) continue;
++                OrderEntity copia = copiaRegistrada(original);
++                if (pedidos.putIfAbsent(copia.getOrderId(), copia) == null) {
++                    historiales.put(copia.getOrderId(), new CopyOnWriteArrayList<>(
++                            List.of(OrderStatusHistoryEntity.registro(copia))));
++                    cambio = true;
++                }
++            }
++            if (cambio) ordenados = pedidos.values().stream().sorted(POR_REGISTRO).toList();
++        }
++    }
++}
+--- a/src/main/java/com/pucp/paqrap/modulos/escenarios/service/EventosSimulacion.java
++++ b/src/main/java/com/pucp/paqrap/modulos/escenarios/service/EventosSimulacion.java
+@@ -28,6 +28,9 @@
+ 
+     private static final ZoneId ZONA = ShiftSchedule.DEFAULT_ZONE;
+     private static final LocalTime HORA_RECARGA = LocalTime.of(23, 59, 59);
++
++    @org.springframework.beans.factory.annotation.Autowired
++    private com.pucp.paqrap.modulos.escenarios.service.EstadoOperativoEscenarios estadoOperativo;
+ 
+     private final InventarioService inventarioService;
+     private final RoadBlockRepository bloqueoRepository;
+@@ -119,7 +122,9 @@
+                 .map(BreakdownEventEntity::toDomain)
+                 .toList();
+ 
+-        List<String> pedidos = pedidoRepository.idsRegistradosEntre(desde, hasta);
++        List<String> pedidos = estadoOperativo != null
++                ? estadoOperativo.idsEntre(ejecucionId, desde, hasta)
++                : pedidoRepository.idsRegistradosEntre(desde, hasta);
+         return new Resumen(recargas, bloqueos,
+                 bloqueosEntidades.stream().map(RoadBlockEntity::getRoadBlockId).toList(), bloqueosTerminados,
+                 bloqueosTerminadosEntidades.stream().map(RoadBlockEntity::getRoadBlockId).toList(), averias,
+--- a/src/main/java/com/pucp/paqrap/modulos/escenarios/service/MotorEscenarios.java
++++ b/src/main/java/com/pucp/paqrap/modulos/escenarios/service/MotorEscenarios.java
+@@ -51,13 +51,17 @@
+  * cuando termina (5D por tiempo, colapso cuando {@link DetectorColapso} lo declara) o la detiene el operario.
+  *
+  * <p>Los relojes viven en memoria: si el backend se reinicia, las ejecuciones que estaban activas se marcan como
+- * FAILED al arrancar. Solo puede haber una ejecución activa a la vez, porque todas comparten la flota.
++ * FAILED al arrancar. Puede coexistir un DAY_TO_DAY con una simulación (FIVE_DAY o COLLAPSE);
++ * las simulaciones utilizan copias aisladas de pedidos y vehículos.
+  */
+ @Service
+ public class MotorEscenarios {
+ 
+     private static final Logger log = LoggerFactory.getLogger(MotorEscenarios.class);
+     private static final Set<ScenarioStatus> ACTIVOS = Set.of(ScenarioStatus.RUNNING, ScenarioStatus.PAUSED);
++
++    @org.springframework.beans.factory.annotation.Autowired
++    private com.pucp.paqrap.modulos.escenarios.service.EstadoOperativoEscenarios estadoOperativo;
+ 
+     private final ScenarioExecutionRepository ejecucionRepository;
+     private final TransactionTemplate transaccion;
+@@ -162,7 +166,9 @@
+      */
+     @TransactionalEventListener(fallbackExecution = true)
+     public synchronized void alRegistrarPedido(PedidoRegistrado pedido) {
+-        for (EscenarioActivo activo : activos.values()) {
++        for (Map.Entry<Long, EscenarioActivo> entrada : activos.entrySet()) {
++            if (pedido.ejecucionId() != null && !pedido.ejecucionId().equals(entrada.getKey())) continue;
++            EscenarioActivo activo = entrada.getValue();
+             if (!pedido.registradoEn().isBefore(activo.reloj.inicioSimulado())
+                     && !pedido.registradoEn().isAfter(activo.procesadoHasta)) {
+                 activo.pedidosProcesados.add(pedido.pedidoId());
+@@ -202,11 +208,15 @@
+     }
+ 
+     public synchronized void iniciar(long ejecucionId) {
+-        if (!ejecucionRepository.existsById(ejecucionId)) {
+-            throw new RecursoNoEncontradoException("Ejecución", ejecucionId);
+-        }
+-        if (ejecucionRepository.existsByStatusIn(ACTIVOS)) {
+-            throw new ReglaNegocioException("Ya hay un escenario en ejecución o en pausa; deténgalo antes de iniciar otro");
++        ScenarioExecutionEntity solicitada = ejecucionRepository.findById(ejecucionId)
++                .orElseThrow(() -> new RecursoNoEncontradoException("Ejecución", ejecucionId));
++        boolean diaADia = solicitada.getScenarioType() == ScenarioType.DAY_TO_DAY;
++        boolean ocupado = ejecucionRepository.findByStatusIn(ACTIVOS).stream()
++                .anyMatch(e -> (e.getScenarioType() == ScenarioType.DAY_TO_DAY) == diaADia);
++        if (ocupado) {
++            throw new ReglaNegocioException("Ya hay un escenario "
++                    + (diaADia ? "Día a Día" : "de simulación (5D/Colapso)")
++                    + " en ejecución o en pausa; deténgalo antes de iniciar otro del mismo grupo");
+         }
+         ScenarioExecutionEntity ejecucion = actualizar(ejecucionId, e -> e.iniciar(relojReal.instant()));
+ 
+@@ -215,8 +225,13 @@
+         reloj.reanudar();
+         EscenarioActivo activo = new EscenarioActivo(ejecucion.getScenarioType(), reloj);
+         activos.put(ejecucionId, activo);
++        if (estadoOperativo != null) {
++            estadoOperativo.iniciar(ejecucionId, ejecucion.getScenarioType(), ejecucion.getSimulationStartedAt());
++        }
+         ejecutorPlan.prepararInicio(ejecucionId, ejecucion.getSimulationStartedAt());
+-        activo.pedidosProcesados.addAll(pedidoRepository.idsRegistradosEn(ejecucion.getSimulationStartedAt()));
++        activo.pedidosProcesados.addAll(estadoOperativo != null
++                ? estadoOperativo.idsEn(ejecucionId, ejecucion.getSimulationStartedAt())
++                : pedidoRepository.idsRegistradosEn(ejecucion.getSimulationStartedAt()));
+         detectorColapso.reiniciar(ejecucionId);
+         planificar(ejecucionId, activo, PlanificadorPort.Motivo.INICIAL);
+         revisarColapso(ejecucionId, activo);
+@@ -247,6 +262,7 @@
+                 instanteSimulado != null ? instanteSimulado : e.getSimulationStartedAt()));
+         persistirResultado(ejecucionId, activo);
+         activos.remove(ejecucionId);
++        if (estadoOperativo != null) estadoOperativo.finalizar(ejecucionId);
+         if (!finalizacionDiferida) {
+             planificador().finalizar(ejecucionId);
+         }
+@@ -430,13 +446,13 @@
+     }
+ 
+     /**
+-     * Registra el primer colapso de la ejecución (en 5D y Día a Día solo se informa en el monitoreo); el escenario
+-     * de colapso termina en el instante del colapso. Devuelve true si la ejecución terminó.
++     * Registra el primer colapso. FIVE_DAY y COLLAPSE terminan; DAY_TO_DAY continúa
++     * operando y mantiene la alerta en el monitoreo. Devuelve true si la ejecución terminó.
+      */
+     private boolean revisarColapso(long ejecucionId, EscenarioActivo activo) {
+         Optional<DetectorColapso.Colapso> colapso = detectorColapso.revisar(ejecucionId,
+                 activo.reloj.inicioSimulado(), activo.procesadoHasta);
+-        if (colapso.isPresent() && activo.tipo == ScenarioType.COLLAPSE) {
++        if (colapso.isPresent() && activo.tipo != ScenarioType.DAY_TO_DAY) {
+             finalizar(ejecucionId, ScenarioStatus.COLLAPSED, colapso.get().instante());
+             return true;
+         }
+@@ -448,6 +464,7 @@
+         EscenarioActivo activo = activos.get(ejecucionId);
+         persistirResultado(ejecucionId, activo);
+         activos.remove(ejecucionId);
++        if (estadoOperativo != null) estadoOperativo.finalizar(ejecucionId);
+         planificador().finalizar(ejecucionId);
+     }
+ 
+--- a/src/main/java/com/pucp/paqrap/modulos/flota/persistence/VehicleEntity.java
++++ b/src/main/java/com/pucp/paqrap/modulos/flota/persistence/VehicleEntity.java
+@@ -32,19 +32,19 @@
+     @Enumerated(EnumType.STRING)
+     @JdbcTypeCode(SqlTypes.VARCHAR)
+     @Column(name = "operational_status", nullable = false, length = 20)
+-    private VehicleOperationalStatus operationalStatus;
++    private volatile VehicleOperationalStatus operationalStatus;
+ 
+     @JdbcTypeCode(SqlTypes.SMALLINT)
+     @Column(name = "current_x", nullable = false)
+-    private Integer currentX;
++    private volatile Integer currentX;
+ 
+     @JdbcTypeCode(SqlTypes.SMALLINT)
+     @Column(name = "current_y", nullable = false)
+-    private Integer currentY;
++    private volatile Integer currentY;
+ 
+     @JdbcTypeCode(SqlTypes.SMALLINT)
+     @Column(name = "current_load", nullable = false)
+-    private Integer currentLoad;
++    private volatile Integer currentLoad;
+ 
+     /** Desde cuándo puede volver a planificarse; NULL = ya disponible. */
+     @Column(name = "available_at")
+--- a/src/main/java/com/pucp/paqrap/modulos/flota/service/FlotaService.java
++++ b/src/main/java/com/pucp/paqrap/modulos/flota/service/FlotaService.java
+@@ -23,6 +23,9 @@
+ @Service
+ @Transactional(readOnly = true)
+ public class FlotaService {
++
++    @org.springframework.beans.factory.annotation.Autowired
++    private com.pucp.paqrap.modulos.escenarios.service.EstadoOperativoEscenarios estadoOperativo;
+ 
+     private final VehicleTypeParametersRepository tipoRepository;
+     private final VehicleRepository vehiculoRepository;
+@@ -72,6 +75,20 @@
+         return VehiculoResponse.de(buscarVehiculo(id));
+     }
+ 
++    public List<VehiculoResponse> listarVehiculos(VehicleType tipo, VehicleOperationalStatus estado, long ejecucionId) {
++        if (estadoOperativo == null || !estadoOperativo.aislada(ejecucionId)) return listarVehiculos(tipo, estado);
++        return estadoOperativo.vehiculos(ejecucionId).stream()
++                .filter(v -> tipo == null || v.getVehicleType() == tipo)
++                .filter(v -> estado == null || v.getOperationalStatus() == estado)
++                .map(VehiculoResponse::de).toList();
++    }
++
++    public VehiculoResponse obtenerVehiculo(String id, long ejecucionId) {
++        if (estadoOperativo == null || !estadoOperativo.aislada(ejecucionId)) return obtenerVehiculo(id);
++        return estadoOperativo.vehiculo(ejecucionId, id).map(VehiculoResponse::de)
++                .orElseThrow(() -> new RecursoNoEncontradoException("Vehículo", id));
++    }
++
+     /** El operario solo alterna entre AVAILABLE y UNAVAILABLE; IN_ROUTE es responsabilidad de la simulación. */
+     @Transactional
+     public VehiculoResponse cambiarEstado(String id, VehicleOperationalStatus estado) {
+--- a/src/main/java/com/pucp/paqrap/modulos/incidencias/service/AveriaService.java
++++ b/src/main/java/com/pucp/paqrap/modulos/incidencias/service/AveriaService.java
+@@ -53,12 +53,12 @@
+         if ((request.x() == null) != (request.y() == null)) {
+             throw new IllegalArgumentException("Indique ambas coordenadas 'x' e 'y', o ninguna");
+         }
+-        VehiculoResponse vehiculo = flotaService.obtenerVehiculo(request.vehiculoId());
++        long ejecucionId = ejecucionDe(request);
++        VehiculoResponse vehiculo = flotaService.obtenerVehiculo(request.vehiculoId(), ejecucionId);
+         if (vehiculo.estado() == VehicleOperationalStatus.UNAVAILABLE) {
+             throw new ReglaNegocioException("El vehículo " + vehiculo.id()
+                     + " está fuera de servicio (UNAVAILABLE); no puede registrarse una avería");
+         }
+-        long ejecucionId = ejecucionDe(request);
+         Instant ocurridaEn = horaDeLaAveria(ejecucionId, request.ocurridaEn());
+         Location ubicacion = ubicacionDeLaAveria(ejecucionId, vehiculo, ocurridaEn, request);
+ 
+--- a/src/main/java/com/pucp/paqrap/modulos/monitoreo/service/DetalleOperacionService.java
++++ b/src/main/java/com/pucp/paqrap/modulos/monitoreo/service/DetalleOperacionService.java
+@@ -61,7 +61,7 @@
+ 
+     public VehiculoDetalleResponse vehiculo(String id, long ejecucionId) {
+         EscenarioResponse escenario = escenarioService.obtener(ejecucionId);
+-        VehiculoResponse vehiculo = flotaService.obtenerVehiculo(id);
++        VehiculoResponse vehiculo = flotaService.obtenerVehiculo(id, ejecucionId);
+         Instant instante = instante(escenario);
+ 
+         ShiftSchedule.ShiftWindow turno = turnos.shiftAt(instante);
+--- a/src/main/java/com/pucp/paqrap/modulos/monitoreo/service/MonitoreoService.java
++++ b/src/main/java/com/pucp/paqrap/modulos/monitoreo/service/MonitoreoService.java
+@@ -89,7 +89,7 @@
+                 .map(MantenimientoResponse::vehiculoId)
+                 .collect(Collectors.toSet());
+ 
+-        List<MonitoreoResponse.Vehiculo> vehiculos = flotaService.listarVehiculos(null, null).stream()
++        List<MonitoreoResponse.Vehiculo> vehiculos = flotaService.listarVehiculos(null, null, ejecucionId).stream()
+                 .map(v -> {
+                     MonitoreoResponse.MotivoDetencion motivo = null;
+                     Instant hasta = null;
+@@ -130,7 +130,7 @@
+                                 null, r.getTotalDistanceKm().doubleValue(), r.getTotalCost().doubleValue(), enRuta)))
+                 .orElse(new MonitoreoResponse.Ejecucion(0, 0, 0, 0, 0, enRuta));
+ 
+-        return new MonitoreoResponse(escenario, instante, pedidoService.resumen(escenario.inicioSimulado(), instante),
++        return new MonitoreoResponse(escenario, instante, pedidoService.resumen(ejecucionId, escenario.inicioSimulado(), instante),
+                 vehiculos, almacenes, bloqueoService.listar(null, null, instante), averiasActivas, ejecucion,
+                 detectorColapso.colapso(ejecucionId).orElse(null));
+     }
+--- a/src/main/java/com/pucp/paqrap/modulos/pedidos/controller/PedidoController.java
++++ b/src/main/java/com/pucp/paqrap/modulos/pedidos/controller/PedidoController.java
+@@ -2,6 +2,7 @@
+ 
+ import com.pucp.paqrap.comun.api.PaginaResponse;
+ import com.pucp.paqrap.modulos.pedidos.dto.CargaPedidosResponse;
++import com.pucp.paqrap.modulos.pedidos.dto.CargaPedidosMultipleResponse;
+ import com.pucp.paqrap.modulos.pedidos.dto.PedidoDetalleResponse;
+ import com.pucp.paqrap.modulos.pedidos.dto.PedidoResponse;
+ import com.pucp.paqrap.modulos.pedidos.dto.PeriodoCargadoResponse;
+@@ -48,8 +49,9 @@
+ 
+     @PostMapping
+     @ResponseStatus(HttpStatus.CREATED)
+-    public PedidoResponse registrar(@Valid @RequestBody RegistrarPedidoRequest request) {
+-        return pedidoService.registrar(request);
++    public PedidoResponse registrar(@Valid @RequestBody RegistrarPedidoRequest request,
++                                     @RequestParam(required = false) Long ejecucionId) {
++        return pedidoService.registrar(request, ejecucionId);
+     }
+ 
+     /** Recibe un archivo ventas.AAAAMM.txt en el campo multipart {@code archivo}. */
+@@ -65,12 +67,30 @@
+         return pedidoService.cargar(archivo.getOriginalFilename(), contenido, periodo);
+     }
+ 
++    /** Un campo multipart 'archivos' por archivo: ventas.AAAAMM.txt. Conserva /carga de un archivo. */
++    @PostMapping(path = "/carga-multiple", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
++    @ResponseStatus(HttpStatus.CREATED)
++    public CargaPedidosMultipleResponse cargarMultiples(@RequestParam("archivos") List<MultipartFile> archivos)
++            throws IOException {
++        if (archivos.isEmpty() || archivos.size() > 2) {
++            throw new IllegalArgumentException("Seleccione uno o dos archivos mensuales de pedidos");
++        }
++        java.util.ArrayList<PedidoService.ArchivoMensual> entradas = new java.util.ArrayList<>();
++        for (MultipartFile archivo : archivos) {
++            if (archivo.isEmpty()) throw new IllegalArgumentException("El archivo está vacío: " + archivo.getOriginalFilename());
++            entradas.add(new PedidoService.ArchivoMensual(archivo.getOriginalFilename(),
++                    new String(archivo.getBytes(), StandardCharsets.UTF_8)));
++        }
++        return pedidoService.cargarMultiples(entradas);
++    }
++
+     /**
+      * Paginado con {@code page} (desde 0), {@code size} (máx. 500) y {@code sort} con nombres de la API:
+      * id, clienteId, paquetes, registradoEn, vence o estado (p. ej. {@code sort=vence,asc}).
+      */
+     @GetMapping
+     public PaginaResponse<PedidoResponse> listar(
++            @RequestParam(required = false) Long ejecucionId,
+             @RequestParam(required = false) String clienteId,
+             @RequestParam(required = false) OrderStatus estado,
+             @RequestParam(required = false) DeliveryType tipoEntrega,
+@@ -80,7 +100,7 @@
+             @PageableDefault(size = 50, sort = {"registradoEn", "id"}, direction = Sort.Direction.ASC)
+             Pageable pageable) {
+         return pedidoService.listar(clienteId, estado, tipoEntrega, registradoDesde, registradoHasta, venceHasta,
+-                pageable);
++                pageable, ejecucionId);
+     }
+ 
+     /** Meses con pedidos cargados desde archivos ventas.AAAAMM.txt y cuántos pedidos tiene cada uno. */
+@@ -92,7 +112,8 @@
+     /** {@code instante} (opcional, simulado) permite saber si un pedido aún no entregado ya incumplió su plazo. */
+     @GetMapping("/{id}")
+     public PedidoDetalleResponse obtener(@PathVariable String id,
++            @RequestParam(required = false) Long ejecucionId,
+             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant instante) {
+-        return pedidoService.obtener(id, instante);
++        return pedidoService.obtener(id, instante, ejecucionId);
+     }
+ }
+--- a/src/main/java/com/pucp/paqrap/modulos/pedidos/dto/CargaPedidosMultipleResponse.java
++++ b/src/main/java/com/pucp/paqrap/modulos/pedidos/dto/CargaPedidosMultipleResponse.java
+@@ -0,0 +1,18 @@
++package com.pucp.paqrap.modulos.pedidos.dto;
++
++import java.util.List;
++
++/** Resultado de una sola transacción que carga hasta dos archivos mensuales. */
++public record CargaPedidosMultipleResponse(List<CargaPedidosResponse> archivos, int leidos,
++                                           int registrados, int omitidos) {
++    public CargaPedidosMultipleResponse {
++        archivos = List.copyOf(archivos);
++    }
++
++    public static CargaPedidosMultipleResponse de(List<CargaPedidosResponse> archivos) {
++        return new CargaPedidosMultipleResponse(archivos,
++                archivos.stream().mapToInt(CargaPedidosResponse::leidos).sum(),
++                archivos.stream().mapToInt(CargaPedidosResponse::registrados).sum(),
++                archivos.stream().mapToInt(CargaPedidosResponse::omitidos).sum());
++    }
++}
+--- a/src/main/java/com/pucp/paqrap/modulos/pedidos/entity/PedidoRegistrado.java
++++ b/src/main/java/com/pucp/paqrap/modulos/pedidos/entity/PedidoRegistrado.java
+@@ -3,5 +3,6 @@
+ import java.time.Instant;
+ 
+ /** Evento de aplicación: se registró un pedido manualmente (Día a Día); dispara una replanificación (CU-07). */
+-public record PedidoRegistrado(String pedidoId, Instant registradoEn) {
++public record PedidoRegistrado(String pedidoId, Instant registradoEn, Long ejecucionId) {
++    public PedidoRegistrado(String pedidoId, Instant registradoEn) { this(pedidoId, registradoEn, null); }
+ }
+--- a/src/main/java/com/pucp/paqrap/modulos/pedidos/persistence/OrderEntity.java
++++ b/src/main/java/com/pucp/paqrap/modulos/pedidos/persistence/OrderEntity.java
+@@ -56,7 +56,7 @@
+     @Enumerated(EnumType.STRING)
+     @JdbcTypeCode(SqlTypes.VARCHAR)
+     @Column(name = "status", nullable = false, length = 20)
+-    private OrderStatus status;
++    private volatile OrderStatus status;
+ 
+     @Enumerated(EnumType.STRING)
+     @JdbcTypeCode(SqlTypes.VARCHAR)
+@@ -68,7 +68,7 @@
+     private Integer promisedHours;
+ 
+     @Column(name = "delivered_at")
+-    private Instant deliveredAt;
++    private volatile Instant deliveredAt;
+ 
+     /** Con id asignado, Spring Data haría un SELECT por cada save() para saber si es nuevo; así se evita. */
+     @Transient
+@@ -107,8 +107,8 @@
+ 
+     /** {@code llegada}: hora de llegada de la última entrega (el acondicionamiento no cuenta en el plazo). */
+     public void entregar(Instant llegada) {
++        this.deliveredAt = llegada.truncatedTo(ChronoUnit.MICROS);
+         this.status = OrderStatus.DELIVERED;
+-        this.deliveredAt = llegada.truncatedTo(ChronoUnit.MICROS);
+     }
+ 
+     public boolean entregadoATiempo() {
+--- a/src/main/java/com/pucp/paqrap/modulos/pedidos/repository/OrderRepository.java
++++ b/src/main/java/com/pucp/paqrap/modulos/pedidos/repository/OrderRepository.java
+@@ -15,21 +15,35 @@
+ 
+ public interface OrderRepository extends JpaRepository<OrderEntity, String> {
+ 
++    /** Datos de entrada (sin filtrar por estado real) para una copia de simulación. */
++    @Query("""
++            select o from OrderEntity o
++            where o.registeredAt >= :inicio and (:fin is null or o.registeredAt < :fin)
++            order by o.registeredAt, o.orderId
++            """)
++    List<OrderEntity> catalogoDelPeriodo(@Param("inicio") Instant inicio, @Param("fin") Instant fin);
++
++    @Query("""
++            select o from OrderEntity o where o.registeredAt > :desde and o.registeredAt <= :hasta
++            order by o.registeredAt, o.orderId
++            """)
++    List<OrderEntity> catalogoRegistradoEntre(@Param("desde") Instant desde, @Param("hasta") Instant hasta);
++
+     /** IDs de los pedidos registrados exactamente en un instante simulado. */
+-    @Query("select o.orderId from OrderEntity o where o.registeredAt = :instante order by o.orderId")
++    @Query("select o.orderId from OrderEntity o where o.orderId not like 'SIM-%' and o.registeredAt = :instante order by o.orderId")
+     List<String> idsRegistradosEn(@Param("instante") Instant instante);
+ 
+     /** IDs de los pedidos registrados en el intervalo simulado abierto a la izquierda y cerrado a la derecha. */
+     @Query("""
+             select o.orderId from OrderEntity o
+-            where o.registeredAt > :desde and o.registeredAt <= :hasta
++            where o.orderId not like 'SIM-%' and o.registeredAt > :desde and o.registeredAt <= :hasta
+             order by o.registeredAt, o.orderId
+             """)
+     List<String> idsRegistradosEntre(@Param("desde") Instant desde, @Param("hasta") Instant hasta);
+ 
+     @Query("""
+             select o from OrderEntity o
+-            where (:clienteId is null or o.clientId = :clienteId)
++            where o.orderId not like 'SIM-%' and (:clienteId is null or o.clientId = :clienteId)
+               and (:estado is null or o.status = :estado)
+               and (:tipoEntrega is null or o.deliveryType = :tipoEntrega)
+               and (:registradoDesde is null or o.registeredAt >= :registradoDesde)
+@@ -47,7 +61,7 @@
+     /** Pedidos por planificar en {@code instante}: ya registrados, sin entregar y aún en plazo; los más urgentes primero. */
+     @Query("""
+             select o from OrderEntity o
+-            where o.registeredAt <= :instante
++            where o.orderId not like 'SIM-%' and o.registeredAt <= :instante
+               and o.deadline > :instante
+               and o.status <> com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.DELIVERED
+             order by o.deadline, o.orderId
+@@ -57,7 +71,7 @@
+     /** Como {@link #pendientesEn}, pero solo con los pedidos que llegaron desde el inicio del escenario. */
+     @Query("""
+             select o from OrderEntity o
+-            where o.registeredAt >= :desde
++            where o.orderId not like 'SIM-%' and o.registeredAt >= :desde
+               and o.registeredAt <= :instante
+               and o.deadline > :instante
+               and o.status <> com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.DELIVERED
+@@ -72,7 +86,7 @@
+      */
+     @Query("""
+             select o from OrderEntity o
+-            where o.registeredAt >= :desde
++            where o.orderId not like 'SIM-%' and o.registeredAt >= :desde
+               and o.registeredAt <= :instante
+               and o.deadline > :instante
+               and o.status = com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.REGISTERED
+@@ -86,13 +100,13 @@
+     @Query("""
+             update OrderEntity o
+             set o.status = com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.REGISTERED, o.deliveredAt = null
+-            where o.registeredAt >= :desde
++            where o.orderId not like 'SIM-%' and o.registeredAt >= :desde
+             """)
+     int reiniciarDesde(@Param("desde") Instant desde);
+ 
+     @Query("""
+             select count(o) from OrderEntity o
+-            where o.registeredAt >= :desde
++            where o.orderId not like 'SIM-%' and o.registeredAt >= :desde
+               and o.registeredAt <= :instante
+               and o.deadline > :instante
+               and o.status <> com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.DELIVERED
+@@ -100,12 +114,13 @@
+     long contarPendientesEnDesde(@Param("desde") Instant desde, @Param("instante") Instant instante);
+ 
+     /** Pedidos registrados en [desde, hasta]. */
+-    long countByRegisteredAtGreaterThanEqualAndRegisteredAtLessThanEqual(Instant desde, Instant hasta);
++    @Query("select count(o) from OrderEntity o where o.orderId not like 'SIM-%' and o.registeredAt >= :desde and o.registeredAt <= :hasta")
++    long countByRegisteredAtGreaterThanEqualAndRegisteredAtLessThanEqual(@Param("desde") Instant desde, @Param("hasta") Instant hasta);
+ 
+     /** Pedidos registrados desde {@code desde} cuyo plazo ya venció en {@code instante} sin ser entregados. */
+     @Query("""
+             select count(o) from OrderEntity o
+-            where o.registeredAt >= :desde
++            where o.orderId not like 'SIM-%' and o.registeredAt >= :desde
+               and o.deadline <= :instante
+               and o.status <> com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.DELIVERED
+             """)
+@@ -117,7 +132,7 @@
+      */
+     @Query("""
+             select o from OrderEntity o
+-            where o.registeredAt >= :desde
++            where o.orderId not like 'SIM-%' and o.registeredAt >= :desde
+               and o.deadline <= :instante
+               and (o.status <> com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.DELIVERED
+                    or o.deliveredAt > o.deadline)
+@@ -132,7 +147,7 @@
+      */
+     @Query("""
+             select substring(o.orderId, 1, 6), count(o) from OrderEntity o
+-            where o.orderId like '______-%'
++            where o.orderId like '______-%' and o.orderId not like 'SIM-%'
+             group by substring(o.orderId, 1, 6)
+             """)
+     List<Object[]> contarCargadosPorMes();
+--- a/src/main/java/com/pucp/paqrap/modulos/pedidos/service/PedidoService.java
++++ b/src/main/java/com/pucp/paqrap/modulos/pedidos/service/PedidoService.java
+@@ -4,6 +4,10 @@
+ import com.pucp.paqrap.comun.error.RecursoNoEncontradoException;
+ import com.pucp.paqrap.comun.error.ReglaNegocioException;
+ import com.pucp.paqrap.modulos.escenarios.entity.ScenarioStatus;
++import com.pucp.paqrap.modulos.escenarios.entity.ScenarioType;
++import com.pucp.paqrap.modulos.escenarios.persistence.ScenarioExecutionEntity;
++import com.pucp.paqrap.modulos.pedidos.dto.CargaPedidosMultipleResponse;
++import org.springframework.data.domain.PageImpl;
+ import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
+ import com.pucp.paqrap.modulos.escenarios.service.MotorEscenarios;
+ import com.pucp.paqrap.modulos.pedidos.dto.CargaPedidosResponse;
+@@ -32,6 +36,8 @@
+ import java.time.YearMonth;
+ import java.time.ZoneId;
+ import java.util.HashSet;
++import java.util.ArrayList;
++import java.util.Comparator;
+ import java.util.LinkedHashMap;
+ import java.util.List;
+ import java.util.Map;
+@@ -63,6 +69,9 @@
+         ATRIBUTOS_ORDENABLES.put("estado", "status");
+     }
+ 
++    @org.springframework.beans.factory.annotation.Autowired
++    private com.pucp.paqrap.modulos.escenarios.service.EstadoOperativoEscenarios estadoOperativo;
++
+     private final OrderRepository pedidoRepository;
+     private final OrderStatusHistoryRepository historialRepository;
+     private final ApplicationEventPublisher eventos;
+@@ -82,40 +91,58 @@
+ 
+     @Transactional
+     public PedidoResponse registrar(RegistrarPedidoRequest request) {
++        return registrar(request, null);
++    }
++
++    /** Sin id explícito se prefiere Día a Día; con una sola simulación se conserva el uso anterior. */
++    @Transactional
++    public PedidoResponse registrar(RegistrarPedidoRequest request, Long ejecucionId) {
++        ScenarioExecutionEntity destino = resolverDestino(ejecucionId, true);
+         int horas = horasPrometidas(request.tipoEntrega(), request.horasPrometidas());
+-        Instant registradoEn = resolverRegistradoEn(request.registradoEn());
+-        validarContraEscenarioActivo(registradoEn);
+-        OrderEntity pedido = new OrderEntity("M-" + UUID.randomUUID(), request.clienteId(),
++        Instant registradoEn = request.registradoEn() != null ? request.registradoEn()
++                : destino != null ? motorEscenarios.instanteSimulado(destino.getExecutionId()).orElseGet(Instant::now)
++                : Instant.now();
++        if (destino != null && registradoEn.isBefore(destino.getSimulationStartedAt())) {
++            throw new ReglaNegocioException("El pedido está registrado antes del inicio del escenario activo ("
++                    + destino.getSimulationStartedAt() + "); use una fecha igual o posterior");
++        }
++        Long idDestino = destino == null ? null : destino.getExecutionId();
++        String prefijo = destino != null && destino.getScenarioType() != ScenarioType.DAY_TO_DAY
++                ? "SIM-" + idDestino + "-" : "M-";
++        OrderEntity pedido = new OrderEntity(prefijo + UUID.randomUUID(), request.clienteId(),
+                 new Location(request.x(), request.y()), request.paquetes(), registradoEn, request.tipoEntrega(), horas);
+-
+         pedidoRepository.save(pedido);
+         historialRepository.save(OrderStatusHistoryEntity.registro(pedido));
+-        // El motor de escenarios replanifica cuando esta transacción se confirma.
+-        eventos.publishEvent(new PedidoRegistrado(pedido.getOrderId(), registradoEn));
++        if (estadoOperativo != null) estadoOperativo.incorporarAlConfirmar(idDestino, List.of(pedido));
++        eventos.publishEvent(new PedidoRegistrado(pedido.getOrderId(), registradoEn, idDestino));
+         return PedidoResponse.de(pedido);
+     }
+ 
+-    /** Una alta manual durante una simulación en marcha pertenece al instante actual de esa simulación. */
+-    private Instant resolverRegistradoEn(Instant solicitado) {
+-        if (solicitado != null) {
+-            return solicitado;
+-        }
+-        return ejecucionRepository.findByStatusIn(Set.of(ScenarioStatus.RUNNING)).stream()
+-                .findFirst()
+-                .flatMap(ejecucion -> motorEscenarios.instanteSimulado(ejecucion.getExecutionId()))
+-                .orElseGet(Instant::now);
+-    }
+-
+-    /** Regla de coherencia (d): un pedido manual no puede ser anterior al inicio del escenario activo. */
+-    private void validarContraEscenarioActivo(Instant registradoEn) {
+-        ejecucionRepository.findByStatusIn(ESCENARIOS_ACTIVOS).stream()
+-                .map(ejecucion -> ejecucion.getSimulationStartedAt())
+-                .filter(inicio -> registradoEn.isBefore(inicio))
+-                .findFirst()
+-                .ifPresent(inicio -> {
+-                    throw new ReglaNegocioException("El pedido está registrado antes del inicio del escenario activo ("
+-                            + inicio + "); use una fecha igual o posterior");
+-                });
++    private ScenarioExecutionEntity resolverDestino(Long indicado, boolean exigirActivo) {
++        if (indicado != null) {
++            ScenarioExecutionEntity ejecucion = ejecucionRepository.findById(indicado)
++                    .orElseThrow(() -> new RecursoNoEncontradoException("Ejecución", indicado));
++            if (exigirActivo && !ESCENARIOS_ACTIVOS.contains(ejecucion.getStatus())) {
++                throw new ReglaNegocioException("La ejecución " + indicado + " no está activa");
++            }
++            return ejecucion;
++        }
++        List<ScenarioExecutionEntity> activas = ejecucionRepository.findByStatusIn(ESCENARIOS_ACTIVOS);
++        return activas.stream().filter(e -> e.getScenarioType() == ScenarioType.DAY_TO_DAY).findFirst()
++                .orElseGet(() -> activas.size() == 1 ? activas.getFirst() : null);
++    }
++
++    /** No devuelve el estado real cuando el cliente solicitó el estado de una simulación perdida al reiniciar. */
++    private Long resolverConsulta(Long indicado) {
++        ScenarioExecutionEntity destino = resolverDestino(indicado, false);
++        if (destino == null) return null;
++        if (destino.getScenarioType() != ScenarioType.DAY_TO_DAY
++                && (estadoOperativo == null || !estadoOperativo.aislada(destino.getExecutionId()))) {
++            if (indicado != null) throw new ReglaNegocioException(
++                    "El detalle operativo de esta simulación no está en memoria; consulte su resultado consolidado");
++            return null;
++        }
++        return destino.getExecutionId();
+     }
+ 
+     /**
+@@ -138,18 +165,83 @@
+ 
+         pedidoRepository.saveAll(nuevos);
+         historialRepository.saveAll(nuevos.stream().map(OrderStatusHistoryEntity::registro).toList());
++        if (estadoOperativo != null) estadoOperativo.incorporarAlConfirmar(null, nuevos);
+         return new CargaPedidosResponse(nombreArchivo, periodoEfectivo, leidos.size(), nuevos.size(),
+                 leidos.size() - nuevos.size());
++    }
++
++    public record ArchivoMensual(String nombre, String contenido) { }
++
++    /** Carga atómica de uno o dos archivos; nunca se borra el mes anterior. */
++    @Transactional
++    public CargaPedidosMultipleResponse cargarMultiples(List<ArchivoMensual> archivos) {
++        if (archivos == null || archivos.isEmpty() || archivos.size() > 2) {
++            throw new IllegalArgumentException("Seleccione uno o dos archivos mensuales de pedidos");
++        }
++        Set<YearMonth> periodos = new HashSet<>();
++        // Validar todos antes de guardar el primero. Un error en el segundo no deja una carga parcial.
++        for (ArchivoMensual archivo : archivos) {
++            if (archivo == null || archivo.contenido() == null || archivo.contenido().isBlank()) {
++                throw new IllegalArgumentException("Ningún archivo puede estar vacío");
++            }
++            YearMonth periodo = periodoDesdeNombre(archivo.nombre());
++            if (!periodos.add(periodo)) {
++                throw new IllegalArgumentException("Los dos archivos deben corresponder a meses distintos: " + periodo);
++            }
++            if (cargador.cargar(archivo.contenido().replace("\uFEFF", "").lines().toList(), periodo, ZONA).isEmpty()) {
++                throw new IllegalArgumentException("El archivo no contiene pedidos: " + archivo.nombre());
++            }
++        }
++        List<CargaPedidosResponse> resultados = new ArrayList<>();
++        for (ArchivoMensual archivo : archivos) resultados.add(cargar(archivo.nombre(), archivo.contenido(), null));
++        return CargaPedidosMultipleResponse.de(resultados);
+     }
+ 
+     public PaginaResponse<PedidoResponse> listar(String clienteId, OrderStatus estado, DeliveryType tipoEntrega,
+                                                  Instant registradoDesde, Instant registradoHasta,
+                                                  Instant venceHasta, Pageable pageable) {
++        return listar(clienteId, estado, tipoEntrega, registradoDesde, registradoHasta, venceHasta, pageable, null);
++    }
++
++    public PaginaResponse<PedidoResponse> listar(String clienteId, OrderStatus estado, DeliveryType tipoEntrega,
++                                                 Instant registradoDesde, Instant registradoHasta,
++                                                 Instant venceHasta, Pageable pageable, Long ejecucionId) {
+         if (registradoDesde != null && registradoHasta != null && !registradoHasta.isAfter(registradoDesde)) {
+             throw new IllegalArgumentException("'registradoHasta' debe ser posterior a 'registradoDesde'");
+         }
++        Pageable orden = conOrdenDeEntidad(pageable);
++        Long destino = resolverConsulta(ejecucionId);
++        if (estadoOperativo != null && estadoOperativo.aislada(destino)) {
++            List<OrderEntity> filtrados = estadoOperativo.catalogo(destino).stream()
++                    .filter(p -> clienteId == null || clienteId.equals(p.getClientId()))
++                    .filter(p -> estado == null || estado == p.getStatus())
++                    .filter(p -> tipoEntrega == null || tipoEntrega == p.getDeliveryType())
++                    .filter(p -> registradoDesde == null || !p.getRegisteredAt().isBefore(registradoDesde))
++                    .filter(p -> registradoHasta == null || p.getRegisteredAt().isBefore(registradoHasta))
++                    .filter(p -> venceHasta == null || !p.getDeadline().isAfter(venceHasta))
++                    .sorted(comparador(orden.getSort())).toList();
++            List<OrderEntity> pagina = filtrados.stream().skip(orden.getOffset()).limit(orden.getPageSize()).toList();
++            return PaginaResponse.de(new PageImpl<>(pagina, orden, filtrados.size()), PedidoResponse::de);
++        }
+         return PaginaResponse.de(pedidoRepository.buscar(clienteId, estado, tipoEntrega, registradoDesde,
+-                registradoHasta, venceHasta, conOrdenDeEntidad(pageable)), PedidoResponse::de);
++                registradoHasta, venceHasta, orden), PedidoResponse::de);
++    }
++
++    private Comparator<OrderEntity> comparador(Sort orden) {
++        Comparator<OrderEntity> resultado = (a, b) -> 0;
++        for (Sort.Order campo : orden) {
++            Comparator<OrderEntity> siguiente = switch (campo.getProperty()) {
++                case "orderId" -> Comparator.comparing(OrderEntity::getOrderId);
++                case "clientId" -> Comparator.comparing(OrderEntity::getClientId);
++                case "packages" -> Comparator.comparing(OrderEntity::getPackages);
++                case "registeredAt" -> Comparator.comparing(OrderEntity::getRegisteredAt);
++                case "deadline" -> Comparator.comparing(OrderEntity::getDeadline);
++                case "status" -> Comparator.comparing(p -> p.getStatus().name());
++                default -> throw new IllegalArgumentException("Campo de orden no admitido");
++            };
++            resultado = resultado.thenComparing(campo.isDescending() ? siguiente.reversed() : siguiente);
++        }
++        return resultado.thenComparing(OrderEntity::getOrderId);
+     }
+ 
+     /** Traduce el {@code sort} expresado con los nombres de la API a los atributos de la entidad. */
+@@ -178,16 +270,30 @@
+                 pedidoRepository.contarVencidosSinEntregar(desde, instante));
+     }
+ 
++    public ResumenPedidos resumen(long ejecucionId, Instant desde, Instant instante) {
++        if (estadoOperativo == null) return resumen(desde, instante);
++        var resumen = estadoOperativo.resumen(ejecucionId, desde, instante);
++        return new ResumenPedidos(resumen.llegados(), resumen.pendientes(), resumen.vencidosSinEntregar());
++    }
++
+     public PedidoDetalleResponse obtener(String id) {
+         return obtener(id, null);
+     }
+ 
+     /** Con {@code instante} (simulado) calcula además si un pedido aún no entregado ya incumplió su plazo. */
+     public PedidoDetalleResponse obtener(String id, Instant instante) {
+-        OrderEntity pedido = pedidoRepository.findById(id)
++        return obtener(id, instante, null);
++    }
++
++    public PedidoDetalleResponse obtener(String id, Instant instante, Long ejecucionId) {
++        Long destino = resolverConsulta(ejecucionId);
++        boolean virtual = estadoOperativo != null && estadoOperativo.aislada(destino);
++        OrderEntity pedido = (virtual ? estadoOperativo.pedido(destino, id) : pedidoRepository.findById(id))
++                .filter(p -> virtual || !p.getOrderId().startsWith("SIM-"))
+                 .orElseThrow(() -> new RecursoNoEncontradoException("Pedido", id));
+         List<PedidoDetalleResponse.CambioEstado> historial =
+-                historialRepository.findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc(id).stream()
++                (virtual ? estadoOperativo.historial(destino, id)
++                        : historialRepository.findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc(id)).stream()
+                         .map(PedidoDetalleResponse.CambioEstado::de)
+                         .toList();
+         String unidadAsignada = historial.stream()
+--- a/src/main/java/com/pucp/paqrap/modulos/planificacion/service/PlanificadorSaAdapter.java
++++ b/src/main/java/com/pucp/paqrap/modulos/planificacion/service/PlanificadorSaAdapter.java
+@@ -41,6 +41,9 @@
+     private static final Duration HORIZONTE = Duration.ofHours(36);
+     private static final int TAMANO_PAGINA = 500;
+ 
++    @org.springframework.beans.factory.annotation.Autowired
++    private com.pucp.paqrap.modulos.escenarios.service.EstadoOperativoEscenarios estadoOperativo;
++
+     private final ReplanificacionService replanificacion;
+     private final OrderRepository pedidoRepository;
+     private final RoadBlockRepository bloqueoRepository;
+@@ -169,8 +172,9 @@
+     private List<Order> pedidosNuevos(long ejecucionId, Instant inicio, Instant instante) {
+         List<Order> nuevos = new ArrayList<>();
+         for (int pagina = 0; nuevos.size() < maxPedidos; pagina++) {
+-            List<OrderEntity> registrados = pedidoRepository.registradosEnDesde(inicio, instante,
+-                    PageRequest.of(pagina, TAMANO_PAGINA));
++            List<OrderEntity> registrados = estadoOperativo != null
++                    ? estadoOperativo.registrados(ejecucionId, inicio, instante, PageRequest.of(pagina, TAMANO_PAGINA))
++                    : pedidoRepository.registradosEnDesde(inicio, instante, PageRequest.of(pagina, TAMANO_PAGINA));
+             for (OrderEntity pedido : registrados) {
+                 if (nuevos.size() < maxPedidos && !replanificacion.conocePedido(ejecucionId, pedido.getOrderId())) {
+                     nuevos.add(pedido.toDomain());
+--- a/src/main/java/com/pucp/paqrap/modulos/redvial/controller/BloqueoController.java
++++ b/src/main/java/com/pucp/paqrap/modulos/redvial/controller/BloqueoController.java
+@@ -2,6 +2,7 @@
+ 
+ import com.pucp.paqrap.modulos.redvial.dto.BloqueoResponse;
+ import com.pucp.paqrap.modulos.redvial.dto.CargaBloqueosResponse;
++import com.pucp.paqrap.modulos.redvial.dto.CargaBloqueosMultipleResponse;
+ import com.pucp.paqrap.modulos.redvial.service.BloqueoService;
+ import org.springframework.format.annotation.DateTimeFormat;
+ import org.springframework.http.HttpStatus;
+@@ -45,6 +46,22 @@
+         return bloqueoService.cargar(archivo.getOriginalFilename(), contenido, periodo);
+     }
+ 
++    @PostMapping(path = "/carga-multiple", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
++    @ResponseStatus(HttpStatus.CREATED)
++    public CargaBloqueosMultipleResponse cargarMultiples(@RequestParam("archivos") List<MultipartFile> archivos)
++            throws IOException {
++        if (archivos.isEmpty() || archivos.size() > 2) {
++            throw new IllegalArgumentException("Seleccione uno o dos archivos mensuales de bloqueos");
++        }
++        java.util.ArrayList<BloqueoService.ArchivoMensual> entradas = new java.util.ArrayList<>();
++        for (MultipartFile archivo : archivos) {
++            if (archivo.isEmpty()) throw new IllegalArgumentException("El archivo está vacío: " + archivo.getOriginalFilename());
++            entradas.add(new BloqueoService.ArchivoMensual(archivo.getOriginalFilename(),
++                    new String(archivo.getBytes(), StandardCharsets.UTF_8)));
++        }
++        return bloqueoService.cargarMultiples(entradas);
++    }
++
+     @GetMapping
+     public List<BloqueoResponse> listar(
+             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant desde,
+--- a/src/main/java/com/pucp/paqrap/modulos/redvial/dto/CargaBloqueosMultipleResponse.java
++++ b/src/main/java/com/pucp/paqrap/modulos/redvial/dto/CargaBloqueosMultipleResponse.java
+@@ -0,0 +1,13 @@
++package com.pucp.paqrap.modulos.redvial.dto;
++
++import java.util.List;
++
++public record CargaBloqueosMultipleResponse(List<CargaBloqueosResponse> archivos, int reemplazados, int registrados) {
++    public CargaBloqueosMultipleResponse { archivos = List.copyOf(archivos); }
++
++    public static CargaBloqueosMultipleResponse de(List<CargaBloqueosResponse> archivos) {
++        return new CargaBloqueosMultipleResponse(archivos,
++                archivos.stream().mapToInt(CargaBloqueosResponse::reemplazados).sum(),
++                archivos.stream().mapToInt(CargaBloqueosResponse::registrados).sum());
++    }
++}
+--- a/src/main/java/com/pucp/paqrap/modulos/redvial/service/BloqueoService.java
++++ b/src/main/java/com/pucp/paqrap/modulos/redvial/service/BloqueoService.java
+@@ -4,6 +4,7 @@
+ import com.pucp.paqrap.modulos.planificacion.entity.ShiftSchedule;
+ import com.pucp.paqrap.modulos.redvial.dto.BloqueoResponse;
+ import com.pucp.paqrap.modulos.redvial.dto.CargaBloqueosResponse;
++import com.pucp.paqrap.modulos.redvial.dto.CargaBloqueosMultipleResponse;
+ import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
+ import com.pucp.paqrap.modulos.redvial.persistence.RoadBlockEntity;
+ import com.pucp.paqrap.modulos.redvial.repository.RoadBlockRepository;
+@@ -53,6 +54,28 @@
+         return new CargaBloqueosResponse(nombreArchivo, periodoEfectivo, reemplazados, bloqueos.size());
+     }
+ 
++    public record ArchivoMensual(String nombre, String contenido) { }
++
++    /** Carga atómica de hasta dos meses; el reemplazo sigue limitado al mes de cada archivo. */
++    @Transactional
++    public CargaBloqueosMultipleResponse cargarMultiples(List<ArchivoMensual> archivos) {
++        if (archivos == null || archivos.isEmpty() || archivos.size() > 2) {
++            throw new IllegalArgumentException("Seleccione uno o dos archivos mensuales de bloqueos");
++        }
++        java.util.Set<YearMonth> periodos = new java.util.HashSet<>();
++        for (ArchivoMensual archivo : archivos) {
++            if (archivo == null || archivo.contenido() == null || archivo.contenido().isBlank()) {
++                throw new IllegalArgumentException("Ningún archivo puede estar vacío");
++            }
++            YearMonth periodo = periodoDesdeNombre(archivo.nombre());
++            if (!periodos.add(periodo)) throw new IllegalArgumentException("Mes de bloqueos repetido: " + periodo);
++            cargador.cargar(archivo.contenido().replace("\uFEFF", "").lines().toList(), periodo, ZONA);
++        }
++        java.util.ArrayList<CargaBloqueosResponse> resultados = new java.util.ArrayList<>();
++        for (ArchivoMensual archivo : archivos) resultados.add(cargar(archivo.nombre(), archivo.contenido(), null));
++        return CargaBloqueosMultipleResponse.de(resultados);
++    }
++
+     /** Si se indica {@code vigenteEn}, devuelve los bloqueos activos en ese instante; si no, los que se cruzan con [desde, hasta). */
+     public List<BloqueoResponse> listar(Instant desde, Instant hasta, Instant vigenteEn) {
+         if (vigenteEn != null) {
+--- a/src/main/resources/application.yml
++++ b/src/main/resources/application.yml
+@@ -29,7 +29,7 @@
+   servlet:
+     multipart:
+       max-file-size: 5MB
+-      max-request-size: 5MB
++      max-request-size: 11MB
+ 
+   jackson:
+     time-zone: UTC
+--- a/src/test/java/com/pucp/paqrap/modulos/escenarios/controller/EscenarioApiTest.java
++++ b/src/test/java/com/pucp/paqrap/modulos/escenarios/controller/EscenarioApiTest.java
+@@ -268,7 +268,7 @@
+     }
+ 
+     @Test
+-    void soloPuedeHaberUnEscenarioActivo() throws Exception {
++    void soloPuedeHaberUnaSimulacionActiva() throws Exception {
+         long primero = crearCincoDias();
+         long segundo = crearCincoDias();
+         accion(primero, "iniciar");
+@@ -358,4 +358,65 @@
+         crear("{\"tipo\": \"FIVE_DAY\", \"inicioSimulado\": \"" + INICIO + "\","
+                 + "\"configuracionSa\":{\"iteracionesPorTemperatura\":0}}")
+                 .andExpect(status().isBadRequest());
+-    }}+    }
++
++    private long crearDiaADia() throws Exception {
++        String json = crear("{\"tipo\":\"DAY_TO_DAY\"}")
++                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
++        return ((Number) JsonPath.read(json, "$.id")).longValue();
++    }
++
++    @Test
++    void diaADiaYSimulacionPuedenAvanzarYPausarseIndependientemente() throws Exception {
++        long real = crearDiaADia();
++        long simulada = crearCincoDias();
++        accion(real, "iniciar").andExpect(status().isOk());
++        accion(simulada, "iniciar").andExpect(status().isOk());
++        Instant antesReal = motor.instanteSimulado(real).orElseThrow();
++        Instant antesSim = motor.instanteSimulado(simulada).orElseThrow();
++        reloj.avanzar(Duration.ofSeconds(5));
++        motor.tick();
++        assertEquals(antesReal.plusSeconds(5), motor.instanteSimulado(real).orElseThrow());
++        assertEquals(antesSim.plusSeconds(800), motor.instanteSimulado(simulada).orElseThrow());
++        accion(simulada, "pausar").andExpect(status().isOk());
++        Instant pausada = motor.instanteSimulado(simulada).orElseThrow();
++        reloj.avanzar(Duration.ofSeconds(5));
++        motor.tick();
++        assertEquals(pausada, motor.instanteSimulado(simulada).orElseThrow());
++        assertEquals(antesReal.plusSeconds(10), motor.instanteSimulado(real).orElseThrow());
++        accion(simulada, "detener").andExpect(status().isOk());
++        mvc.perform(get("/api/escenarios/" + real)).andExpect(jsonPath("$.estado").value("RUNNING"));
++    }
++
++    @Test
++    void tambienPermiteIniciarDiaADiaConUnaSimulacionYaActiva() throws Exception {
++        long simulada = crearCincoDias();
++        accion(simulada, "iniciar").andExpect(status().isOk());
++        long real = crearDiaADia();
++        accion(real, "iniciar").andExpect(status().isOk());
++        assertEquals(2, motor.ejecucionesActivas().size());
++        long otroReal = crearDiaADia();
++        accion(otroReal, "iniciar").andExpect(status().isConflict());
++        accion(simulada, "pausar").andExpect(status().isOk());
++        long otraSim = crearCincoDias();
++        accion(otraSim, "iniciar").andExpect(status().isConflict());
++    }
++
++    @Test
++    void colapsoDeCincoDiasNoDetieneDiaADiaNiContaminaSusPedidos() throws Exception {
++        pedidoRepository.save(new OrderEntity("P-COLAPSO", "c1", new Location(30, 14), 2,
++                Instant.parse(INICIO), DeliveryType.PRIORITY, 4));
++        long real = crearDiaADia();
++        long simulada = crearCincoDias();
++        accion(real, "iniciar").andExpect(status().isOk());
++        accion(simulada, "iniciar").andExpect(status().isOk());
++        reloj.avanzar(Duration.ofMinutes(2));
++        motor.tick();
++        mvc.perform(get("/api/escenarios/" + simulada))
++                .andExpect(jsonPath("$.estado").value("COLLAPSED"))
++                .andExpect(jsonPath("$.colapsoEn").value("2026-01-01T09:00:00Z"));
++        mvc.perform(get("/api/escenarios/" + real))
++                .andExpect(jsonPath("$.estado").value("RUNNING"));
++        assertEquals(true, resultadoRepository.existsById(simulada));
++    }
++}
+--- a/src/test/java/com/pucp/paqrap/modulos/escenarios/controller/ReplanificacionFlujoApiTest.java
++++ b/src/test/java/com/pucp/paqrap/modulos/escenarios/controller/ReplanificacionFlujoApiTest.java
+@@ -114,6 +114,7 @@
+     @Autowired private RoadBlockRepository bloqueoRepository;
+     @Autowired private OrderRepository pedidoRepository;
+     @Autowired private OrderStatusHistoryRepository historialRepository;
++    @Autowired private com.pucp.paqrap.modulos.escenarios.service.EstadoOperativoEscenarios estadoOperativo;
+     @Autowired private PlanRepository planRepository;
+     @Autowired private RouteRepository routeRepository;
+     @Autowired private RouteStopRepository routeStopRepository;
+@@ -212,7 +213,7 @@
+         // 05:13:20: la ruta de P1 ya salió (el vehículo no vuelve al central por arte de magia).
+         avanzar(Duration.ofSeconds(5));
+         assertEquals(VehicleOperationalStatus.IN_ROUTE,
+-                vehiculoRepository.findById(vehiculoP1).orElseThrow().getOperationalStatus());
++                estadoOperativo.vehiculo(id, vehiculoP1).orElseThrow().getOperationalStatus());
+ 
+         // 05:26:40: llegó P2 (05:20) -> replanificación con la ruta de P1 conservada y P2 en otro vehículo.
+         avanzar(Duration.ofSeconds(5));
+@@ -256,15 +257,15 @@
+         // Hasta el día siguiente: los dos pedidos se entregan una sola vez y la ejecución sigue en marcha.
+         avanzar(Duration.ofMinutes(10));
+         assertEquals(ScenarioStatus.RUNNING, estado(id));
+-        assertEquals(OrderStatus.DELIVERED, pedidoRepository.findById("P1").orElseThrow().getStatus());
+-        assertEquals(OrderStatus.DELIVERED, pedidoRepository.findById("P2").orElseThrow().getStatus());
++        assertEquals(OrderStatus.DELIVERED, estadoOperativo.pedido(id, "P1").orElseThrow().getStatus());
++        assertEquals(OrderStatus.DELIVERED, estadoOperativo.pedido(id, "P2").orElseThrow().getStatus());
+         EjecutorPlanService.Metricas metricas = ejecutor.metricas(id).orElseThrow();
+         assertEquals(2, metricas.pedidosEntregados());
+         assertEquals(8, metricas.paquetesEntregados(), "ningún paquete se entrega dos veces");
+         Map<String, Long> entregas = Map.of(
+-                "P1", historialRepository.findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc("P1").stream()
++                "P1", estadoOperativo.historial(id, "P1").stream()
+                         .filter(h -> h.getStatus() == OrderStatus.DELIVERED).count(),
+-                "P2", historialRepository.findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc("P2").stream()
++                "P2", estadoOperativo.historial(id, "P2").stream()
+                         .filter(h -> h.getStatus() == OrderStatus.DELIVERED).count());
+         assertEquals(Map.of("P1", 1L, "P2", 1L), entregas);
+         mvc.perform(get("/api/monitoreo/" + id))
+@@ -288,13 +289,13 @@
+ 
+         // La semilla es aleatoria: el SA puede visitar cualquiera de los dos primero.
+         for (int tick = 0; tick < 45
+-                && pedidoRepository.findById("P1").orElseThrow().getStatus() != OrderStatus.IN_TRANSIT
+-                && pedidoRepository.findById("P2").orElseThrow().getStatus() != OrderStatus.IN_TRANSIT; tick++) {
++                && estadoOperativo.pedido(id, "P1").orElseThrow().getStatus() != OrderStatus.IN_TRANSIT
++                && estadoOperativo.pedido(id, "P2").orElseThrow().getStatus() != OrderStatus.IN_TRANSIT; tick++) {
+             avanzar(Duration.ofSeconds(1));
+         }
+         assertEquals(Set.of(OrderStatus.IN_TRANSIT, OrderStatus.ASSIGNED),
+-                Set.of(pedidoRepository.findById("P1").orElseThrow().getStatus(),
+-                        pedidoRepository.findById("P2").orElseThrow().getStatus()));
++                Set.of(estadoOperativo.pedido(id, "P1").orElseThrow().getStatus(),
++                        estadoOperativo.pedido(id, "P2").orElseThrow().getStatus()));
+ 
+         VehicleEntity sustituto = vehiculoRepository.findById("TA02").orElseThrow();
+         sustituto.setOperationalStatus(VehicleOperationalStatus.AVAILABLE);
+@@ -309,12 +310,10 @@
+         String replanificado = replanificacion(id);
+ 
+         assertEquals("AVERIA", leer(replanificado, "$.motivo"));
+-        assertEquals(OrderStatus.REGISTERED, pedidoRepository.findById("P1").orElseThrow().getStatus());
+-        assertEquals(OrderStatus.REGISTERED, pedidoRepository.findById("P2").orElseThrow().getStatus());
+-        assertEquals(OrderStatus.REGISTERED, historialRepository
+-                .findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc("P1").getLast().getStatus());
+-        assertEquals(OrderStatus.REGISTERED, historialRepository
+-                .findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc("P2").getLast().getStatus());
++        assertEquals(OrderStatus.REGISTERED, estadoOperativo.pedido(id, "P1").orElseThrow().getStatus());
++        assertEquals(OrderStatus.REGISTERED, estadoOperativo.pedido(id, "P2").orElseThrow().getStatus());
++        assertEquals(OrderStatus.REGISTERED, estadoOperativo.historial(id, "P1").getLast().getStatus());
++        assertEquals(OrderStatus.REGISTERED, estadoOperativo.historial(id, "P2").getLast().getStatus());
+         assertNotEquals("TA01", vehiculoQueEntrega(replanificado, "P1"));
+         assertNotEquals("TA01", vehiculoQueEntrega(replanificado, "P2"));
+         assertTrue(leer(replanificado, "$.vehiculosNoDisponibles").toString().contains("TA01"), replanificado);
+--- a/src/test/java/com/pucp/paqrap/modulos/escenarios/service/ConcurrenciaYAislamientoTest.java
++++ b/src/test/java/com/pucp/paqrap/modulos/escenarios/service/ConcurrenciaYAislamientoTest.java
+@@ -0,0 +1,244 @@
++package com.pucp.paqrap.modulos.escenarios.service;
++
++import org.junit.jupiter.api.Test;
++import java.lang.reflect.*;
++import java.math.BigDecimal;
++import java.time.*;
++import java.util.*;
++import java.util.function.*;
++import java.util.stream.*;
++import com.pucp.paqrap.config.EscenariosProperties;
++import com.pucp.paqrap.modulos.escenarios.entity.*;
++import com.pucp.paqrap.modulos.escenarios.persistence.*;
++import com.pucp.paqrap.modulos.escenarios.repository.*;
++import com.pucp.paqrap.modulos.escenarios.service.*;
++import com.pucp.paqrap.modulos.flota.entity.*;
++import com.pucp.paqrap.modulos.flota.persistence.*;
++import com.pucp.paqrap.modulos.flota.repository.*;
++import com.pucp.paqrap.modulos.almacenes.persistence.*;
++import com.pucp.paqrap.modulos.almacenes.repository.*;
++import com.pucp.paqrap.modulos.almacenes.service.*;
++import com.pucp.paqrap.modulos.pedidos.entity.*;
++import com.pucp.paqrap.modulos.pedidos.persistence.*;
++import com.pucp.paqrap.modulos.pedidos.repository.*;
++import com.pucp.paqrap.modulos.pedidos.service.*;
++import com.pucp.paqrap.modulos.pedidos.dto.*;
++import com.pucp.paqrap.modulos.redvial.entity.*;
++import com.pucp.paqrap.modulos.redvial.persistence.*;
++import com.pucp.paqrap.modulos.redvial.repository.*;
++import com.pucp.paqrap.modulos.redvial.service.*;
++import com.pucp.paqrap.modulos.incidencias.repository.*;
++import com.pucp.paqrap.modulos.planificacion.service.*;
++import com.pucp.paqrap.modulos.planificacion.dto.*;
++import org.springframework.beans.factory.ObjectProvider;
++import org.springframework.transaction.PlatformTransactionManager;
++import org.springframework.data.domain.*;
++import jakarta.persistence.EntityManager;
++
++/** Regresión determinista de motor/estado/importadores con repositorios dobles.
++ * Las pruebas API separadas ejercitan además Spring, validación y H2. */
++class ConcurrenciaYAislamientoTest {
++ static final Instant T=Instant.parse("2026-11-29T05:00:00Z");
++ static void check(boolean condition,String message) { if(!condition)throw new AssertionError(message); }
++ static void reject(Runnable r) { try {r.run();}catch(IllegalArgumentException|com.pucp.paqrap.comun.error.ReglaNegocioException e){return;}throw new AssertionError("Debio rechazar"); }
++ static void field(Object obj,String name,Object val){try{Field f=obj.getClass().getDeclaredField(name);f.setAccessible(true);f.set(obj,val);}catch(Exception e){throw new RuntimeException(e);}}
++ @SuppressWarnings("unchecked") static <T>T proxy(Class<T> t, BiFunction<String,Object[],Object> fn){return (T)Proxy.newProxyInstance(t.getClassLoader(),new Class[]{t},(p,m,a)->{
++  if(m.getName().equals("toString"))return "Fake<"+t.getSimpleName()+">";
++  if(m.getName().equals("hashCode"))return System.identityHashCode(p);
++  if(m.getName().equals("equals"))return p==a[0];
++  Object v=fn.apply(m.getName(),a==null?new Object[0]:a);if(v!=null)return v;
++  if(m.getReturnType()==boolean.class)return false;if(m.getReturnType()==int.class)return 0;if(m.getReturnType()==long.class)return 0L;
++  if(m.getReturnType()==Optional.class)return Optional.empty();if(Collection.class.isAssignableFrom(m.getReturnType())||Iterable.class==m.getReturnType())return List.of();
++  return null;
++ });}
++ static class ManualClock extends Clock { Instant now=T;public Instant instant(){return now;}public ZoneId getZone(){return ZoneOffset.UTC;}public Clock withZone(ZoneId z){return this;} }
++ static class Env {
++  Map<String,OrderEntity> orders=new LinkedHashMap<>(); Map<String,VehicleEntity> vehicles=new LinkedHashMap<>();
++  Map<Long,ScenarioExecutionEntity> runs=new LinkedHashMap<>();Map<Long,ScenarioResultEntity> results=new LinkedHashMap<>();
++  List<OrderStatusHistoryEntity> histories=new ArrayList<>(); List<RoadBlockEntity> blocks=new ArrayList<>();
++  Map<Long,PlanResponse> plans = new HashMap<>();
++  List<PlanificadorPort.SolicitudCiclo> requests=new ArrayList<>();List<Long> finalized=new ArrayList<>();
++  ManualClock clock=new ManualClock(); WarehouseEntity central=new WarehouseEntity("CENTRAL",WarehouseKind.CENTRAL,27,14,null);
++  OrderRepository orderRepo=proxy(OrderRepository.class,this::orderCall);
++  VehicleRepository vehicleRepo=proxy(VehicleRepository.class,(m,a)->switch(m){case "findAll"->new ArrayList<>(vehicles.values());case "findById","getReferenceById"->Optional.ofNullable(vehicles.get(a[0]));case "save"->{var v=(VehicleEntity)a[0];vehicles.put(v.getVehicleId(),v);yield v;}default->null;});
++  WarehouseRepository warehouseRepo=proxy(WarehouseRepository.class,(m,a)->switch(m){case "findAll"->List.of(central);case "findById","findByIdForUpdate"->Optional.of(central);default->null;});
++  OrderStatusHistoryRepository historyRepo=proxy(OrderStatusHistoryRepository.class,(m,a)->switch(m){case "save"->{histories.add((OrderStatusHistoryEntity)a[0]);yield a[0];}case "saveAll"->{for(Object o:(Iterable<?>)a[0])histories.add((OrderStatusHistoryEntity)o);yield a[0];}case "findByOrderIdOrderByChangedAtAscStatusHistoryIdAsc"->histories.stream().filter(h->h.getOrderId().equals(a[0])).toList();default->null;});
++  ScenarioExecutionRepository runRepo=proxy(ScenarioExecutionRepository.class,(m,a)->switch(m){case "findById"->Optional.ofNullable(runs.get(a[0]));case "findByStatusIn"->runs.values().stream().filter(e->((Collection<?>)a[0]).contains(e.getStatus())).toList();case "save"->a[0];default->null;});
++  ScenarioResultRepository resultRepo=proxy(ScenarioResultRepository.class,(m,a)->switch(m){case "existsById"->results.containsKey(a[0]);case "save"->{var r=(ScenarioResultEntity)a[0];results.put(r.getExecution().getExecutionId(),r);yield r;}case "findById"->Optional.ofNullable(results.get(a[0]));default->null;});
++  VehicleTypeParametersRepository typeRepo=proxy(VehicleTypeParametersRepository.class,(m,a)->m.equals("findAll")?List.of(new VehicleTypeParametersEntity(VehicleType.CAR,24,new BigDecimal("20"),new BigDecimal("8"))):null);
++  BreakdownEventRepository breakdownRepo=proxy(BreakdownEventRepository.class,(m,a)->null);
++  RoadBlockRepository blockRepo=proxy(RoadBlockRepository.class,(m,a)->switch(m){case "saveAll"->{for(Object o:(Iterable<?>)a[0])blocks.add((RoadBlockEntity)o);yield a[0];}case "borrarQueEmpiezanEntre"->{int prev=blocks.size();blocks.removeIf(b->!b.getStartsAt().isBefore((Instant)a[0])&&b.getStartsAt().isBefore((Instant)a[1]));yield prev-blocks.size();}default->null;});
++  InventoryMovementRepository movementRepo=proxy(InventoryMovementRepository.class,(m,a)->m.equals("save")?a[0]:null);
++  EstadoOperativoEscenarios state=new EstadoOperativoEscenarios(orderRepo,vehicleRepo,warehouseRepo,historyRepo);
++  InventarioService inventory=new InventarioService(warehouseRepo,movementRepo);
++  EjecutorPlanService executor=new EjecutorPlanService(id->Optional.ofNullable(plans.get(id)),orderRepo,historyRepo,vehicleRepo,warehouseRepo,breakdownRepo,inventory);
++  DetectorColapso detector=new DetectorColapso(orderRepo,vehicleRepo,typeRepo,warehouseRepo);
++  EventosSimulacion events=new EventosSimulacion(inventory,blockRepo,breakdownRepo,orderRepo);
++  PlanificadorPort planner=new PlanificadorPort(){ public ResultadoCiclo planificar(SolicitudCiclo s){requests.add(s);return ResultadoCiclo.SIN_COLAPSO;}public Optional<ReplanificacionService.MetricasPlanificacion> metricas(long id){return Optional.of(new ReplanificacionService.MetricasPlanificacion(0,(int)Math.max(0,requests.stream().filter(s->s.ejecucionId()==id).count()-1)));}public void finalizar(long id){finalized.add(id);} };
++  ScenarioResultService resultService=new ScenarioResultService(resultRepo,runRepo,proxy(EntityManager.class,(m,a)->m.equals("getReference")?runs.get(a[1]):null));
++  MotorEscenarios motor=new MotorEscenarios(runRepo,proxy(PlatformTransactionManager.class,(m,a)->null),clock,
++    new EscenariosProperties(Duration.ZERO,160,1440,Duration.ofHours(1)),proxy(ObjectProvider.class,(m,a)->planner),events,executor,detector,orderRepo,resultService);
++  PedidoService pedidos=new PedidoService(orderRepo,historyRepo,event->{if(event instanceof PedidoRegistrado p)motor.alRegistrarPedido(p);},runRepo,motor);
++  BloqueoService bloqueos=new BloqueoService(blockRepo);
++  Env(){vehicles.put("TA01",new VehicleEntity("TA01",VehicleType.CAR,VehicleOperationalStatus.AVAILABLE));for(Object o:List.of(motor,executor,detector,events,pedidos))field(o,"estadoOperativo",state);}
++  void addRun(long id,ScenarioType type){var e=new ScenarioExecutionEntity(type,T);field(e,"executionId",id);runs.put(id,e);}
++  void addOrder(String id,Instant date,int hours){orders.put(id,new OrderEntity(id,"c1",new Location(27,14),2,date,DeliveryType.segunPlazo(hours),hours));}
++  void advance(long seconds){clock.now=clock.now.plusSeconds(seconds);motor.tick();}
++  Object orderCall(String m,Object[] a){
++   var sorted=orders.values().stream().sorted(Comparator.comparing(OrderEntity::getRegisteredAt).thenComparing(OrderEntity::getOrderId)).toList();
++   switch(m){
++    case "findAll":return sorted;case "count":return (long)orders.size();case "findById":return Optional.ofNullable(orders.get(a[0]));
++    case "save":{var o=(OrderEntity)a[0];orders.put(o.getOrderId(),o);return o;}
++    case "saveAll":for(Object obj:(Iterable<?>)a[0]){OrderEntity o=(OrderEntity)obj;orders.put(o.getOrderId(),o);}return a[0];
++    case "idsConPrefijo":return sorted.stream().map(OrderEntity::getOrderId).filter(id->id.startsWith(((String)a[0]).replace("%",""))).toList();
++    case "existsByOrderIdStartingWith":return sorted.stream().anyMatch(o->o.getOrderId().startsWith((String)a[0]));
++    case "catalogoDelPeriodo":return sorted.stream().filter(o->!o.getRegisteredAt().isBefore((Instant)a[0])&&(a[1]==null||o.getRegisteredAt().isBefore((Instant)a[1]))).toList();
++    case "catalogoRegistradoEntre":return sorted.stream().filter(o->o.getRegisteredAt().isAfter((Instant)a[0])&&!o.getRegisteredAt().isAfter((Instant)a[1])).toList();
++    case "idsRegistradosEn":return sorted.stream().filter(o->!o.getOrderId().startsWith("SIM-")&&o.getRegisteredAt().equals(a[0])).map(OrderEntity::getOrderId).toList();
++    case "idsRegistradosEntre":return sorted.stream().filter(o->!o.getOrderId().startsWith("SIM-")&&o.getRegisteredAt().isAfter((Instant)a[0])&&!o.getRegisteredAt().isAfter((Instant)a[1])).map(OrderEntity::getOrderId).toList();
++    case "reiniciarDesde":return 0;
++    case "registradosEnDesde":return sorted.stream().filter(o->!o.getOrderId().startsWith("SIM-")&&!o.getRegisteredAt().isBefore((Instant)a[0])&&!o.getRegisteredAt().isAfter((Instant)a[1])&&o.getDeadline().isAfter((Instant)a[1])&&o.getStatus()==OrderStatus.REGISTERED).skip(((Pageable)a[2]).getOffset()).limit(((Pageable)a[2]).getPageSize()).toList();
++    case "incumplidosDesde":return sorted.stream().filter(o->!o.getOrderId().startsWith("SIM-")&&!o.getRegisteredAt().isBefore((Instant)a[0])&&!o.getDeadline().isAfter((Instant)a[1])&&(o.getStatus()!=OrderStatus.DELIVERED||o.getDeliveredAt().isAfter(o.getDeadline()))).sorted(Comparator.comparing(OrderEntity::getDeadline)).limit(((Pageable)a[2]).getPageSize()).toList();
++    case "countByRegisteredAtGreaterThanEqualAndRegisteredAtLessThanEqual":return sorted.stream().filter(o->!o.getOrderId().startsWith("SIM-")&&!o.getRegisteredAt().isBefore((Instant)a[0])&&!o.getRegisteredAt().isAfter((Instant)a[1])).count();
++    case "contarPendientesEnDesde":return sorted.stream().filter(o->!o.getOrderId().startsWith("SIM-")&&!o.getRegisteredAt().isBefore((Instant)a[0])&&!o.getRegisteredAt().isAfter((Instant)a[1])&&o.getDeadline().isAfter((Instant)a[1])&&o.getStatus()!=OrderStatus.DELIVERED).count();
++    case "contarVencidosSinEntregar":return sorted.stream().filter(o->!o.getOrderId().startsWith("SIM-")&&!o.getRegisteredAt().isBefore((Instant)a[0])&&!o.getDeadline().isAfter((Instant)a[1])&&o.getStatus()!=OrderStatus.DELIVERED).count();
++   }return null;
++  }
++ }
++ // DIA y 5D simultaneos; relojes independientes
++ @Test
++ void regresion01() {
++  Env e=new Env();e.addRun(1,ScenarioType.DAY_TO_DAY);e.addRun(2,ScenarioType.FIVE_DAY);e.motor.iniciar(1);e.motor.iniciar(2);e.advance(5);check(e.motor.instanteSimulado(1).orElseThrow().equals(T.plusSeconds(5)),"reloj real");check(e.motor.instanteSimulado(2).orElseThrow().equals(T.plusSeconds(800)),"reloj sim");
++ }
++
++ // Orden inverso; restricciones por grupo incluido pausado
++ @Test
++ void regresion02() {
++  Env e=new Env();e.addRun(1,ScenarioType.FIVE_DAY);e.addRun(2,ScenarioType.DAY_TO_DAY);e.addRun(3,ScenarioType.COLLAPSE);e.addRun(4,ScenarioType.DAY_TO_DAY);e.motor.iniciar(1);e.motor.iniciar(2);e.motor.pausar(1);reject(()->e.motor.iniciar(3));reject(()->e.motor.iniciar(4));
++ }
++
++ // Pausar/detener simulacion no pausa/detiene Dia a Dia
++ @Test
++ void regresion03() {
++  Env e=new Env();e.addRun(1,ScenarioType.DAY_TO_DAY);e.addRun(2,ScenarioType.FIVE_DAY);e.motor.iniciar(1);e.motor.iniciar(2);e.motor.pausar(2);e.advance(10);check(e.motor.instanteSimulado(2).orElseThrow().equals(T),"pausa");e.motor.detener(2);check(e.runs.get(1L).getStatus()==ScenarioStatus.RUNNING,"real vivo");check(e.results.containsKey(2L),"resultado");
++ }
++
++ // Pedidos/entregas/historial/vehiculos no se contaminan
++ @Test
++ void regresion04() {
++  Env e=new Env();e.addOrder("P1",T,4);e.vehicles.get("TA01").moverA(40,20,3);e.state.iniciar(2,ScenarioType.FIVE_DAY,T);e.state.pedido(2,"P1").orElseThrow().entregar(T.plusSeconds(60));e.state.vehiculo(2,"TA01").orElseThrow().moverA(60,30,7);e.state.guardarHistorial(2,e.state.pedido(2,"P1").orElseThrow(),OrderStatus.DELIVERED,T.plusSeconds(60),"TA01");check(e.orders.get("P1").getStatus()==OrderStatus.REGISTERED,"pedido real");check(e.vehicles.get("TA01").getCurrentX()==40,"pos real");check(e.histories.isEmpty(),"hist real");check(e.state.historial(2,"P1").size()==2,"hist virtual");
++ }
++
++ // Arranque de 5D no reinicia estado de Dia a Dia
++ @Test
++ void regresion05() {
++  Env e=new Env();e.addOrder("P1",T,4);e.addRun(1,ScenarioType.DAY_TO_DAY);e.motor.iniciar(1);e.orders.get("P1").entregar(T.plusSeconds(1));e.vehicles.get("TA01").moverA(35,18,5);e.addRun(2,ScenarioType.FIVE_DAY);e.motor.iniciar(2);check(e.orders.get("P1").getStatus()==OrderStatus.DELIVERED,"entrega real no borrada");check(e.vehicles.get("TA01").getCurrentX()==35,"pos real no borrada");check(e.state.pedido(2,"P1").orElseThrow().getStatus()==OrderStatus.REGISTERED,"input sim independiente");
++ }
++
++ // 5D colapsa y persiste resultado; Dia a Dia sigue
++ @Test
++ void regresion06() {
++  Env e=new Env();e.addOrder("P1",T,4);e.addRun(1,ScenarioType.DAY_TO_DAY);e.addRun(2,ScenarioType.FIVE_DAY);e.motor.iniciar(1);e.motor.iniciar(2);e.advance(120);check(e.runs.get(2L).getStatus()==ScenarioStatus.COLLAPSED,"5D collapsed");check(e.results.containsKey(2L),"resultado sim");check(e.runs.get(1L).getStatus()==ScenarioStatus.RUNNING,"real sigue");check(e.finalized.equals(List.of(2L)),"solo finaliza sim");
++ }
++
++ // Dia a Dia alerta por colapso pero sigue ejecutandose
++ @Test
++ void regresion07() {
++  Env e=new Env();e.addOrder("P1",T,4);e.addRun(1,ScenarioType.DAY_TO_DAY);e.motor.iniciar(1);e.advance(4*3600+1);check(e.detector.colapso(1).isPresent(),"alerta");check(e.runs.get(1L).getStatus()==ScenarioStatus.RUNNING,"real running");
++ }
++
++ // No adelanta pedidos futuros al planificador
++ @Test
++ void regresion08() {
++  Env e=new Env();e.addOrder("P1",T.plusSeconds(3600),4);e.state.iniciar(2,ScenarioType.FIVE_DAY,T);check(e.state.registrados(2,T,T,PageRequest.of(0,100)).isEmpty(),"sin conocimiento futuro");check(e.state.registrados(2,T,T.plusSeconds(3600),PageRequest.of(0,100)).size()==1,"a su hora");
++ }
++
++ // Carga doble cruzando anio + deduplicacion
++ @Test
++ void regresion09() {
++  Env e=new Env();var files=List.of(new PedidoService.ArchivoMensual("ventas.202612.txt","31d23h30m:27,14,c1,2,36\n"),new PedidoService.ArchivoMensual("ventas.202701.txt","01d00h15m:28,14,c2,3,04\n"));check(e.pedidos.cargarMultiples(files).registrados()==2,"dos guardados");check(e.orders.get("202612-00001").getRegisteredAt().equals(Instant.parse("2027-01-01T04:30:00Z")),"lima");check(e.pedidos.cargarMultiples(files).omitidos()==2,"sin duplicacion");
++ }
++
++ // Segundo archivo invalido no guarda el primero
++ @Test
++ void regresion10() {
++  Env e=new Env();reject(()->e.pedidos.cargarMultiples(List.of(new PedidoService.ArchivoMensual("ventas.202611.txt","01d00h00m:27,14,c1,2,36\n"),new PedidoService.ArchivoMensual("ventas.202612.txt","mal\n"))));check(e.orders.isEmpty(),"atomicidad prevalidacion");
++ }
++
++ // Rechazo mes repetido o mas de dos archivos
++ @Test
++ void regresion11() {
++  Env e=new Env();var f=new PedidoService.ArchivoMensual("ventas.202611.txt","01d00h00m:27,14,c1,2,36\n");reject(()->e.pedidos.cargarMultiples(List.of(f,f)));reject(()->e.pedidos.cargarMultiples(List.of(f,f,f)));
++ }
++
++ // Carga del mes siguiente entra al escenario correcto
++ @Test
++ void regresion12() {
++  Env e=new Env();e.state.iniciar(2,ScenarioType.FIVE_DAY,T);e.pedidos.cargarMultiples(List.of(new PedidoService.ArchivoMensual("ventas.202611.txt","30d23h30m:27,14,c1,2,36\n"),new PedidoService.ArchivoMensual("ventas.202612.txt","01d00h15m:28,14,c2,3,04\n")));check(e.state.catalogo(2).size()==2,"incluye dos meses");check(e.state.idsEntre(2,T,Instant.parse("2026-12-01T05:30:00Z")).size()==2,"eventos dos meses");
++ }
++
++ // Vista cerrada no recibe nuevas importaciones
++ @Test
++ void regresion13() {
++  Env e=new Env();e.state.iniciar(2,ScenarioType.FIVE_DAY,T);e.state.finalizar(2);e.addOrder("P1",T.plusSeconds(60),4);e.state.incorporarAlConfirmar(null,List.of(e.orders.get("P1")));check(e.state.catalogo(2).isEmpty(),"cerrada");
++ }
++
++ // Pedidos manuales sim no aparecen en otra simulacion
++ @Test
++ void regresion14() {
++  Env e=new Env();e.addOrder("SIM-2-x",T,4);e.state.iniciar(2,ScenarioType.FIVE_DAY,T);e.state.iniciar(3,ScenarioType.FIVE_DAY,T);check(e.state.catalogo(2).size()==1,"own");check(e.state.catalogo(3).isEmpty(),"not other");
++ }
++
++ // Dos archivos de bloqueos no borran el primer mes
++ @Test
++ void regresion15() {
++  Env e=new Env();var r=e.bloqueos.cargarMultiples(List.of(new BloqueoService.ArchivoMensual("bloqueo.2611.txt","30d01h00m-30d02h00m:10,10,12,10\n"),new BloqueoService.ArchivoMensual("bloqueo.2612.txt","01d01h00m-01d02h00m:20,10,22,10\n")));check(r.registrados()==2&&e.blocks.size()==2,"2 meses bloqueos");
++ }
++
++ /** La entrega virtual ejecutada realmente no cambia pedidos ni carga de la operación real. */
++ @Test
++ void ejecucionDeEntregaSoloModificaLaSimulacion() {
++  Env e = new Env();
++  e.addOrder("P1", T, 4);
++  e.state.iniciar(2, ScenarioType.FIVE_DAY, T);
++  e.executor.prepararInicio(2, T);
++  RutaResponse ruta = new RutaResponse("R1", "TA01", "CAR", T, T.plusSeconds(120), 3.0, 24.0,
++    List.of(new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 2,
++      T.plusSeconds(60), T.plusSeconds(120), 2, 0)));
++  e.plans.put(2L, new PlanResponse(ModoOperacion.SIMULACION_5D, T, true, false, 24, 3,
++    1, 1, 1500, false, List.of(ruta), List.of(), List.of()));
++  e.executor.avanzar(2, T, T.plusSeconds(90));
++  check(e.state.pedido(2, "P1").orElseThrow().getStatus() == OrderStatus.DELIVERED, "entrega virtual");
++  check(e.orders.get("P1").getStatus() == OrderStatus.REGISTERED, "pedido real intacto");
++  check(e.vehicles.get("TA01").getCurrentX() == 27, "posición real intacta");
++  check(e.executor.metricas(2).orElseThrow().pedidosEntregados() == 1, "métrica virtual");
++ }
++
++ @Test
++ void registroManualPrefiereDiaADiaYPermiteElegirSimulacion() {
++  Env e = new Env();
++  e.addRun(1, ScenarioType.DAY_TO_DAY);
++  e.addRun(2, ScenarioType.FIVE_DAY);
++  e.motor.iniciar(1);
++  e.motor.iniciar(2);
++  var request = new RegistrarPedidoRequest("c1", 27, 14, 2, DeliveryType.PRIORITY, 4, null);
++  var real = e.pedidos.registrar(request);
++  var virtual = e.pedidos.registrar(request, 2L);
++  check(real.id().startsWith("M-"), "por defecto usa Día a Día");
++  check(virtual.id().startsWith("SIM-2-"), "id de simulación");
++  check(e.state.pedido(2, real.id()).isEmpty(), "pedido manual real no invade la simulación");
++  check(e.state.pedido(2, virtual.id()).isPresent(), "pedido manual virtual disponible");
++  e.state.idsEntre(2, T.minusSeconds(1), T.plusSeconds(1));
++  check(e.state.pedido(2, real.id()).isEmpty(), "ni por actualización del catálogo");
++ }
++
++ @Test
++ void archivoBloqueosInvalidoNoReemplazaMesAnterior() {
++  Env e = new Env();
++  var noviembre = new BloqueoService.ArchivoMensual("bloqueo.2611.txt", "30d01h00m-30d02h00m:10,10,12,10\n");
++  e.bloqueos.cargarMultiples(List.of(noviembre));
++  reject(() -> e.bloqueos.cargarMultiples(List.of(noviembre,
++    new BloqueoService.ArchivoMensual("bloqueo.2612.txt", "linea invalida\n"))));
++  check(e.blocks.size() == 1, "prevalidación no borra bloqueos ya cargados");
++ }
++}
+--- a/src/test/java/com/pucp/paqrap/modulos/monitoreo/controller/EventosYMonitoreoApiTest.java
++++ b/src/test/java/com/pucp/paqrap/modulos/monitoreo/controller/EventosYMonitoreoApiTest.java
+@@ -273,9 +273,9 @@
+         assertEquals(List.of("TA01"), planificador.solicitudes.get(1).averias().stream().map(a -> a.vehicleId()).toList());
+     }
+ 
+-    /** En 5D el colapso solo se informa: la ejecución sigue y el monitoreo muestra el momento y la causa. */
+-    @Test
+-    void enCincoDiasElColapsoSeInformaEnElMonitoreoSinTerminarLaEjecucion() throws Exception {
++    /** En 5D el colapso termina la ejecución y el monitoreo conserva el momento y la causa. */
++    @Test
++    void enCincoDiasElColapsoTerminaLaEjecucionYConservaElDiagnostico() throws Exception {
+         pedidoRepository.save(new OrderEntity("P1", "c1", new Location(30, 14), 2, INICIO, DeliveryType.PRIORITY, 4));
+         long id = iniciarCincoDias();
+         mvc.perform(get("/api/monitoreo/" + id)).andExpect(jsonPath("$.colapso").doesNotExist());
+@@ -285,7 +285,7 @@
+         motor.tick();
+ 
+         mvc.perform(get("/api/monitoreo/" + id))
+-                .andExpect(jsonPath("$.escenario.estado").value("RUNNING"))
++                .andExpect(jsonPath("$.escenario.estado").value("COLLAPSED"))
+                 .andExpect(jsonPath("$.colapso.causa").value("PLAZO_VENCIDO"))
+                 .andExpect(jsonPath("$.colapso.instante").value("2026-01-01T09:00:00Z"))
+                 .andExpect(jsonPath("$.colapso.pedidoId").value("P1"))
+--- a/src/test/java/com/pucp/paqrap/modulos/pedidos/controller/PedidoApiTest.java
++++ b/src/test/java/com/pucp/paqrap/modulos/pedidos/controller/PedidoApiTest.java
+@@ -207,4 +207,58 @@
+         mvc.perform(get("/api/pedidos/202601-99999"))
+                 .andExpect(status().isNotFound());
+     }
++
++    private MockMultipartFile mensual(String nombre, String contenido) {
++        return new MockMultipartFile("archivos", nombre, "text/plain", contenido.getBytes(StandardCharsets.UTF_8));
++    }
++
++    @Test
++    void cargaDosMesesEnUnaSolicitudInclusoAlCambiarDeAnio() throws Exception {
++        mvc.perform(multipart("/api/pedidos/carga-multiple")
++                .file(mensual("ventas.202612.txt", "31d23h30m:27,14,c1,2,36\n"))
++                .file(mensual("ventas.202701.txt", "01d00h15m:28,14,c2,3,04\n")))
++                .andExpect(status().isCreated())
++                .andExpect(jsonPath("$.archivos", hasSize(2)))
++                .andExpect(jsonPath("$.registrados").value(2));
++        assertEquals(Instant.parse("2027-01-01T04:30:00Z"),
++                pedidoRepository.findById("202612-00001").orElseThrow().getRegisteredAt());
++        assertEquals(Instant.parse("2027-01-01T05:15:00Z"),
++                pedidoRepository.findById("202701-00001").orElseThrow().getRegisteredAt());
++    }
++
++    @Test
++    void siElSegundoMesEsInvalidoNoGuardaElPrimero() throws Exception {
++        mvc.perform(multipart("/api/pedidos/carga-multiple")
++                .file(mensual("ventas.202611.txt", VENTAS))
++                .file(mensual("ventas.202612.txt", "linea incorrecta\n")))
++                .andExpect(status().isBadRequest());
++        assertEquals(0, pedidoRepository.count());
++    }
++
++    @Test
++    void rechazaDosArchivosDelMismoMesYTresArchivos() throws Exception {
++        mvc.perform(multipart("/api/pedidos/carga-multiple")
++                .file(mensual("ventas.202611.txt", VENTAS))
++                .file(mensual("ventas.202611.txt", VENTAS)))
++                .andExpect(status().isBadRequest());
++        mvc.perform(multipart("/api/pedidos/carga-multiple")
++                .file(mensual("ventas.202610.txt", VENTAS))
++                .file(mensual("ventas.202611.txt", VENTAS))
++                .file(mensual("ventas.202612.txt", VENTAS)))
++                .andExpect(status().isBadRequest());
++        assertEquals(0, pedidoRepository.count());
++    }
++
++    @Test
++    void repetirLaCargaDobleNoDuplicaPedidos() throws Exception {
++        for (int intento = 0; intento < 2; intento++) {
++            mvc.perform(multipart("/api/pedidos/carga-multiple")
++                    .file(mensual("ventas.202611.txt", VENTAS))
++                    .file(mensual("ventas.202612.txt", VENTAS)))
++                    .andExpect(status().isCreated())
++                    .andExpect(jsonPath("$.registrados").value(intento == 0 ? 6 : 0))
++                    .andExpect(jsonPath("$.omitidos").value(intento == 0 ? 0 : 6));
++        }
++        assertEquals(6, pedidoRepository.count());
++    }
+ }
+--- a/src/test/java/com/pucp/paqrap/modulos/redvial/controller/BloqueoApiTest.java
++++ b/src/test/java/com/pucp/paqrap/modulos/redvial/controller/BloqueoApiTest.java
+@@ -108,4 +108,30 @@
+         mvc.perform(get("/api/red-vial/bloqueos/999999"))
+                 .andExpect(status().isNotFound());
+     }
++
++    @Test
++    void cargaDosMesesDeBloqueosSinBorrarElPrimero() throws Exception {
++        mvc.perform(multipart("/api/red-vial/bloqueos/carga-multiple")
++                .file(new MockMultipartFile("archivos", "bloqueo.2611.txt", "text/plain",
++                        CONTENIDO.getBytes(StandardCharsets.UTF_8)))
++                .file(new MockMultipartFile("archivos", "bloqueo.2612.txt", "text/plain",
++                        CONTENIDO.getBytes(StandardCharsets.UTF_8))))
++                .andExpect(status().isCreated())
++                .andExpect(jsonPath("$.archivos", hasSize(2)))
++                .andExpect(jsonPath("$.registrados").value(4));
++        mvc.perform(get("/api/red-vial/bloqueos")).andExpect(jsonPath("$", hasSize(4)));
++    }
++
++    @Test
++    void noReemplazaBloqueosSiElSegundoArchivoDelLoteEsInvalido() throws Exception {
++        mvc.perform(multipart("/api/red-vial/bloqueos/carga")
++                .file(archivo("bloqueo.2611.txt", CONTENIDO))).andExpect(status().isCreated());
++        mvc.perform(multipart("/api/red-vial/bloqueos/carga-multiple")
++                .file(new MockMultipartFile("archivos", "bloqueo.2611.txt", "text/plain",
++                        "01d01h00m-01d02h00m:10,10,12,10\n".getBytes(StandardCharsets.UTF_8)))
++                .file(new MockMultipartFile("archivos", "bloqueo.2612.txt", "text/plain",
++                        "linea invalida\n".getBytes(StandardCharsets.UTF_8))))
++                .andExpect(status().isBadRequest());
++        mvc.perform(get("/api/red-vial/bloqueos")).andExpect(jsonPath("$", hasSize(2)));
++    }
+ }

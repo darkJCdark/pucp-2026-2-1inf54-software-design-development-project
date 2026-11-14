@@ -268,7 +268,7 @@ class EscenarioApiTest {
     }
 
     @Test
-    void soloPuedeHaberUnEscenarioActivo() throws Exception {
+    void soloPuedeHaberUnaSimulacionActiva() throws Exception {
         long primero = crearCincoDias();
         long segundo = crearCincoDias();
         accion(primero, "iniciar");
@@ -358,4 +358,65 @@ class EscenarioApiTest {
         crear("{\"tipo\": \"FIVE_DAY\", \"inicioSimulado\": \"" + INICIO + "\","
                 + "\"configuracionSa\":{\"iteracionesPorTemperatura\":0}}")
                 .andExpect(status().isBadRequest());
-    }}
+    }
+
+    private long crearDiaADia() throws Exception {
+        String json = crear("{\"tipo\":\"DAY_TO_DAY\"}")
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        return ((Number) JsonPath.read(json, "$.id")).longValue();
+    }
+
+    @Test
+    void diaADiaYSimulacionPuedenAvanzarYPausarseIndependientemente() throws Exception {
+        long real = crearDiaADia();
+        long simulada = crearCincoDias();
+        accion(real, "iniciar").andExpect(status().isOk());
+        accion(simulada, "iniciar").andExpect(status().isOk());
+        Instant antesReal = motor.instanteSimulado(real).orElseThrow();
+        Instant antesSim = motor.instanteSimulado(simulada).orElseThrow();
+        reloj.avanzar(Duration.ofSeconds(5));
+        motor.tick();
+        assertEquals(antesReal.plusSeconds(5), motor.instanteSimulado(real).orElseThrow());
+        assertEquals(antesSim.plusSeconds(800), motor.instanteSimulado(simulada).orElseThrow());
+        accion(simulada, "pausar").andExpect(status().isOk());
+        Instant pausada = motor.instanteSimulado(simulada).orElseThrow();
+        reloj.avanzar(Duration.ofSeconds(5));
+        motor.tick();
+        assertEquals(pausada, motor.instanteSimulado(simulada).orElseThrow());
+        assertEquals(antesReal.plusSeconds(10), motor.instanteSimulado(real).orElseThrow());
+        accion(simulada, "detener").andExpect(status().isOk());
+        mvc.perform(get("/api/escenarios/" + real)).andExpect(jsonPath("$.estado").value("RUNNING"));
+    }
+
+    @Test
+    void tambienPermiteIniciarDiaADiaConUnaSimulacionYaActiva() throws Exception {
+        long simulada = crearCincoDias();
+        accion(simulada, "iniciar").andExpect(status().isOk());
+        long real = crearDiaADia();
+        accion(real, "iniciar").andExpect(status().isOk());
+        assertEquals(2, motor.ejecucionesActivas().size());
+        long otroReal = crearDiaADia();
+        accion(otroReal, "iniciar").andExpect(status().isConflict());
+        accion(simulada, "pausar").andExpect(status().isOk());
+        long otraSim = crearCincoDias();
+        accion(otraSim, "iniciar").andExpect(status().isConflict());
+    }
+
+    @Test
+    void colapsoDeCincoDiasNoDetieneDiaADiaNiContaminaSusPedidos() throws Exception {
+        pedidoRepository.save(new OrderEntity("P-COLAPSO", "c1", new Location(30, 14), 2,
+                Instant.parse(INICIO), DeliveryType.PRIORITY, 4));
+        long real = crearDiaADia();
+        long simulada = crearCincoDias();
+        accion(real, "iniciar").andExpect(status().isOk());
+        accion(simulada, "iniciar").andExpect(status().isOk());
+        reloj.avanzar(Duration.ofMinutes(2));
+        motor.tick();
+        mvc.perform(get("/api/escenarios/" + simulada))
+                .andExpect(jsonPath("$.estado").value("COLLAPSED"))
+                .andExpect(jsonPath("$.colapsoEn").value("2026-01-01T09:00:00Z"));
+        mvc.perform(get("/api/escenarios/" + real))
+                .andExpect(jsonPath("$.estado").value("RUNNING"));
+        assertEquals(true, resultadoRepository.existsById(simulada));
+    }
+}

@@ -65,6 +65,9 @@ public class DetectorColapso {
                           long vehiculosHabilitados) {
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.pucp.paqrap.modulos.escenarios.service.EstadoOperativoEscenarios estadoOperativo;
+
     private final OrderRepository pedidoRepository;
     private final VehicleRepository vehiculoRepository;
     private final VehicleTypeParametersRepository tipoRepository;
@@ -89,11 +92,12 @@ public class DetectorColapso {
         if (previo != null) {
             return Optional.of(previo);
         }
-        List<VehicleEntity> habilitados = vehiculoRepository.findAll().stream()
+        List<VehicleEntity> habilitados = (estadoOperativo != null
+                ? estadoOperativo.vehiculos(ejecucionId) : vehiculoRepository.findAll()).stream()
                 .filter(vehiculo -> vehiculo.getOperationalStatus() != VehicleOperationalStatus.UNAVAILABLE)
                 .toList();
-        Optional<Colapso> colapso = plazoVencido(inicio, instante, habilitados.size())
-                .or(() -> plazoInalcanzable(inicio, instante, habilitados));
+        Optional<Colapso> colapso = plazoVencido(ejecucionId, inicio, instante, habilitados.size())
+                .or(() -> plazoInalcanzable(ejecucionId, inicio, instante, habilitados));
         colapso.ifPresent(c -> {
             colapsos.put(ejecucionId, c);
             log.warn("Ejecución {}: colapso logístico en {} ({}, pedido {} con plazo {})", ejecucionId, c.instante(),
@@ -111,13 +115,15 @@ public class DetectorColapso {
         colapsos.remove(ejecucionId);
     }
 
-    private Optional<Colapso> plazoVencido(Instant inicio, Instant instante, long habilitados) {
-        return pedidoRepository.incumplidosDesde(inicio, instante, PageRequest.of(0, 1)).stream().findFirst()
-                .map(pedido -> colapso(pedido.getDeadline(), Causa.PLAZO_VENCIDO, pedido, null, inicio, instante,
+    private Optional<Colapso> plazoVencido(long ejecucionId, Instant inicio, Instant instante, long habilitados) {
+        return (estadoOperativo != null
+                ? estadoOperativo.incumplidos(ejecucionId, inicio, instante, PageRequest.of(0, 1))
+                : pedidoRepository.incumplidosDesde(inicio, instante, PageRequest.of(0, 1))).stream().findFirst()
+                .map(pedido -> colapso(ejecucionId, pedido.getDeadline(), Causa.PLAZO_VENCIDO, pedido, null, inicio, instante,
                         habilitados));
     }
 
-    private Optional<Colapso> plazoInalcanzable(Instant inicio, Instant instante, List<VehicleEntity> habilitados) {
+    private Optional<Colapso> plazoInalcanzable(long ejecucionId, Instant inicio, Instant instante, List<VehicleEntity> habilitados) {
         Optional<WarehouseEntity> central = almacenRepository.findAll().stream()
                 .filter(almacen -> almacen.getWarehouseKind() == WarehouseKind.CENTRAL)
                 .findFirst();
@@ -132,15 +138,16 @@ public class DetectorColapso {
             return Optional.empty();
         }
         for (int pagina = 0; ; pagina++) {
-            List<OrderEntity> pendientes = pedidoRepository.registradosEnDesde(inicio, instante,
-                    PageRequest.of(pagina, TAMANO_PAGINA));
+            List<OrderEntity> pendientes = estadoOperativo != null
+                    ? estadoOperativo.registrados(ejecucionId, inicio, instante, PageRequest.of(pagina, TAMANO_PAGINA))
+                    : pedidoRepository.registradosEnDesde(inicio, instante, PageRequest.of(pagina, TAMANO_PAGINA));
             for (OrderEntity pedido : pendientes) {
                 double km = Math.abs(pedido.getDestinationX() - central.get().getX())
                         + Math.abs(pedido.getDestinationY() - central.get().getY());
                 Instant llegadaMinima = instante.plus(
                         Duration.ofMillis(Math.round(km / velocidad.getAsDouble() * 3_600_000)));
                 if (llegadaMinima.isAfter(pedido.getDeadline())) {
-                    return Optional.of(colapso(instante, Causa.PLAZO_INALCANZABLE, pedido, llegadaMinima, inicio,
+                    return Optional.of(colapso(ejecucionId, instante, Causa.PLAZO_INALCANZABLE, pedido, llegadaMinima, inicio,
                             instante, habilitados.size()));
                 }
             }
@@ -150,8 +157,13 @@ public class DetectorColapso {
         }
     }
 
-    private Colapso colapso(Instant momento, Causa causa, OrderEntity pedido, Instant llegadaMinima, Instant inicio,
+    private Colapso colapso(long ejecucionId, Instant momento, Causa causa, OrderEntity pedido, Instant llegadaMinima, Instant inicio,
                             Instant instante, long habilitados) {
+        if (estadoOperativo != null) {
+            EstadoOperativoEscenarios.Resumen resumen = estadoOperativo.resumen(ejecucionId, inicio, instante);
+            return new Colapso(momento, causa, pedido.getOrderId(), pedido.getDeadline(), llegadaMinima, instante,
+                    resumen.pendientes(), resumen.vencidosSinEntregar(), habilitados);
+        }
         return new Colapso(momento, causa, pedido.getOrderId(), pedido.getDeadline(), llegadaMinima, instante,
                 pedidoRepository.contarPendientesEnDesde(inicio, instante),
                 pedidoRepository.contarVencidosSinEntregar(inicio, instante), habilitados);

@@ -15,21 +15,35 @@ import java.util.List;
 
 public interface OrderRepository extends JpaRepository<OrderEntity, String> {
 
+    /** Datos de entrada (sin filtrar por estado real) para una copia de simulación. */
+    @Query("""
+            select o from OrderEntity o
+            where o.registeredAt >= :inicio and (:fin is null or o.registeredAt < :fin)
+            order by o.registeredAt, o.orderId
+            """)
+    List<OrderEntity> catalogoDelPeriodo(@Param("inicio") Instant inicio, @Param("fin") Instant fin);
+
+    @Query("""
+            select o from OrderEntity o where o.registeredAt > :desde and o.registeredAt <= :hasta
+            order by o.registeredAt, o.orderId
+            """)
+    List<OrderEntity> catalogoRegistradoEntre(@Param("desde") Instant desde, @Param("hasta") Instant hasta);
+
     /** IDs de los pedidos registrados exactamente en un instante simulado. */
-    @Query("select o.orderId from OrderEntity o where o.registeredAt = :instante order by o.orderId")
+    @Query("select o.orderId from OrderEntity o where o.orderId not like 'SIM-%' and o.registeredAt = :instante order by o.orderId")
     List<String> idsRegistradosEn(@Param("instante") Instant instante);
 
     /** IDs de los pedidos registrados en el intervalo simulado abierto a la izquierda y cerrado a la derecha. */
     @Query("""
             select o.orderId from OrderEntity o
-            where o.registeredAt > :desde and o.registeredAt <= :hasta
+            where o.orderId not like 'SIM-%' and o.registeredAt > :desde and o.registeredAt <= :hasta
             order by o.registeredAt, o.orderId
             """)
     List<String> idsRegistradosEntre(@Param("desde") Instant desde, @Param("hasta") Instant hasta);
 
     @Query("""
             select o from OrderEntity o
-            where (:clienteId is null or o.clientId = :clienteId)
+            where o.orderId not like 'SIM-%' and (:clienteId is null or o.clientId = :clienteId)
               and (:estado is null or o.status = :estado)
               and (:tipoEntrega is null or o.deliveryType = :tipoEntrega)
               and (:registradoDesde is null or o.registeredAt >= :registradoDesde)
@@ -47,7 +61,7 @@ public interface OrderRepository extends JpaRepository<OrderEntity, String> {
     /** Pedidos por planificar en {@code instante}: ya registrados, sin entregar y aún en plazo; los más urgentes primero. */
     @Query("""
             select o from OrderEntity o
-            where o.registeredAt <= :instante
+            where o.orderId not like 'SIM-%' and o.registeredAt <= :instante
               and o.deadline > :instante
               and o.status <> com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.DELIVERED
             order by o.deadline, o.orderId
@@ -57,7 +71,7 @@ public interface OrderRepository extends JpaRepository<OrderEntity, String> {
     /** Como {@link #pendientesEn}, pero solo con los pedidos que llegaron desde el inicio del escenario. */
     @Query("""
             select o from OrderEntity o
-            where o.registeredAt >= :desde
+            where o.orderId not like 'SIM-%' and o.registeredAt >= :desde
               and o.registeredAt <= :instante
               and o.deadline > :instante
               and o.status <> com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.DELIVERED
@@ -72,7 +86,7 @@ public interface OrderRepository extends JpaRepository<OrderEntity, String> {
      */
     @Query("""
             select o from OrderEntity o
-            where o.registeredAt >= :desde
+            where o.orderId not like 'SIM-%' and o.registeredAt >= :desde
               and o.registeredAt <= :instante
               and o.deadline > :instante
               and o.status = com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.REGISTERED
@@ -86,13 +100,13 @@ public interface OrderRepository extends JpaRepository<OrderEntity, String> {
     @Query("""
             update OrderEntity o
             set o.status = com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.REGISTERED, o.deliveredAt = null
-            where o.registeredAt >= :desde
+            where o.orderId not like 'SIM-%' and o.registeredAt >= :desde
             """)
     int reiniciarDesde(@Param("desde") Instant desde);
 
     @Query("""
             select count(o) from OrderEntity o
-            where o.registeredAt >= :desde
+            where o.orderId not like 'SIM-%' and o.registeredAt >= :desde
               and o.registeredAt <= :instante
               and o.deadline > :instante
               and o.status <> com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.DELIVERED
@@ -100,12 +114,13 @@ public interface OrderRepository extends JpaRepository<OrderEntity, String> {
     long contarPendientesEnDesde(@Param("desde") Instant desde, @Param("instante") Instant instante);
 
     /** Pedidos registrados en [desde, hasta]. */
-    long countByRegisteredAtGreaterThanEqualAndRegisteredAtLessThanEqual(Instant desde, Instant hasta);
+    @Query("select count(o) from OrderEntity o where o.orderId not like 'SIM-%' and o.registeredAt >= :desde and o.registeredAt <= :hasta")
+    long countByRegisteredAtGreaterThanEqualAndRegisteredAtLessThanEqual(@Param("desde") Instant desde, @Param("hasta") Instant hasta);
 
     /** Pedidos registrados desde {@code desde} cuyo plazo ya venció en {@code instante} sin ser entregados. */
     @Query("""
             select count(o) from OrderEntity o
-            where o.registeredAt >= :desde
+            where o.orderId not like 'SIM-%' and o.registeredAt >= :desde
               and o.deadline <= :instante
               and o.status <> com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.DELIVERED
             """)
@@ -117,7 +132,7 @@ public interface OrderRepository extends JpaRepository<OrderEntity, String> {
      */
     @Query("""
             select o from OrderEntity o
-            where o.registeredAt >= :desde
+            where o.orderId not like 'SIM-%' and o.registeredAt >= :desde
               and o.deadline <= :instante
               and (o.status <> com.pucp.paqrap.modulos.pedidos.entity.OrderStatus.DELIVERED
                    or o.deliveredAt > o.deadline)
@@ -132,7 +147,7 @@ public interface OrderRepository extends JpaRepository<OrderEntity, String> {
      */
     @Query("""
             select substring(o.orderId, 1, 6), count(o) from OrderEntity o
-            where o.orderId like '______-%'
+            where o.orderId like '______-%' and o.orderId not like 'SIM-%'
             group by substring(o.orderId, 1, 6)
             """)
     List<Object[]> contarCargadosPorMes();

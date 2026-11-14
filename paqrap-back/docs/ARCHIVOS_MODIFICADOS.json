@@ -1,0 +1,147 @@
+{
+  "base": "PaqRap(20261114-193858).zip",
+  "motor": "SA (sin cambios en el algoritmo)",
+  "migracion_sql_necesaria": false,
+  "archivos": [
+    {
+      "archivo": "VALIDAR_CONCURRENCIA_COLAPSO_CARGA.ps1",
+      "cambio": "nuevo",
+      "sha256": "1b9745f4b48ccdcf4da216892eea5924201280c72ad024198099cdc2d742f410"
+    },
+    {
+      "archivo": "src/main/java/com/pucp/paqrap/modulos/escenarios/service/DetectorColapso.java",
+      "cambio": "modificado",
+      "sha256": "584e3e9d8f0d2f0608ed42b76672373c27cd2c9e9deed9ed9c9cc945d2a09b47"
+    },
+    {
+      "archivo": "src/main/java/com/pucp/paqrap/modulos/escenarios/service/EjecutorPlanService.java",
+      "cambio": "modificado",
+      "sha256": "c0fd7566a9d8693c142d0838d286ec1554f3fcba2b3da08da80bb57f47687206"
+    },
+    {
+      "archivo": "src/main/java/com/pucp/paqrap/modulos/escenarios/service/EstadoOperativoEscenarios.java",
+      "cambio": "nuevo",
+      "sha256": "184fc99b96e2ae85dc8f1b5436c93c6107c0e690f14dd72e93090dd19845304c"
+    },
+    {
+      "archivo": "src/main/java/com/pucp/paqrap/modulos/escenarios/service/EventosSimulacion.java",
+      "cambio": "modificado",
+      "sha256": "ac081b11a7293234568d50177f92ee6286a90d33a7c59518ca5d37f0402f6a71"
+    },
+    {
+      "archivo": "src/main/java/com/pucp/paqrap/modulos/escenarios/service/MotorEscenarios.java",
+      "cambio": "modificado",
+      "sha256": "1cedc58664b95433d9f4d10db1902b893e250c4893b8d9e05e3f091da88af184"
+    },
+    {
+      "archivo": "src/main/java/com/pucp/paqrap/modulos/flota/persistence/VehicleEntity.java",
+      "cambio": "modificado",
+      "sha256": "83ceaf26eeb8887cc1f093f57117d4e7853da4be4023dd2761e4c6983bee77bd"
+    },
+    {
+      "archivo": "src/main/java/com/pucp/paqrap/modulos/flota/service/FlotaService.java",
+      "cambio": "modificado",
+      "sha256": "eabd994cc02895723a465ac275c6363e9779592a0922bd9d92796712e5f49f80"
+    },
+    {
+      "archivo": "src/main/java/com/pucp/paqrap/modulos/incidencias/service/AveriaService.java",
+      "cambio": "modificado",
+      "sha256": "20d53ab33839b03fe4718852906d45327ccf5a2abf6eba18e283d385dd0e02cc"
+    },
+    {
+      "archivo": "src/main/java/com/pucp/paqrap/modulos/monitoreo/service/DetalleOperacionService.java",
+      "cambio": "modificado",
+      "sha256": "08c22a59496c73b5a23d398ae0513cbcde5aa19be0d0ef5c52e11d9e0caee326"
+    },
+    {
+      "archivo": "src/main/java/com/pucp/paqrap/modulos/monitoreo/service/MonitoreoService.java",
+      "cambio": "modificado",
+      "sha256": "37c1561d8854e98dec077ff526769ad90958bd745d05b1dfed44448fbdc4144f"
+    },
+    {
+      "archivo": "src/main/java/com/pucp/paqrap/modulos/pedidos/controller/PedidoController.java",
+      "cambio": "modificado",
+      "sha256": "4fd15545eaafd1093f692afd84844404c3a466b088d9fe30e7fbe006526bfe53"
+    },
+    {
+      "archivo": "src/main/java/com/pucp/paqrap/modulos/pedidos/dto/CargaPedidosMultipleResponse.java",
+      "cambio": "nuevo",
+      "sha256": "47ba6a7fa7aafb414b671cef5c1fc4451f7c8c84774ce81e8973a9cc383d25fe"
+    },
+    {
+      "archivo": "src/main/java/com/pucp/paqrap/modulos/pedidos/entity/PedidoRegistrado.java",
+      "cambio": "modificado",
+      "sha256": "f70e7284e33f1196af41e959f145b28c539c18caea9896e6561570bd5c3fa801"
+    },
+    {
+      "archivo": "src/main/java/com/pucp/paqrap/modulos/pedidos/persistence/OrderEntity.java",
+      "cambio": "modificado",
+      "sha256": "3d101990d9ef803bc9e64ddf90e642becd9b3016803f9f54e87f247b6ec001e7"
+    },
+    {
+      "archivo": "src/main/java/com/pucp/paqrap/modulos/pedidos/repository/OrderRepository.java",
+      "cambio": "modificado",
+      "sha256": "620759b7ae2a01ad5137ff847fb4568671922ea127755b059296a2843163f19e"
+    },
+    {
+      "archivo": "src/main/java/com/pucp/paqrap/modulos/pedidos/service/PedidoService.java",
+      "cambio": "modificado",
+      "sha256": "43146ac6df74223c93d7b12d97cca051d67f37fd45647d56eff389b871dd3025"
+    },
+    {
+      "archivo": "src/main/java/com/pucp/paqrap/modulos/planificacion/service/PlanificadorSaAdapter.java",
+      "cambio": "modificado",
+      "sha256": "b1b702a5b6c17f8f8eea10f5eda944114967e2de6276c1d9a53b1339cf0cb7b4"
+    },
+    {
+      "archivo": "src/main/java/com/pucp/paqrap/modulos/redvial/controller/BloqueoController.java",
+      "cambio": "modificado",
+      "sha256": "77445041aa98c913850bef65cabb69462b747d2d5411c883bebf7f70a420ff74"
+    },
+    {
+      "archivo": "src/main/java/com/pucp/paqrap/modulos/redvial/dto/CargaBloqueosMultipleResponse.java",
+      "cambio": "nuevo",
+      "sha256": "3fb1d498acb239a962e59325c10c58c2be51a568d49cfdede701bef83a35d681"
+    },
+    {
+      "archivo": "src/main/java/com/pucp/paqrap/modulos/redvial/service/BloqueoService.java",
+      "cambio": "modificado",
+      "sha256": "a9b7f5535f0820f804b36eaae259912db6fc7d036e5d13de34831d09e690fc09"
+    },
+    {
+      "archivo": "src/main/resources/application.yml",
+      "cambio": "modificado",
+      "sha256": "d04ac319b8589140a9d7617eecf9dcb27abeeb1541aa910e56ee1394cb64b361"
+    },
+    {
+      "archivo": "src/test/java/com/pucp/paqrap/modulos/escenarios/controller/EscenarioApiTest.java",
+      "cambio": "modificado",
+      "sha256": "0519f0b2fdec1422df5395af56b4e951407367d13537223bccfa9e4768b2b9b4"
+    },
+    {
+      "archivo": "src/test/java/com/pucp/paqrap/modulos/escenarios/controller/ReplanificacionFlujoApiTest.java",
+      "cambio": "modificado",
+      "sha256": "f7765d25a2c92518f5d7a3b536e0de94139adcb10be01a80a9f16aec02166a16"
+    },
+    {
+      "archivo": "src/test/java/com/pucp/paqrap/modulos/escenarios/service/ConcurrenciaYAislamientoTest.java",
+      "cambio": "nuevo",
+      "sha256": "6d6a9df5b5523f779f7db132af9288512c3a3d48b7b3f92e0c89600c1fd61051"
+    },
+    {
+      "archivo": "src/test/java/com/pucp/paqrap/modulos/monitoreo/controller/EventosYMonitoreoApiTest.java",
+      "cambio": "modificado",
+      "sha256": "8c73617fc91352b0f0f21908660472208063c466bf85c256a8eb9cc33cc10c72"
+    },
+    {
+      "archivo": "src/test/java/com/pucp/paqrap/modulos/pedidos/controller/PedidoApiTest.java",
+      "cambio": "modificado",
+      "sha256": "70d15c84b00f92da2d3cb234aa74707dfde9330b7cf53137b94319a34b9bcc7d"
+    },
+    {
+      "archivo": "src/test/java/com/pucp/paqrap/modulos/redvial/controller/BloqueoApiTest.java",
+      "cambio": "modificado",
+      "sha256": "e34bfd9efe1f3a6add1aa6d77a83f5f91744709b970068ba63e73cb3f7157d64"
+    }
+  ]
+}

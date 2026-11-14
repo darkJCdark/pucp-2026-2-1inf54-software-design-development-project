@@ -269,8 +269,39 @@ public class ReplanificacionSaService implements ReplanificacionService {
 
         // 3. Conserved routes are rescheduled when their road path or fleet parameters change.
         List<RutaVigente> conservadas = new ArrayList<>(corte.conservadas().stream()
-                .map(ruta -> cambioBloqueo || tiposFlotaActualizados.contains(ruta.ruta().vehicle().type())
-                        ? reprogramar(ruta, bloqueos, !tiposFlotaActualizados.isEmpty()) : ruta)
+                .map(ruta -> {
+                    if (cambioBloqueo) {
+                        /*
+                         * Un cambio de bloqueo conserva la semántica existente:
+                         * la ruta se vuelve a programar porque cambió la red vial.
+                         */
+                        return reprogramar(
+                                ruta,
+                                bloqueos,
+                                !tiposFlotaActualizados.isEmpty()
+                        );
+                    }
+
+                    if (tiposFlotaActualizados.contains(
+                            ruta.ruta().vehicle().type()
+                    )) {
+                        /*
+                         * Un cambio de parámetros de flota NO modifica
+                         * retroactivamente el viaje que ya comenzó.
+                         *
+                         * Si el vehículo ya salió hacia una parada, llega a esa
+                         * parada con la programación anterior. El nuevo perfil
+                         * se usa recién cuando sale hacia la parada siguiente.
+                         */
+                        return reprogramarDesdeSiguienteParada(
+                                ruta,
+                                ahora,
+                                bloqueos
+                        );
+                    }
+
+                    return ruta;
+                })
                 .map(ruta -> liberarViajesSiIncumple(ruta, ahora, bloqueos))
                 .toList());
         agregarContinuaciones(corte.interrumpidas(), averiaPorVehiculo, ahora, central, almacenes, conservadas, forzados,
@@ -1022,6 +1053,434 @@ public class ReplanificacionSaService implements ReplanificacionService {
         RutaVigente recortada = CortePlan.sinViajesPendientes(ruta, ahora, true);
         return recortada == ruta ? ruta : new RutaVigente(recortada.ruta(), recortada.snapshotOrigen(),
                 recortada.programada(), violacionesDeRuta(recortada, bloqueos, recortada.snapshotOrigen()));
+    }
+
+    /**
+     * Aplica un cambio de parámetros de flota de forma prospectiva.
+     *
+     * <p>La regla operacional es:
+     * <ul>
+     *   <li>si el vehículo ya inició el viaje hacia una parada, ese viaje,
+     *       la atención de esa parada y su eventual refrigerio se conservan;</li>
+     *   <li>el perfil nuevo se usa desde la salida hacia la parada siguiente;</li>
+     *   <li>si todavía no empezó el siguiente viaje, el perfil nuevo puede
+     *       aplicarse inmediatamente a ese viaje;</li>
+     *   <li>si la ruta termina en la parada congelada, no hay nada que
+     *       reprogramar: la próxima ruta ya usará el perfil nuevo.</li>
+     * </ul>
+     *
+     * <p>Con esto cambiar la velocidad no altera la posición actual del
+     * vehículo ni modifica retroactivamente el porcentaje recorrido.
+     */
+    private RutaVigente reprogramarDesdeSiguienteParada(
+            RutaVigente ruta,
+            Instant ahora,
+            List<RoadBlock> bloqueos
+    ) {
+        if (ruta.programada() == null) {
+            return reprogramar(
+                    ruta,
+                    bloqueos,
+                    true
+            );
+        }
+
+        OperationalSnapshot snapshotActual =
+                conPerfilFlotaActual(
+                        ruta.snapshotOrigen()
+                );
+
+        ScheduledDeliveryRoute anterior =
+                ruta.programada();
+
+        int congelarHasta =
+                ultimaParadaCongelada(
+                        anterior,
+                        ahora
+                );
+
+        /*
+         * Si la parada congelada ya es la última de la ruta, el cambio no
+         * afecta esta ruta. La siguiente que se cree usará el perfil nuevo.
+         */
+        if (
+                congelarHasta
+                        >=
+                ruta.ruta().stops().size() - 1
+        ) {
+            return new RutaVigente(
+                    ruta.ruta(),
+                    snapshotActual,
+                    anterior,
+                    ruta.violaciones()
+            );
+        }
+
+        List<ScheduledRouteStop> prefijo =
+                congelarHasta >= 0
+                        ? new ArrayList<>(
+                                anterior
+                                        .scheduledStops()
+                                        .subList(
+                                                0,
+                                                congelarHasta + 1
+                                        )
+                        )
+                        : new ArrayList<>();
+
+        Location origenSufijo;
+        int cargaSufijo;
+        Instant salidaSufijo;
+
+        if (congelarHasta >= 0) {
+            ScheduledRouteStop ultimaCongelada =
+                    prefijo.getLast();
+
+            origenSufijo =
+                    ultimaCongelada
+                            .stop()
+                            .location();
+
+            cargaSufijo =
+                    ultimaCongelada
+                            .loadAfter();
+
+            salidaSufijo =
+                    ultimaCongelada
+                            .completedAt();
+        } else {
+            origenSufijo =
+                    ruta.ruta()
+                            .startLocation();
+
+            cargaSufijo =
+                    ruta.ruta()
+                            .initialLoad();
+
+            /*
+             * La ruta ya pertenece al plan vigente, pero el primer viaje aún
+             * no empezó (por ejemplo estaba esperando un bloqueo). El cambio
+             * puede aplicarse desde "ahora", nunca retroactivamente.
+             */
+            salidaSufijo =
+                    ruta.ruta()
+                            .departureAt()
+                            .isAfter(ahora)
+                                    ? ruta.ruta().departureAt()
+                                    : ahora;
+        }
+
+        DeliveryRoute sufijo =
+                DeliveryRoute
+                        .replanFromCurrentLocation(
+                                ruta.ruta().id(),
+                                ruta.ruta().vehicle(),
+                                origenSufijo,
+                                cargaSufijo,
+                                salidaSufijo
+                        );
+
+        for (
+                RouteStop parada :
+                ruta.ruta()
+                        .stops()
+                        .subList(
+                                congelarHasta + 1,
+                                ruta.ruta().stops().size()
+                        )
+        ) {
+            sufijo =
+                    sufijo.withAppendedStop(
+                            parada
+                    );
+        }
+
+        Instant turnoConRefrigerioTomado =
+                turnoConRefrigerioTomado(
+                        prefijo,
+                        ruta.snapshotOrigen()
+                                .shiftSchedule()
+                );
+
+        try {
+            ScheduledDeliveryRoute programadaSufijo =
+                    programador.schedule(
+                            sufijo,
+                            snapshotActual,
+                            bloqueos,
+                            turnoConRefrigerioTomado
+                    );
+
+            List<ScheduledRouteStop> combinadas =
+                    new ArrayList<>(
+                            prefijo
+                    );
+
+            combinadas.addAll(
+                    programadaSufijo
+                            .scheduledStops()
+            );
+
+            double distanciaPrefijo =
+                    prefijo
+                            .stream()
+                            .mapToDouble(
+                                    parada ->
+                                            parada
+                                                    .approach()
+                                                    .distanceKm()
+                            )
+                            .sum();
+
+            double costoPorKmAnterior =
+                    anterior.totalDistanceKm() > 0
+                            ? anterior.totalCost()
+                                    /
+                              anterior.totalDistanceKm()
+                            : ruta.snapshotOrigen()
+                                    .fleetProfile()
+                                    .parametersFor(
+                                            ruta.ruta()
+                                                    .vehicle()
+                                                    .type()
+                                    )
+                                    .costPerKm();
+
+            double costoPrefijo =
+                    distanciaPrefijo
+                            *
+                    costoPorKmAnterior;
+
+            double distanciaTotal =
+                    distanciaPrefijo
+                            +
+                    programadaSufijo
+                            .totalDistanceKm();
+
+            double costoTotal =
+                    costoPrefijo
+                            +
+                    programadaSufijo
+                            .totalCost();
+
+            ScheduledDeliveryRoute combinada =
+                    new ScheduledDeliveryRoute(
+                            ruta.ruta(),
+                            combinadas,
+                            programadaSufijo.completedAt(),
+                            distanciaTotal,
+                            costoTotal
+                    );
+
+            return new RutaVigente(
+                    ruta.ruta(),
+                    snapshotActual,
+                    combinada,
+                    violacionesDeRutaProgramada(
+                            ruta,
+                            combinada,
+                            snapshotActual
+                    )
+            );
+
+        } catch (IllegalStateException sinCamino) {
+            return new RutaVigente(
+                    ruta.ruta(),
+                    snapshotActual,
+                    anterior,
+                    List.of(
+                            new PlanViolation(
+                                    PlanViolationType.NO_ROAD_PATH,
+                                    ruta.ruta().id(),
+                                    sinCamino.getMessage()
+                            )
+                    )
+            );
+        }
+    }
+
+    /**
+     * Devuelve la última parada cuya programación debe permanecer congelada
+     * ante un cambio de velocidad.
+     *
+     * <p>Si el vehículo ya salió hacia la siguiente parada, esa parada se
+     * congela completa. Si todavía no salió, solo se congela la última parada
+     * ya terminada y el nuevo perfil se aplica al próximo viaje.
+     */
+    private int ultimaParadaCongelada(
+            ScheduledDeliveryRoute programada,
+            Instant ahora
+    ) {
+        int ultimaCompletada = -1;
+
+        List<ScheduledRouteStop> paradas =
+                programada.scheduledStops();
+
+        for (
+                int i = 0;
+                i < paradas.size();
+                i++
+        ) {
+            ScheduledRouteStop parada =
+                    paradas.get(i);
+
+            if (
+                    !ahora.isBefore(
+                            parada.completedAt()
+                    )
+            ) {
+                ultimaCompletada = i;
+                continue;
+            }
+
+            /*
+             * Ya llegó y está atendiendo/tomando refrigerio:
+             * el siguiente viaje usará el perfil nuevo.
+             */
+            if (
+                    !ahora.isBefore(
+                            parada.arrivedAt()
+                    )
+            ) {
+                return i;
+            }
+
+            /*
+             * Todavía no llegó. Si ya partió del primer RoadLeg de este
+             * approach, el viaje actual conserva íntegramente su programación.
+             *
+             * En el instante exacto de partida todavía no recorrió distancia,
+             * por lo que el perfil nuevo puede aplicarse sin producir salto.
+             */
+            if (
+                    !parada
+                            .approach()
+                            .legs()
+                            .isEmpty()
+                    &&
+                    ahora.isAfter(
+                            parada
+                                    .approach()
+                                    .legs()
+                                    .getFirst()
+                                    .departsAt()
+                    )
+            ) {
+                return i;
+            }
+
+            return ultimaCompletada;
+        }
+
+        return paradas.size() - 1;
+    }
+
+    /**
+     * Determina el turno más reciente en el que el conductor ya consumió su
+     * refrigerio dentro del prefijo congelado.
+     */
+    private Instant turnoConRefrigerioTomado(
+            List<ScheduledRouteStop> prefijo,
+            ShiftSchedule turnos
+    ) {
+        Instant turnoTomado =
+                null;
+
+        for (
+                ScheduledRouteStop parada :
+                prefijo
+        ) {
+            Instant finServicio;
+
+            if (
+                    parada.stop()
+                            instanceof DeliveryStop
+            ) {
+                finServicio =
+                        parada
+                                .arrivedAt()
+                                .plus(
+                                        DeliveryStop.SERVICE_TIME
+                                );
+
+            } else if (
+                    parada.stop()
+                            instanceof TransferStop
+            ) {
+                finServicio =
+                        parada
+                                .arrivedAt()
+                                .plus(
+                                        TransferStop.TRANSFER_TIME
+                                );
+
+            } else {
+                finServicio =
+                        parada.arrivedAt();
+            }
+
+            if (
+                    parada
+                            .completedAt()
+                            .isAfter(finServicio)
+            ) {
+                turnoTomado =
+                        turnos
+                                .shiftAt(finServicio)
+                                .startsAt();
+            }
+        }
+
+        return turnoTomado;
+    }
+
+    /**
+     * Valida la programación ya compuesta sin volver a temporizar la ruta.
+     * Volver a llamar al RouteScheduler sobre la ruta completa reintroduciría
+     * justamente el salto de posición que se quiere evitar.
+     */
+    private List<PlanViolation> violacionesDeRutaProgramada(
+            RutaVigente ruta,
+            ScheduledDeliveryRoute programada,
+            OperationalSnapshot snapshot
+    ) {
+        Map<String, Order> pedidos =
+                new LinkedHashMap<>();
+
+        ruta.ruta()
+                .stops()
+                .forEach(
+                        parada -> {
+                            if (
+                                    parada
+                                            instanceof DeliveryStop entrega
+                            ) {
+                                pedidos.putIfAbsent(
+                                        entrega.order().id(),
+                                        entrega.order()
+                                );
+                            }
+                        }
+                );
+
+        PlanEvaluation evaluacion =
+                evaluador.evaluateScheduledRoute(
+                        ruta.ruta(),
+                        programada,
+                        snapshot,
+                        pedidos.values()
+                );
+
+        return evaluacion
+                .violations()
+                .stream()
+                .filter(
+                        violacion ->
+                                violacion.type()
+                                        !=
+                                PlanViolationType.PARTIAL_DELIVERY_MISMATCH
+                )
+                .toList();
     }
 
     private RutaVigente reprogramar(RutaVigente ruta, List<RoadBlock> bloqueos, boolean perfilFlotaActualizado) {

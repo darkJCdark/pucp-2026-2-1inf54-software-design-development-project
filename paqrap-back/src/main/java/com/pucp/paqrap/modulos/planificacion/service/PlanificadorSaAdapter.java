@@ -41,6 +41,9 @@ public class PlanificadorSaAdapter implements PlanificadorCandidato, PlanVigente
     private static final Duration HORIZONTE = Duration.ofHours(36);
     private static final int TAMANO_PAGINA = 500;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.pucp.paqrap.modulos.escenarios.service.EstadoOperativoEscenarios estadoOperativo;
+
     private final ReplanificacionService replanificacion;
     private final OrderRepository pedidoRepository;
     private final RoadBlockRepository bloqueoRepository;
@@ -169,8 +172,9 @@ public class PlanificadorSaAdapter implements PlanificadorCandidato, PlanVigente
     private List<Order> pedidosNuevos(long ejecucionId, Instant inicio, Instant instante) {
         List<Order> nuevos = new ArrayList<>();
         for (int pagina = 0; nuevos.size() < maxPedidos; pagina++) {
-            List<OrderEntity> registrados = pedidoRepository.registradosEnDesde(inicio, instante,
-                    PageRequest.of(pagina, TAMANO_PAGINA));
+            List<OrderEntity> registrados = estadoOperativo != null
+                    ? estadoOperativo.registrados(ejecucionId, inicio, instante, PageRequest.of(pagina, TAMANO_PAGINA))
+                    : pedidoRepository.registradosEnDesde(inicio, instante, PageRequest.of(pagina, TAMANO_PAGINA));
             for (OrderEntity pedido : registrados) {
                 if (nuevos.size() < maxPedidos && !replanificacion.conocePedido(ejecucionId, pedido.getOrderId())) {
                     nuevos.add(pedido.toDomain());

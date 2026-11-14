@@ -29,6 +29,9 @@ public class EventosSimulacion {
     private static final ZoneId ZONA = ShiftSchedule.DEFAULT_ZONE;
     private static final LocalTime HORA_RECARGA = LocalTime.of(23, 59, 59);
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.pucp.paqrap.modulos.escenarios.service.EstadoOperativoEscenarios estadoOperativo;
+
     private final InventarioService inventarioService;
     private final RoadBlockRepository bloqueoRepository;
     private final BreakdownEventRepository averiaRepository;
@@ -119,7 +122,9 @@ public class EventosSimulacion {
                 .map(BreakdownEventEntity::toDomain)
                 .toList();
 
-        List<String> pedidos = pedidoRepository.idsRegistradosEntre(desde, hasta);
+        List<String> pedidos = estadoOperativo != null
+                ? estadoOperativo.idsEntre(ejecucionId, desde, hasta)
+                : pedidoRepository.idsRegistradosEntre(desde, hasta);
         return new Resumen(recargas, bloqueos,
                 bloqueosEntidades.stream().map(RoadBlockEntity::getRoadBlockId).toList(), bloqueosTerminados,
                 bloqueosTerminadosEntidades.stream().map(RoadBlockEntity::getRoadBlockId).toList(), averias,

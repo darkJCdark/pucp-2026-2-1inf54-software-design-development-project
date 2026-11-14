@@ -273,9 +273,9 @@ class EventosYMonitoreoApiTest {
         assertEquals(List.of("TA01"), planificador.solicitudes.get(1).averias().stream().map(a -> a.vehicleId()).toList());
     }
 
-    /** En 5D el colapso solo se informa: la ejecución sigue y el monitoreo muestra el momento y la causa. */
+    /** En 5D el colapso termina la ejecución y el monitoreo conserva el momento y la causa. */
     @Test
-    void enCincoDiasElColapsoSeInformaEnElMonitoreoSinTerminarLaEjecucion() throws Exception {
+    void enCincoDiasElColapsoTerminaLaEjecucionYConservaElDiagnostico() throws Exception {
         pedidoRepository.save(new OrderEntity("P1", "c1", new Location(30, 14), 2, INICIO, DeliveryType.PRIORITY, 4));
         long id = iniciarCincoDias();
         mvc.perform(get("/api/monitoreo/" + id)).andExpect(jsonPath("$.colapso").doesNotExist());
@@ -285,7 +285,7 @@ class EventosYMonitoreoApiTest {
         motor.tick();
 
         mvc.perform(get("/api/monitoreo/" + id))
-                .andExpect(jsonPath("$.escenario.estado").value("RUNNING"))
+                .andExpect(jsonPath("$.escenario.estado").value("COLLAPSED"))
                 .andExpect(jsonPath("$.colapso.causa").value("PLAZO_VENCIDO"))
                 .andExpect(jsonPath("$.colapso.instante").value("2026-01-01T09:00:00Z"))
                 .andExpect(jsonPath("$.colapso.pedidoId").value("P1"))

@@ -2,6 +2,7 @@ package com.pucp.paqrap.modulos.redvial.controller;
 
 import com.pucp.paqrap.modulos.redvial.dto.BloqueoResponse;
 import com.pucp.paqrap.modulos.redvial.dto.CargaBloqueosResponse;
+import com.pucp.paqrap.modulos.redvial.dto.CargaBloqueosMultipleResponse;
 import com.pucp.paqrap.modulos.redvial.service.BloqueoService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -43,6 +44,22 @@ public class BloqueoController {
         }
         String contenido = new String(archivo.getBytes(), StandardCharsets.UTF_8);
         return bloqueoService.cargar(archivo.getOriginalFilename(), contenido, periodo);
+    }
+
+    @PostMapping(path = "/carga-multiple", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    public CargaBloqueosMultipleResponse cargarMultiples(@RequestParam("archivos") List<MultipartFile> archivos)
+            throws IOException {
+        if (archivos.isEmpty() || archivos.size() > 2) {
+            throw new IllegalArgumentException("Seleccione uno o dos archivos mensuales de bloqueos");
+        }
+        java.util.ArrayList<BloqueoService.ArchivoMensual> entradas = new java.util.ArrayList<>();
+        for (MultipartFile archivo : archivos) {
+            if (archivo.isEmpty()) throw new IllegalArgumentException("El archivo está vacío: " + archivo.getOriginalFilename());
+            entradas.add(new BloqueoService.ArchivoMensual(archivo.getOriginalFilename(),
+                    new String(archivo.getBytes(), StandardCharsets.UTF_8)));
+        }
+        return bloqueoService.cargarMultiples(entradas);
     }
 
     @GetMapping

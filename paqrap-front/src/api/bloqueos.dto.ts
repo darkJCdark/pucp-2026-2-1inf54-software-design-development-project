@@ -16,3 +16,9 @@ export interface BloqueoResponseDto {
   fin: string;
   nodos: NodoBloqueoResponseDto[];
 }
+
+export interface CargaBloqueosMultipleResponseDto {
+  archivos: CargaBloqueosResponseDto[];
+  registrados: number;
+  reemplazados: number;
+}

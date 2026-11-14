@@ -348,17 +348,19 @@ class EjecutorPlanServiceTest {
     }
     @Test
     void informaElRefrigerioDelConductorMientrasDura() {
-        // Llega a P1 a las 10:20 y descansa hasta las 10:30, cuando lo atiende.
-        RutaResponse ruta = new RutaResponse("SA-TA01", "TA01", "CAR", SALIDA, hora("11:30"), 3.0, 24.0, List.of(
-                new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 5, hora("10:30"), hora("11:30"),
-                        5, 0, hora("10:20"))));
+        // Llega a P1 a las 10:30, atiende hasta las 11:30 y descansa
+        // desde las 11:30 hasta las 12:30. No hay refrigerio antes del servicio.
+        RutaResponse ruta = new RutaResponse("SA-TA01", "TA01", "CAR", SALIDA, hora("12:30"), 3.0, 24.0, List.of(
+                new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 5, hora("10:30"), hora("12:30"),
+                        5, 0, hora("11:30"))));
         planes.planes.put(ejecucion, plan(SALIDA, List.of(ruta)));
         ejecutor.avanzar(ejecucion, SALIDA, SALIDA);
 
-        assertEquals(Optional.of(hora("10:30")), ejecutor.refrigerioHasta(ejecucion, "TA01", hora("10:25")));
+        assertEquals(Optional.of(hora("12:30")), ejecutor.refrigerioHasta(ejecucion, "TA01", hora("11:45")));
         assertEquals(Optional.empty(), ejecutor.refrigerioHasta(ejecucion, "TA01", hora("10:10")), "aún viaja");
-        assertEquals(Optional.empty(), ejecutor.refrigerioHasta(ejecucion, "TA01", hora("10:45")), "ya atiende");
-        assertEquals(Optional.empty(), ejecutor.refrigerioHasta(ejecucion, "TM01", hora("10:25")), "otro vehículo");
+        assertEquals(Optional.empty(), ejecutor.refrigerioHasta(ejecucion, "TA01", hora("10:45")), "está atendiendo");
+        assertEquals(Optional.empty(), ejecutor.refrigerioHasta(ejecucion, "TA01", hora("12:45")), "ya terminó el refrigerio");
+        assertEquals(Optional.empty(), ejecutor.refrigerioHasta(ejecucion, "TM01", hora("11:45")), "otro vehículo");
     }
 
     @Test

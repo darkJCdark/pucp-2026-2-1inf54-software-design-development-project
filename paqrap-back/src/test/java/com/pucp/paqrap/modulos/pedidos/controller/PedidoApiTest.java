@@ -207,4 +207,58 @@ class PedidoApiTest {
         mvc.perform(get("/api/pedidos/202601-99999"))
                 .andExpect(status().isNotFound());
     }
+
+    private MockMultipartFile mensual(String nombre, String contenido) {
+        return new MockMultipartFile("archivos", nombre, "text/plain", contenido.getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void cargaDosMesesEnUnaSolicitudInclusoAlCambiarDeAnio() throws Exception {
+        mvc.perform(multipart("/api/pedidos/carga-multiple")
+                .file(mensual("ventas.202612.txt", "31d23h30m:27,14,c1,2,36\n"))
+                .file(mensual("ventas.202701.txt", "01d00h15m:28,14,c2,3,04\n")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.archivos", hasSize(2)))
+                .andExpect(jsonPath("$.registrados").value(2));
+        assertEquals(Instant.parse("2027-01-01T04:30:00Z"),
+                pedidoRepository.findById("202612-00001").orElseThrow().getRegisteredAt());
+        assertEquals(Instant.parse("2027-01-01T05:15:00Z"),
+                pedidoRepository.findById("202701-00001").orElseThrow().getRegisteredAt());
+    }
+
+    @Test
+    void siElSegundoMesEsInvalidoNoGuardaElPrimero() throws Exception {
+        mvc.perform(multipart("/api/pedidos/carga-multiple")
+                .file(mensual("ventas.202611.txt", VENTAS))
+                .file(mensual("ventas.202612.txt", "linea incorrecta\n")))
+                .andExpect(status().isBadRequest());
+        assertEquals(0, pedidoRepository.count());
+    }
+
+    @Test
+    void rechazaDosArchivosDelMismoMesYTresArchivos() throws Exception {
+        mvc.perform(multipart("/api/pedidos/carga-multiple")
+                .file(mensual("ventas.202611.txt", VENTAS))
+                .file(mensual("ventas.202611.txt", VENTAS)))
+                .andExpect(status().isBadRequest());
+        mvc.perform(multipart("/api/pedidos/carga-multiple")
+                .file(mensual("ventas.202610.txt", VENTAS))
+                .file(mensual("ventas.202611.txt", VENTAS))
+                .file(mensual("ventas.202612.txt", VENTAS)))
+                .andExpect(status().isBadRequest());
+        assertEquals(0, pedidoRepository.count());
+    }
+
+    @Test
+    void repetirLaCargaDobleNoDuplicaPedidos() throws Exception {
+        for (int intento = 0; intento < 2; intento++) {
+            mvc.perform(multipart("/api/pedidos/carga-multiple")
+                    .file(mensual("ventas.202611.txt", VENTAS))
+                    .file(mensual("ventas.202612.txt", VENTAS)))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.registrados").value(intento == 0 ? 6 : 0))
+                    .andExpect(jsonPath("$.omitidos").value(intento == 0 ? 0 : 6));
+        }
+        assertEquals(6, pedidoRepository.count());
+    }
 }

@@ -75,3 +75,10 @@ export interface PeriodoCargadoResponseDto {
   pedidos: number;
 }
 
+
+export interface CargaPedidosMultipleResponseDto {
+  archivos: CargaPedidosResponseDto[];
+  leidos: number;
+  registrados: number;
+  omitidos: number;
+}

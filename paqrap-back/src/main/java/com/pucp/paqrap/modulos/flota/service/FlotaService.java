@@ -24,6 +24,9 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class FlotaService {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.pucp.paqrap.modulos.escenarios.service.EstadoOperativoEscenarios estadoOperativo;
+
     private final VehicleTypeParametersRepository tipoRepository;
     private final VehicleRepository vehiculoRepository;
     private final ApplicationEventPublisher eventos;
@@ -70,6 +73,20 @@ public class FlotaService {
 
     public VehiculoResponse obtenerVehiculo(String id) {
         return VehiculoResponse.de(buscarVehiculo(id));
+    }
+
+    public List<VehiculoResponse> listarVehiculos(VehicleType tipo, VehicleOperationalStatus estado, long ejecucionId) {
+        if (estadoOperativo == null || !estadoOperativo.aislada(ejecucionId)) return listarVehiculos(tipo, estado);
+        return estadoOperativo.vehiculos(ejecucionId).stream()
+                .filter(v -> tipo == null || v.getVehicleType() == tipo)
+                .filter(v -> estado == null || v.getOperationalStatus() == estado)
+                .map(VehiculoResponse::de).toList();
+    }
+
+    public VehiculoResponse obtenerVehiculo(String id, long ejecucionId) {
+        if (estadoOperativo == null || !estadoOperativo.aislada(ejecucionId)) return obtenerVehiculo(id);
+        return estadoOperativo.vehiculo(ejecucionId, id).map(VehiculoResponse::de)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Vehículo", id));
     }
 
     /** El operario solo alterna entre AVAILABLE y UNAVAILABLE; IN_ROUTE es responsabilidad de la simulación. */

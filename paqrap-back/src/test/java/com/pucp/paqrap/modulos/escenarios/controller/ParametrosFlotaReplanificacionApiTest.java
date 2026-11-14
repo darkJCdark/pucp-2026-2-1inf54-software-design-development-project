@@ -1,42 +1,17 @@
 package com.pucp.paqrap.modulos.escenarios.controller;
 
-import com.pucp.paqrap.modulos.pedidos.CoberturaDePrueba;
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.YearMonth;
-import com.jayway.jsonpath.JsonPath;
-import com.pucp.paqrap.modulos.almacenes.persistence.WarehouseEntity;
-import com.pucp.paqrap.modulos.almacenes.persistence.WarehouseKind;
-import com.pucp.paqrap.modulos.almacenes.repository.InventoryMovementRepository;
-import com.pucp.paqrap.modulos.almacenes.repository.WarehouseRepository;
-import com.pucp.paqrap.modulos.escenarios.entity.ScenarioStatus;
-import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
-import com.pucp.paqrap.modulos.escenarios.repository.ScenarioResultRepository;
-import com.pucp.paqrap.modulos.escenarios.persistence.ScenarioResultEntity;
-import com.pucp.paqrap.modulos.escenarios.service.EjecutorPlanService;
-import com.pucp.paqrap.modulos.escenarios.service.MotorEscenarios;
-import com.pucp.paqrap.modulos.flota.entity.VehicleType;
-import com.pucp.paqrap.modulos.flota.persistence.VehicleEntity;
-import com.pucp.paqrap.modulos.flota.persistence.VehicleOperationalStatus;
-import com.pucp.paqrap.modulos.flota.persistence.VehicleTypeParametersEntity;
-import com.pucp.paqrap.modulos.flota.repository.VehicleRepository;
-import com.pucp.paqrap.modulos.flota.repository.VehicleTypeParametersRepository;
-import com.pucp.paqrap.modulos.incidencias.repository.BreakdownEventRepository;
-import com.pucp.paqrap.modulos.pedidos.entity.DeliveryType;
-import com.pucp.paqrap.modulos.pedidos.entity.OrderStatus;
-import com.pucp.paqrap.modulos.pedidos.persistence.OrderEntity;
-import com.pucp.paqrap.modulos.pedidos.persistence.OrderStatusHistoryEntity;
-import com.pucp.paqrap.modulos.pedidos.repository.OrderRepository;
-import com.pucp.paqrap.modulos.pedidos.repository.OrderStatusHistoryRepository;
-import com.pucp.paqrap.modulos.planificacion.persistence.PlanEntity;
-import com.pucp.paqrap.modulos.planificacion.persistence.RouteEntity;
-import com.pucp.paqrap.modulos.planificacion.persistence.RouteStopEntity;
-import com.pucp.paqrap.modulos.planificacion.repository.PlanRepository;
-import com.pucp.paqrap.modulos.planificacion.repository.RouteRepository;
-import com.pucp.paqrap.modulos.planificacion.repository.RouteStopRepository;
-import com.pucp.paqrap.modulos.redvial.entity.Location;
-import com.pucp.paqrap.modulos.redvial.entity.RoadBlock;
-import com.pucp.paqrap.modulos.redvial.persistence.RoadBlockEntity;
-import com.pucp.paqrap.modulos.redvial.repository.RoadBlockRepository;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.util.List;
+
 import org.junit.jupiter.api.AfterEach;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,25 +23,39 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-
-import java.math.BigDecimal;
-import java.time.Clock;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
-import java.util.List;
-import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.jayway.jsonpath.JsonPath;
+import com.pucp.paqrap.modulos.almacenes.persistence.WarehouseEntity;
+import com.pucp.paqrap.modulos.almacenes.persistence.WarehouseKind;
+import com.pucp.paqrap.modulos.almacenes.repository.InventoryMovementRepository;
+import com.pucp.paqrap.modulos.almacenes.repository.WarehouseRepository;
+import com.pucp.paqrap.modulos.escenarios.entity.ScenarioStatus;
+import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
+import com.pucp.paqrap.modulos.escenarios.repository.ScenarioResultRepository;
+import com.pucp.paqrap.modulos.escenarios.service.EjecutorPlanService;
+import com.pucp.paqrap.modulos.escenarios.service.MotorEscenarios;
+import com.pucp.paqrap.modulos.flota.entity.VehicleType;
+import com.pucp.paqrap.modulos.flota.persistence.VehicleEntity;
+import com.pucp.paqrap.modulos.flota.persistence.VehicleOperationalStatus;
+import com.pucp.paqrap.modulos.flota.persistence.VehicleTypeParametersEntity;
+import com.pucp.paqrap.modulos.flota.repository.VehicleRepository;
+import com.pucp.paqrap.modulos.flota.repository.VehicleTypeParametersRepository;
+import com.pucp.paqrap.modulos.incidencias.repository.BreakdownEventRepository;
+import com.pucp.paqrap.modulos.pedidos.CoberturaDePrueba;
+import com.pucp.paqrap.modulos.pedidos.entity.DeliveryType;
+import com.pucp.paqrap.modulos.pedidos.persistence.OrderEntity;
+import com.pucp.paqrap.modulos.pedidos.persistence.OrderStatusHistoryEntity;
+import com.pucp.paqrap.modulos.pedidos.repository.OrderRepository;
+import com.pucp.paqrap.modulos.pedidos.repository.OrderStatusHistoryRepository;
+import com.pucp.paqrap.modulos.planificacion.repository.PlanRepository;
+import com.pucp.paqrap.modulos.planificacion.repository.RouteRepository;
+import com.pucp.paqrap.modulos.planificacion.repository.RouteStopRepository;
+import com.pucp.paqrap.modulos.redvial.entity.Location;
+import com.pucp.paqrap.modulos.redvial.repository.RoadBlockRepository;
 
 /**
  * Cambiar los parámetros de un tipo de vehículo (por ejemplo la velocidad) con un escenario en marcha lo hace
@@ -188,28 +177,126 @@ class ParametrosFlotaReplanificacionApiTest {
     }
 
     @Test
-    void cambiarLaVelocidadDeMotocicletaRecalculaLaRutaConservada() throws Exception {
-        vehiculoRepository.findAll().forEach(vehiculo -> vehiculo.setOperationalStatus(VehicleOperationalStatus.UNAVAILABLE));
-        vehiculoRepository.save(new VehicleEntity("TM01", VehicleType.MOTORCYCLE, VehicleOperationalStatus.AVAILABLE));
+    void cambiarLaVelocidadDeMotocicletaLaAplicaDesdeLaSiguienteSalida() throws Exception {
+        vehiculoRepository.findAll().forEach(vehiculo ->
+                vehiculo.setOperationalStatus(VehicleOperationalStatus.UNAVAILABLE));
+        vehiculoRepository.save(
+                new VehicleEntity(
+                        "TM01",
+                        VehicleType.MOTORCYCLE,
+                        VehicleOperationalStatus.AVAILABLE
+                )
+        );
+
         pedido("P1", 60, 14, 3, INICIO);
         long id = iniciarCincoDias();
 
         String antes = replanificacion(id);
-        assertEquals("TM01", leer(antes, "$.plan.rutas[0].vehiculoId"));
-        Instant llegadaAntes = Instant.parse(leer(antes, "$.plan.rutas[0].paradas[0].llegada"));
-        int numeroAntes = leer(antes, "$.numeroReplanificacion");
 
-        mvc.perform(put("/api/flota/tipos/MOTORCYCLE").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"capacidadPaquetes\": 8, \"velocidadKmh\": 50, \"costoPorKm\": 6}"))
+        assertEquals(
+                "TM01",
+                leer(antes, "$.plan.rutas[0].vehiculoId")
+        );
+
+        Instant llegadaPedidoAntes =
+                Instant.parse(
+                        leer(
+                                antes,
+                                "$.plan.rutas[0].paradas[0].llegada"
+                        )
+                );
+
+        Instant llegadaFinalAntes =
+                Instant.parse(
+                        leer(
+                                antes,
+                                "$.plan.rutas[0].llegadaFinal"
+                        )
+                );
+
+        int numeroAntes =
+                leer(
+                        antes,
+                        "$.numeroReplanificacion"
+                );
+
+        /*
+         * La moto ya está viajando hacia P1 cuando el cambio se procesa.
+         * Ese viaje debe conservar la velocidad anterior.
+         */
+        mvc.perform(
+                        put("/api/flota/tipos/MOTORCYCLE")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        "{\"capacidadPaquetes\": 8, "
+                                                +
+                                        "\"velocidadKmh\": 50, "
+                                                +
+                                        "\"costoPorKm\": 6}"
+                                )
+                )
                 .andExpect(status().isOk());
 
         avanzar(Duration.ofSeconds(1));
-        String despues = replanificacion(id);
-        Instant llegadaDespues = Instant.parse(leer(despues, "$.plan.rutas[0].paradas[0].llegada"));
-        assertEquals("PERIODICO", leer(despues, "$.motivo"));
-        assertEquals(numeroAntes + 1, (int) leer(despues, "$.numeroReplanificacion"));
-        assertEquals("TM01", leer(despues, "$.plan.rutas[0].vehiculoId"));
-        assertTrue(llegadaDespues.isBefore(llegadaAntes));
+
+        String despues =
+                replanificacion(id);
+
+        Instant llegadaPedidoDespues =
+                Instant.parse(
+                        leer(
+                                despues,
+                                "$.plan.rutas[0].paradas[0].llegada"
+                        )
+                );
+
+        Instant llegadaFinalDespues =
+                Instant.parse(
+                        leer(
+                                despues,
+                                "$.plan.rutas[0].llegadaFinal"
+                        )
+                );
+
+        assertEquals(
+                "PERIODICO",
+                leer(despues, "$.motivo")
+        );
+
+        assertEquals(
+                numeroAntes + 1,
+                (int) leer(
+                        despues,
+                        "$.numeroReplanificacion"
+                )
+        );
+
+        assertEquals(
+                "TM01",
+                leer(
+                        despues,
+                        "$.plan.rutas[0].vehiculoId"
+                )
+        );
+
+        /*
+         * No hay teletransporte:
+         * la llegada al destino hacia el que ya viajaba no cambia.
+         */
+        assertEquals(
+                llegadaPedidoAntes,
+                llegadaPedidoDespues
+        );
+
+        /*
+         * Después de atender P1, el siguiente viaje (retorno al almacén)
+         * sí usa la velocidad nueva y por eso termina antes.
+         */
+        assertTrue(
+                llegadaFinalDespues.isBefore(
+                        llegadaFinalAntes
+                )
+        );
     }
     @Test
     void cambiarLaVelocidadConUnEscenarioEnMarchaReplanifica() throws Exception {
