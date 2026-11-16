@@ -44,6 +44,7 @@ import {
   periodoDesdeArchivoBloqueos,
   periodoDesdeArchivoVentas,
   periodoLegible,
+  periodosBloqueosDiaADia,
   periodosRequeridos,
 } from "./periodos";
 
@@ -437,7 +438,7 @@ async function buscarEscenarioActivo():
       configuracion.escenario ===
       "DIA_A_DIA"
     ) {
-      return null;
+      return validarBloqueosDiaADia();
     }
 
     if (consultandoPeriodos) {
@@ -512,6 +513,31 @@ async function buscarEscenarioActivo():
         .join("\n");
     }
 
+    return null;
+  }
+
+  /** Día a Día solo acepta bloqueos del mes actual y del siguiente. */
+  function validarBloqueosDiaADia() {
+    if (archivosBloqueos.length > 2) {
+      return "Selecciona como máximo dos archivos de bloqueos.";
+    }
+    const periodos = archivosBloqueos.map((archivo) =>
+      periodoDesdeArchivoBloqueos(archivo.name),
+    );
+    if (periodos.some((periodo) => !periodo)) {
+      return "Los archivos de bloqueos deben llamarse bloqueo.AAMM.txt.";
+    }
+    if (new Set(periodos).size !== periodos.length) {
+      return "No puedes seleccionar dos archivos de bloqueos del mismo mes.";
+    }
+    const permitidos = periodosBloqueosDiaADia();
+    for (let i = 0; i < archivosBloqueos.length; i++) {
+      if (!permitidos.includes(periodos[i]!)) {
+        return `El archivo ${archivosBloqueos[i].name} no corresponde al mes actual ni al siguiente (${permitidos
+          .map(periodoLegible)
+          .join(" o ")}).`;
+      }
+    }
     return null;
   }
 
@@ -606,8 +632,8 @@ async function buscarEscenarioActivo():
       );
     }
 
+    // Los bloqueos se cargan también en Día a Día. Solo los meses cargados aquí cuentan para la ejecución.
     if (
-      usaDatosHistoricos &&
       archivosBloqueos.length > 0
     ) {
       etapa = "cargar bloqueos";
@@ -762,27 +788,55 @@ async function reconciliarCantidadFlota() {
             ),
         );
 
+    /*
+     * Una unidad con historial (rutas, averías o mantenimientos) no se
+     * puede borrar: el backend la da de baja lógica dejándola UNAVAILABLE,
+     * y la simulación la excluye. Por eso la cantidad configurada se
+     * compara solo con las unidades operativas, y para subirla se
+     * reactivan primero las dadas de baja (menor código primero) antes
+     * de crear unidades nuevas.
+     */
+    const operativos =
+      existentes.filter(
+        (vehiculo) =>
+          vehiculo.estado !==
+          "UNAVAILABLE",
+      );
+
+    const inactivos =
+      existentes
+        .filter(
+          (vehiculo) =>
+            vehiculo.estado ===
+            "UNAVAILABLE",
+        )
+        .reverse();
+
     const diferencia =
       objetivos[tipo] -
-      existentes.length;
-
-    /*
-     * En el seed actual:
-     *
-     * CAR        = 10
-     * MOTORCYCLE = 15
-     * BICYCLE    = 12
-     *
-     * Por lo tanto, con la configuración
-     * mostrada en pantalla, diferencia debe
-     * ser cero para los tres tipos.
-     */
+      operativos.length;
 
     if (
       diferencia > 0
     ) {
+      const reactivar =
+        inactivos.slice(
+          0,
+          diferencia,
+        );
+
       for (
-        let i = 0;
+        const vehiculo of
+          reactivar
+      ) {
+        await flotaService.cambiarEstadoVehiculo(
+          vehiculo.id,
+          "AVAILABLE",
+        );
+      }
+
+      for (
+        let i = reactivar.length;
         i < diferencia;
         i += 1
       ) {
@@ -795,7 +849,7 @@ async function reconciliarCantidadFlota() {
     ) {
       const candidatos =
         ordenarParaBaja(
-          existentes,
+          operativos,
         ).slice(
           0,
           Math.abs(
@@ -876,6 +930,15 @@ async function actualizarParametrosFlota() {
     const request:
       CrearEscenarioRequestDto = {
       tipo,
+
+      // Solo los bloqueos de estos meses existen para la ejecución; sin archivos, no hay bloqueos aunque la BD
+      // tenga bloqueos guardados de cargas anteriores.
+      periodosBloqueos:
+        archivosBloqueos
+          .map((archivo) =>
+            periodoDesdeArchivoBloqueos(archivo.name),
+          )
+          .filter((periodo): periodo is string => Boolean(periodo)),
     };
 
     if (

@@ -16,7 +16,12 @@ import {
   periodoDesdeArchivoBloqueos,
   periodoDesdeArchivoVentas,
   periodoLegible,
+  periodosBloqueosDiaADia,
 } from "./periodos";
+
+/** Solo cuentan los bloqueos de los archivos seleccionados aquí, aunque la BD tenga otros de cargas anteriores. */
+const AYUDA_ALCANCE_BLOQUEOS =
+  "Solo se usarán los bloqueos de los archivos que selecciones. Sin archivos, la ejecución no tendrá bloqueos.";
 
 interface OrigenDatosProps {
   periodosCargados: PeriodoCargadoResponseDto[];
@@ -125,6 +130,20 @@ export function OrigenDatos({
             En Día a Día los pedidos y las averías se registran durante la operación.
           </p>
         </div>
+
+        <div className="mt-5">
+          <ArchivoSelector
+            titulo="Bloqueos (opcional)"
+            descripcion="bloqueo.AAMM.txt"
+            archivos={archivosBloqueos}
+            inputRef={inputBloqueosRef}
+            onChange={handleBloqueos}
+            onAbrir={() => inputBloqueosRef.current?.click()}
+            onLimpiar={() => { setArchivosBloqueos([]); setErrorBloqueos(null); }}
+            ayuda={`Mes actual o siguiente (${periodosBloqueosDiaADia().map(periodoLegible).join(" o ")}). ${AYUDA_ALCANCE_BLOQUEOS}`}
+            error={errorBloqueos}
+          />
+        </div>
       </Card>
     );
   }
@@ -209,7 +228,7 @@ export function OrigenDatos({
           onChange={handleBloqueos}
           onAbrir={() => inputBloqueosRef.current?.click()}
           onLimpiar={() => { setArchivosBloqueos([]); setErrorBloqueos(null); }}
-          ayuda="Puedes seleccionar los bloqueos de ambos meses; cada mes se reemplaza por separado."
+          ayuda={`Puedes seleccionar los bloqueos de ambos meses. ${AYUDA_ALCANCE_BLOQUEOS}`}
           error={errorBloqueos}
         />
       </div>

@@ -39,6 +39,12 @@ export interface CrearEscenarioRequestDto {
 
   /** Configuración reproducible del planificador. Si se omite, backend usa sus valores por defecto. */
   configuracionSa?: ConfiguracionSaRequestDto;
+
+  /**
+   * Meses (AAAA-MM) de los archivos de bloqueos cargados para esta ejecución. Solo esos bloqueos se muestran y se
+   * planifican; una lista vacía significa "sin bloqueos" aunque la base de datos tenga bloqueos guardados.
+   */
+  periodosBloqueos?: string[];
 }
 
 export interface EscenarioResponseDto {

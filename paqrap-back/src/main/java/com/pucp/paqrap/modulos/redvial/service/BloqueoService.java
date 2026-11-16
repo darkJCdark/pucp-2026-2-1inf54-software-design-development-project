@@ -32,6 +32,10 @@ public class BloqueoService {
     private final RoadBlockRepository bloqueoRepository;
     private final CargadorBloqueos cargador = new CargadorBloqueos();
 
+    /** Nulo solo en pruebas que construyen el servicio a mano: entonces no se filtra por ejecución. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private AlcanceBloqueos alcanceBloqueos;
+
     public BloqueoService(RoadBlockRepository bloqueoRepository) {
         this.bloqueoRepository = bloqueoRepository;
     }
@@ -87,6 +91,29 @@ public class BloqueoService {
         return bloqueoRepository.buscarQueSeCruzan(desde, hasta).stream()
                 .map(BloqueoResponse::de)
                 .toList();
+    }
+
+    /** Bloqueos activos en {@code instante} que la ejecución considera (solo los meses cargados para ella). */
+    public List<BloqueoResponse> vigentesPara(long ejecucionId, Instant instante) {
+        List<RoadBlockEntity> vigentes = bloqueoRepository.buscarQueSeCruzan(instante, instante.plusNanos(1));
+        if (alcanceBloqueos != null) {
+            vigentes = alcanceBloqueos.filtrar(ejecucionId, vigentes);
+        }
+        return vigentes.stream().map(BloqueoResponse::de).toList();
+    }
+
+    /**
+     * Carga uno o dos archivos mensuales y los habilita para una ejecución ya creada (p. ej. Día a Día, que opera
+     * mes tras mes). Los bloqueos ya iniciados entran al plan en la siguiente replanificación; los futuros, al
+     * empezar.
+     */
+    @Transactional
+    public CargaBloqueosMultipleResponse cargarParaEjecucion(long ejecucionId, List<ArchivoMensual> archivos) {
+        CargaBloqueosMultipleResponse respuesta = cargarMultiples(archivos);
+        if (alcanceBloqueos != null) {
+            alcanceBloqueos.agregar(ejecucionId, archivos.stream().map(a -> periodoDesdeNombre(a.nombre())).toList());
+        }
+        return respuesta;
     }
 
     public BloqueoResponse obtener(Long id) {

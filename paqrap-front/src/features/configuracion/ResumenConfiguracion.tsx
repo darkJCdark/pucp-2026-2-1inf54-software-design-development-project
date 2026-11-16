@@ -36,7 +36,7 @@ export function ResumenConfiguracion({
 
       {configuracion.escenario !== "DIA_A_DIA" && (
         <>
-          <Fila label="Bloqueos" value={archivosBloqueos.map((archivo) => archivo.name).join(" · ") || "Sin archivo"} />
+          <Fila label="Bloqueos" value={archivosBloqueos.map((archivo) => archivo.name).join(" · ") || "Sin bloqueos"} />
           <Fila label="Inicio" value={configuracion.inicioSimulado || "—"} />
         </>
       )}

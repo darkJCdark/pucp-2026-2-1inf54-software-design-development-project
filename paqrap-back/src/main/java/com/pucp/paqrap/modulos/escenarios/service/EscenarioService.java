@@ -31,6 +31,9 @@ public class EscenarioService {
     private final Clock relojReal;
     private final CoberturaPedidosService coberturaPedidos;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.pucp.paqrap.modulos.redvial.service.AlcanceBloqueos alcanceBloqueos;
+
     public EscenarioService(ScenarioExecutionRepository ejecucionRepository, MotorEscenarios motor,
                             EscenariosProperties propiedades, Clock relojReal,
                             CoberturaPedidosService coberturaPedidos) {
@@ -76,6 +79,9 @@ public class EscenarioService {
         ScenarioExecutionEntity ejecucion = ejecucionRepository.save(new ScenarioExecutionEntity(request.tipo(),
                 inicio.truncatedTo(ChronoUnit.MICROS), semilla, temperaturaInicial, temperaturaMinima,
                 factorEnfriamiento, iteracionesPorTemperatura));
+        if (request.periodosBloqueos() != null && alcanceBloqueos != null) {
+            alcanceBloqueos.registrar(ejecucion.getExecutionId(), request.periodosBloqueos());
+        }
         return respuesta(ejecucion);
     }
 

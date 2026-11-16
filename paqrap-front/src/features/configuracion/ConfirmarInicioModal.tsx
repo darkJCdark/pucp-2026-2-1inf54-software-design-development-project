@@ -55,7 +55,7 @@ export function ConfirmarInicioModal({
         <ResumenDato
           icono={<FileText className="size-4" />}
           label="Archivo de bloqueos"
-          value={archivosBloqueos.map((archivo) => archivo.name).join(" · ") || "Sin archivo"}
+          value={archivosBloqueos.map((archivo) => archivo.name).join(" · ") || "Sin bloqueos"}
         />
         <ResumenDato
           icono={<Boxes className="size-4" />}
