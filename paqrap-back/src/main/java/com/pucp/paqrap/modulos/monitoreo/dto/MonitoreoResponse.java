@@ -16,11 +16,16 @@ import java.util.Map;
 /**
  * Estado de la operación en el instante simulado de un escenario (CU-12): el instante actual si está activo, el
  * final si terminó y el inicial si aún no empezó. {@code colapso} es nulo mientras no haya colapso logístico.
+ * {@code alertas}: pedidos con plazo inalcanzable según la cota del mejor caso; son avisos y no detienen la simulación.
  */
 public record MonitoreoResponse(EscenarioResponse escenario, Instant instante, PedidoService.ResumenPedidos pedidos,
                                 List<Vehiculo> vehiculos, List<Almacen> almacenes, List<BloqueoResponse> bloqueosVigentes,
                                 List<AveriaResponse> averiasActivas, Ejecucion ejecucion,
-                                DetectorColapso.Colapso colapso) {
+                                DetectorColapso.Colapso colapso, List<DetectorColapso.Colapso> alertas) {
+
+    public MonitoreoResponse {
+        alertas = alertas == null ? List.of() : List.copyOf(alertas);
+    }
 
     /**
      * Resultados de ejecutar el plan hasta {@code instante}: pedidos completos, cuántos llegaron dentro del plazo,

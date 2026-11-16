@@ -92,4 +92,9 @@ export interface MonitoreoResponseDto {
   averiasActivas: AveriaResponseDto[];
   ejecucion: EjecucionMonitoreoDto;
   colapso: ColapsoMonitoreoDto | null;
+  /**
+   * Pedidos con plazo inalcanzable según la cota del mejor caso (saliendo ahora del central). Son avisos: no detienen
+   * la simulación, porque la replanificación puede llegar a tiempo recargando en un intermedio.
+   */
+  alertas?: ColapsoMonitoreoDto[];
 }

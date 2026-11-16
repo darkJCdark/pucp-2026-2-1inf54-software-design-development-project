@@ -162,10 +162,15 @@ class EventosYMonitoreoApiTest {
     }
 
     private long iniciarCincoDias() throws Exception {
+        return iniciarCincoDias("");
+    }
+
+    /** {@code extra}: campos JSON adicionales de la creación, p. ej. {@code , "periodosBloqueos": []}. */
+    private long iniciarCincoDias(String extra) throws Exception {
         // J1 (semana 12): 5D y Colapso exigen pedidos cargados en el mes de inicio.
         CoberturaDePrueba.cubrirMes(pedidoRepository, YearMonth.of(2026, 1));
         String respuesta = mvc.perform(post("/api/escenarios").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"tipo\": \"FIVE_DAY\", \"inicioSimulado\": \"" + INICIO + "\"}"))
+                        .content("{\"tipo\": \"FIVE_DAY\", \"inicioSimulado\": \"" + INICIO + "\"" + extra + "}"))
                 .andReturn().getResponse().getContentAsString();
         CoberturaDePrueba.quitarMarcador(pedidoRepository, YearMonth.of(2026, 1));
         long id = ((Number) JsonPath.read(respuesta, "$.id")).longValue();
@@ -191,6 +196,41 @@ class EventosYMonitoreoApiTest {
         reloj.avanzar(Duration.ofSeconds(1));
         motor.tick();
         assertEquals(2, planificador.solicitudes.size());
+    }
+
+    /**
+     * Un bloqueo guardado en la BD de un mes cuyo archivo no se cargó para esta ejecución no existe para ella: ni el
+     * mapa lo muestra ni dispara (o entra en) una replanificación.
+     */
+    @Test
+    void unBloqueoDeUnMesNoCargadoParaLaEjecucionNoSeMuestraNiSePlanifica() throws Exception {
+        bloqueoRepository.save(RoadBlockEntity.desde(new RoadBlock(INICIO.plusSeconds(30 * 60),
+                INICIO.plusSeconds(5 * 3600), List.of(new Location(10, 10), new Location(10, 15)))));
+        long id = iniciarCincoDias(", \"periodosBloqueos\": []");
+
+        reloj.avanzar(Duration.ofSeconds(15));
+        motor.tick();
+
+        assertEquals(List.of(PlanificadorPort.Motivo.INICIAL), planificador.motivos());
+        mvc.perform(get("/api/monitoreo/" + id)).andExpect(jsonPath("$.bloqueosVigentes", hasSize(0)));
+    }
+
+    @Test
+    void conElMesDelArchivoCargadoElBloqueoSeMuestraYReplanifica() throws Exception {
+        bloqueoRepository.save(RoadBlockEntity.desde(new RoadBlock(INICIO.plusSeconds(30 * 60),
+                INICIO.plusSeconds(5 * 3600), List.of(new Location(10, 10), new Location(10, 15)))));
+        // Otro mes guardado en la BD que esta ejecución no cargó: se ignora aunque se cruce con el horizonte.
+        bloqueoRepository.save(RoadBlockEntity.desde(new RoadBlock(Instant.parse("2025-12-31T23:00:00Z"),
+                INICIO.plusSeconds(5 * 3600), List.of(new Location(20, 10), new Location(20, 15)))));
+        long id = iniciarCincoDias(", \"periodosBloqueos\": [\"2026-01\"]");
+
+        reloj.avanzar(Duration.ofSeconds(15));
+        motor.tick();
+
+        assertEquals(List.of(PlanificadorPort.Motivo.INICIAL, PlanificadorPort.Motivo.INCIDENCIA), planificador.motivos());
+        mvc.perform(get("/api/monitoreo/" + id))
+                .andExpect(jsonPath("$.bloqueosVigentes", hasSize(1)))
+                .andExpect(jsonPath("$.bloqueosVigentes[0].nodos[0].x").value(10));
     }
 
     /** La avería replanifica cuando el reloj llega a su instante, con la avería en la solicitud. */

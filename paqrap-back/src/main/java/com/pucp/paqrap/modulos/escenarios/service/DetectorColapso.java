@@ -30,6 +30,10 @@ import java.util.stream.Collectors;
 
 /**
  * Detecta el colapso logístico (RF_105): el momento en que ya no es posible cumplir el plazo de todos los pedidos.
+ *
+ * <p>Semana 13: solo {@link Causa#PLAZO_VENCIDO} declara el colapso y detiene la simulación. {@link
+ * Causa#PLAZO_INALCANZABLE} queda como alerta ({@link #alertas}), porque su cota parte del central y la
+ * replanificación puede llegar antes recargando en un intermedio o con la carga ya a bordo.
  * No depende de que SA haya dejado algo sin asignar en un ciclo, porque una metaheurística con presupuesto de tiempo
  * puede no encontrar una solución que sí existe. Se declara con dos señales objetivas:
  * <ul>
@@ -73,6 +77,12 @@ public class DetectorColapso {
     private final VehicleTypeParametersRepository tipoRepository;
     private final WarehouseRepository almacenRepository;
     private final Map<Long, Colapso> colapsos = new ConcurrentHashMap<>();
+    /**
+     * Pedidos con plazo inalcanzable según la cota del mejor caso, por ejecución (uno por pedido, en orden de
+     * detección). Son avisos: la cota parte del central y no ve la recarga en intermedios ni la carga a bordo, así que
+     * un pedido avisado puede igual entregarse a tiempo; el colapso lo decide el plazo vencido (Semana 13).
+     */
+    private final Map<Long, Map<String, Colapso>> alertas = new ConcurrentHashMap<>();
 
     public DetectorColapso(OrderRepository pedidoRepository, VehicleRepository vehiculoRepository,
                            VehicleTypeParametersRepository tipoRepository, WarehouseRepository almacenRepository) {
@@ -96,8 +106,16 @@ public class DetectorColapso {
                 ? estadoOperativo.vehiculos(ejecucionId) : vehiculoRepository.findAll()).stream()
                 .filter(vehiculo -> vehiculo.getOperationalStatus() != VehicleOperationalStatus.UNAVAILABLE)
                 .toList();
-        Optional<Colapso> colapso = plazoVencido(ejecucionId, inicio, instante, habilitados.size())
-                .or(() -> plazoInalcanzable(ejecucionId, inicio, instante, habilitados));
+        Optional<Colapso> colapso = plazoVencido(ejecucionId, inicio, instante, habilitados.size());
+        if (colapso.isEmpty()) {
+            Map<String, Colapso> avisos = alertas.computeIfAbsent(ejecucionId, id -> new java.util.LinkedHashMap<>());
+            for (Colapso aviso : plazoInalcanzable(ejecucionId, inicio, instante, habilitados)) {
+                if (avisos.putIfAbsent(aviso.pedidoId(), aviso) == null) {
+                    log.info("Ejecución {}: alerta, el pedido {} (plazo {}) no llegaría a tiempo saliendo ahora del "
+                            + "central (mejor caso {})", ejecucionId, aviso.pedidoId(), aviso.plazo(), aviso.llegadaMinima());
+                }
+            }
+        }
         colapso.ifPresent(c -> {
             colapsos.put(ejecucionId, c);
             log.warn("Ejecución {}: colapso logístico en {} ({}, pedido {} con plazo {})", ejecucionId, c.instante(),
@@ -110,9 +128,16 @@ public class DetectorColapso {
         return Optional.ofNullable(colapsos.get(ejecucionId));
     }
 
-    /** Una ejecución nueva empieza sin colapso. */
+    /** Avisos de plazo inalcanzable de la ejecución, en orden de detección; no detienen la simulación. */
+    public List<Colapso> alertas(long ejecucionId) {
+        Map<String, Colapso> avisos = alertas.get(ejecucionId);
+        return avisos == null ? List.of() : List.copyOf(avisos.values());
+    }
+
+    /** Una ejecución nueva empieza sin colapso ni alertas. */
     public void reiniciar(long ejecucionId) {
         colapsos.remove(ejecucionId);
+        alertas.remove(ejecucionId);
     }
 
     private Optional<Colapso> plazoVencido(long ejecucionId, Instant inicio, Instant instante, long habilitados) {
@@ -123,7 +148,7 @@ public class DetectorColapso {
                         habilitados));
     }
 
-    private Optional<Colapso> plazoInalcanzable(long ejecucionId, Instant inicio, Instant instante, List<VehicleEntity> habilitados) {
+    private List<Colapso> plazoInalcanzable(long ejecucionId, Instant inicio, Instant instante, List<VehicleEntity> habilitados) {
         Optional<WarehouseEntity> central = almacenRepository.findAll().stream()
                 .filter(almacen -> almacen.getWarehouseKind() == WarehouseKind.CENTRAL)
                 .findFirst();
@@ -135,8 +160,9 @@ public class DetectorColapso {
                 .max();
         // Sin central o sin flota no hay cota que calcular; el plazo vencido lo detectará.
         if (central.isEmpty() || velocidad.isEmpty() || velocidad.getAsDouble() <= 0) {
-            return Optional.empty();
+            return List.of();
         }
+        List<Colapso> inalcanzables = new java.util.ArrayList<>();
         for (int pagina = 0; ; pagina++) {
             List<OrderEntity> pendientes = estadoOperativo != null
                     ? estadoOperativo.registrados(ejecucionId, inicio, instante, PageRequest.of(pagina, TAMANO_PAGINA))
@@ -147,12 +173,12 @@ public class DetectorColapso {
                 Instant llegadaMinima = instante.plus(
                         Duration.ofMillis(Math.round(km / velocidad.getAsDouble() * 3_600_000)));
                 if (llegadaMinima.isAfter(pedido.getDeadline())) {
-                    return Optional.of(colapso(ejecucionId, instante, Causa.PLAZO_INALCANZABLE, pedido, llegadaMinima, inicio,
-                            instante, habilitados.size()));
+                    inalcanzables.add(colapso(ejecucionId, instante, Causa.PLAZO_INALCANZABLE, pedido, llegadaMinima,
+                            inicio, instante, habilitados.size()));
                 }
             }
             if (pendientes.size() < TAMANO_PAGINA) {
-                return Optional.empty();
+                return inalcanzables;
             }
         }
     }

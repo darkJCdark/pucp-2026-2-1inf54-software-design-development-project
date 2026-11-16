@@ -85,8 +85,8 @@ class DetectorColapsoTest {
         pedido("P1", 30, 14);
         Instant revision = PLAZO.plusSeconds(600);
 
-        // A 1 h del plazo aún se alcanza (3 km en auto). Más cerca del plazo lo detectaría antes la cota del mejor
-        // caso (PLAZO_INALCANZABLE); aquí no hubo revisión entre medio, así que se registra el plazo vencido.
+        // A 1 h del plazo aún se alcanza (3 km en auto). La cota del mejor caso (PLAZO_INALCANZABLE) solo avisa; el
+        // colapso se registra cuando el plazo vence sin entrega.
         assertTrue(detector.revisar(ejecucion, INICIO, PLAZO.minusSeconds(3600)).isEmpty(), "aún está en plazo");
         DetectorColapso.Colapso colapso = detector.revisar(ejecucion, INICIO, revision).orElseThrow();
 
@@ -110,15 +110,22 @@ class DetectorColapsoTest {
         assertEquals(PLAZO, colapso.instante());
     }
 
-    /** (27,14) -> (70,50) = 79 km: en bicicleta 6,6 h, más que las 4 h del plazo, aun saliendo de inmediato. */
+    /**
+     * (27,14) -> (70,50) = 79 km: en bicicleta 6,6 h, más que las 4 h del plazo, aun saliendo de inmediato. Semana 13:
+     * no es colapso (la cota parte del central y no ve los intermedios ni la carga a bordo); queda como alerta.
+     */
     @Test
-    void unPedidoInalcanzableAunEnElMejorCasoEsColapsoAlDetectarlo() {
+    void unPedidoInalcanzableAunEnElMejorCasoQuedaComoAlertaSinColapso() {
         vehiculo("TB01", VehicleType.BICYCLE, VehicleOperationalStatus.AVAILABLE);
         pedido("P1", 70, 50);
 
-        DetectorColapso.Colapso colapso = detector.revisar(ejecucion, INICIO, INICIO).orElseThrow();
+        assertTrue(detector.revisar(ejecucion, INICIO, INICIO).isEmpty(), "no detiene la simulación");
+        assertTrue(detector.colapso(ejecucion).isEmpty());
+        assertEquals(1, detector.alertas(ejecucion).size());
+        DetectorColapso.Colapso colapso = detector.alertas(ejecucion).getFirst();
 
         assertEquals(DetectorColapso.Causa.PLAZO_INALCANZABLE, colapso.causa());
+        assertEquals("P1", colapso.pedidoId());
         assertEquals(INICIO, colapso.instante());
         assertEquals(PLAZO, colapso.plazo());
         assertEquals(INICIO.plusMillis(Math.round(79 / 12.0 * 3_600_000)), colapso.llegadaMinima());
@@ -132,9 +139,10 @@ class DetectorColapsoTest {
         pedido("P1", 70, 50);
 
         assertTrue(detector.revisar(ejecucion, INICIO, INICIO).isEmpty(), "79 km en auto son 2 h");
-        // Pasado el último momento de salida (plazo - 1 h 58,5 min), ya no se alcanza ni en auto.
-        DetectorColapso.Colapso colapso = detector.revisar(ejecucion, INICIO, PLAZO.minusSeconds(3600)).orElseThrow();
-        assertEquals(DetectorColapso.Causa.PLAZO_INALCANZABLE, colapso.causa());
+        assertTrue(detector.alertas(ejecucion).isEmpty(), "aún es alcanzable: sin alerta");
+        // Pasado el último momento de salida (plazo - 1 h 58,5 min), ya no se alcanza ni en auto: alerta, sin colapso.
+        assertTrue(detector.revisar(ejecucion, INICIO, PLAZO.minusSeconds(3600)).isEmpty());
+        assertEquals(DetectorColapso.Causa.PLAZO_INALCANZABLE, detector.alertas(ejecucion).getFirst().causa());
     }
 
     @Test
@@ -143,10 +151,26 @@ class DetectorColapsoTest {
         vehiculo("TA01", VehicleType.CAR, VehicleOperationalStatus.UNAVAILABLE);
         pedido("P1", 70, 50);
 
-        DetectorColapso.Colapso colapso = detector.revisar(ejecucion, INICIO, INICIO).orElseThrow();
+        assertTrue(detector.revisar(ejecucion, INICIO, INICIO).isEmpty());
+        DetectorColapso.Colapso colapso = detector.alertas(ejecucion).getFirst();
 
         assertEquals(DetectorColapso.Causa.PLAZO_INALCANZABLE, colapso.causa());
         assertEquals(1, colapso.vehiculosHabilitados());
+    }
+
+    /** La alerta se registra una sola vez por pedido; si el plazo vence sin entrega, entonces sí es colapso. */
+    @Test
+    void unaAlertaNoSeRepiteYElColapsoLlegaRecienAlVencerElPlazo() {
+        vehiculo("TB01", VehicleType.BICYCLE, VehicleOperationalStatus.AVAILABLE);
+        pedido("P1", 70, 50);
+
+        detector.revisar(ejecucion, INICIO, INICIO);
+        detector.revisar(ejecucion, INICIO, INICIO.plusSeconds(600));
+        assertEquals(1, detector.alertas(ejecucion).size());
+
+        DetectorColapso.Colapso colapso = detector.revisar(ejecucion, INICIO, PLAZO.plusSeconds(60)).orElseThrow();
+        assertEquals(DetectorColapso.Causa.PLAZO_VENCIDO, colapso.causa());
+        assertEquals(PLAZO, colapso.instante());
     }
 
     @Test
@@ -161,6 +185,7 @@ class DetectorColapsoTest {
 
         detector.reiniciar(ejecucion);
         assertTrue(detector.colapso(ejecucion).isEmpty());
+        assertTrue(detector.alertas(ejecucion).isEmpty());
     }
 
     @Test
