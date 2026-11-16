@@ -87,10 +87,13 @@ public class PedidoController {
     /**
      * Paginado con {@code page} (desde 0), {@code size} (máx. 500) y {@code sort} con nombres de la API:
      * id, clienteId, paquetes, registradoEn, vence o estado (p. ej. {@code sort=vence,asc}).
+     * Con {@code catalogo=true} se ignora el estado de cualquier ejecución y se devuelven los pedidos tal como están
+     * en la BD (identidad, destino y plazo): sirve para dibujar una simulación cuyo detalle ya no está en memoria.
      */
     @GetMapping
     public PaginaResponse<PedidoResponse> listar(
             @RequestParam(required = false) Long ejecucionId,
+            @RequestParam(defaultValue = "false") boolean catalogo,
             @RequestParam(required = false) String clienteId,
             @RequestParam(required = false) OrderStatus estado,
             @RequestParam(required = false) DeliveryType tipoEntrega,
@@ -99,6 +102,10 @@ public class PedidoController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant venceHasta,
             @PageableDefault(size = 50, sort = {"registradoEn", "id"}, direction = Sort.Direction.ASC)
             Pageable pageable) {
+        if (catalogo) {
+            return pedidoService.listarCatalogo(clienteId, estado, tipoEntrega, registradoDesde, registradoHasta,
+                    venceHasta, pageable);
+        }
         return pedidoService.listar(clienteId, estado, tipoEntrega, registradoDesde, registradoHasta, venceHasta,
                 pageable, ejecucionId);
     }

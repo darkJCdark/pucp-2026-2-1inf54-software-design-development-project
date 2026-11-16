@@ -227,6 +227,17 @@ public class PedidoService {
                 registradoHasta, venceHasta, orden), PedidoResponse::de);
     }
 
+    /** Pedidos de la BD sin el estado de ninguna ejecución (ver {@code catalogo} en el controlador). */
+    public PaginaResponse<PedidoResponse> listarCatalogo(String clienteId, OrderStatus estado, DeliveryType tipoEntrega,
+                                                         Instant registradoDesde, Instant registradoHasta,
+                                                         Instant venceHasta, Pageable pageable) {
+        if (registradoDesde != null && registradoHasta != null && !registradoHasta.isAfter(registradoDesde)) {
+            throw new IllegalArgumentException("'registradoHasta' debe ser posterior a 'registradoDesde'");
+        }
+        return PaginaResponse.de(pedidoRepository.buscar(clienteId, estado, tipoEntrega, registradoDesde,
+                registradoHasta, venceHasta, conOrdenDeEntidad(pageable)), PedidoResponse::de);
+    }
+
     private Comparator<OrderEntity> comparador(Sort orden) {
         Comparator<OrderEntity> resultado = (a, b) -> 0;
         for (Sort.Order campo : orden) {
