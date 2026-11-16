@@ -123,6 +123,31 @@ export const flotaService = {
     );
   },
 
+  /** Solo AVAILABLE o UNAVAILABLE: IN_ROUTE lo asigna la simulación. */
+  cambiarEstadoVehiculo(
+    id: string,
+    estado: "AVAILABLE" | "UNAVAILABLE",
+  ): Promise<VehiculoResponseDto> {
+
+    return apiRequest<VehiculoResponseDto>(
+      `/api/flota/vehiculos/${encodeURIComponent(
+        id,
+      )}/estado`,
+      {
+        method: "PATCH",
+
+        body:
+          JSON.stringify({
+            estado,
+          }),
+      },
+    );
+  },
+
+  /**
+   * Si la unidad ya tiene historial (rutas, averías o mantenimientos), el backend no la borra: la deja UNAVAILABLE
+   * (baja lógica).
+   */
   bajaVehiculo(
     id: string,
   ): Promise<void> {
