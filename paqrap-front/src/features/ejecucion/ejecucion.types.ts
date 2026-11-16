@@ -26,7 +26,9 @@ export type EstadoPedido =
   | "PENDIENTE"
   | "ASIGNADO"
   | "EN_TRANSITO"
-  | "ENTREGADO";
+  | "ENTREGADO"
+  /** Simulación terminada cuyo detalle se perdió al reiniciar el backend: se conoce el pedido, no su estado. */
+  | "SIN_DETALLE";
 
 export interface VehiculoMapa {
   id: string;

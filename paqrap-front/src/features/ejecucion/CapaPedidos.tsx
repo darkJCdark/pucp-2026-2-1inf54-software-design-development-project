@@ -72,6 +72,7 @@ const FORMATEADOR_FECHA =
     );
 
 type CategoriaPedido =
+    | "SIN_DETALLE"
     | "VENCIDO"
     | "PENDIENTE"
     | "ASIGNADO"
@@ -91,6 +92,14 @@ const ESTILOS_PEDIDO:
         CategoriaPedido,
         EstiloPedido
     > = {
+    SIN_DETALLE: {
+        fill:
+            "#64748b",
+
+        opacity:
+            0.6,
+    },
+
     VENCIDO: {
         fill:
             "#dc2626",
@@ -140,6 +149,7 @@ const ESTILOS_PEDIDO:
  */
 const ORDEN_CATEGORIAS:
     CategoriaPedido[] = [
+        "SIN_DETALLE",
         "ENTREGADO",
         "PENDIENTE",
         "ASIGNADO",
@@ -329,7 +339,9 @@ function CapaPedidosBase({
 
                             `Plazo: ${pedido.plazoHoras} h`,
 
-                            `Estado: ${pedido.estado}`,
+                            pedido.estado === "SIN_DETALLE"
+                                ? "Sin detalle"
+                                : `Estado: ${pedido.estado}`,
 
                             `Vence: ${FORMATEADOR_FECHA.format(
                                 new Date(
@@ -1141,6 +1153,13 @@ function obtenerCategoriaPedido(
     instanteMs:
         number,
 ): CategoriaPedido {
+    if (
+        pedido.estado ===
+        "SIN_DETALLE"
+    ) {
+        return "SIN_DETALLE";
+    }
+
     if (
         pedido.estado !==
         "ENTREGADO" &&

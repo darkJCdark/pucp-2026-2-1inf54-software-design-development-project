@@ -337,6 +337,10 @@ function ContenidoEjecucionPage() {
   const planEnCursoRef =
     useRef(false);
 
+  /** El detalle de la simulación ya no está en el backend (se reinició). */
+  const sinDetalleRef =
+    useRef(false);
+
   const ultimoRefrescoPedidosRef =
     useRef(0);
 
@@ -497,28 +501,86 @@ function ContenidoEjecucionPage() {
           ultimoRefrescoPedidosRef.current >=
           2000
       ) {
-        const respuestaPedidos =
-          await pedidosService.listarTodos(
-            {
-              registradoDesde:
-                respuesta
-                  .escenario
-                  .inicioSimulado,
+        const filtroPedidos = {
+          registradoDesde:
+            respuesta
+              .escenario
+              .inicioSimulado,
 
-              registradoHasta:
-                respuesta
-                  .instante,
+          registradoHasta:
+            respuesta
+              .instante,
 
-              sort:
-                "registradoEn,asc",
-            },
+          sort:
+            "registradoEn,asc",
+        };
+
+        if (
+          !sinDetalleRef.current
+        ) {
+          try {
+            const respuestaPedidos =
+              await pedidosService.listarTodos(
+                {
+                  ...filtroPedidos,
+
+                  /*
+                   * Sin el id, al terminar la simulación el backend ya no
+                   * tiene una ejecución activa y responde con los estados
+                   * de la BD (todos REGISTERED): el mapa pintaba de rojo
+                   * todos los pedidos como vencidos.
+                   */
+                  ejecucionId,
+                },
+              );
+
+            setPedidos(
+              adaptarPedidos(
+                respuestaPedidos,
+              ),
+            );
+          } catch (errorPedidos) {
+            if (
+              !esDetalleNoDisponible(
+                errorPedidos,
+              )
+            ) {
+              throw errorPedidos;
+            }
+
+            sinDetalleRef.current =
+              true;
+          }
+        }
+
+        if (
+          sinDetalleRef.current
+        ) {
+          /*
+           * El backend se reinició y el detalle de esta simulación
+           * (solo en memoria) se perdió: se dibujan los pedidos sin
+           * inventar un estado.
+           */
+          const catalogo =
+            await pedidosService.listarTodos(
+              {
+                ...filtroPedidos,
+                catalogo: true,
+              },
+            );
+
+          setPedidos(
+            adaptarPedidos(
+              catalogo,
+            ).map((pedido) => ({
+              ...pedido,
+              estado:
+                "SIN_DETALLE" as const,
+              entregadoEn:
+                null,
+            })),
           );
-
-        setPedidos(
-          adaptarPedidos(
-            respuestaPedidos,
-          ),
-        );
+        }
 
         ultimoRefrescoPedidosRef.current =
           ahora;
@@ -1060,9 +1122,17 @@ function ContenidoEjecucionPage() {
     estado ===
       "RUNNING";
 
+  /*
+   * También con la simulación pausada: la avería queda en el instante
+   * simulado actual y el motor replanifica al reanudar.
+   */
   const puedeRegistrarAveria =
-    estado ===
-      "RUNNING" &&
+    (
+      estado ===
+        "RUNNING" ||
+      estado ===
+        "PAUSED"
+    ) &&
     (
       tipo ===
         "DAY_TO_DAY" ||
@@ -1367,18 +1437,54 @@ function ContenidoEjecucionPage() {
           />
           <VentanaFlotante
             titulo="Alertas de simulación"
-            icono={<AlertTriangle className={`size-4 ${monitoreo.colapso ? "text-red-400" : "text-slate-500"}`} />}
-            resumen={monitoreo.colapso ? <span className="text-red-300">1 alerta registrada</span> : "Sin alertas"}
+            icono={
+              <AlertTriangle
+                className={`size-4 ${
+                  monitoreo.colapso
+                    ? "text-red-400"
+                    : (monitoreo.alertas?.length ?? 0) > 0
+                      ? "text-amber-400"
+                      : "text-slate-500"
+                }`}
+              />
+            }
+            resumen={
+              monitoreo.colapso ? (
+                <span className="text-red-300">Colapso registrado</span>
+              ) : (monitoreo.alertas?.length ?? 0) > 0 ? (
+                <span className="text-amber-300">
+                  {monitoreo.alertas?.length} {monitoreo.alertas?.length === 1 ? "alerta" : "alertas"}
+                </span>
+              ) : (
+                "Sin alertas"
+              )
+            }
             minimizada={ventanaIzquierda !== "ALERTAS"}
             onCambiarMinimizada={(minimizada) =>
               cambiarVentanaIzquierda("ALERTAS", !minimizada)
             }
             className="w-full shrink-0"
           >
-            {monitoreo.colapso ? (
-              <div className="space-y-1 break-words whitespace-normal px-4 py-3 text-xs text-red-100">
-                <p className="font-semibold text-red-300">Colapso detectado</p>
-                <p>Pedido {monitoreo.colapso.pedidoId} · {nombreCausaColapso(monitoreo.colapso.causa)}</p>
+            {monitoreo.colapso || (monitoreo.alertas?.length ?? 0) > 0 ? (
+              <div className="max-h-56 space-y-2 overflow-y-auto break-words whitespace-normal px-4 py-3 text-xs">
+                {monitoreo.colapso && (
+                  <div className="space-y-1 text-red-100">
+                    <p className="font-semibold text-red-300">Colapso detectado</p>
+                    <p>Pedido {monitoreo.colapso.pedidoId} · {nombreCausaColapso(monitoreo.colapso.causa)}</p>
+                  </div>
+                )}
+                {[...(monitoreo.alertas ?? [])].reverse().map((alerta) => (
+                  <div key={alerta.pedidoId} className="space-y-0.5 border-l-2 border-amber-500/60 pl-2 text-amber-100">
+                    <p className="font-semibold text-amber-300">
+                      Plazo en riesgo · pedido {alerta.pedidoId}
+                    </p>
+                    <p className="text-[11px] text-slate-300">
+                      Vence {horaAlerta(alerta.plazo)}; saliendo ahora del central llegaría{" "}
+                      {alerta.llegadaMinima ? horaAlerta(alerta.llegadaMinima) : "—"}. Aviso detectado{" "}
+                      {horaAlerta(alerta.detectadoEn)}; la simulación continúa.
+                    </p>
+                  </div>
+                ))}
               </div>
             ) : (
               <p className="px-4 py-3 text-xs text-slate-500">No hay alertas de simulación registradas.</p>
@@ -1967,6 +2073,26 @@ function nombreCausaColapso(
     case "PLAZO_INALCANZABLE":
       return "plazo inalcanzable";
   }
+}
+
+/** Respuesta del backend para una simulación terminada cuyo detalle ya no está en memoria. */
+function esDetalleNoDisponible(error: unknown) {
+  return (
+    error instanceof ApiError &&
+    error.status === 409 &&
+    error.message.includes("no está en memoria")
+  );
+}
+
+function horaAlerta(valor: string) {
+  return new Intl.DateTimeFormat("es-PE", {
+    timeZone: "America/Lima",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(valor));
 }
 
 function nombreTipoVehiculo(
