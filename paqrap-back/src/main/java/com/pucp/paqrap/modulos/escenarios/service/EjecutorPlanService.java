@@ -146,12 +146,16 @@ public class EjecutorPlanService {
             estado.rutas.putAll(continuadas);
             estado.continuadas.clear();
             continuadas.values().forEach(enCurso -> estado.continuadas.add(enCurso.ruta));
+            // La replanificación puede sumar entregas a una ruta que ya salió (inserción, viaje encadenado, trasvase):
+            // esos pedidos ya tienen unidad, aunque su ruta no vuelva a "salir" (Semana 13).
+            continuadas.values().forEach(enCurso -> asignarEntregasNuevas(ejecucionId, enCurso.ruta,
+                    plan.planificadoEn()));
             if (!plan.planificadoEn().isAfter(desde)) {
                 inicioVentana = plan.planificadoEn().minusNanos(1);
             }
         }
 
-        for (Evento evento : eventos(plan, inicioVentana, desde, estado.continuadas, hasta, averias)) {
+        for (Evento evento : eventos(plan, inicioVentana, desde, estado.continuadas, estado.rutas, hasta, averias)) {
             aplicar(ejecucionId, estado, evento, averias);
         }
         trasladarAveriadosAlCentral(ejecucionId, averias, desde, hasta);
@@ -298,9 +302,16 @@ public Optional<Instant> refrigerioHasta(
     /**
      * Eventos de todas las rutas programadas con instante en (desde, hasta], en orden cronológico. Las rutas
      * continuadas ya se ejecutaron hasta {@code ejecutadoHasta}: sus eventos se toman desde ahí.
+     *
+     * <p>Una ruta en curso avanza por paradas, no por horas (Semana 13): al reprogramarla (p. ej. por un bloqueo) la
+     * replanificación la recalcula desde su salida y puede mover las horas de paradas ya hechas o pendientes. Las
+     * paradas ya alcanzadas no se repiten (no hay entregas dobles) y una pendiente cuya hora nueva quedó en el pasado se
+     * ejecuta al inicio de esta ventana, en su orden, en vez de perderse (antes un pedido asignado a tiempo quedaba sin
+     * entregar y la simulación colapsaba).
      */
     private List<Evento> eventos(PlanResponse plan, Instant inicioVentana, Instant ejecutadoHasta,
-                                 Set<RutaResponse> continuadas, Instant hasta, List<BreakdownEvent> averias) {
+                                 Set<RutaResponse> continuadas, Map<String, RutaEnCurso> enCursoPorVehiculo,
+                                 Instant hasta, List<BreakdownEvent> averias) {
         List<Evento> eventos = new ArrayList<>();
         for (RutaResponse ruta : plan.rutas()) {
             if (ruta.llegadaFinal() == null || ruta.salida() == null) {
@@ -308,6 +319,9 @@ public Optional<Instant> refrigerioHasta(
             }
             Instant desde = continuadas.contains(ruta) && ejecutadoHasta.isAfter(inicioVentana)
                     ? ejecutadoHasta : inicioVentana;
+            RutaEnCurso curso = enCursoPorVehiculo.get(ruta.vehiculoId());
+            boolean enCurso = curso != null && curso.ruta == ruta && !curso.interrumpida;
+            int alcanzadas = enCurso ? curso.alcanzadas : 0;
             agregar(eventos, ruta.salida(), TipoEvento.SALIDA, ruta, -1, desde, hasta);
             Instant partida = ruta.salida();
             for (int i = 0; i < ruta.paradas().size(); i++) {
@@ -315,13 +329,18 @@ public Optional<Instant> refrigerioHasta(
                 if (parada.llegada() == null) {
                     break;
                 }
-                if (ParadaResponse.ENTREGA.equals(parada.tipo())) {
-                    agregar(eventos, partida, TipoEvento.PARTIDA_HACIA_PARADA, ruta, i, desde, hasta);
+                if (i >= alcanzadas) {
+                    if (ParadaResponse.ENTREGA.equals(parada.tipo())) {
+                        agregar(eventos, enCurso ? aMasTardar(partida, desde, 2L * i + 1) : partida,
+                                TipoEvento.PARTIDA_HACIA_PARADA, ruta, i, desde, hasta);
+                    }
+                    agregar(eventos, enCurso ? aMasTardar(parada.llegada(), desde, 2L * i + 2) : parada.llegada(),
+                            TipoEvento.LLEGADA_A_PARADA, ruta, i, desde, hasta);
                 }
-                agregar(eventos, parada.llegada(), TipoEvento.LLEGADA_A_PARADA, ruta, i, desde, hasta);
                 partida = parada.fin() != null ? parada.fin() : parada.llegada();
             }
-            agregar(eventos, ruta.llegadaFinal(), TipoEvento.FIN_RUTA, ruta, -1, desde, hasta);
+            agregar(eventos, enCurso ? aMasTardar(ruta.llegadaFinal(), desde, 2L * ruta.paradas().size() + 2)
+                    : ruta.llegadaFinal(), TipoEvento.FIN_RUTA, ruta, -1, desde, hasta);
             averias.stream()
                     .filter(averia -> averia.vehicleId().equals(ruta.vehiculoId()))
                     .filter(averia -> !averia.occurredAt().isBefore(ruta.salida())
@@ -330,6 +349,14 @@ public Optional<Instant> refrigerioHasta(
         }
         eventos.sort(Comparator.comparing(Evento::instante).thenComparing(Evento::tipo));
         return eventos;
+    }
+
+    /**
+     * Hora de un evento pendiente de una ruta en curso: la planificada, o justo después de {@code desde} si la
+     * replanificación la dejó en el pasado ({@code orden} mantiene la secuencia de las paradas).
+     */
+    private static Instant aMasTardar(Instant planificado, Instant desde, long orden) {
+        return planificado.isAfter(desde) ? planificado : desde.plusNanos(orden);
     }
 
     private void agregar(List<Evento> eventos, Instant instante, TipoEvento tipo, RutaResponse ruta, int parada,
@@ -362,7 +389,11 @@ public Optional<Instant> refrigerioHasta(
         }
         switch (evento.tipo()) {
             case PARTIDA_HACIA_PARADA -> partirHacia(ejecucionId, ruta.paradas().get(evento.parada()), ruta, evento.instante());
-            case LLEGADA_A_PARADA -> llegarA(ejecucionId, estado, enCurso, evento.parada(), evento.instante());
+            case LLEGADA_A_PARADA -> {
+                if (evento.parada() >= enCurso.alcanzadas) { // una parada ya alcanzada no se repite
+                    llegarA(ejecucionId, estado, enCurso, evento.parada(), evento.instante());
+                }
+            }
             case FIN_RUTA -> terminarRuta(ejecucionId, enCurso);
             default -> { }
         }
@@ -416,6 +447,7 @@ public Optional<Instant> refrigerioHasta(
     }
 
     private void llegarA(long ejecucionId, EstadoEjecucion estado, RutaEnCurso enCurso, int indice, Instant instante) {
+        enCurso.alcanzadas = indice + 1;
         RutaResponse ruta = enCurso.ruta;
         ParadaResponse parada = ruta.paradas().get(indice);
         double tramoKm = enCurso.factorDistancia * Math.abs(parada.x() - enCurso.x) + enCurso.factorDistancia
@@ -529,6 +561,18 @@ public Optional<Instant> refrigerioHasta(
                 .findFirst();
     }
 
+    /** Marca ASSIGNED los pedidos de una ruta en curso que aún figuran como REGISTERED. */
+    private void asignarEntregasNuevas(long ejecucionId, RutaResponse ruta, Instant instante) {
+        for (ParadaResponse parada : ruta.paradas()) {
+            if (ParadaResponse.ENTREGA.equals(parada.tipo())) {
+                pedido(ejecucionId, parada.pedidoId())
+                        .filter(pedido -> pedido.getStatus() == OrderStatus.REGISTERED)
+                        .ifPresent(pedido -> cambiarEstado(ejecucionId, pedido, OrderStatus.ASSIGNED, instante,
+                                ruta.vehiculoId()));
+            }
+        }
+    }
+
     private void cambiarEstado(long ejecucionId, OrderEntity pedido, OrderStatus nuevoEstado, Instant instante, String vehiculoId) {
         pedido.cambiarEstado(nuevoEstado);
         guardarHistorial(ejecucionId, pedido, nuevoEstado, instante, vehiculoId);
@@ -585,6 +629,8 @@ public Optional<Instant> refrigerioHasta(
         private int x;
         private int y;
         private boolean interrumpida;
+        /** Paradas ya alcanzadas: la ruta avanza por paradas, aunque la replanificación cambie sus horas. */
+        private int alcanzadas;
 
         private RutaEnCurso(RutaResponse ruta, int xInicial, int yInicial) {
             this.ruta = ruta;

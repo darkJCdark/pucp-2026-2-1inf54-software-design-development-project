@@ -410,6 +410,49 @@ class EjecutorPlanServiceTest {
         assertEquals(112.0, metricas.costo());
     }
 
+    /** La ruta de TA01 con otras horas de llegada a P1 y P2 (misma ruta: mismo id y salida). */
+    private static RutaResponse rutaTa01Reprogramada(Instant llegadaP1, Instant llegadaP2) {
+        return new RutaResponse("SA-TA01", "TA01", "CAR", SALIDA, llegadaP2.plusSeconds(7200), 14.0, 112.0, List.of(
+                new ParadaResponse(1, ParadaResponse.ENTREGA, "P1", null, 30, 14, 5, llegadaP1, llegadaP1.plusSeconds(3600), 7, 2),
+                new ParadaResponse(2, ParadaResponse.ENTREGA, "P2", null, 30, 18, 2, llegadaP2, llegadaP2.plusSeconds(3600), 2, 0),
+                new ParadaResponse(3, ParadaResponse.ALMACEN, null, "CENTRAL", 27, 14, 0, llegadaP2.plusSeconds(7200),
+                        llegadaP2.plusSeconds(7200), 0, 0)));
+    }
+
+    /**
+     * Caso de la ejecución 46 (Semana 13): la replanificación reprograma la ruta en curso (p. ej. termina un bloqueo) y
+     * la llegada pendiente a P2 pasa de 12:00 a 11:40, cuando el ejecutor ya avanzó a 11:50. Antes ese evento quedaba en
+     * el pasado y la entrega se perdía; ahora se ejecuta al inicio de la ventana siguiente.
+     */
+    @Test
+    void unaReprogramacionQueAdelantaUnaLlegadaPendienteNoPierdeLaEntrega() {
+        planes.planes.put(ejecucion, planConRutaTa01());
+        ejecutor.avanzar(ejecucion, SALIDA, hora("11:50"));
+        assertEquals(5, ejecutor.metricas(ejecucion).orElseThrow().paquetesEntregados(), "P1 ya entregado");
+
+        planes.planes.put(ejecucion, plan(hora("11:50"), List.of(rutaTa01Reprogramada(hora("10:30"), hora("11:40")))));
+        ejecutor.avanzar(ejecucion, hora("11:50"), hora("14:30"));
+
+        EjecutorPlanService.Metricas metricas = ejecutor.metricas(ejecucion).orElseThrow();
+        assertEquals(7, metricas.paquetesEntregados(), "la entrega a P2 no se pierde");
+        assertEquals(OrderStatus.IN_TRANSIT, pedido("P2").getStatus(), "P2 recibió 2 de 3 paquetes");
+        assertEquals(VehicleOperationalStatus.AVAILABLE, vehiculo("TA01").getOperationalStatus(), "terminó la ruta");
+    }
+
+    /** Si la reprogramación atrasa una parada ya alcanzada (P1 a las 10:50), no se entrega dos veces. */
+    @Test
+    void unaReprogramacionQueAtrasaUnaLlegadaYaHechaNoLaRepite() {
+        planes.planes.put(ejecucion, planConRutaTa01());
+        ejecutor.avanzar(ejecucion, SALIDA, hora("10:45"));
+
+        planes.planes.put(ejecucion, plan(hora("10:45"), List.of(rutaTa01Reprogramada(hora("10:50"), hora("12:00")))));
+        ejecutor.avanzar(ejecucion, hora("10:45"), hora("14:30"));
+
+        EjecutorPlanService.Metricas metricas = ejecutor.metricas(ejecucion).orElseThrow();
+        assertEquals(7, metricas.paquetesEntregados(), "P1 se entrega una sola vez");
+        assertEquals(1, metricas.pedidosEntregados());
+    }
+
     /** Una ruta del plan nuevo con el mismo vehículo pero otra salida es otra ruta: la anterior no continúa. */
     @Test
     void unaRutaConOtraSalidaNoContinuaLaRutaEnCurso() {
