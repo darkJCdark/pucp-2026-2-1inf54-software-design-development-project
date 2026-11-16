@@ -623,6 +623,87 @@ class ReplanificacionSaServiceTest {
         assertTrue(r.plan().violaciones().isEmpty(), () -> "violaciones: " + r.plan().violaciones());
     }
 
+    private static ReplanificacionSaService conFlota(String... ids) {
+        FuenteDatosOperativos fuente = new FuenteDatosOperativosMock() {
+            @Override
+            public List<Vehicle> flota() {
+                return java.util.Arrays.stream(ids).map(ReplanificacionSaServiceTest::vehiculo).toList();
+            }
+        };
+        return new ReplanificacionSaService(fuente, new PlanificadorSaService(fuente, CONFIG_PRUEBA),
+                Mockito.mock(PlanPersistenceService.class));
+    }
+
+    private static List<String> secuencia(RutaResponse ruta) {
+        return ruta.paradas().stream().map(pp -> ParadaResponse.ENTREGA.equals(pp.tipo()) ? pp.pedidoId()
+                : pp.almacenId() + ":" + pp.paquetes()).toList();
+    }
+
+    /**
+     * Rescate crítico con préstamo de carga (Semana 13): la única moto lleva P39 y P40. Llega P41, cerca de su camino y
+     * con menos de 2 h de plazo; recargar antes en un intermedio no llega. La moto atiende P41 con los paquetes de P40,
+     * recarga esos 2 en el central (el almacén que menos la desvía) y sigue con P40 a tiempo.
+     */
+    @Test
+    void unPedidoCriticoSeAtiendeConPrestamoDeCargaYLaUnidadRecargaAntesDeSuEntrega() {
+        ReplanificacionSaService unaMoto = conFlota("TM01");
+        Order p39 = new Order("P39", new Location(30, 14), 3, H, H.plusSeconds(10 * 3600));
+        Order p40 = new Order("P40", new Location(50, 14), 4, H, H.plusSeconds(10 * 3600));
+        unaMoto.iniciar(EJECUCION, new SolicitudPlanificacion(ModoOperacion.SIMULACION_5D, H, List.of(p39, p40),
+                List.of(), SEMILLA, PRESUPUESTO_AMPLIO, CONFIG_PRUEBA));
+        RutaVigente antes = unaMoto.rutasVigentes(EJECUCION).getFirst();
+        assertEquals(List.of("P39", "P40"), secuencia(unaMoto.planVigente(EJECUCION).orElseThrow()
+                .plan().rutas().getFirst()).subList(0, 2));
+        Instant t1 = H.plusSeconds(20 * 60);
+        Order p41 = new Order("P41", new Location(40, 14), 2, t1, t1.plusSeconds(90 * 60));
+
+        ReplanificacionResponse r = unaMoto.registrarPedido(EJECUCION, p41, t1);
+
+        assertTrue(r.plan().noAtendidos().isEmpty(), () -> "sin atender: " + r.plan().noAtendidos());
+        RutaResponse ruta = r.plan().rutas().getFirst();
+        assertEquals(antes.ruta().id(), ruta.id(), "misma ruta en marcha");
+        // Desde P41 (40,14) hacia P40 (50,14), recargar en el central desvía 36 km y en ESTE 50 km.
+        assertEquals(List.of("P39", "P41", "CENTRAL:2", "P40"), secuencia(ruta).subList(0, 4));
+        for (ParadaResponse parada : ruta.paradas()) {
+            if (ParadaResponse.ENTREGA.equals(parada.tipo())) {
+                Order pedido = List.of(p39, p40, p41).stream().filter(o -> o.id().equals(parada.pedidoId()))
+                        .findFirst().orElseThrow();
+                assertFalse(parada.llegada().isAfter(pedido.deadline()), parada.pedidoId() + " llega a tiempo");
+            }
+        }
+        assertTrue(r.plan().violaciones().isEmpty(), () -> "violaciones: " + r.plan().violaciones());
+    }
+
+    /**
+     * Rescate crítico de una entrega que se atrasaría (Semana 13): TM01 lleva P50 y P51 (plazo justo). Un bloqueo nuevo
+     * en su camino a P51 la haría llegar tarde; la ruta suelta P51 (sus paquetes quedan a bordo) y TM02, libre en el
+     * central, lo entrega a tiempo.
+     */
+    @Test
+    void unaEntregaQueUnBloqueoAtrasariaLaAtiendeOtraUnidadATiempo() {
+        ReplanificacionSaService dosMotos = conFlota("TM01", "TM02");
+        Order p50 = new Order("P50", new Location(30, 14), 2, H, H.plusSeconds(10 * 3600));
+        Order p51 = new Order("P51", new Location(33, 14), 2, H, H.plusSeconds(70 * 60));
+        dosMotos.iniciar(EJECUCION, new SolicitudPlanificacion(ModoOperacion.SIMULACION_5D, H, List.of(p50, p51),
+                List.of(), SEMILLA, PRESUPUESTO_AMPLIO, CONFIG_PRUEBA));
+        RutaVigente conAmbos = dosMotos.rutasVigentes(EJECUCION).stream()
+                .filter(rv -> rv.ruta().stops().stream().filter(DeliveryStop.class::isInstance).count() == 2)
+                .findFirst().orElseThrow(() -> new AssertionError("una moto debe llevar P50 y P51"));
+        Instant t = H.plusSeconds(20 * 60);
+        RoadBlock bloqueo = new RoadBlock(t, H.plusSeconds(5 * 3600), List.of(new Location(31, 14), new Location(32, 14)));
+
+        ReplanificacionResponse r = dosMotos.activarBloqueo(EJECUCION, bloqueo, t);
+
+        assertTrue(r.plan().noAtendidos().isEmpty(), () -> "sin atender: " + r.plan().noAtendidos());
+        assertTrue(r.plan().violaciones().isEmpty(), () -> "violaciones: " + r.plan().violaciones());
+        RutaResponse original = r.plan().rutas().stream().filter(x -> x.id().equals(conAmbos.ruta().id()))
+                .findFirst().orElseThrow();
+        assertTrue(original.paradas().stream().noneMatch(pp -> "P51".equals(pp.pedidoId())), "soltó P51");
+        ParadaResponse entregaP51 = r.plan().rutas().stream().flatMap(x -> x.paradas().stream())
+                .filter(pp -> "P51".equals(pp.pedidoId())).findFirst().orElseThrow();
+        assertFalse(entregaP51.llegada().isAfter(p51.deadline()), "P51 llega a tiempo con otra unidad");
+    }
+
     /** Indicación del profesor: tras una MINOR la unidad espera 2 horas y sigue su ruta con su carga, sin volver antes. */
     @ParameterizedTest
     @ValueSource(ints = {120, 60})

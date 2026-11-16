@@ -67,6 +67,8 @@ import com.pucp.paqrap.modulos.redvial.service.RoadNetwork;
 @Service
 public class ReplanificacionSaService implements ReplanificacionService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ReplanificacionSaService.class);
+
     private final FuenteDatosOperativos fuente;
     private final PlanificadorSaService planificador;
     private final RouteScheduler programador = new RouteScheduler(new RoadNetwork());
@@ -79,6 +81,11 @@ public class ReplanificacionSaService implements ReplanificacionService {
     private static final Duration VIGENCIA_AVERIA = Duration.ofDays(3);
     /** Ruta de una unidad que, de regreso al central, se desvía para hacer un trasvase. */
     static final String SUFIJO_DESVIO = "-TRASV";
+    /** Rescate crítico; {@code -Dpaqrap.rescate=false} lo desactiva (para medir su efecto). */
+    static final boolean RESCATE_CRITICO = Boolean.parseBoolean(System.getProperty("paqrap.rescate", "true"));
+    /** Un pedido sin atender es crítico si quedan estas horas o menos para su plazo ({@code paqrap.rescate.horas}). */
+    static final Duration HORAS_CRITICAS = Duration.ofMinutes(Math.round(
+            60 * Double.parseDouble(System.getProperty("paqrap.rescate.horas", "2"))));
     /** Inserción en rutas en marcha; {@code -Dpaqrap.insercion=false} la desactiva (para medir su efecto). */
     static final boolean INSERTAR_EN_MARCHA =
             Boolean.parseBoolean(System.getProperty("paqrap.insercion", "true"));
@@ -303,6 +310,7 @@ public class ReplanificacionSaService implements ReplanificacionService {
                     return ruta;
                 })
                 .map(ruta -> liberarViajesSiIncumple(ruta, ahora, bloqueos))
+                .map(ruta -> liberarEntregasTardias(ruta, ahora, bloqueos))
                 .toList());
         agregarContinuaciones(corte.interrumpidas(), averiaPorVehiculo, ahora, central, almacenes, conservadas, forzados,
                 averias, retiros, bloqueos);
@@ -392,14 +400,21 @@ public class ReplanificacionSaService implements ReplanificacionService {
             noAtendidos.removeIf(o -> o.id().equals(pedido.id()));
             noAtendidos.add(conPaquetes(pedido, previo + pedido.packages()));
         }
-        // Lo que el SA no pudo atender se intenta meter en rutas que ya están en la calle (Semana 13).
-        for (RutaVigente[] cambio : insertarEnRutasEnMarcha(noAtendidos, vigentes, conservadas.size(), snapshot, ahora,
-                bloqueos)) {
+        // Lo que el SA no pudo atender se intenta meter en rutas que ya están en la calle (Semana 13) y, como último
+        // recurso, se rescata lo crítico (entregas que se atrasarían y pedidos a punto de vencer).
+        Map<String, Integer> reservado = new HashMap<>();
+        List<RutaVigente[]> cambios = new ArrayList<>(insertarEnRutasEnMarcha(noAtendidos, vigentes, conservadas.size(),
+                snapshot, ahora, bloqueos, reservado));
+        cambios.addAll(rescatarCriticos(noAtendidos, vigentes, conservadas.size(), snapshot, ahora, bloqueos,
+                reservado));
+        for (RutaVigente[] cambio : cambios) {
             plan = plan.withRoute(cambio[1].ruta());
             programadas.remove(cambio[0].ruta().id());
             programadas.put(cambio[1].ruta().id(), cambio[1].programada());
             costo += cambio[1].programada().totalCost()
                     - (cambio[0].programada() == null ? 0 : cambio[0].programada().totalCost());
+            violaciones.removeIf(v -> cambio[0].ruta().id().equals(v.routeId()));
+            violaciones.addAll(cambio[1].violaciones());
         }
         ResultadoPlanificacion combinado = new ResultadoPlanificacion(plan,
                 new PlanEvaluation(programadas, violaciones, sa.evaluacion().remainingInventory(), costo), noAtendidos);
@@ -582,12 +597,11 @@ public class ReplanificacionSaService implements ReplanificacionService {
      */
     private List<RutaVigente[]> insertarEnRutasEnMarcha(List<Order> noAtendidos, List<RutaVigente> vigentes,
                                                          int enMarcha, OperationalSnapshot snapshot, Instant ahora,
-                                                         List<RoadBlock> bloqueos) {
+                                                         List<RoadBlock> bloqueos, Map<String, Integer> reservado) {
         List<RutaVigente[]> cambios = new ArrayList<>();
         if (!INSERTAR_EN_MARCHA || noAtendidos.isEmpty() || enMarcha == 0) {
             return cambios;
         }
-        Map<String, Integer> reservado = new HashMap<>();
         Map<String, RutaVigente> originales = new HashMap<>();
         List<Order> ordenados = new ArrayList<>(noAtendidos);
         ordenados.sort(Comparator.comparing(Order::deadline).thenComparing(Order::id));
@@ -626,6 +640,222 @@ public class ReplanificacionSaService implements ReplanificacionService {
                     .ifPresent(nueva -> cambios.add(new RutaVigente[]{original.getValue(), nueva}));
         }
         return cambios;
+    }
+
+    /**
+     * Rescate crítico (Semana 13), último recurso después del SA, la inserción y el trasvase por avería:
+     * un pedido sin atender a punto de vencer (quedan {@link #HORAS_CRITICAS} o menos) se entrega con préstamo de
+     * carga de una unidad cercana. La parte 1 (entregas que se atrasarían) está en {@link #liberarEntregasTardias}.
+     * Préstamo de carga: la unidad entrega el pedido con lo que lleva a bordo (los paquetes son un mismo producto) y,
+     * si después le falta para sus propias entregas, recarga en el almacén que menos la desvía antes de seguir. Nunca
+     * deja tarde a ninguno de sus pedidos. Se limita a lo crítico para no reacomodar rutas sin necesidad.
+     *
+     * @return pares [anterior, nueva] de las rutas modificadas (también se reemplazan en {@code vigentes})
+     */
+    private List<RutaVigente[]> rescatarCriticos(List<Order> noAtendidos, List<RutaVigente> vigentes, int enMarcha,
+                                                 OperationalSnapshot snapshot, Instant ahora, List<RoadBlock> bloqueos,
+                                                 Map<String, Integer> reservado) {
+        Map<String, RutaVigente> originales = new LinkedHashMap<>();
+        if (!RESCATE_CRITICO || enMarcha == 0) {
+            return List.of();
+        }
+        // Pedidos sin atender a punto de vencer (incluye entregas que liberó liberarEntregasTardias).
+        List<Order> criticos = noAtendidos.stream()
+                .filter(pedido -> pedido.deadline().isAfter(ahora)
+                        && !pedido.deadline().isAfter(ahora.plus(HORAS_CRITICAS)))
+                .sorted(Comparator.comparing(Order::deadline).thenComparing(Order::id))
+                .toList();
+        for (Order pedido : criticos) {
+            int falta = pedido.packages();
+            while (falta > 0) {
+                Insercion mejor = null;
+                for (int i = 0; i < enMarcha; i++) {
+                    Insercion candidata = mejorPrestamo(vigentes.get(i), i, pedido, falta, snapshot, reservado, ahora,
+                            bloqueos);
+                    if (candidata != null && (mejor == null || candidata.extraKm() < mejor.extraKm())) {
+                        mejor = candidata;
+                    }
+                }
+                if (mejor == null) {
+                    break;
+                }
+                aplicarCambio(vigentes, mejor, reservado, originales);
+                falta -= mejor.paquetes();
+                log.info("Rescate crítico: {} lleva {} paq. del pedido {} con su carga (vence {})",
+                        mejor.ruta().vehiculoId(), mejor.paquetes(), pedido.id(), pedido.deadline());
+            }
+            int cubiertos = pedido.packages() - falta;
+            if (cubiertos > 0) {
+                noAtendidos.removeIf(o -> o.id().equals(pedido.id()));
+                if (falta > 0) {
+                    noAtendidos.add(conPaquetes(pedido, falta));
+                }
+            }
+        }
+        List<RutaVigente[]> cambios = new ArrayList<>();
+        for (Map.Entry<String, RutaVigente> original : originales.entrySet()) {
+            vigentes.stream().filter(r -> r.ruta().id().equals(original.getKey())).findFirst()
+                    .ifPresent(nueva -> cambios.add(new RutaVigente[]{original.getValue(), nueva}));
+        }
+        return cambios;
+    }
+
+    /** Entregas de la ruta cuyo tramo aún no empezó y que llegarían después de su plazo. */
+    private static List<DeliveryStop> entregasTardiasPendientes(RutaVigente ruta, Instant ahora) {
+        if (ruta.programada() == null) {
+            return List.of();
+        }
+        List<ScheduledRouteStop> paradas = ruta.programada().scheduledStops();
+        List<DeliveryStop> tardias = new ArrayList<>();
+        for (int i = 0; i < paradas.size(); i++) {
+            Instant saleHacia = i == 0 ? ruta.ruta().departureAt() : paradas.get(i - 1).completedAt();
+            if (!saleHacia.isBefore(ahora) && paradas.get(i).stop() instanceof DeliveryStop entrega
+                    && paradas.get(i).arrivedAt().isAfter(entrega.order().deadline())) {
+                tardias.add(entrega);
+            }
+        }
+        return tardias;
+    }
+
+    /**
+     * Rescate crítico, parte 1: una ruta en marcha que al reprogramarse (bloqueo, cambio de velocidad) quedó con
+     * entregas pendientes después de su plazo las suelta antes del SA. Sus paquetes siguen a bordo como sobrante y esos
+     * pedidos vuelven a lo pendiente, donde compiten todas las opciones: unidades libres, despacho diferido, inserción
+     * con recarga y préstamo de carga. No empeora nada: si nadie llega a tiempo, igual iban a llegar tarde. Solo se
+     * suelta si la ruta queda válida sin la entrega.
+     */
+    private RutaVigente liberarEntregasTardias(RutaVigente ruta, Instant ahora, List<RoadBlock> bloqueos) {
+        if (!RESCATE_CRITICO) {
+            return ruta;
+        }
+        RutaVigente actual = ruta;
+        for (DeliveryStop tardia : entregasTardiasPendientes(ruta, ahora)) {
+            RutaVigente sinLaEntrega = sinEntrega(actual, tardia, bloqueos);
+            if (sinLaEntrega != null) {
+                log.info("Rescate crítico: {} llegaría tarde al pedido {} (vence {}); se libera para reasignarlo",
+                        ruta.vehiculoId(), tardia.order().id(), tardia.order().deadline());
+                actual = sinLaEntrega;
+            }
+        }
+        return actual;
+    }
+
+    private static void aplicarCambio(List<RutaVigente> vigentes, Insercion cambio, Map<String, Integer> reservado,
+                                      Map<String, RutaVigente> originales) {
+        originales.putIfAbsent(cambio.ruta().ruta().id(), vigentes.get(cambio.indice()));
+        vigentes.set(cambio.indice(), cambio.ruta());
+        if (cambio.almacen() != null && !cambio.almacen().isCentral() && cambio.retiro() > 0) {
+            reservado.merge(cambio.almacen().id(), cambio.retiro(), Integer::sum);
+        }
+    }
+
+    /**
+     * La ruta sin una de sus entregas pendientes. Sus paquetes siguen a bordo, así que el próximo retiro de la ruta se
+     * reduce en esa cantidad. Null si la ruta resultante no es válida (salvo atrasos que ya tenía).
+     */
+    private RutaVigente sinEntrega(RutaVigente ruta, DeliveryStop entrega, List<RoadBlock> bloqueos) {
+        List<RouteStop> paradas = new ArrayList<>(ruta.ruta().stops());
+        int indice = paradas.indexOf(entrega);
+        if (indice < 0) {
+            return null;
+        }
+        paradas.remove(indice);
+        int sobrante = entrega.deliveredPackages();
+        for (int i = indice; i < paradas.size() && sobrante > 0; i++) {
+            if (paradas.get(i) instanceof WarehouseVisit visita && visita.pickupPackages() > 0) {
+                int menos = Math.min(sobrante, visita.pickupPackages());
+                paradas.set(i, new WarehouseVisit(visita.warehouse(), visita.pickupPackages() - menos));
+                sobrante -= menos;
+            }
+        }
+        RutaVigente nueva = reprogramar(new RutaVigente(ruta.ruta().withReplacedStops(paradas), ruta.snapshotOrigen(),
+                null, List.of()), bloqueos, false);
+        boolean valida = nueva.programada() != null && nueva.violaciones().stream()
+                .allMatch(v -> v.type() == PlanViolationType.SLA_MISSED);
+        return valida ? nueva : null;
+    }
+
+    /**
+     * Préstamo de carga: la ruta entrega hasta {@code falta} paquetes del pedido con lo que lleva a bordo, en un
+     * tramo que aún no empezó, y si después le falta para sus propias entregas de ese viaje recarga la diferencia en el
+     * almacén con stock que menos la desvía. Null si ninguna opción deja todos sus pedidos a tiempo.
+     */
+    private Insercion mejorPrestamo(RutaVigente vigente, int indice, Order pedido, int falta,
+                                    OperationalSnapshot snapshot, Map<String, Integer> reservado, Instant ahora,
+                                    List<RoadBlock> bloqueos) {
+        DeliveryRoute ruta = vigente.ruta();
+        ScheduledDeliveryRoute programada = vigente.programada();
+        if (programada == null || !vigente.violaciones().isEmpty()
+                || ruta.stops().stream().anyMatch(TransferStop.class::isInstance)) {
+            return null;
+        }
+        double velocidad = snapshot.fleetProfile().parametersFor(ruta.vehicle().type()).speedKmPerHour();
+        List<ScheduledRouteStop> paradas = programada.scheduledStops();
+        List<Insercion> opciones = new ArrayList<>();
+        for (int pos = 0; pos < paradas.size(); pos++) {
+            Instant saleHacia = pos == 0 ? ruta.departureAt() : paradas.get(pos - 1).completedAt();
+            if (saleHacia.isBefore(ahora)) {
+                continue; // ese tramo ya empezó
+            }
+            int cargaAhi = pos == 0 ? ruta.initialLoad() : paradas.get(pos - 1).loadAfter();
+            int paquetes = Math.min(falta, cargaAhi);
+            if (paquetes <= 0) {
+                continue;
+            }
+            Location desde = pos == 0 ? ruta.startLocation() : paradas.get(pos - 1).stop().location();
+            int ida = manhattan(desde, pedido.destination());
+            Instant cota = salidaMasTemprana(paradas, pos, ruta).plusSeconds(Math.round(ida * 3600.0 / velocidad));
+            if (cota.isAfter(pedido.deadline())) {
+                continue;
+            }
+            int demanda = 0;
+            for (int i = pos; i < paradas.size() && !(paradas.get(i).stop() instanceof WarehouseVisit); i++) {
+                if (paradas.get(i).stop() instanceof DeliveryStop propia) {
+                    demanda += propia.deliveredPackages();
+                }
+            }
+            int deficit = paquetes - Math.max(0, cargaAhi - demanda);
+            Location hacia = paradas.get(pos).stop().location();
+            if (deficit <= 0) {
+                opciones.add(new Insercion(null, indice, null, paquetes,
+                        ida + manhattan(pedido.destination(), hacia) - manhattan(desde, hacia), pos));
+                continue;
+            }
+            for (Warehouse almacen : snapshot.inventory().warehouses()) {
+                if (!almacen.isCentral() && snapshot.inventory().availableStock(almacen.id())
+                        - reservado.getOrDefault(almacen.id(), 0) < deficit) {
+                    continue;
+                }
+                int extra = ida + manhattan(pedido.destination(), almacen.location())
+                        + manhattan(almacen.location(), hacia) - manhattan(desde, hacia);
+                opciones.add(new Insercion(null, indice, almacen, paquetes, extra, pos));
+            }
+        }
+        opciones.sort(Comparator.comparingInt(Insercion::extraKm));
+        for (Insercion opcion : opciones) {
+            List<ScheduledRouteStop> base = paradas;
+            int pos = opcion.posicion();
+            int cargaAhi = pos == 0 ? ruta.initialLoad() : base.get(pos - 1).loadAfter();
+            int demanda = 0;
+            for (int i = pos; i < base.size() && !(base.get(i).stop() instanceof WarehouseVisit); i++) {
+                if (base.get(i).stop() instanceof DeliveryStop propia) {
+                    demanda += propia.deliveredPackages();
+                }
+            }
+            int deficit = opcion.paquetes() - Math.max(0, cargaAhi - demanda);
+            List<RouteStop> stops = new ArrayList<>(ruta.stops());
+            if (opcion.almacen() != null) {
+                stops.add(pos, new WarehouseVisit(opcion.almacen(), deficit));
+            }
+            stops.add(pos, new DeliveryStop(pedido, opcion.paquetes()));
+            RutaVigente nueva = reprogramar(new RutaVigente(ruta.withReplacedStops(stops), vigente.snapshotOrigen(),
+                    null, List.of()), bloqueos, false);
+            if (nueva.programada() != null && nueva.violaciones().isEmpty() && llegaATiempo(nueva)) {
+                return new Insercion(nueva, indice, opcion.almacen(), opcion.almacen() == null ? 0 : deficit,
+                        opcion.extraKm(), pos, opcion.paquetes());
+            }
+        }
+        return null;
     }
 
     /** La mejor forma de sumar hasta {@code falta} paquetes del pedido a una ruta en marcha, o null. */
@@ -702,8 +932,15 @@ public class ReplanificacionSaService implements ReplanificacionService {
         return Math.abs(a.x() - b.x()) + Math.abs(a.y() - b.y());
     }
 
-    private record Insercion(RutaVigente ruta, int indice, Warehouse almacen, int paquetes, int extraKm,
-                             int posicion) {
+    /**
+     * Una forma de sumar un pedido a una ruta. {@code paquetes}: lo que se retira en {@code almacen} (null si no
+     * recarga); {@code entregados}: lo que recibe el pedido (en la inserción con recarga coinciden).
+     */
+    private record Insercion(RutaVigente ruta, int indice, Warehouse almacen, int retiro, int extraKm,
+                             int posicion, int paquetes) {
+        Insercion(RutaVigente ruta, int indice, Warehouse almacen, int paquetes, int extraKm, int posicion) {
+            this(ruta, indice, almacen, paquetes, extraKm, posicion, paquetes);
+        }
     }
 
     /**
