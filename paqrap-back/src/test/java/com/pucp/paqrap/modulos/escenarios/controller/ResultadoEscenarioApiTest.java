@@ -8,6 +8,13 @@ import com.pucp.paqrap.modulos.escenarios.persistence.ScenarioResultEntity;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioResultRepository;
 import com.pucp.paqrap.modulos.escenarios.service.EjecutorPlanService;
+import com.pucp.paqrap.modulos.escenarios.service.FlotaEjecucion;
+import com.pucp.paqrap.modulos.flota.entity.VehicleType;
+import com.pucp.paqrap.modulos.flota.persistence.VehicleEntity;
+import com.pucp.paqrap.modulos.flota.persistence.VehicleOperationalStatus;
+import com.pucp.paqrap.modulos.flota.persistence.VehicleTypeParametersEntity;
+import com.pucp.paqrap.modulos.flota.repository.VehicleRepository;
+import com.pucp.paqrap.modulos.flota.repository.VehicleTypeParametersRepository;
 import com.pucp.paqrap.modulos.escenarios.service.ResultadoEscenarioCsvExporter;
 import com.pucp.paqrap.modulos.escenarios.service.ScenarioResultService;
 import org.junit.jupiter.api.AfterEach;
@@ -48,11 +55,16 @@ class ResultadoEscenarioApiTest {
     @Autowired private ScenarioResultService resultService;
     @Autowired private ScenarioResultRepository resultRepository;
     @Autowired private ScenarioExecutionRepository executionRepository;
+    @Autowired private FlotaEjecucion flotaEjecucion;
+    @Autowired private VehicleRepository vehiculoRepository;
+    @Autowired private VehicleTypeParametersRepository tipoRepository;
 
     @AfterEach
     void limpiar() {
         resultRepository.deleteAll();
         executionRepository.deleteAll();
+        vehiculoRepository.deleteAll();
+        tipoRepository.deleteAll();
     }
 
     @Test
@@ -143,11 +155,51 @@ class ResultadoEscenarioApiTest {
                     .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
 
             String fila = execution.getExecutionId() + ";FIVE_DAY;COMPLETED;" + INICIO_SIMULADO + ";" + FIN_SIMULADO
-                    + ";" + INICIO_REAL + ";" + FIN_REAL + ";;7;3;2;4;12.50;48.75;321;2;3;4";
+                    + ";" + INICIO_REAL + ";" + FIN_REAL + ";;7;3;2;4;12.50;48.75;321;2;3;4"
+                    // Sin flota en memoria (no se inició por el motor): las columnas de flota van vacías.
+                    + ";;;;;;;;;";
             assertEquals(ResultadoEscenarioCsvExporter.ENCABEZADO + "\r\n" + fila + "\r\n", csv);
         } finally {
             Locale.setDefault(localeOriginal);
         }
+    }
+
+    /**
+     * El CSV incluye la flota con la que corrió la ejecución: unidades operativas por tipo (las UNAVAILABLE no
+     * cuentan) y velocidades al iniciar y al final, que difieren si se cambiaron en caliente.
+     */
+    @Test
+    void elCsvIncluyeLaFlotaYSusVelocidadesInicialesYFinales() throws Exception {
+        tipoRepository.save(new VehicleTypeParametersEntity(VehicleType.CAR, 24, new BigDecimal("30.00"), new BigDecimal("8.00")));
+        tipoRepository.save(new VehicleTypeParametersEntity(VehicleType.MOTORCYCLE, 8, new BigDecimal("45.00"), new BigDecimal("6.00")));
+        tipoRepository.save(new VehicleTypeParametersEntity(VehicleType.BICYCLE, 4, new BigDecimal("50.00"), new BigDecimal("3.00")));
+        vehiculoRepository.save(new VehicleEntity("TA01", VehicleType.CAR, VehicleOperationalStatus.AVAILABLE));
+        vehiculoRepository.save(new VehicleEntity("TA02", VehicleType.CAR, VehicleOperationalStatus.AVAILABLE));
+        vehiculoRepository.save(new VehicleEntity("TA03", VehicleType.CAR, VehicleOperationalStatus.UNAVAILABLE));
+        vehiculoRepository.save(new VehicleEntity("TM01", VehicleType.MOTORCYCLE, VehicleOperationalStatus.AVAILABLE));
+        vehiculoRepository.save(new VehicleEntity("TB01", VehicleType.BICYCLE, VehicleOperationalStatus.AVAILABLE));
+        vehiculoRepository.save(new VehicleEntity("TB02", VehicleType.BICYCLE, VehicleOperationalStatus.AVAILABLE));
+        vehiculoRepository.save(new VehicleEntity("TB03", VehicleType.BICYCLE, VehicleOperationalStatus.AVAILABLE));
+        ScenarioExecutionEntity execution = crearFinalizada(ScenarioStatus.COMPLETED);
+        flotaEjecucion.capturar(execution.getExecutionId());
+        // Cambio en caliente de la velocidad de las motos.
+        tipoRepository.save(new VehicleTypeParametersEntity(VehicleType.MOTORCYCLE, 8, new BigDecimal("40.00"), new BigDecimal("6.00")));
+        flotaEjecucion.actualizarVelocidades(List.of(execution.getExecutionId()));
+        persistirResultado(execution);
+
+        String csv = mvc.perform(get("/api/escenarios/" + execution.getExecutionId() + "/resultado/csv"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        String[] encabezado = csv.split("\r\n")[0].split(";", -1);
+        String[] fila = csv.split("\r\n")[1].split(";", -1);
+        assertEquals(encabezado.length, fila.length);
+        assertEquals(List.of("autos", "motos", "bicicletas", "velocidadAutosKmH", "velocidadMotosKmH",
+                        "velocidadBicicletasKmH", "velocidadFinalAutosKmH", "velocidadFinalMotosKmH",
+                        "velocidadFinalBicicletasKmH"),
+                List.of(encabezado).subList(18, 27));
+        assertEquals(List.of("2", "1", "3", "30.00", "45.00", "50.00", "30.00", "40.00", "50.00"),
+                List.of(fila).subList(18, 27));
     }
 
     @Test

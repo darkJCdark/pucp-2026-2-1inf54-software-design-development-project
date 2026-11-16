@@ -75,6 +75,10 @@ public class MotorEscenarios {
     private final ScenarioResultService resultadoService;
     /** Escenarios activos por id de ejecución; protegido por el monitor de esta instancia. */
     private final Map<Long, EscenarioActivo> activos = new HashMap<>();
+
+    /** Flota con la que corre cada ejecución (reporte CSV); nula en pruebas que arman el motor a mano. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private FlotaEjecucion flotaEjecucion;
     private ScheduledExecutorService ejecutor;
 
     private static final class EscenarioActivo {
@@ -158,6 +162,9 @@ public class MotorEscenarios {
             activo.tiposFlotaCambiados.add(cambio.tipo());
             activo.generacion++;
         }
+        if (flotaEjecucion != null) {
+            flotaEjecucion.actualizarVelocidades(activos.keySet());
+        }
     }
 
     /**
@@ -225,6 +232,9 @@ public class MotorEscenarios {
         reloj.reanudar();
         EscenarioActivo activo = new EscenarioActivo(ejecucion.getScenarioType(), reloj);
         activos.put(ejecucionId, activo);
+        if (flotaEjecucion != null) {
+            flotaEjecucion.capturar(ejecucionId);
+        }
         if (estadoOperativo != null) {
             estadoOperativo.iniciar(ejecucionId, ejecucion.getScenarioType(), ejecucion.getSimulationStartedAt());
         }
