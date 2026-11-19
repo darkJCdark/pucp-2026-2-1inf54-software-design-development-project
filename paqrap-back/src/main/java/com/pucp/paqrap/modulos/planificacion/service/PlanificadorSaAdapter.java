@@ -44,6 +44,10 @@ public class PlanificadorSaAdapter implements PlanificadorCandidato, PlanVigente
     @org.springframework.beans.factory.annotation.Autowired
     private com.pucp.paqrap.modulos.escenarios.service.EstadoOperativoEscenarios estadoOperativo;
 
+    /** Meses de bloqueos cargados para cada ejecución; nulo en pruebas que construyen el componente a mano. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.pucp.paqrap.modulos.redvial.service.AlcanceBloqueos alcanceBloqueos;
+
     private final ReplanificacionService replanificacion;
     private final OrderRepository pedidoRepository;
     private final RoadBlockRepository bloqueoRepository;
@@ -72,8 +76,7 @@ public class PlanificadorSaAdapter implements PlanificadorCandidato, PlanVigente
         ScenarioExecutionEntity ejecucion = ejecucionRepository.findById(ejecucionId).orElse(null);
         // Cada escenario solo atiende los pedidos que llegan desde su inicio simulado.
         Instant inicio = ejecucion != null ? ejecucion.getSimulationStartedAt() : Instant.EPOCH;
-        List<RoadBlock> horizonte = bloqueoRepository.buscarQueSeCruzan(instante, instante.plus(HORIZONTE)).stream()
-                .map(RoadBlockEntity::toDomain).toList();
+        List<RoadBlock> horizonte = bloqueosDelHorizonte(ejecucionId, instante);
 
         ReplanificacionResponse respuesta;
         if (solicitud.motivo() == Motivo.INICIAL || !replanificacion.estaIniciada(ejecucionId)) {
@@ -97,6 +100,15 @@ public class PlanificadorSaAdapter implements PlanificadorCandidato, PlanVigente
         return new ResultadoCiclo(plan.colapso());
     }
 
+    /** Bloqueos que se cruzan con [instante, instante + 36 h), solo de los meses cargados para la ejecución. */
+    private List<RoadBlock> bloqueosDelHorizonte(long ejecucionId, Instant instante) {
+        List<RoadBlockEntity> bloqueos = bloqueoRepository.buscarQueSeCruzan(instante, instante.plus(HORIZONTE));
+        if (alcanceBloqueos != null) {
+            bloqueos = alcanceBloqueos.filtrar(ejecucionId, bloqueos);
+        }
+        return bloqueos.stream().map(RoadBlockEntity::toDomain).toList();
+    }
+
   @Override
     public Candidato preparar(SolicitudCiclo solicitud) {
         long ejecucionId = solicitud.ejecucionId();
@@ -106,8 +118,7 @@ public class PlanificadorSaAdapter implements PlanificadorCandidato, PlanVigente
         Instant instante = solicitud.instante();
         ScenarioExecutionEntity ejecucion = ejecucionRepository.findById(ejecucionId).orElse(null);
         Instant inicio = ejecucion != null ? ejecucion.getSimulationStartedAt() : Instant.EPOCH;
-        List<RoadBlock> horizonte = bloqueoRepository.buscarQueSeCruzan(instante, instante.plus(HORIZONTE)).stream()
-                .map(RoadBlockEntity::toDomain).toList();
+        List<RoadBlock> horizonte = bloqueosDelHorizonte(ejecucionId, instante);
         List<RoadBlock> bloqueos = new ArrayList<>(horizonte);
         bloqueos.addAll(solicitud.bloqueosIniciados());
         ReplanificacionService.Candidato preparado = replanificacion.prepararReplanificacion(ejecucionId,

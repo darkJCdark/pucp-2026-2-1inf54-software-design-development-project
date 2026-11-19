@@ -26,6 +26,15 @@ export interface ListarPedidosParams {
   page?: number;
   size?: number;
   sort?: string;
+
+  /**
+   * Ejecución cuyos pedidos se consultan. Las simulaciones son aisladas: sus estados (asignado, entregado...) viven
+   * en memoria y no en la BD, así que sin este id una simulación ya terminada mostraría los estados de la BD.
+   */
+  ejecucionId?: number;
+
+  /** Pedidos tal como están en la BD, sin el estado de ninguna ejecución (solo identidad, destino y plazo). */
+  catalogo?: boolean;
 }
 
 function crearQuery(
@@ -89,6 +98,20 @@ function crearQuery(
     query.set(
       "venceHasta",
       params.venceHasta,
+    );
+  }
+
+  if (params.catalogo) {
+    query.set(
+      "catalogo",
+      "true",
+    );
+  }
+
+  if (params.ejecucionId !== undefined) {
+    query.set(
+      "ejecucionId",
+      String(params.ejecucionId),
     );
   }
 

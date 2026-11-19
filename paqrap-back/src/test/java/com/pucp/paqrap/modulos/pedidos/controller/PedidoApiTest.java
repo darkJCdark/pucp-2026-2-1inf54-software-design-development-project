@@ -1,5 +1,9 @@
 package com.pucp.paqrap.modulos.pedidos.controller;
 
+import com.pucp.paqrap.modulos.escenarios.entity.ScenarioStatus;
+import com.pucp.paqrap.modulos.escenarios.entity.ScenarioType;
+import com.pucp.paqrap.modulos.escenarios.persistence.ScenarioExecutionEntity;
+import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
 import com.pucp.paqrap.modulos.pedidos.persistence.OrderEntity;
 import com.pucp.paqrap.modulos.pedidos.repository.OrderRepository;
 import org.junit.jupiter.api.Test;
@@ -45,6 +49,8 @@ class PedidoApiTest {
     private MockMvc mvc;
     @Autowired
     private OrderRepository pedidoRepository;
+    @Autowired
+    private ScenarioExecutionRepository ejecucionRepository;
 
     private ResultActions cargar(String nombre, String contenido) throws Exception {
         return mvc.perform(multipart("/api/pedidos/carga").file(
@@ -80,6 +86,29 @@ class PedidoApiTest {
                 .andExpect(jsonPath("$.pedido.tipoEntrega").value("PRIORITY"))
                 .andExpect(jsonPath("$.pedido.horasPrometidas").value(4))
                 .andExpect(jsonPath("$.pedido.vence").value("2026-01-01T17:52:00Z"));
+    }
+
+    /**
+     * Simulación terminada cuyo detalle se perdió al reiniciar el backend: pedir sus pedidos avisa que no hay detalle
+     * (en vez de mostrar los estados de la BD como si fueran suyos) y {@code catalogo=true} devuelve los pedidos para
+     * dibujarlos sin estado.
+     */
+    @Test
+    void unaSimulacionSinDetalleEnMemoriaAvisaYElCatalogoDevuelveLosPedidos() throws Exception {
+        cargar("ventas.202601.txt", VENTAS);
+        ScenarioExecutionEntity simulacion = new ScenarioExecutionEntity(ScenarioType.FIVE_DAY,
+                Instant.parse("2026-01-01T05:00:00Z"));
+        simulacion.iniciar(Instant.parse("2026-11-16T10:00:00Z"));
+        simulacion.terminar(ScenarioStatus.COMPLETED, Instant.parse("2026-11-16T10:40:00Z"),
+                Instant.parse("2026-01-06T05:00:00Z"));
+        long id = ejecucionRepository.save(simulacion).getExecutionId();
+
+        mvc.perform(get("/api/pedidos").param("ejecucionId", String.valueOf(id)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value(containsString("no está en memoria")));
+        mvc.perform(get("/api/pedidos").param("ejecucionId", String.valueOf(id)).param("catalogo", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElementos").value(3));
     }
 
     @Test

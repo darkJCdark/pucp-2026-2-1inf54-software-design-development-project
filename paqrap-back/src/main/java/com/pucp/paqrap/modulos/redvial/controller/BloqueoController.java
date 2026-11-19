@@ -48,7 +48,8 @@ public class BloqueoController {
 
     @PostMapping(path = "/carga-multiple", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public CargaBloqueosMultipleResponse cargarMultiples(@RequestParam("archivos") List<MultipartFile> archivos)
+    public CargaBloqueosMultipleResponse cargarMultiples(@RequestParam("archivos") List<MultipartFile> archivos,
+                                                         @RequestParam(required = false) Long ejecucionId)
             throws IOException {
         if (archivos.isEmpty() || archivos.size() > 2) {
             throw new IllegalArgumentException("Seleccione uno o dos archivos mensuales de bloqueos");
@@ -59,7 +60,9 @@ public class BloqueoController {
             entradas.add(new BloqueoService.ArchivoMensual(archivo.getOriginalFilename(),
                     new String(archivo.getBytes(), StandardCharsets.UTF_8)));
         }
-        return bloqueoService.cargarMultiples(entradas);
+        // Con ejecucionId (p. ej. Día a Día en marcha) los meses cargados se habilitan para esa ejecución.
+        return ejecucionId == null ? bloqueoService.cargarMultiples(entradas)
+                : bloqueoService.cargarParaEjecucion(ejecucionId, entradas);
     }
 
     @GetMapping

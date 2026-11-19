@@ -67,6 +67,22 @@ export function periodosRequeridos(
   return resultado;
 }
 
+/**
+ * Meses cuyos bloqueos puede cargar Día a Día al iniciar: el mes actual y el siguiente (hora de Lima, UTC-5), pues la
+ * operación parte de la hora actual y continúa en el tiempo.
+ */
+export function periodosBloqueosDiaADia(ahora: Date = new Date()) {
+  const lima = new Date(ahora.getTime() - 5 * 60 * 60 * 1000);
+  const anio = lima.getUTCFullYear();
+  const mes = lima.getUTCMonth() + 1;
+  const siguienteAnio = mes === 12 ? anio + 1 : anio;
+  const siguienteMes = mes === 12 ? 1 : mes + 1;
+  return [
+    `${anio}-${String(mes).padStart(2, "0")}`,
+    `${siguienteAnio}-${String(siguienteMes).padStart(2, "0")}`,
+  ];
+}
+
 export function archivoVentasEsperado(periodo: string) {
   return `ventas.${periodo.replace("-", "")}.txt`;
 }

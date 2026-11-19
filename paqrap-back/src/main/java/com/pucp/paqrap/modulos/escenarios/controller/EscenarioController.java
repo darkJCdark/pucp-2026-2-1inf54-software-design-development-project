@@ -5,6 +5,7 @@ import com.pucp.paqrap.modulos.escenarios.dto.CrearEscenarioRequest;
 import com.pucp.paqrap.modulos.escenarios.dto.EscenarioResponse;
 import com.pucp.paqrap.modulos.escenarios.dto.ResultadoEscenarioResponse;
 import com.pucp.paqrap.modulos.escenarios.service.EscenarioService;
+import com.pucp.paqrap.modulos.escenarios.service.FlotaEjecucion;
 import com.pucp.paqrap.modulos.escenarios.service.ResultadoEscenarioCsvExporter;
 import com.pucp.paqrap.modulos.escenarios.service.ScenarioResultService;
 import jakarta.validation.Valid;
@@ -34,12 +35,14 @@ public class EscenarioController {
     private final EscenarioService escenarioService;
     private final ScenarioResultService resultadoService;
     private final ResultadoEscenarioCsvExporter csvExporter;
+    private final FlotaEjecucion flotaEjecucion;
 
     public EscenarioController(EscenarioService escenarioService, ScenarioResultService resultadoService,
-                               ResultadoEscenarioCsvExporter csvExporter) {
+                               ResultadoEscenarioCsvExporter csvExporter, FlotaEjecucion flotaEjecucion) {
         this.escenarioService = escenarioService;
         this.resultadoService = resultadoService;
         this.csvExporter = csvExporter;
+        this.flotaEjecucion = flotaEjecucion;
     }
 
     @PostMapping
@@ -73,7 +76,7 @@ public class EscenarioController {
         return ResponseEntity.ok()
                 .contentType(CSV_UTF8)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"resultado-escenario-" + id + ".csv\"")
-                .body(csvExporter.exportar(resultado).getBytes(StandardCharsets.UTF_8));
+                .body(csvExporter.exportar(resultado, flotaEjecucion.resumen(id)).getBytes(StandardCharsets.UTF_8));
     }
 
     @PostMapping("/{id}/iniciar")

@@ -991,16 +991,108 @@ const rutasSinGeometria =
       ],
     );
 
+  /*
+   * Mismo enfoque que con un vehículo, pero en el destino del pedido:
+   * acerca y lo deja en el centro del área libre entre paneles.
+   */
+  const ultimoPedidoCentradoRef =
+    useRef<string | null>(
+      null,
+    );
+
+  const centrarEnPedido =
+    useCallback(
+      (id: string) => {
+        const stage =
+          stageRef.current;
+
+        const pedido =
+          pedidos.find(
+            (item) =>
+              item.id === id,
+          );
+
+        if (
+          !stage ||
+          !pedido ||
+          width <= 0 ||
+          height <= 0
+        ) {
+          return;
+        }
+
+        ultimoPedidoCentradoRef.current =
+          id;
+
+        animarHacia(
+          calcularVistaCentrada(
+            {
+              x: geometria.x(
+                pedido.x,
+              ),
+              y: geometria.y(
+                pedido.y,
+              ),
+            },
+            width,
+            height,
+            margenesPaneles(
+              window.innerWidth,
+              true,
+            ),
+            stage.scaleX(),
+          ),
+          DURACION_ENFOQUE_MS,
+        );
+      },
+      [
+        animarHacia,
+        geometria,
+        height,
+        pedidos,
+        stageRef,
+        width,
+      ],
+    );
+
+  /* Selección de un pedido desde la lista del panel de operación. */
+  useEffect(() => {
+    if (!seleccionPedidoId) {
+      ultimoPedidoCentradoRef.current =
+        null;
+      return;
+    }
+
+    if (
+      ultimoPedidoCentradoRef.current ===
+      seleccionPedidoId
+    ) {
+      return;
+    }
+
+    centrarEnPedido(
+      seleccionPedidoId,
+    );
+  }, [
+    centrarEnPedido,
+    seleccionPedidoId,
+  ]);
+
   const seleccionarPedido =
     useCallback(
       (
         id: string,
       ) => {
+        centrarEnPedido(
+          id,
+        );
+
         onSeleccionarPedido?.(
           id,
         );
       },
       [
+        centrarEnPedido,
         onSeleccionarPedido,
       ],
     );

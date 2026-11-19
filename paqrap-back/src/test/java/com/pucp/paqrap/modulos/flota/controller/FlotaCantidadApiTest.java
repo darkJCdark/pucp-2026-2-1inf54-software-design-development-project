@@ -4,9 +4,11 @@ import com.pucp.paqrap.modulos.escenarios.entity.ScenarioType;
 import com.pucp.paqrap.modulos.escenarios.persistence.ScenarioExecutionEntity;
 import com.pucp.paqrap.modulos.escenarios.repository.ScenarioExecutionRepository;
 import com.pucp.paqrap.modulos.flota.entity.VehicleType;
+import com.pucp.paqrap.modulos.flota.persistence.MaintenanceDayEntity;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleEntity;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleOperationalStatus;
 import com.pucp.paqrap.modulos.flota.persistence.VehicleTypeParametersEntity;
+import com.pucp.paqrap.modulos.flota.repository.MaintenanceDayRepository;
 import com.pucp.paqrap.modulos.flota.repository.VehicleRepository;
 import com.pucp.paqrap.modulos.flota.repository.VehicleTypeParametersRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -40,6 +43,7 @@ class FlotaCantidadApiTest {
     @Autowired private VehicleTypeParametersRepository tipoRepository;
     @Autowired private VehicleRepository vehiculoRepository;
     @Autowired private ScenarioExecutionRepository ejecucionRepository;
+    @Autowired private MaintenanceDayRepository mantenimientoRepository;
 
     @BeforeEach
     void cargarDatos() {
@@ -81,6 +85,16 @@ class FlotaCantidadApiTest {
     void daDeBajaUnaUnidadLibre() throws Exception {
         mvc.perform(delete("/api/flota/vehiculos/TA02")).andExpect(status().isNoContent());
         mvc.perform(get("/api/flota/vehiculos/TA02")).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void unaUnidadConHistorialSeDaDeBajaLogicaQuedandoFueraDeServicio() throws Exception {
+        mantenimientoRepository.save(new MaintenanceDayEntity("TA01", LocalDate.parse("2026-10-05")));
+
+        mvc.perform(delete("/api/flota/vehiculos/TA01")).andExpect(status().isNoContent());
+        mvc.perform(get("/api/flota/vehiculos/TA01"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("UNAVAILABLE"));
     }
 
     @Test

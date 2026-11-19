@@ -18,8 +18,8 @@ import java.util.Set;
 
 /**
  * Cantidad de flota (C7): alta y baja de unidades por tipo sobre {@code vehicles}, sin cambios de esquema. El alta es
- * siempre posible; la baja se rechaza si la unidad va en ruta, si hay un escenario activo o si la unidad ya tiene
- * historial (la base de datos lo impide con sus llaves foráneas).
+ * siempre posible; la baja se rechaza si la unidad va en ruta o si hay un escenario activo. Si la unidad ya tiene
+ * historial (rutas, averías o mantenimientos, protegidos por llaves foráneas) la baja es lógica: queda UNAVAILABLE.
  */
 @Service
 @Transactional(readOnly = true)
@@ -68,6 +68,12 @@ public class FlotaCantidadService {
         }
         if (ejecucionRepository.existsByStatusIn(ESCENARIOS_ACTIVOS)) {
             throw new ReglaNegocioException("No se puede dar de baja un vehículo con un escenario activo; deténgalo antes");
+        }
+        if (vehiculoRepository.tieneHistorial(id) == 1) {
+            // Baja lógica: las llaves foráneas impiden borrarla, pero UNAVAILABLE la saca de la planificación y de la
+            // simulación (ambas la excluyen). Una nueva configuración puede volver a activarla.
+            vehiculo.setOperationalStatus(VehicleOperationalStatus.UNAVAILABLE);
+            return;
         }
         try {
             vehiculoRepository.delete(vehiculo);

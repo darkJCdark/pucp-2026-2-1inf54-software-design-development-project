@@ -32,6 +32,10 @@ public class EventosSimulacion {
     @org.springframework.beans.factory.annotation.Autowired
     private com.pucp.paqrap.modulos.escenarios.service.EstadoOperativoEscenarios estadoOperativo;
 
+    /** Meses de bloqueos cargados para cada ejecución; nulo en pruebas que construyen el componente a mano. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.pucp.paqrap.modulos.redvial.service.AlcanceBloqueos alcanceBloqueos;
+
     private final InventarioService inventarioService;
     private final RoadBlockRepository bloqueoRepository;
     private final BreakdownEventRepository averiaRepository;
@@ -81,6 +85,10 @@ public class EventosSimulacion {
         }
     }
 
+    private List<RoadBlockEntity> delAlcance(long ejecucionId, List<RoadBlockEntity> bloqueos) {
+        return alcanceBloqueos == null ? bloqueos : alcanceBloqueos.filtrar(ejecucionId, bloqueos);
+    }
+
     public Resumen procesar(long ejecucionId, Instant desde, Instant hasta) {
         int recargas = 0;
         for (LocalDate dia = desde.atZone(ZONA).toLocalDate(); ; dia = dia.plusDays(1)) {
@@ -93,11 +101,12 @@ public class EventosSimulacion {
                 recargas++;
             }
         }
-        List<RoadBlockEntity> bloqueosEntidades = bloqueoRepository.queEmpiezanEntre(desde, hasta);
+        List<RoadBlockEntity> bloqueosEntidades = delAlcance(ejecucionId, bloqueoRepository.queEmpiezanEntre(desde, hasta));
         List<RoadBlock> bloqueos = bloqueosEntidades.stream()
                 .map(RoadBlockEntity::toDomain)
                 .toList();
-        List<RoadBlockEntity> bloqueosTerminadosEntidades = bloqueoRepository.queTerminanEntre(desde, hasta);
+        List<RoadBlockEntity> bloqueosTerminadosEntidades =
+                delAlcance(ejecucionId, bloqueoRepository.queTerminanEntre(desde, hasta));
         List<RoadBlock> bloqueosTerminados = bloqueosTerminadosEntidades.stream()
                 .map(RoadBlockEntity::toDomain)
                 .toList();

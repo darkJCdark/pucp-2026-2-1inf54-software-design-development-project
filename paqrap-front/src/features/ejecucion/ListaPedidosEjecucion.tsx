@@ -5,6 +5,7 @@ import {
 } from "react";
 
 import {
+  ArrowDownUp,
   Package,
   Search,
 } from "lucide-react";
@@ -74,6 +75,12 @@ interface Asignacion {
   rutas: RutaAsignada[];
 }
 
+type OrdenPedidos =
+  | "VENCE_ASC"
+  | "VENCE_DESC"
+  | "REGISTRO_DESC"
+  | "CODIGO";
+
 const MAXIMO_FILAS = 100;
 
 const PESTANAS: {
@@ -113,6 +120,15 @@ export function ListaPedidosEjecucion({
     setBusqueda,
   ] =
     useState("");
+
+  /* Por defecto, lo que vence primero arriba. */
+  const [
+    orden,
+    setOrden,
+  ] =
+    useState<OrdenPedidos>(
+      "VENCE_ASC",
+    );
 
   /*
    * Si seleccionamos un pedido desde el mapa,
@@ -240,6 +256,26 @@ export function ListaPedidosEjecucion({
             return false;
           }
 
+          /*
+           * Ordenar por vencimiento en "Todos" sirve para ver qué
+           * está por vencer: lo ya entregado no cuenta.
+           */
+          if (
+            pestana ===
+              "TODOS" &&
+            (
+              orden ===
+                "VENCE_ASC" ||
+              orden ===
+                "VENCE_DESC"
+            ) &&
+            pedido.estado ===
+              "ENTREGADO" &&
+            !texto
+          ) {
+            return false;
+          }
+
           if (
             pestana ===
               "PLANIFICADOS" &&
@@ -267,12 +303,20 @@ export function ListaPedidosEjecucion({
               .includes(texto)
           );
         },
+      ).sort(
+        (a, b) =>
+          compararPedidos(
+            a,
+            b,
+            orden,
+          ),
       );
     }, [
       pedidos,
       pestana,
       busqueda,
       asignaciones,
+      orden,
     ]);
 
   const visibles =
@@ -326,21 +370,52 @@ export function ListaPedidosEjecucion({
         )}
       </div>
 
-      <div className="relative mb-3">
-        <Search className="absolute left-2 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
+      <div className="mb-3 grid grid-cols-[minmax(0,1fr)_150px] gap-2">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
 
-        <input
-          type="search"
-          value={busqueda}
-          onChange={(event) =>
-            setBusqueda(
-              event.target.value,
-            )
-          }
-          placeholder="Buscar por id o cliente"
-          aria-label="Buscar pedido por id o cliente"
-          className="w-full rounded-md border border-slate-700 bg-[#11161d] py-1.5 pl-8 pr-2 text-sm text-white placeholder:text-slate-500"
-        />
+          <input
+            type="search"
+            value={busqueda}
+            onChange={(event) =>
+              setBusqueda(
+                event.target.value,
+              )
+            }
+            placeholder="Buscar por id o cliente"
+            aria-label="Buscar pedido por id o cliente"
+            className="w-full rounded-md border border-slate-700 bg-[#11161d] py-1.5 pl-8 pr-2 text-sm text-white placeholder:text-slate-500"
+          />
+        </div>
+
+        <label className="relative">
+          <ArrowDownUp className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-slate-500" />
+
+          <select
+            value={orden}
+            onChange={(event) =>
+              setOrden(
+                event.target
+                  .value as OrdenPedidos,
+              )
+            }
+            aria-label="Ordenar pedidos"
+            className="w-full rounded-md border border-slate-700 bg-[#11161d] py-1.5 pl-7 pr-2 text-xs text-slate-200"
+          >
+            <option value="VENCE_ASC">
+              Vence primero
+            </option>
+            <option value="VENCE_DESC">
+              Vence último
+            </option>
+            <option value="REGISTRO_DESC">
+              Más recientes
+            </option>
+            <option value="CODIGO">
+              Código
+            </option>
+          </select>
+        </label>
       </div>
 
       {visibles.length ===
@@ -495,6 +570,53 @@ export function ListaPedidosEjecucion({
   );
 }
 
+function compararPedidos(
+  a: PedidoOperacion,
+  b: PedidoOperacion,
+  orden: OrdenPedidos,
+) {
+  switch (orden) {
+    case "VENCE_ASC":
+      return (
+        fechaMs(a.vence) -
+          fechaMs(b.vence) ||
+        a.id.localeCompare(b.id)
+      );
+
+    case "VENCE_DESC":
+      return (
+        fechaMs(b.vence) -
+          fechaMs(a.vence) ||
+        a.id.localeCompare(b.id)
+      );
+
+    case "REGISTRO_DESC":
+      return (
+        fechaMs(b.registradoEn) -
+          fechaMs(a.registradoEn) ||
+        a.id.localeCompare(b.id)
+      );
+
+    case "CODIGO":
+      return a.id.localeCompare(
+        b.id,
+        undefined,
+        { numeric: true },
+      );
+  }
+}
+
+function fechaMs(
+  valor: string,
+) {
+  const ms =
+    new Date(valor).getTime();
+
+  return Number.isFinite(ms)
+    ? ms
+    : Number.POSITIVE_INFINITY;
+}
+
 function EstadoPedidoBadge({
   estado,
 }: {
@@ -534,6 +656,13 @@ function EstadoPedidoBadge({
         "Entregado",
       clase:
         "bg-green-500/15 text-green-400",
+    },
+
+    SIN_DETALLE: {
+      texto:
+        "Sin detalle",
+      clase:
+        "bg-slate-700/60 text-slate-400",
     },
   };
 

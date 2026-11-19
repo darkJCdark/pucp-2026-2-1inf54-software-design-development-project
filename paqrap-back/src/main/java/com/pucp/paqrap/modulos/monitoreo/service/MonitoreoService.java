@@ -131,7 +131,7 @@ public class MonitoreoService {
                 .orElse(new MonitoreoResponse.Ejecucion(0, 0, 0, 0, 0, enRuta));
 
         return new MonitoreoResponse(escenario, instante, pedidoService.resumen(ejecucionId, escenario.inicioSimulado(), instante),
-                vehiculos, almacenes, bloqueoService.listar(null, null, instante), averiasActivas, ejecucion,
-                detectorColapso.colapso(ejecucionId).orElse(null));
+                vehiculos, almacenes, bloqueoService.vigentesPara(ejecucionId, instante), averiasActivas, ejecucion,
+                detectorColapso.colapso(ejecucionId).orElse(null), detectorColapso.alertas(ejecucionId));
     }
 }

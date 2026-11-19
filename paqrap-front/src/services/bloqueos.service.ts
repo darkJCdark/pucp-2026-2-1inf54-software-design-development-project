@@ -9,13 +9,18 @@ import {
 } from "@/services/api";
 
 export const bloqueosService = {
-  cargarArchivos(archivos: File[]): Promise<CargaBloqueosMultipleResponseDto> {
+  /**
+   * Con {@code ejecucionId} (Día a Día en marcha) los meses cargados se habilitan además para esa ejecución; sin él,
+   * se habilitan al crear la ejecución mediante {@code periodosBloqueos}.
+   */
+  cargarArchivos(archivos: File[], ejecucionId?: number): Promise<CargaBloqueosMultipleResponseDto> {
     if (archivos.length < 1 || archivos.length > 2) {
       return Promise.reject(new Error("Selecciona uno o dos archivos mensuales de bloqueos."));
     }
     const formData = new FormData();
     archivos.forEach((archivo) => formData.append("archivos", archivo));
-    return apiRequest<CargaBloqueosMultipleResponseDto>("/api/red-vial/bloqueos/carga-multiple", {
+    const sufijo = ejecucionId === undefined ? "" : `?ejecucionId=${encodeURIComponent(String(ejecucionId))}`;
+    return apiRequest<CargaBloqueosMultipleResponseDto>(`/api/red-vial/bloqueos/carga-multiple${sufijo}`, {
       method: "POST",
       body: formData,
     });
