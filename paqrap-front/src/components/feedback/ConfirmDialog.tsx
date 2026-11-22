@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
 import { Loader2, X } from "lucide-react";
 
@@ -27,18 +27,21 @@ export function ConfirmDialog({
   onConfirmar,
   onCancelar,
 }: ConfirmDialogProps) {
+  const tituloId = useId();
+  const descripcionId = useId();
   if (!abierto) {
     return null;
   }
 
   return (
     <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg overflow-hidden rounded-xl border border-slate-700 bg-[#11161d] text-white shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-slate-800 px-5 py-4">
+      <div role="dialog" aria-modal="true" aria-labelledby={tituloId} aria-describedby={descripcion ? descripcionId : undefined}
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-slate-700 bg-[#11161d] text-white shadow-2xl">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-800 px-5 py-4">
           <div>
-            <h2 className="text-lg font-semibold">{titulo}</h2>
+            <h2 id={tituloId} className="text-lg font-semibold">{titulo}</h2>
             {descripcion && (
-              <p className="mt-1 text-sm leading-5 text-slate-400">{descripcion}</p>
+              <p id={descripcionId} className="mt-1 text-sm leading-5 text-slate-400">{descripcion}</p>
             )}
           </div>
 
@@ -53,9 +56,9 @@ export function ConfirmDialog({
           </button>
         </div>
 
-        {children && <div className="px-5 py-4">{children}</div>}
+        {children && <div className="min-h-0 overflow-y-auto px-5 py-4">{children}</div>}
 
-        <div className="flex justify-end gap-2 border-t border-slate-800 px-5 py-4">
+        <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-800 px-5 py-4">
           <button
             type="button"
             onClick={onCancelar}

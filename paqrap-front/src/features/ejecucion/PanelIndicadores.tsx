@@ -24,6 +24,7 @@ interface PanelIndicadoresProps {
   replanificacion: ReplanificacionResponseDto | null;
   errorPlan: string | null;
   permitirCambioVelocidad?: boolean;
+  avisoVelocidades?: string;
   tipoActualizando?: TipoVehiculoBackend | null;
   onActualizarVelocidad?: (tipo: TipoVehiculoBackend, velocidad: number) => Promise<void>;
   onSeleccionarAlmacen?: (id: string) => void;
@@ -41,6 +42,7 @@ export function PanelIndicadores({
   replanificacion,
   errorPlan,
   permitirCambioVelocidad = false,
+  avisoVelocidades,
   tipoActualizando = null,
   onActualizarVelocidad,
   onSeleccionarAlmacen,
@@ -211,10 +213,16 @@ export function PanelIndicadores({
           <div>
             <h3 className="font-semibold">Parámetros de flota</h3>
             <p className="mt-1 text-[10px] text-slate-500">
-              El cambio se aplica al backend y dispara una replanificación del escenario activo.
+              Las velocidades son compartidas. En las rutas en curso, el nuevo valor se usa al salir de la siguiente parada.
             </p>
           </div>
         </div>
+
+        {avisoVelocidades && (
+          <p role="status" className="mb-2 rounded-md border border-sky-900/60 bg-sky-950/30 px-2.5 py-2 text-xs leading-relaxed text-sky-200">
+            {avisoVelocidades}
+          </p>
+        )}
 
         {tiposFlota.map((tipo) => (
           <VelocidadEditable
@@ -290,6 +298,7 @@ function VelocidadEditable({
   }, [editando, tipo.velocidadKmh]);
 
   async function guardar() {
+    if (!editable || actualizando) return;
     const valor = Number(velocidad);
     if (!Number.isFinite(valor) || valor <= 0 || valor > 200) {
       setError("Ingresa una velocidad entre 0 y 200 km/h.");
@@ -315,7 +324,7 @@ function VelocidadEditable({
           </p>
         </div>
 
-        {!editando ? (
+        {!editando || !editable ? (
           <div className="flex items-center gap-2">
             <span className="font-medium text-white">{tipo.velocidadKmh} km/h</span>
             {editable && (

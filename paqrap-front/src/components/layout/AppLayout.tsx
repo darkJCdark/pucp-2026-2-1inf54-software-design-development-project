@@ -1,9 +1,11 @@
 import { Outlet } from "react-router-dom";
 
 import Sidebar from "./Sidebar";
+import { EjecucionesActivasProvider } from "@/context/EjecucionesActivasContext";
 
 export default function AppLayout() {
   return (
+    <EjecucionesActivasProvider>
     <div className="flex min-h-screen bg-[#0d1117] text-slate-100">
       <Sidebar />
 
@@ -11,5 +13,6 @@ export default function AppLayout() {
         <Outlet />
       </main>
     </div>
+    </EjecucionesActivasProvider>
   );
 }

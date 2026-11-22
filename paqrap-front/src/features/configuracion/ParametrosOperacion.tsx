@@ -26,35 +26,20 @@ export function ParametrosOperacion() {
   return (
     <Card className="border-slate-800 bg-[#151b23] p-4">
       <div className="mb-5">
-        <h2 className="font-semibold text-slate-100">Configuración del escenario</h2>
-        <p className="mt-1 text-xs leading-5 text-slate-500">
-          Selecciona el tipo de operación y la fecha que deseas simular.
+        <h2 className="font-semibold text-slate-100">{necesitaInicio ? "Configurar simulación" : "Configuración de la operación"}</h2>
+        <p className="mt-1 text-xs leading-5 text-slate-400">
+          {necesitaInicio ? "Elige la duración y la fecha de partida de esta simulación." : "Día a Día empieza con la hora actual y avanza en tiempo real."}
         </p>
       </div>
 
-      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">
-        Escenario de operación
-      </p>
-
-      <div className="mb-5 grid grid-cols-3 overflow-hidden rounded-md border border-slate-700">
-        <BotonEscenario
-          label="Operación día a día"
-          active={configuracion.escenario === "DIA_A_DIA"}
-          onClick={() => cambiarEscenario("DIA_A_DIA")}
-        />
-        <BotonEscenario
-          label="Simulación de periodo (5D)"
-          active={configuracion.escenario === "SIMULACION_5D"}
-          onClick={() => cambiarEscenario("SIMULACION_5D")}
-        />
-        <BotonEscenario
-          label="Simulación de colapso logístico"
-          active={configuracion.escenario === "COLAPSO"}
-          onClick={() => cambiarEscenario("COLAPSO")}
-        />
-      </div>
-
-      <Separator className="mb-5 bg-slate-800" />
+      {necesitaInicio && <>
+        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Tipo de simulación</p>
+        <div className="mb-5 grid grid-cols-2 overflow-hidden rounded-lg border border-slate-700">
+          <BotonEscenario label="Periodo de 5 días" active={configuracion.escenario === "SIMULACION_5D"} onClick={() => cambiarEscenario("SIMULACION_5D")} />
+          <BotonEscenario label="Hasta el colapso" active={configuracion.escenario === "COLAPSO"} onClick={() => cambiarEscenario("COLAPSO")} />
+        </div>
+        <Separator className="mb-5 bg-slate-800" />
+      </>}
 
       <div className="grid gap-4 md:grid-cols-2">
         <CampoConfiguracion label="Condición de término">
@@ -74,6 +59,7 @@ export function ParametrosOperacion() {
               <CalendarClock className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
               <input
                 type="datetime-local"
+                aria-label="Inicio de la simulación"
                 value={configuracion.inicioSimulado}
                 onChange={(event) =>
                   actualizarConfiguracion({ inicioSimulado: event.target.value })
@@ -104,7 +90,7 @@ export function ParametrosOperacion() {
                 Configuración avanzada del planificador
               </p>
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                Opcional. Mantén los valores predeterminados salvo que necesites reproducir una corrida técnica.
+                Opcional. Mantén los valores predeterminados salvo que necesites ajustar o reproducir la planificación.
               </p>
             </div>
           </div>
@@ -224,6 +210,7 @@ function BotonEscenario({ label, active, onClick }: BotonEscenarioProps) {
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={[
         "min-h-16 px-3 py-2 text-xs font-medium transition-colors",
         active
@@ -241,7 +228,7 @@ function obtenerDuracion(escenario: Escenario) {
     case "DIA_A_DIA":
       return "Hasta que el operador la detenga";
     case "SIMULACION_5D":
-      return "5 días simulados";
+      return "5 días o antes si ocurre un colapso";
     case "COLAPSO":
       return "Hasta detectar colapso logístico";
   }

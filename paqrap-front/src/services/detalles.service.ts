@@ -5,13 +5,11 @@ import type {
 import type { PedidoDetalleResponseDto } from "@/api/pedidos.dto";
 
 import { apiRequest } from "@/services/api";
+import { pedidosService } from "@/services/pedidos.service";
 
 export const detallesService = {
-  pedido(id: string, instante?: string): Promise<PedidoDetalleResponseDto> {
-    const query = instante ? `?instante=${encodeURIComponent(instante)}` : "";
-    return apiRequest<PedidoDetalleResponseDto>(
-      `/api/pedidos/${encodeURIComponent(id)}${query}`,
-    );
+  pedido(id: string, instante?: string, ejecucionId?: number): Promise<PedidoDetalleResponseDto> {
+    return pedidosService.obtener(id, instante, ejecucionId);
   },
 
   vehiculo(id: string, ejecucionId: number): Promise<VehiculoDetalleResponseDto> {
