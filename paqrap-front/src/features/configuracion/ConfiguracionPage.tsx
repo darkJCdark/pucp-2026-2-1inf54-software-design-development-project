@@ -1,20 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  CircleStop,
+  ArrowRight,
+  FlaskConical,
+  LockKeyhole,
+  Radio,
   ExternalLink,
   Loader2,
-  TriangleAlert,
+  RefreshCcw,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useConfiguracion } from "@/context/ConfiguracionContext";
+import { useEjecucionesActivas } from "@/context/EjecucionesActivasContext";
+import { activaDelGrupo, nombreEstadoEjecucion, nombreTipoEjecucion } from "@/lib/ejecuciones";
 import { claveUmbralesEjecucion, guardarUmbrales } from "./semaforo";
 
 import type {
   CrearEscenarioRequestDto,
-  EscenarioResponseDto,
   TipoEscenarioBackend,
 } from "@/api/escenarios.dto";
 
@@ -48,8 +52,6 @@ import {
   periodosRequeridos,
 } from "./periodos";
 
-const INTERVALO_VERIFICACION_ACTIVO_MS = 1000;
-
 export default function ConfiguracionPage() {
   const navigate = useNavigate();
   const { mostrarToast } = useToast();
@@ -61,293 +63,57 @@ export default function ConfiguracionPage() {
     archivosBloqueos,
   } = useConfiguracion();
 
+  const { activas, operacion, simulacion, cargando: verificandoActivo, error: errorActividad, actualizar: actualizarActivas } = useEjecucionesActivas();
+  const esOperacion = configuracion.escenario === "DIA_A_DIA";
+  const escenarioActivo = esOperacion ? operacion : simulacion;
+  const otraActiva = esOperacion ? simulacion : operacion;
+  const flotaBloqueada = activas.length > 0 || verificandoActivo || !!errorActividad;
   const [iniciando, setIniciando] = useState(false);
+  const inicioEnCurso = useRef(false);
   const [error, setError] = useState<string | null>(null);
-
-  const [escenarioActivo, setEscenarioActivo] =
-    useState<EscenarioResponseDto | null>(null);
-
-  const [verificandoActivo, setVerificandoActivo] = useState(true);
-  const [deteniendo, setDeteniendo] = useState(false);
   const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
-
-  const [periodosCargados, setPeriodosCargados] =
-    useState<PeriodoCargadoResponseDto[]>([]);
-
+  const [periodosCargados, setPeriodosCargados] = useState<PeriodoCargadoResponseDto[]>([]);
   const [consultandoPeriodos, setConsultandoPeriodos] = useState(true);
-
-  const usaDatosHistoricos =
-    configuracion.escenario !== "DIA_A_DIA";
-
-  const mesesRequeridos = periodosRequeridos(
-    configuracion.escenario,
-    configuracion.inicioSimulado,
-  );
-
-  const periodosArchivosPedidos = archivosPedidos.map(
-    (archivo) => periodoDesdeArchivoVentas(archivo.name),
-  );
-
-  const periodosDisponibles =
-    new Set(
-      periodosCargados.map(
-        (item) => item.periodo,
-      ),
-    );
-
+  const [configuracionLista, setConfiguracionLista] = useState(false);
+  const [recarga, setRecarga] = useState(0);
+  const usaDatosHistoricos = !esOperacion;
+  const mesesRequeridos = periodosRequeridos(configuracion.escenario, configuracion.inicioSimulado);
+  const periodosArchivosPedidos = archivosPedidos.map((archivo) => periodoDesdeArchivoVentas(archivo.name));
+  const periodosDisponibles = new Set(periodosCargados.map((item) => item.periodo));
   for (const periodo of periodosArchivosPedidos) {
     if (periodo) periodosDisponibles.add(periodo);
   }
-
-  const mesesFaltantes =
-    mesesRequeridos.filter(
-      (periodo) =>
-        !periodosDisponibles.has(periodo),
-    );
+  const mesesFaltantes = mesesRequeridos.filter((periodo) => !periodosDisponibles.has(periodo));
+  const claveActivas = activas.map((ejecucion) => ejecucion.id).sort().join(",");
 
   useEffect(() => {
     let vigente = true;
-
+    setConfiguracionLista(false);
+    setConsultandoPeriodos(true);
     async function inicializar() {
       try {
-        const [
-          activo,
-          tipos,
-          vehiculos,
-          periodos,
-        ] = await Promise.all([
-          buscarEscenarioActivo(),
-          flotaService.listarTipos(),
-          flotaService.listarVehiculos(),
-          pedidosService.periodosCargados(),
+        const [tipos, vehiculos, periodos] = await Promise.all([
+          flotaService.listarTipos(), flotaService.listarVehiculos(), pedidosService.periodosCargados(),
         ]);
-
-        if (!vigente) {
-          return;
-        }
-
-        setEscenarioActivo(activo);
-        setPeriodosCargados(periodos);
-
-        const porTipo =
-          new Map(
-            tipos.map(
-              (tipo) => [
-                tipo.tipo,
-                tipo,
-              ],
-            ),
-          );
-
+        if (!vigente) return;
+        const porTipo = new Map(tipos.map((tipo) => [tipo.tipo, tipo]));
         actualizarConfiguracion({
-          autosCantidad:
-            contar(
-              vehiculos,
-              "CAR",
-            ),
-
-          autosVelocidad:
-            porTipo.get("CAR")
-              ?.velocidadKmh ??
-            configuracion.autosVelocidad,
-
-          motosCantidad:
-            contar(
-              vehiculos,
-              "MOTORCYCLE",
-            ),
-
-          motosVelocidad:
-            porTipo.get("MOTORCYCLE")
-              ?.velocidadKmh ??
-            configuracion.motosVelocidad,
-
-          bicicletasCantidad:
-            contar(
-              vehiculos,
-              "BICYCLE",
-            ),
-
-          bicicletasVelocidad:
-            porTipo.get("BICYCLE")
-              ?.velocidadKmh ??
-            configuracion.bicicletasVelocidad,
+          autosCantidad: contar(vehiculos, "CAR"), autosVelocidad: porTipo.get("CAR")?.velocidadKmh ?? 40,
+          motosCantidad: contar(vehiculos, "MOTORCYCLE"), motosVelocidad: porTipo.get("MOTORCYCLE")?.velocidadKmh ?? 25,
+          bicicletasCantidad: contar(vehiculos, "BICYCLE"), bicicletasVelocidad: porTipo.get("BICYCLE")?.velocidadKmh ?? 12,
         });
-      } catch (error) {
-        if (vigente) {
-          setError(
-            mensajeDeError(
-              error,
-              "No fue posible cargar la configuración inicial.",
-            ),
-          );
-        }
+        setPeriodosCargados(periodos);
+        setConfiguracionLista(true);
+        setError(null);
+      } catch (cause) {
+        if (vigente) setError(mensajeDeError(cause, "No fue posible cargar la configuración inicial."));
       } finally {
-        if (vigente) {
-          setVerificandoActivo(false);
-          setConsultandoPeriodos(false);
-        }
+        if (vigente) setConsultandoPeriodos(false);
       }
     }
-
     void inicializar();
-
-    return () => {
-      vigente = false;
-    };
-  }, []);
-
-  /*
-   * Mientras exista una ejecución RUNNING o PAUSED,
-   * verificamos cada segundo.
-   *
-   * Cuando termina:
-   * escenarioActivo -> null
-   * y se habilita automáticamente una nueva ejecución.
-   */
-  useEffect(() => {
-    if (!escenarioActivo) {
-      return;
-    }
-
-    let cancelado = false;
-    let temporizador:
-      number | undefined;
-
-    async function verificarActivo() {
-      try {
-        const activo =
-          await buscarEscenarioActivo();
-
-        if (cancelado) {
-          return;
-        }
-
-        setEscenarioActivo(activo);
-
-        if (!activo) {
-          return;
-        }
-
-        temporizador =
-          window.setTimeout(
-            () => {
-              void verificarActivo();
-            },
-            INTERVALO_VERIFICACION_ACTIVO_MS,
-          );
-      } catch {
-        if (cancelado) {
-          return;
-        }
-
-        temporizador =
-          window.setTimeout(
-            () => {
-              void verificarActivo();
-            },
-            INTERVALO_VERIFICACION_ACTIVO_MS,
-          );
-      }
-    }
-
-    temporizador =
-      window.setTimeout(
-        () => {
-          void verificarActivo();
-        },
-        INTERVALO_VERIFICACION_ACTIVO_MS,
-      );
-
-    return () => {
-      cancelado = true;
-
-      if (
-        temporizador !== undefined
-      ) {
-        window.clearTimeout(
-          temporizador,
-        );
-      }
-    };
-  }, [escenarioActivo?.id]);
-
-async function buscarEscenarioActivo():
-  Promise<EscenarioResponseDto | null> {
-  const pagina =
-    await escenariosService.listar(
-      0,
-      100,
-    );
-
-  if (
-    !pagina ||
-    !Array.isArray(
-      pagina.contenido,
-    )
-  ) {
-    return null;
-  }
-
-  return (
-    pagina.contenido.find(
-      (escenario) =>
-        escenario.estado ===
-          "RUNNING" ||
-        escenario.estado ===
-          "PAUSED",
-    ) ?? null
-  );
-}
-
-  async function handleDetenerActivo() {
-    if (!escenarioActivo) {
-      return;
-    }
-
-    try {
-      setDeteniendo(true);
-      setError(null);
-
-      await escenariosService.detener(
-        escenarioActivo.id,
-      );
-
-      mostrarToast({
-        titulo:
-          "Simulación detenida",
-
-        descripcion:
-          `La ejecución #${escenarioActivo.id} fue detenida correctamente.`,
-
-        variante:
-          "success",
-      });
-
-      setEscenarioActivo(null);
-    } catch (error) {
-      const mensaje =
-        mensajeDeError(
-          error,
-          "No fue posible detener la simulación activa.",
-        );
-
-      setError(mensaje);
-
-      mostrarToast({
-        titulo:
-          "No se pudo detener",
-
-        descripcion:
-          mensaje,
-
-        variante:
-          "error",
-      });
-    } finally {
-      setDeteniendo(false);
-    }
-  }
+    return () => { vigente = false; };
+  }, [claveActivas, recarga, actualizarConfiguracion]);
 
   function validarConfiguracion():
     string | null {
@@ -542,6 +308,7 @@ async function buscarEscenarioActivo():
   }
 
   function prepararInicio() {
+    if (escenarioActivo || verificandoActivo || errorActividad || !configuracionLista || iniciando) return;
     const validacion =
       validarConfiguracion();
 
@@ -567,32 +334,28 @@ async function buscarEscenarioActivo():
   }
 
   async function handleIniciarSimulacion() {
-  let etapa = "verificar simulación activa";
-
+  if (inicioEnCurso.current) return;
+  inicioEnCurso.current = true;
+  let etapa = "comprobar disponibilidad";
   try {
     setIniciando(true);
     setError(null);
-
-    etapa = "verificar simulación activa";
-
-    const activo =
-      await buscarEscenarioActivo();
-
-    if (activo) {
-      setEscenarioActivo(activo);
-
-      throw new Error(
-        "Ya existe una simulación activa; deténla antes de iniciar otra.",
-      );
+    const validacion = validarConfiguracion();
+    if (validacion) throw new Error(validacion);
+    const activasActuales = await actualizarActivas();
+    const conflicto = activaDelGrupo(activasActuales, convertirEscenario(configuracion.escenario));
+    if (conflicto) {
+      throw new Error(`${nombreTipoEjecucion(conflicto.tipo)} #${conflicto.id} ya está ${conflicto.estado === "PAUSED" ? "en pausa" : "en curso"}. Abre esa ejecución para continuar.`);
     }
 
-    etapa = "verificar flota";
-
-    await reconciliarCantidadFlota();
-
-    etapa = "actualizar parámetros de flota";
-
-    await actualizarParametrosFlota();
+    // Las cantidades y las velocidades son globales en este backend.
+    // Al iniciar en paralelo se heredan: no se escribe ninguna configuración de flota.
+    if (activasActuales.length === 0) {
+      etapa = "preparar la flota";
+      await reconciliarCantidadFlota();
+      etapa = "actualizar las velocidades";
+      await actualizarParametrosFlota();
+    }
 
     if (
       usaDatosHistoricos &&
@@ -697,9 +460,9 @@ async function buscarEscenarioActivo():
     }
 
     mostrarToast({
-      titulo: "Simulación iniciada",
+      titulo: esOperacion ? "Operación iniciada" : "Simulación iniciada",
       descripcion:
-        `Ejecución #${iniciado.id} · ${nombreTipoEscenario(
+        `Ejecución #${iniciado.id} · ${nombreTipoEjecucion(
           iniciado.tipo,
         )}`,
       variante: "success",
@@ -709,14 +472,14 @@ async function buscarEscenarioActivo():
       false,
     );
 
-    navigate(
-      `/ejecucion/${iniciado.id}`,
-    );
+    // La ejecución ya inició: una falla de refresco no debe presentarse como una falla de inicio.
+    void actualizarActivas().catch(() => undefined);
+    navigate(`/ejecucion/${iniciado.id}`);
   } catch (error) {
     const mensajeOriginal =
       mensajeDeError(
         error,
-        "No fue posible iniciar la simulación.",
+        esOperacion ? "No fue posible iniciar la operación." : "No fue posible iniciar la simulación.",
       );
 
     const mensaje =
@@ -732,6 +495,7 @@ async function buscarEscenarioActivo():
       variante: "error",
     });
   } finally {
+    inicioEnCurso.current = false;
     setIniciando(false);
   }
 }
@@ -983,195 +747,88 @@ async function actualizarParametrosFlota() {
     return request;
   }
 
-  const puedeIniciar =
-    !iniciando &&
-    !verificandoActivo &&
-    !(
-      usaDatosHistoricos &&
-      consultandoPeriodos
-    ) &&
-    !escenarioActivo &&
-    validarConfiguracion() ===
-      null;
+  const validacion = validarConfiguracion();
+  const puedeIniciar = !iniciando && !verificandoActivo && !errorActividad && configuracionLista &&
+    !(usaDatosHistoricos && consultandoPeriodos) && !escenarioActivo && validacion === null;
+  const IconoModo = esOperacion ? Radio : FlaskConical;
+  const tono = esOperacion ? "text-teal-300" : "text-orange-300";
 
   return (
-    <div className="flex min-h-full flex-col">
-      <div className="grid flex-1 gap-3 p-4 xl:grid-cols-[250px_minmax(0,1fr)_270px]">
-        <OrigenDatos
-          periodosCargados={
-            periodosCargados
-          }
-          mesesRequeridos={
-            mesesRequeridos
-          }
-          mesesFaltantes={
-            mesesFaltantes
-          }
-          consultandoPeriodos={
-            consultandoPeriodos
-          }
-        />
-
-        <section className="space-y-3">
-          <ParametrosOperacion />
-          <FlotaConfiguracion />
-          <SemaforoConfiguracion />
-          <AveriaConfiguracion />
-        </section>
-
-        <ResumenConfiguracion
-          mesesRequeridos={
-            mesesRequeridos
-          }
-          mesesFaltantes={
-            mesesFaltantes
-          }
-        />
-      </div>
-
-      {verificandoActivo && (
-        <div className="mx-4 mb-3 flex items-center gap-2 rounded-md border border-slate-700 bg-[#151b23] px-4 py-3 text-sm text-slate-300">
-          <Loader2 className="size-4 animate-spin" />
-
-          Verificando si existe una simulación activa...
-        </div>
-      )}
-
-      {escenarioActivo && (
-        <div className="mx-4 mb-3 rounded-lg border border-amber-700/70 bg-amber-950/20 p-4">
-          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-            <div className="flex items-start gap-3">
-              <TriangleAlert className="mt-0.5 size-5 shrink-0 text-amber-400" />
-
-              <div>
-                <p className="font-semibold text-amber-300">
-                  Ya existe una simulación activa
-                </p>
-
-                <p className="mt-1 text-sm text-slate-400">
-                  Ejecución #
-                  {
-                    escenarioActivo.id
-                  }
-                  {" · "}
-                  {nombreTipoEscenario(
-                    escenarioActivo.tipo,
-                  )}
-                  {" · "}
-                  {nombreEstado(
-                    escenarioActivo.estado,
-                  )}
-                </p>
-
-                <p className="mt-1 text-xs text-slate-500">
-                  Puedes volver a la ejecución actual o detenerla antes de iniciar otra.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex shrink-0 gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  navigate(
-                    `/ejecucion/${escenarioActivo.id}`,
-                  )
-                }
-                className="flex items-center gap-2 rounded-md border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-              >
-                <ExternalLink className="size-4" />
-
-                Ir a ejecución
-              </button>
-
-              <button
-                type="button"
-                disabled={
-                  deteniendo
-                }
-                onClick={() =>
-                  void handleDetenerActivo()
-                }
-                className="flex items-center gap-2 rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600 disabled:opacity-50"
-              >
-                {deteniendo ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <CircleStop className="size-4" />
-                )}
-
-                {deteniendo
-                  ? "Deteniendo..."
-                  : "Detener simulación"}
-              </button>
+    <div className="flex min-h-screen flex-col">
+      <header className="border-b border-slate-800 px-5 py-7 sm:px-8">
+        <div className="mx-auto flex max-w-[1500px] flex-wrap items-start justify-between gap-5">
+          <div className="flex gap-4">
+            <span className={`flex size-12 shrink-0 items-center justify-center rounded-2xl border ${esOperacion ? "border-teal-800/60 bg-teal-950/40 text-teal-300" : "border-orange-800/60 bg-orange-950/30 text-orange-300"}`}><IconoModo className="size-6" /></span>
+            <div>
+              <p className={`text-[10px] font-semibold uppercase tracking-[0.2em] ${tono}`}>{esOperacion ? "Operación en tiempo real" : "Entorno de simulación"}</p>
+              <h1 className="mt-1.5 text-2xl font-semibold tracking-tight text-white">{esOperacion ? "Día a Día" : "Simulaciones"}</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">{esOperacion ? "Gestiona las entregas de la jornada y registra pedidos durante la operación." : "Evalúa las entregas en cinco días o continúa hasta el colapso logístico."}</p>
             </div>
           </div>
+          <span className="rounded-full border border-slate-700 bg-[#151b23] px-3 py-1.5 text-xs text-slate-300">{esOperacion ? "Tiempo real · 1×" : "5 días / Colapso"}</span>
         </div>
-      )}
+      </header>
 
-      {error && (
-        <div className="mx-4 mb-3 whitespace-pre-line rounded-md border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-400">
-          {error}
-        </div>
-      )}
+      <div className="mx-auto w-full max-w-[1564px] flex-1 p-4 sm:p-6">
+        {errorActividad && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-800/60 bg-amber-950/20 px-4 py-3 text-sm text-amber-200">
+          <span>No se pudo comprobar qué ejecuciones siguen activas. {errorActividad}</span>
+          <button type="button" onClick={() => void actualizarActivas().catch(() => undefined)} className="flex items-center gap-2 rounded-md border border-amber-700 px-3 py-2"><RefreshCcw className="size-4" /> Reintentar</button>
+        </div>}
+        {verificandoActivo && <p role="status" className="mb-4 flex items-center gap-2 text-sm text-slate-400"><Loader2 className="size-4 animate-spin" /> Consultando actividad actual…</p>}
 
-      <div className="sticky bottom-0 flex items-center justify-between border-t border-slate-800 bg-[#0d1117] px-4 py-3">
-        <div className="text-xs text-slate-500">
-          {escenarioActivo
-            ? "Existe una ejecución activa. Se verificará automáticamente hasta que termine."
-            : "Listo para revisar e iniciar una ejecución."}
-        </div>
+        {otraActiva && <div className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-700/80 bg-[#151b23] px-4 py-3.5">
+          <div className="flex items-start gap-3">
+            {esOperacion ? <FlaskConical className="mt-0.5 size-5 shrink-0 text-orange-300" /> : <Radio className="mt-0.5 size-5 shrink-0 text-teal-300" />}
+            <div><p className="text-sm font-medium text-slate-200">{nombreTipoEjecucion(otraActiva.tipo)} #{otraActiva.id} <span className="ml-1 text-xs font-normal text-slate-400">· {nombreEstadoEjecucion(otraActiva.estado)}</span></p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-400">{escenarioActivo ? "Ambas ejecuciones conservan su propio reloj y controles." : `Puedes iniciar ${esOperacion ? "la operación diaria" : "una simulación"} en paralelo. Cada una tiene su propio reloj y controles.`}</p>
+            </div>
+          </div>
+          <button type="button" onClick={() => navigate(`/ejecucion/${otraActiva.id}`)} className="flex shrink-0 items-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800">Abrir {esOperacion ? "simulación" : "operación"}<ArrowRight className="size-3.5" /></button>
+        </div>}
 
-        <Button
-          type="button"
-          disabled={
-            !puedeIniciar
-          }
-          onClick={
-            prepararInicio
-          }
-          className="bg-[#ff6b35] text-white hover:bg-[#ff7b4d]"
-        >
-          {iniciando ? (
-            <>
-              <Loader2 className="mr-2 size-4 animate-spin" />
+        {escenarioActivo ? (
+          <section className={`rounded-2xl border p-6 sm:p-8 ${esOperacion ? "border-teal-900/70 bg-teal-950/15" : "border-orange-900/70 bg-orange-950/10"}`}>
+            <div className="flex flex-wrap items-center justify-between gap-5">
+              <div><p className={`text-xs font-medium ${tono}`}>{nombreEstadoEjecucion(escenarioActivo.estado)} · #{escenarioActivo.id}</p>
+                <h2 className="mt-3 text-xl font-semibold">{esOperacion ? "Tu operación diaria está disponible" : `${nombreTipoEjecucion(escenarioActivo.tipo)} activa`}</h2>
+                <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400">{esOperacion ? "Continúa con el seguimiento de pedidos, las rutas y las incidencias desde su mapa." : "Retoma el seguimiento, consulta sus indicadores o controla el avance desde su mapa."} {escenarioActivo.estado === "PAUSED" && "Está en pausa; puedes reanudarla desde allí."}</p>
+              </div>
+              <button type="button" onClick={() => navigate(`/ejecucion/${escenarioActivo.id}`)} className={`flex items-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-white ${esOperacion ? "bg-teal-700 hover:bg-teal-600" : "bg-orange-600 hover:bg-orange-500"}`}><ExternalLink className="size-4" />{esOperacion ? "Abrir operación" : "Abrir simulación"}</button>
+            </div>
+            <div className="mt-7 border-t border-slate-800 pt-5 text-xs leading-6 text-slate-400">{esOperacion ? "Solo puede haber una operación Día a Día activa o pausada." : "5D y Colapso comparten una plaza: termina la simulación actual para iniciar otra."}
+              {!otraActiva && <button type="button" onClick={() => navigate(esOperacion ? "/simulacion" : "/operacion")} className={`ml-1 inline-flex items-center gap-1 font-medium ${esOperacion ? "text-orange-300" : "text-teal-300"}`}>{esOperacion ? "Configurar una simulación en paralelo" : "Iniciar la operación Día a Día"}<ArrowRight className="size-3" /></button>}
+            </div>
+          </section>
+        ) : (
+          <fieldset disabled={iniciando} className="grid min-w-0 gap-4 xl:grid-cols-[250px_minmax(0,1fr)] 2xl:grid-cols-[260px_minmax(0,1fr)_270px]">
+            <OrigenDatos periodosCargados={periodosCargados} mesesRequeridos={mesesRequeridos} mesesFaltantes={mesesFaltantes} consultandoPeriodos={consultandoPeriodos} />
+            <section className="min-w-0 space-y-4">
+              <ParametrosOperacion />
+              {flotaBloqueada && <div className="flex items-start gap-3 rounded-xl border border-slate-700 bg-[#151b23] px-4 py-3 text-xs leading-5 text-slate-400"><LockKeyhole className="mt-0.5 size-4 shrink-0 text-slate-300" /><div><p className="font-medium text-slate-200">Se reutiliza la flota vigente</p>Las cantidades y velocidades son compartidas. Iniciar en paralelo conserva sus valores para no alterar la ejecución en curso.</div></div>}
+              <fieldset disabled={flotaBloqueada || !configuracionLista} className="min-w-0 disabled:opacity-75"><FlotaConfiguracion bloqueada={flotaBloqueada} /></fieldset>
+              <SemaforoConfiguracion />
+              <AveriaConfiguracion bloqueada={flotaBloqueada} />
+            </section>
+            <div className="xl:col-start-2 2xl:col-start-auto"><ResumenConfiguracion mesesRequeridos={mesesRequeridos} mesesFaltantes={mesesFaltantes} /></div>
+          </fieldset>
+        )}
 
-              Iniciando...
-            </>
-          ) : (
-            "Revisar e iniciar"
-          )}
-        </Button>
+        {error && <div role="alert" className="mt-4 whitespace-pre-line rounded-xl border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">{error}
+          {!configuracionLista && <button type="button" onClick={() => setRecarga((valor) => valor + 1)} className="mt-3 flex items-center gap-2 rounded-md border border-red-800 px-3 py-2 text-xs"><RefreshCcw className="size-4" /> Volver a cargar configuración</button>}
+        </div>}
       </div>
 
-      <ConfirmarInicioModal
-        abierto={
-          mostrarConfirmacion
-        }
-        configuracion={
-          configuracion
-        }
-        archivosBloqueos={archivosBloqueos}
-        confirmando={
-          iniciando
-        }
-        onCancelar={() =>
-          setMostrarConfirmacion(
-            false,
-          )
-        }
-        fuentePedidos={
-          configuracion.escenario ===
-          "DIA_A_DIA"
-            ? "Registro en línea"
-            : archivosPedidos.length > 0
-              ? archivosPedidos.map((archivo) => archivo.name).join(" · ")
-              : `Base de datos · ${mesesRequeridos.join(", ")}`
-        }
-        onConfirmar={() =>
-          void handleIniciarSimulacion()
-        }
-      />
+      {!escenarioActivo && <footer className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 bg-[#0d1117]/95 px-5 py-4 backdrop-blur sm:px-8">
+        <p className="max-w-2xl text-xs leading-5 text-slate-400">{verificandoActivo || !configuracionLista ? "Verificando la configuración y la disponibilidad…" : errorActividad ? "Comprueba la conexión antes de iniciar." : validacion ?? (otraActiva ? "Todo listo para iniciar en paralelo con la flota vigente." : "Revisa la configuración antes de iniciar.")}</p>
+        <Button type="button" disabled={!puedeIniciar} onClick={prepararInicio} className={esOperacion ? "bg-teal-600 text-white hover:bg-teal-500" : "bg-orange-600 text-white hover:bg-orange-500"}>
+          {iniciando ? <><Loader2 className="mr-2 size-4 animate-spin" /> Iniciando…</> : <>{esOperacion ? "Revisar e iniciar operación" : "Revisar e iniciar simulación"}<ArrowRight className="ml-2 size-4" /></>}
+        </Button>
+      </footer>}
+
+      <ConfirmarInicioModal abierto={mostrarConfirmacion} configuracion={configuracion} archivosBloqueos={archivosBloqueos} confirmando={iniciando}
+        enParalelo={!!otraActiva} onCancelar={() => { if (!iniciando) setMostrarConfirmacion(false); }}
+        fuentePedidos={esOperacion ? "Registro en línea" : archivosPedidos.length > 0 ? archivosPedidos.map((archivo) => archivo.name).join(" · ") : `Base de datos · ${mesesRequeridos.join(", ")}`}
+        onConfirmar={() => void handleIniciarSimulacion()} />
     </div>
   );
 }
@@ -1184,7 +841,7 @@ function contar(
 ) {
   return vehiculos.filter(
     (vehiculo) =>
-      vehiculo.tipo === tipo,
+      vehiculo.tipo === tipo && vehiculo.estado !== "UNAVAILABLE",
   ).length;
 }
 
@@ -1239,50 +896,6 @@ function convertirEscenario(
 
     case "COLAPSO":
       return "COLLAPSE";
-  }
-}
-
-function nombreTipoEscenario(
-  tipo:
-    TipoEscenarioBackend,
-) {
-  switch (tipo) {
-    case "DAY_TO_DAY":
-      return "Día a Día";
-
-    case "FIVE_DAY":
-      return "Simulación 5D";
-
-    case "COLLAPSE":
-      return "Colapso";
-  }
-}
-
-function nombreEstado(
-  estado:
-    EscenarioResponseDto["estado"],
-) {
-  switch (estado) {
-    case "CREATED":
-      return "Creado";
-
-    case "RUNNING":
-      return "En ejecución";
-
-    case "PAUSED":
-      return "Pausado";
-
-    case "STOPPED":
-      return "Detenido";
-
-    case "COMPLETED":
-      return "Completado";
-
-    case "COLLAPSED":
-      return "Colapsado";
-
-    case "FAILED":
-      return "Error";
   }
 }
 

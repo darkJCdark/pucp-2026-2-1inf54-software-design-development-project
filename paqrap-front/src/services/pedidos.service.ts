@@ -173,21 +173,25 @@ export const pedidosService = {
   obtener(
     id: string,
     instante?: string,
+    ejecucionId?: number,
   ): Promise<PedidoDetalleResponseDto> {
-    const query = instante
-      ? `?instante=${encodeURIComponent(instante)}`
-      : "";
+    const query = new URLSearchParams();
+    if (instante) query.set("instante", instante);
+    if (ejecucionId !== undefined) query.set("ejecucionId", String(ejecucionId));
+    const sufijo = query.size > 0 ? `?${query.toString()}` : "";
 
     return apiRequest<PedidoDetalleResponseDto>(
-      `/api/pedidos/${encodeURIComponent(id)}${query}`,
+      `/api/pedidos/${encodeURIComponent(id)}${sufijo}`,
     );
   },
 
   registrar(
     request: RegistrarPedidoRequestDto,
+    ejecucionId?: number,
   ): Promise<PedidoResponseDto> {
+    const query = ejecucionId === undefined ? "" : `?ejecucionId=${ejecucionId}`;
     return apiRequest<PedidoResponseDto>(
-      "/api/pedidos",
+      `/api/pedidos${query}`,
       {
         method: "POST",
         body: JSON.stringify(request),

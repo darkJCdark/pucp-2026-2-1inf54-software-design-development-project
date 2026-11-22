@@ -5,6 +5,7 @@ import type { ConfiguracionPlanificador } from "./configuracion.types";
 
 interface ConfirmarInicioModalProps {
   abierto: boolean;
+  enParalelo?: boolean;
   configuracion: ConfiguracionPlanificador;
   archivosBloqueos: File[];
   confirmando: boolean;
@@ -15,6 +16,7 @@ interface ConfirmarInicioModalProps {
 
 export function ConfirmarInicioModal({
   abierto,
+  enParalelo = false,
   configuracion,
   archivosBloqueos,
   confirmando,
@@ -22,12 +24,13 @@ export function ConfirmarInicioModal({
   onConfirmar,
   onCancelar,
 }: ConfirmarInicioModalProps) {
+  const esOperacion = configuracion.escenario === "DIA_A_DIA";
   return (
     <ConfirmDialog
       abierto={abierto}
-      titulo="Confirmar inicio de simulación"
-      descripcion="Revisa los datos antes de cargar archivos, configurar la flota y crear el escenario."
-      textoConfirmar="Cargar e iniciar"
+      titulo={esOperacion ? "Iniciar operación Día a Día" : "Iniciar simulación"}
+      descripcion={enParalelo ? "Se iniciará en paralelo, conservando la flota vigente y con controles independientes." : "Revisa los datos y la flota antes de iniciar."}
+      textoConfirmar={esOperacion ? "Iniciar operación" : "Iniciar simulación"}
       confirmando={confirmando}
       onConfirmar={onConfirmar}
       onCancelar={onCancelar}
@@ -35,7 +38,7 @@ export function ConfirmarInicioModal({
       <div className="grid gap-3 sm:grid-cols-2">
         <ResumenDato
           icono={<Route className="size-4" />}
-          label="Escenario"
+          label="Modalidad"
           value={nombreEscenario(configuracion.escenario)}
         />
         <ResumenDato
@@ -49,12 +52,12 @@ export function ConfirmarInicioModal({
         />
         <ResumenDato
           icono={<FileText className="size-4" />}
-          label="Archivo de pedidos"
+          label="Pedidos"
           value={fuentePedidos}
         />
         <ResumenDato
           icono={<FileText className="size-4" />}
-          label="Archivo de bloqueos"
+          label="Bloqueos"
           value={archivosBloqueos.map((archivo) => archivo.name).join(" · ") || "Sin bloqueos"}
         />
         <ResumenDato
@@ -71,9 +74,11 @@ export function ConfirmarInicioModal({
         )}
       </div>
 
-      <div className="mt-4 rounded-md border border-amber-800/60 bg-amber-950/25 p-3 text-xs leading-5 text-amber-200">
-        Solo puede existir una simulación activa. Si se redujo la cantidad de unidades, el backend puede rechazar la baja de vehículos con historial.
+      <div className="mt-4 rounded-lg border border-slate-700 bg-slate-800/40 p-3 text-xs leading-5 text-slate-300">
+        {esOperacion ? "Día a Día puede funcionar junto con una simulación 5D o de colapso." : "Puedes mantener una operación Día a Día mientras esta simulación está activa."}
+        {enParalelo && " Pausar o detener una no detiene la otra."}
       </div>
+      {enParalelo && archivosBloqueos.length > 0 && <p className="mt-3 text-xs leading-5 text-slate-400">Los bloqueos se actualizan por mes. Si la otra ejecución utiliza un mes que vuelves a cargar, también recibirá el contenido actualizado.</p>}
     </ConfirmDialog>
   );
 }

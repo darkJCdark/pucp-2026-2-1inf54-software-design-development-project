@@ -1,0 +1,121 @@
+PAQRAP — DÍA A DÍA Y SIMULACIONES EN PARALELO
+
+ENTREGA
+Frontend completo basado en paqrap-front.zip adjuntado en esta conversación.
+El backend paqrap-back(2).zip se revisó, pero no se modificó: todos sus archivos
+coinciden byte por byte con el original.
+
+COMPORTAMIENTO
+- Una operación DAY_TO_DAY puede coexistir con una simulación FIVE_DAY o COLLAPSE.
+- Las ejecuciones pausadas siguen ocupando su plaza.
+- No se permiten dos operaciones Día a Día ni dos simulaciones simultáneas.
+- El backend ya implementa esa regla y aislamiento de relojes, planes, inventarios
+  y estados operativos. El frontend anterior bloqueaba toda segunda ejecución.
+
+DISEÑO Y NAVEGACIÓN
+- /operacion: operación Día a Día, fuera de la sección de simulaciones.
+- /simulacion: solo simulación 5D o de colapso.
+- Día a Día usa acentos verde azulado; simulaciones, naranja.
+- La barra lateral muestra las dos actividades y accesos directos a sus mapas.
+- Historial separa operación y simulaciones mediante pestañas.
+- Fechas, archivos, semáforos y parámetros SA tienen borradores por modalidad.
+- Las ventanas de confirmación permiten desplazamiento en pantallas pequeñas.
+
+CORRECCIONES FUNCIONALES
+- Descubrimiento de actividades recorre todas las páginas, no solo las últimas 100.
+- El inicio comprueba otra vez el grupo justo antes de actuar.
+- Las consultas de actividad descartan respuestas antiguas, también para los
+  consumidores que las esperan antes de iniciar o modificar velocidades.
+- Al iniciar una segunda actividad se reutiliza la flota vigente: no se envían
+  altas, bajas, reactivaciones ni cambios de velocidad globales.
+- Las velocidades se pueden seguir modificando cuando solo hay una ejecución
+  activa; con dos actividades, el editor queda bloqueado con una explicación.
+- La configuración global de avería menor no se cambia con actividades abiertas.
+- Registro y detalle de pedidos envían explícitamente ejecucionId.
+- Cambiar de mapa remonta la vista, reiniciando selección, reloj, eventos y sondeo.
+- Pedidos permite escoger Catálogo, Día a Día o la simulación activa. La consulta
+  del catálogo no utiliza por accidente el historial de una simulación.
+- Las consultas temporales de pedidos incluyen el instante de inicio y muestran
+  el momento de la última consulta.
+- Pausar, reanudar, detener y registrar averías conservan el ID de la vista elegida.
+- Se conservan la carga de archivos mensuales y periodosBloqueos: [] al no
+  seleccionar archivos. No se cambia SA, CSV, SQL ni las reglas del backend.
+
+LÍMITES DEL BACKEND ACTUAL
+- La configuración de flota y de avería menor es global: iniciar en paralelo
+  conserva sus valores. No son dos configuraciones de velocidades independientes.
+- Los archivos alimentan catálogos compartidos. Los bloqueos se filtran por los
+  meses habilitados en cada ejecución; recargar un mes reemplaza su contenido
+  para las ejecuciones que lo usan. La confirmación lo indica si corresponde.
+- Los pedidos importados se agregan al catálogo; una simulación en curso puede
+  incorporar los nuevos pedidos que correspondan a su ventana de fechas.
+- El estado simulado en memoria sigue sin ser recuperable tras reiniciar el backend.
+
+INSTALACIÓN EN TU PROYECTO
+1. Detén el frontend con Ctrl+C.
+2. Descomprime este ZIP. Contiene una carpeta paqrap-front.
+3. Copia su contenido sobre tu carpeta paqrap-front y acepta los reemplazos.
+   No crees una carpeta anidada paqrap-front/paqrap-front.
+4. Desde paqrap-front, ejecuta:
+
+   npm ci
+   npm test
+   npm run dev
+
+La configuración de Vite y sus rutas se conservan: el proxy /api apunta a
+http://localhost:8080. El backend debe estar iniciado con su conexión habitual
+a MySQL. No se requiere migración para estos cambios de frontend.
+
+COMPROBACIÓN MANUAL
+1. Abre Día a Día e inicia la operación.
+2. Abre Simulaciones. Debe mostrar la operación activa sin bloquear el formulario.
+3. Selecciona fecha y archivos de pedidos necesarios, y confirma la simulación.
+4. La barra lateral debe mostrar ambas actividades con identificadores distintos.
+5. Alterna entre ambos mapas. Sus controles y datos corresponden al ID visible.
+6. Pausa o detén la simulación y comprueba que Día a Día permanece activo.
+7. También se admite el orden inverso: simulación primero y Día a Día después.
+8. En Pedidos, selecciona explícitamente el origen que quieras consultar.
+
+VALIDACIÓN REALIZADA
+- npm ci: instalación con el lockfile original.
+- npm run build: correcto (TypeScript + Vite).
+- npm test: 59 pruebas aprobadas, 11 archivos.
+- Validación adicional, con React y DOM y APIs simuladas, fuera de las dependencias
+  del proyecto: 15 casos de configuración/historial/navegación, 4 de respuestas
+  concurrentes y 5 del alcance de pedidos; todos aprobados.
+- El build conserva la advertencia de tamaño de bundle que existía en el original.
+- El ZIP de backend incluía informes de 465 pruebas sin fallas ni errores, con
+  3 omitidas. Se revisaron código y pruebas de concurrencia; no se volvió a
+  ejecutar Maven ni se hizo una prueba integrada con MySQL en este entorno.
+- No se pudo realizar una inspección visual en navegador real: la vista local
+  no era accesible desde el navegador disponible. Las comprobaciones de DOM
+  no se presentan como capturas ni como una revisión visual.
+
+ARCHIVOS MODIFICADOS
+- src/components/feedback/ConfirmDialog.tsx
+- src/components/layout/AppLayout.tsx
+- src/components/layout/Sidebar.tsx
+- src/context/ConfiguracionContext.tsx
+- src/features/configuracion/AveriaConfiguracion.tsx
+- src/features/configuracion/ConfiguracionPage.tsx
+- src/features/configuracion/ConfirmarInicioModal.tsx
+- src/features/configuracion/FlotaConfiguracion.tsx
+- src/features/configuracion/ParametrosOperacion.tsx
+- src/features/configuracion/ResumenConfiguracion.tsx
+- src/features/ejecucion/BloqueTiempos.tsx
+- src/features/ejecucion/DetalleOperacionPanel.tsx
+- src/features/ejecucion/EjecucionPage.tsx
+- src/features/ejecucion/PanelIndicadores.tsx
+- src/features/ejecuciones/EjecucionesPage.tsx
+- src/features/pedidos/PedidosPage.tsx
+- src/routes/router.tsx
+- src/services/detalles.service.ts
+- src/services/escenarios.service.ts
+- src/services/pedidos.service.ts
+
+ARCHIVOS NUEVOS
+- src/lib/ejecuciones.ts
+- src/lib/ejecuciones.test.ts
+- src/services/escenarios.activas.test.ts
+- src/services/pedidos.ejecucion.test.ts
+- src/context/EjecucionesActivasContext.tsx

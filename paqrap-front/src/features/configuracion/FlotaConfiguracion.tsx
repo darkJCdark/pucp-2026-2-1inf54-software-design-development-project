@@ -6,7 +6,7 @@ import { useConfiguracion } from "@/context/ConfiguracionContext";
 
 import { CampoConfiguracion } from "./CampoConfiguracion";
 
-export function FlotaConfiguracion() {
+export function FlotaConfiguracion({ bloqueada = false }: { bloqueada?: boolean }) {
   const { configuracion, actualizarConfiguracion } = useConfiguracion();
 
   return (
@@ -14,7 +14,7 @@ export function FlotaConfiguracion() {
       <div className="mb-5">
         <h2 className="font-semibold">Flota de transporte</h2>
         <p className="mt-1 text-xs leading-5 text-slate-500">
-          La cantidad y la velocidad se aplican antes de crear el escenario. La baja de una unidad puede ser rechazada si tiene historial o existe una ejecución activa.
+          {bloqueada ? "Valores vigentes, compartidos con la ejecución activa. Se conservan al iniciar en paralelo." : "Define la cantidad y la velocidad de las unidades. Estos valores se comparten entre la operación diaria y las simulaciones."}
         </p>
       </div>
 
@@ -97,6 +97,7 @@ function ColumnaFlota({
             type="number"
             min="1"
             max="99"
+            aria-label={`Cantidad de ${titulo.toLowerCase()}`}
             value={cantidad}
             onChange={(event) =>
               onCantidad(Math.min(99, Math.max(1, Number(event.target.value) || 1)))
@@ -121,6 +122,7 @@ function ColumnaFlota({
             type="number"
             min="0.1"
             step="0.1"
+            aria-label={`Velocidad de ${titulo.toLowerCase()}`}
             value={velocidad}
             onChange={(event) => onVelocidad(Number(event.target.value))}
           />

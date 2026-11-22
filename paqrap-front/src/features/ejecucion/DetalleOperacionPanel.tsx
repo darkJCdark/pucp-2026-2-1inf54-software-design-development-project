@@ -48,7 +48,7 @@ export function DetalleOperacionPanel({ seleccion, ejecucionId, instante, onCerr
   useEffect(() => {
     setRespuesta(null);
     setMinimizado(false);
-  }, [seleccion]);
+  }, [ejecucionId, seleccion]);
 
   useEffect(() => {
     if (!seleccion) {
@@ -71,7 +71,7 @@ export function DetalleOperacionPanel({ seleccion, ejecucionId, instante, onCerr
               .almacen(seleccion.id, ejecucionId, 24)
               .then((data) => ({ tipo: "ALMACEN" as const, data }))
           : detallesService
-              .pedido(seleccion.id, instante)
+              .pedido(seleccion.id, instante, ejecucionId)
               .then((data) => ({ tipo: "PEDIDO" as const, data }));
 
     void promesa

@@ -58,6 +58,7 @@ import { VentanaFlotante } from "@/components/ui/VentanaFlotante";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { UmbralesEjecucionProvider, useUmbralesEjecucion } from "@/context/ConfiguracionContext";
 import { mensajeDeError } from "@/lib/api-error";
+import { useEjecucionesActivas } from "@/context/EjecucionesActivasContext";
 
 import {
   escenariosService,
@@ -143,7 +144,9 @@ import {
 
 export default function EjecucionPage() {
   const { ejecucionId } = useParams();
-  return <UmbralesEjecucionProvider ejecucionId={Number(ejecucionId)}><ContenidoEjecucionPage /></UmbralesEjecucionProvider>;
+  // React remonta todo el árbol al cambiar de ejecución: reloj, eventos,
+  // selección y respuestas pendientes pertenecen siempre al mapa consultado.
+  return <UmbralesEjecucionProvider key={ejecucionId} ejecucionId={Number(ejecucionId)}><ContenidoEjecucionPage /></UmbralesEjecucionProvider>;
 }
 
 function ContenidoEjecucionPage() {
@@ -159,6 +162,12 @@ function ContenidoEjecucionPage() {
     mostrarToast,
   } = useToast();
   const { guardados: umbralesGuardados } = useUmbralesEjecucion();
+  const {
+    activas,
+    cargando: cargandoActivas,
+    error: errorActivas,
+    actualizar: actualizarActivas,
+  } = useEjecucionesActivas();
 
   const ejecucionId =
     Number(
@@ -739,6 +748,7 @@ function ContenidoEjecucionPage() {
             monitoreo
               ?.instante,
         },
+        ejecucionId,
       );
 
     setPedidos(
@@ -793,7 +803,7 @@ function ContenidoEjecucionPage() {
       RegistrarAveriaRequestDto,
   ) {
     await incidenciasService.registrarAveria(
-      request,
+      { ...request, ejecucionId },
     );
 
     setMostrarFormularioAveria(
@@ -876,13 +886,15 @@ function ContenidoEjecucionPage() {
         );
       }
 
+      void actualizarActivas().catch(() => undefined);
+      const nombreEjecucion = monitoreo?.escenario.tipo === "DAY_TO_DAY" ? "Operación" : "Simulación";
       mostrarToast({
         titulo:
           accion === "PAUSAR"
-            ? "Simulación pausada"
+            ? `${nombreEjecucion} pausada`
             : accion === "REANUDAR"
-              ? "Simulación reanudada"
-              : "Simulación detenida",
+              ? `${nombreEjecucion} reanudada`
+              : `${nombreEjecucion} detenida`,
 
         variante:
           "success",
@@ -948,6 +960,16 @@ function ContenidoEjecucionPage() {
       setTipoActualizando(
         tipoVehiculo,
       );
+
+      // Los parámetros de tipo son globales en este backend. Se comprueba
+      // otra vez al guardar para no afectar una operación iniciada en otra pestaña.
+      const ejecucionesActuales = await actualizarActivas();
+      if (ejecucionesActuales.some((ejecucion) => ejecucion.id !== ejecucionId)) {
+        throw new Error("Las velocidades son compartidas. Puedes cambiarlas cuando solo quede una ejecución activa.");
+      }
+      if (!ejecucionesActuales.some((ejecucion) => ejecucion.id === ejecucionId)) {
+        throw new Error("Esta ejecución ya terminó; no se pueden cambiar sus velocidades.");
+      }
 
       const actualizado =
         await flotaService.actualizarTipo(
@@ -1058,7 +1080,7 @@ function ContenidoEjecucionPage() {
       <div className="flex h-full min-h-[600px] items-center justify-center bg-[#0d1117] text-slate-300">
         <Loader2 className="mr-3 size-5 animate-spin" />
 
-        Cargando escenario...
+        Cargando ejecución...
       </div>
     );
   }
@@ -1072,7 +1094,7 @@ function ContenidoEjecucionPage() {
         <ServerCrash className="mb-4 size-10 text-red-400" />
 
         <p className="font-semibold">
-          No fue posible cargar el escenario
+          No fue posible cargar la ejecución
         </p>
 
         <p className="mt-2 max-w-md text-center text-sm text-slate-400">
@@ -1083,12 +1105,12 @@ function ContenidoEjecucionPage() {
           type="button"
           onClick={() =>
             navigate(
-              "/simulacion",
+              "/ejecuciones",
             )
           }
           className="mt-5 rounded-md bg-orange-500 px-4 py-2 text-sm font-semibold"
         >
-          Volver a configuración
+          Volver al historial
         </button>
       </div>
     );
@@ -1115,6 +1137,14 @@ function ContenidoEjecucionPage() {
     monitoreo
       .escenario
       .tipo;
+
+  const esOperacion = tipo === "DAY_TO_DAY";
+  const otraEjecucionActiva = activas.some((ejecucion) => ejecucion.id !== ejecucionId);
+  const mensajeVelocidades = otraEjecucionActiva
+    ? "Velocidades compartidas. Su edición queda bloqueada mientras Día a Día y una simulación estén activos."
+    : cargandoActivas || errorActivas
+      ? "Consultando ejecuciones activas antes de permitir cambios de velocidad."
+      : undefined;
 
   const puedeRegistrarPedido =
     tipo ===
@@ -1436,7 +1466,7 @@ function ContenidoEjecucionPage() {
             }
           />
           <VentanaFlotante
-            titulo="Alertas de simulación"
+            titulo={esOperacion ? "Alertas de operación" : "Alertas de simulación"}
             icono={
               <AlertTriangle
                 className={`size-4 ${
@@ -1481,13 +1511,13 @@ function ContenidoEjecucionPage() {
                     <p className="text-[11px] text-slate-300">
                       Vence {horaAlerta(alerta.plazo)}; saliendo ahora del central llegaría{" "}
                       {alerta.llegadaMinima ? horaAlerta(alerta.llegadaMinima) : "—"}. Aviso detectado{" "}
-                      {horaAlerta(alerta.detectadoEn)}; la simulación continúa.
+                      {horaAlerta(alerta.detectadoEn)}; {esOperacion ? "la operación" : "la simulación"} continúa.
                     </p>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="px-4 py-3 text-xs text-slate-500">No hay alertas de simulación registradas.</p>
+              <p className="px-4 py-3 text-xs text-slate-500">No hay alertas {esOperacion ? "de operación" : "de simulación"} registradas.</p>
             )}
           </VentanaFlotante>
         </div>
@@ -1578,9 +1608,10 @@ function ContenidoEjecucionPage() {
           errorPlan
         }
         permitirCambioVelocidad={
-          estado === "RUNNING" ||
-          estado === "PAUSED"
+          (estado === "RUNNING" || estado === "PAUSED") &&
+          !otraEjecucionActiva && !cargandoActivas && !errorActivas
         }
+        avisoVelocidades={mensajeVelocidades}
         tipoActualizando={
           tipoActualizando
         }
@@ -1608,8 +1639,10 @@ function ContenidoEjecucionPage() {
         abierto={
           confirmarDetencion
         }
-        titulo="Detener simulación"
-        descripcion="El escenario se cerrará y se generará el resultado final."
+        titulo={esOperacion ? "Detener operación Día a Día" : "Detener simulación"}
+        descripcion={esOperacion
+          ? "Se cerrará esta operación y se generará su resultado. La simulación que esté en curso continuará."
+          : "Se cerrará esta simulación y se generará su resultado. La operación Día a Día continuará."}
         textoConfirmar="Detener"
         variante="danger"
         confirmando={
@@ -1693,7 +1726,7 @@ function PanelEscenario({
 
   return (
     <VentanaFlotante
-      titulo="Escenario"
+      titulo={`${monitoreo.escenario.tipo === "DAY_TO_DAY" ? "Operación Día a Día" : "Simulación"} · #${monitoreo.escenario.id}`}
       icono={<CirclePlay className="size-4" />}
       resumen={`${nombreTipoEscenario(monitoreo.escenario.tipo)} · ${nombreEstado(estado)}`}
       minimizada={minimizada}
@@ -1712,13 +1745,9 @@ function PanelEscenario({
           </p>
 
           <p className="mt-1 text-[10px] text-slate-500">
-            Factor{" "}
-            {
-              monitoreo
-                .escenario
-                .factorAceleracion
-            }
-            ×
+            {monitoreo.escenario.tipo === "DAY_TO_DAY"
+              ? "Operación en tiempo real"
+              : `Aceleración ×${monitoreo.escenario.factorAceleracion}`}
           </p>
         </div>
 

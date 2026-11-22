@@ -10,6 +10,7 @@ import EjecucionPage from "@/features/ejecucion/EjecucionPage";
 import EjecucionesPage from "@/features/ejecuciones/EjecucionesPage";
 import PedidosPage from "@/features/pedidos/PedidosPage";
 import MantenimientosPage from "@/features/mantenimientos/MantenimientosPage";
+import { ConfiguracionModoProvider } from "@/context/ConfiguracionContext";
 
 export const router =
   createBrowserRouter([
@@ -20,14 +21,18 @@ export const router =
           path: "/",
           element: (
             <Navigate
-              to="/simulacion"
+              to="/operacion"
               replace
             />
           ),
         },
         {
+          path: "/operacion",
+          element: <ConfiguracionModoProvider modo="operacion"><ConfiguracionPage key="operacion" /></ConfiguracionModoProvider>,
+        },
+        {
           path: "/simulacion",
-          element: <ConfiguracionPage />,
+          element: <ConfiguracionModoProvider modo="simulacion"><ConfiguracionPage key="simulacion" /></ConfiguracionModoProvider>,
         },
         {
           path: "/ejecuciones",
@@ -58,7 +63,7 @@ export const router =
           path: "*",
           element: (
             <Navigate
-              to="/simulacion"
+              to="/operacion"
               replace
             />
           ),

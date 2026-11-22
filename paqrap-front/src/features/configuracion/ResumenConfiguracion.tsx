@@ -31,15 +31,11 @@ export function ResumenConfiguracion({
     <Card className="h-fit border-slate-800 bg-[#151b23] p-4">
       <h2 className="mb-5 font-semibold">Resumen de configuración</h2>
 
-      <Fila label="Escenario" value={nombreEscenario(configuracion.escenario)} />
+      <Fila label="Modalidad" value={nombreEscenario(configuracion.escenario)} />
       <Fila label="Pedidos" value={fuentePedidos} />
 
-      {configuracion.escenario !== "DIA_A_DIA" && (
-        <>
-          <Fila label="Bloqueos" value={archivosBloqueos.map((archivo) => archivo.name).join(" · ") || "Sin bloqueos"} />
-          <Fila label="Inicio" value={configuracion.inicioSimulado || "—"} />
-        </>
-      )}
+      <Fila label="Bloqueos" value={archivosBloqueos.map((archivo) => archivo.name).join(" · ") || "Sin bloqueos"} />
+      <Fila label="Inicio" value={configuracion.escenario === "DIA_A_DIA" ? "Hora actual de Lima" : configuracion.inicioSimulado || "—"} />
 
       {configuracion.usarConfiguracionSa && (
         <Fila

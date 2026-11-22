@@ -70,7 +70,7 @@ export function BloqueTiempos({
         icono={
           <Timer className="size-3.5 text-sky-400" />
         }
-        label="Simulado"
+        label={escenario.tipo === "DAY_TO_DAY" ? "Operación" : "Simulado"}
         momento={formatearFechaHora(
           instanteSimuladoMs,
         )}
