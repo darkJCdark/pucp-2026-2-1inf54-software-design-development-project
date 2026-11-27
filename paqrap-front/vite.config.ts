@@ -19,7 +19,9 @@ export default defineConfig({
 
     proxy: {
       "/api": {
-        target: "http://localhost:8080",
+        // Por defecto 8080. Si el backend corre por Docker (8081):
+        // $env:VITE_API_PROXY="http://localhost:8081"; npm run dev
+        target: process.env.VITE_API_PROXY ?? "http://localhost:8080",
         changeOrigin: true,
         secure: false,
       },

@@ -1,0 +1,49 @@
+﻿**********************
+Inicio de la transcripción de Windows PowerShell
+Hora de inicio: 20261126215650
+Nombre de usuario: DESKTOP-8ETLA0B\josue
+Usuario RunAs: DESKTOP-8ETLA0B\josue
+Nombre de la configuración: 
+Máquina: DESKTOP-8ETLA0B (Microsoft Windows NT 10.0.26300.0)
+Aplicación host: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+Id. de proceso: 25604
+PSVersion: 5.1.26100.10068
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.10068
+BuildVersion: 10.0.26100.10068
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+La transcripción ha comenzado. El archivo de salida es .\verif_backend_run.txt
+PS D:\Claude-DP1\pucp-2026-2-1inf54-software-design-development-project\paqrap-back> .\run-local.ps1
+
+========================================
+ PaqRap - Backend local
+========================================
+
+[1/4] Maven
+Apache Maven 3.9.9 (8e8579a9e76f7d015ee5ec7bfcdc97d260186937)
+Maven home: C:\Maven\apache-maven-3.9.9
+Java version: 21.0.6, vendor: Oracle Corporation, runtime: C:\Program Files\Java\jdk-21
+Default locale: es_PE, platform encoding: UTF-8
+OS name: "windows 11", version: "10.0", arch: "amd64", family: "windows"
+
+[2/4] Levantando MySQL Docker...
+[+] up 1/1
+ ✔ Container paqrap-mysql Running                                                                                   0.0s
+
+[3/4] Esperando a MySQL...
+MySQL: healthy
+
+MySQL listo.
+
+[4/4] Iniciando Spring Boot...
+
+BD       : localhost:3307
+Backend  : localhost:8080
+5D       : x160
+Colapso  : x1440
+Plan SA  : cada 1h simulada
+
