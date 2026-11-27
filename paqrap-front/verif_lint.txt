@@ -1,0 +1,16 @@
+﻿
+> paqrap-front@0.0.0 lint
+> eslint .
+
+
+D:\Claude-DP1\pucp-2026-2-1inf54-software-design-development-project\paqrap-front\src\features\ejecucion\EjecucionPage.tsx
+  432:6  warning  React Hook useEffect has missing dependencies: 'cargarDatosIniciales', 'cargarEstado', and 'cargarPlan'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+D:\Claude-DP1\pucp-2026-2-1inf54-software-design-development-project\paqrap-front\src\features\mantenimientos\MantenimientosPage.tsx
+  59:6  warning  React Hook useEffect has a missing dependency: 'cargar'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+D:\Claude-DP1\pucp-2026-2-1inf54-software-design-development-project\paqrap-front\src\features\pedidos\PedidosPage.tsx
+  118:6  warning  React Hook useEffect has a missing dependency: 'cargarPedidos'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+Ô£û 3 problems (0 errors, 3 warnings)
+

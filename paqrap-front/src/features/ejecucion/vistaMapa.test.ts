@@ -4,6 +4,8 @@ import {
   ESCALA_ENFOQUE,
   ESCALA_MAXIMA,
   ESCALA_MINIMA,
+  MARGEN_IZQUIERDO_LIBRE,
+  MARGEN_SUPERIOR_AJUSTE,
   calcularVistaAjustada,
   calcularVistaCentrada,
   interpolarVista,
@@ -29,26 +31,37 @@ describe("limitarEscala", () => {
 });
 
 describe("margenesPaneles", () => {
-  it("usa 430 px a la izquierda en pantallas anchas", () => {
-    const m = margenesPaneles(1920, false);
+  it("no reserva espacio a la izquierda con el panel plegado", () => {
+    const m = margenesPaneles(1920, false, false);
+    expect(m.izquierda).toBe(MARGEN_IZQUIERDO_LIBRE);
+    expect(m.derecha).toBe(0);
+  });
+
+  it("usa 430 px a la izquierda con el panel abierto en pantallas anchas", () => {
+    const m = margenesPaneles(1920, false, true);
     expect(m.izquierda).toBe(30 + 430);
     expect(m.derecha).toBe(0);
   });
 
   it("usa 32vw a la izquierda y 30vw a la derecha en pantallas angostas", () => {
-    const m = margenesPaneles(1000, true);
+    const m = margenesPaneles(1000, true, true);
     expect(m.izquierda).toBeCloseTo(30 + 320);
     expect(m.derecha).toBeCloseTo(30 + 300);
   });
 
   it("respeta los anchos mínimos en pantallas pequeñas", () => {
-    const m = margenesPaneles(800, true);
+    const m = margenesPaneles(800, true, true);
     expect(m.izquierda).toBe(30 + 300);
     expect(m.derecha).toBe(30 + 260);
   });
 
   it("descuenta el detalle de 370 px solo si está abierto", () => {
-    expect(margenesPaneles(1920, true).derecha).toBe(30 + 370);
+    expect(margenesPaneles(1920, true, false).derecha).toBe(30 + 370);
+    expect(margenesPaneles(1920, false, false).derecha).toBe(0);
+  });
+
+  it("el margen superior del ajuste deja sitio a la barra de 2 filas", () => {
+    expect(MARGEN_SUPERIOR_AJUSTE).toBeGreaterThanOrEqual(112);
   });
 });
 

@@ -196,6 +196,12 @@ interface MapaOperacionProps {
    * Se dibujan en la misma barra superior derecha que el zoom.
    */
   accionesExtra?: ReactNode;
+
+  /**
+   * El panel desplegable de la izquierda está abierto. Solo se usa para
+   * calcular el área libre al ajustar el mapa; no mueve el mapa por sí solo.
+   */
+  panelIzquierdoAbierto?: boolean;
 }
 
 
@@ -217,6 +223,7 @@ export function MapaOperacion({
   onSeleccionarPedido,
   onSeleccionarAlmacen,
   accionesExtra,
+  panelIzquierdoAbierto = false,
 }: MapaOperacionProps) {
   const {
     ref: contenedorRef,
@@ -927,6 +934,7 @@ const rutasSinGeometria =
             margenesPaneles(
               window.innerWidth,
               true,
+              true,
             ),
             vistaStage.escala,
           ),
@@ -1038,6 +1046,7 @@ const rutasSinGeometria =
             height,
             margenesPaneles(
               window.innerWidth,
+              true,
               true,
             ),
             stage.scaleX(),
@@ -1206,6 +1215,7 @@ const rutasSinGeometria =
         margenesPaneles(
           window.innerWidth,
           hayDetalle,
+          panelIzquierdoAbierto,
         ),
       ),
       DURACION_ENFOQUE_MS,
@@ -1578,11 +1588,15 @@ const rutasSinGeometria =
 
 
 
+      {/* ACCIONES + ZOOM: una sola barra arriba a la derecha */}
+      <div className="absolute right-3 top-3 z-40 flex items-start gap-2">
+      {accionesExtra}
+
       {/*
         * FILTROS: un solo botón que abre un panel desplegable.
-        * Se alinea con el ancho responsivo de la columna izquierda.
+        * Va en la barra superior derecha, junto a las acciones y el zoom.
         */}
-      <div className="absolute left-[calc(min(430px,_32vw)_+_40px)] top-3 z-30">
+      <div className="relative">
 
         <button
           type="button"
@@ -1619,7 +1633,7 @@ const rutasSinGeometria =
         </button>
 
         {!filtrosMinimizados && (
-        <div className="mt-2 w-[min(340px,calc(100vw-2rem))] rounded-xl border border-slate-700 bg-[#11161d]/97 p-3 shadow-2xl animate-in fade-in slide-in-from-top-1 duration-150">
+        <div className="absolute right-0 top-full z-50 mt-2 w-[min(340px,calc(100vw-2rem))] rounded-xl border border-slate-700 bg-[#11161d]/97 p-3 shadow-2xl animate-in fade-in slide-in-from-top-1 duration-150">
         <p className="mb-2 text-[10px] font-semibold uppercase text-slate-500">
           Mostrar en el mapa
         </p>
@@ -1707,9 +1721,6 @@ const rutasSinGeometria =
         )}
       </div>
 
-      {/* ACCIONES + ZOOM: una sola barra arriba a la derecha */}
-      <div className="absolute right-3 top-3 z-40 flex items-start gap-2">
-      {accionesExtra}
       <div className="flex gap-1 rounded-xl border border-slate-700 bg-[#11161d]/97 p-1 shadow-2xl">
 
         <BotonMapa

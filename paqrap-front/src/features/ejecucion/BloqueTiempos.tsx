@@ -9,10 +9,14 @@ interface BloqueTiemposProps {
   instante: string;
 }
 
-export function BloqueTiempos({
-  escenario,
-  instante,
-}: BloqueTiemposProps) {
+/*
+ * Tiempos del escenario (simulado y real) con sus transcurridos.
+ * Lo comparten BloqueTiempos (tarjeta) y FranjaTiempos (barra del mapa).
+ */
+function useTiemposEscenario(
+  escenario: EscenarioResponseDto,
+  instante: string,
+) {
   const instanteSimuladoMs =
     useRelojSimuladoAnimado(
       instante,
@@ -63,6 +67,25 @@ export function BloqueTiempos({
             inicioSimuladoMs,
         )
       : 0;
+
+  return {
+    instanteSimuladoMs,
+    referenciaReal,
+    transcurridoReal,
+    transcurridoSimulado,
+  };
+}
+
+export function BloqueTiempos({
+  escenario,
+  instante,
+}: BloqueTiemposProps) {
+  const {
+    instanteSimuladoMs,
+    referenciaReal,
+    transcurridoReal,
+    transcurridoSimulado,
+  } = useTiemposEscenario(escenario, instante);
 
   return (
     <div className="overflow-hidden rounded-md border border-slate-800 bg-slate-900/45">
@@ -205,4 +228,58 @@ function formatearDuracionCompacta(
   ).padStart(2, "0")}m ${String(
     segundos,
   ).padStart(2, "0")}s`;
+}
+
+/*
+ * Franja compacta, siempre visible sobre el mapa, con los cuatro datos de
+ * tiempo: momento simulado (u operación), su transcurrido, momento real y
+ * su transcurrido. Usa las palabras completas para que se lea sin ayuda.
+ */
+export function FranjaTiempos({
+  escenario,
+  instante,
+}: BloqueTiemposProps) {
+  const tiempos = useTiemposEscenario(escenario, instante);
+
+  const etiquetaSimulado =
+    escenario.tipo === "DAY_TO_DAY"
+      ? "Hora de operación"
+      : "Hora simulada";
+
+  return (
+    <div className="rounded-lg border border-slate-700 bg-[#11161d]/97 px-3 py-1.5 text-[11px] leading-4 text-slate-300 shadow-2xl">
+      <p className="whitespace-nowrap">
+        <span className="font-semibold text-white">{etiquetaSimulado}</span>{" "}
+        <span className="tabular-nums">
+          {formatearFechaHora(tiempos.instanteSimuladoMs)}
+        </span>{" "}
+        <span className="text-slate-400">
+          · Transcurrido: {formatearDuracionLarga(tiempos.transcurridoSimulado)}
+        </span>
+      </p>
+
+      <p className="whitespace-nowrap">
+        <span className="font-semibold text-white">Hora real</span>{" "}
+        <span className="tabular-nums">
+          {formatearFechaHora(tiempos.referenciaReal)}
+        </span>{" "}
+        <span className="text-slate-400">
+          · Transcurrido: {formatearDuracionLarga(tiempos.transcurridoReal)}
+        </span>
+      </p>
+    </div>
+  );
+}
+
+function formatearDuracionLarga(valorMs: number) {
+  const total = Math.max(0, Math.floor(valorMs / 1000));
+  const dias = Math.floor(total / 86_400);
+  const horas = Math.floor((total % 86_400) / 3600);
+  const minutos = Math.floor((total % 3600) / 60);
+  const segundos = total % 60;
+
+  if (dias > 0) return `${dias} d ${horas} h ${minutos} min`;
+  if (horas > 0) return `${horas} h ${minutos} min`;
+  if (minutos > 0) return `${minutos} min ${segundos} s`;
+  return `${segundos} s`;
 }

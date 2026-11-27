@@ -132,7 +132,9 @@ import {
 
 import {
   BloqueTiempos,
+  FranjaTiempos,
 } from "./BloqueTiempos";
+import { BarraEstadoMapa, type TonoEstado } from "./BarraEstadoMapa";
 
 import {
   PanelListasOperacion,
@@ -203,6 +205,27 @@ function ContenidoEjecucionPage() {
           ? ventana
           : null,
       );
+
+  /*
+   * Panel desplegable de la barra superior (botón "Panel").
+   * Arranca plegado para dejar el mapa limpio; el estado vive en memoria.
+   */
+  const [
+    panelIzquierdoAbierto,
+    setPanelIzquierdoAbierto,
+  ] =
+    useState(false);
+
+  /* Al elegir algo en el mapa se abre el panel en la lista para resaltarlo. */
+  const abrirPanelUnidades = () => {
+    setPanelIzquierdoAbierto(true);
+    setVentanaIzquierda("UNIDADES");
+  };
+
+  const abrirPanelAlertas = () => {
+    setPanelIzquierdoAbierto(true);
+    setVentanaIzquierda("ALERTAS");
+  };
 
   const [
     monitoreo,
@@ -1277,27 +1300,31 @@ function ContenidoEjecucionPage() {
               ? seleccionDetalle.id
               : null
           }
-          onSeleccionarVehiculo={(id) =>
+          onSeleccionarVehiculo={(id) => {
+            abrirPanelUnidades();
             setSeleccionDetalle({
               tipo:
                 "VEHICULO",
               id,
-            })
-          }
-          onSeleccionarPedido={(id) =>
+            });
+          }}
+          onSeleccionarPedido={(id) => {
+            abrirPanelUnidades();
             setSeleccionDetalle({
               tipo:
                 "PEDIDO",
               id,
-            })
-          }
-          onSeleccionarAlmacen={(id) =>
+            });
+          }}
+          onSeleccionarAlmacen={(id) => {
+            abrirPanelUnidades();
             setSeleccionDetalle({
               tipo:
                 "ALMACEN",
               id,
-            })
-          }
+            });
+          }}
+          panelIzquierdoAbierto={panelIzquierdoAbierto}
           accionesExtra={
             <div className="flex items-start gap-2">
               {puedeRegistrarPedido && (
@@ -1375,7 +1402,26 @@ function ContenidoEjecucionPage() {
          *
          * Ahora comparten un contenedor.
          */}
-        <div className="absolute left-5 top-5 z-50 flex max-h-[calc(100%-2.5rem)] w-[min(430px,32vw)] min-w-[300px] flex-col gap-3 overflow-y-auto pr-1">
+        <BarraEstadoMapa
+          titulo={`${monitoreo.escenario.tipo === "DAY_TO_DAY" ? "Operación Día a Día" : "Simulación"} #${monitoreo.escenario.id}`}
+          estadoTexto={nombreEstado(monitoreo.escenario.estado)}
+          estadoTono={tonoEstado(monitoreo.escenario.estado)}
+          pendientes={monitoreo.pedidos.pendientes}
+          vencidos={monitoreo.pedidos.vencidosSinEntregar}
+          entregados={monitoreo.ejecucion.pedidosEntregados}
+          alertas={monitoreo.alertas?.length ?? 0}
+          colapso={Boolean(monitoreo.colapso)}
+          tiempos={
+            <FranjaTiempos
+              escenario={monitoreo.escenario}
+              instante={monitoreo.instante}
+            />
+          }
+          abierto={panelIzquierdoAbierto}
+          onCambiarAbierto={setPanelIzquierdoAbierto}
+          onAbrirAlertas={abrirPanelAlertas}
+        >
+          <div className="flex w-full flex-col gap-3">
           {!umbralesGuardados && <p role="status" className="rounded-md border border-amber-700 bg-[#11161d] px-3 py-2 text-xs text-amber-300">Esta ejecución no tiene umbrales guardados en este navegador; se muestran los actuales de configuración.</p>}
           <PanelEscenario
             minimizada={
@@ -1520,7 +1566,8 @@ function ContenidoEjecucionPage() {
               <p className="px-4 py-3 text-xs text-slate-500">No hay alertas {esOperacion ? "de operación" : "de simulación"} registradas.</p>
             )}
           </VentanaFlotante>
-        </div>
+          </div>
+        </BarraEstadoMapa>
 
         {/* FORM PEDIDO */}
         {mostrarFormularioPedido &&
@@ -2050,6 +2097,28 @@ function nombreTipoEscenario(
 
     case "COLLAPSE":
       return "Colapso";
+  }
+}
+
+function tonoEstado(
+  estado: MonitoreoResponseDto["escenario"]["estado"],
+): TonoEstado {
+  switch (estado) {
+    case "RUNNING":
+      return "activo";
+
+    case "PAUSED":
+      return "pausado";
+
+    case "CREATED":
+      return "inicial";
+
+    case "COLLAPSED":
+    case "FAILED":
+      return "error";
+
+    default:
+      return "terminado";
   }
 }
 

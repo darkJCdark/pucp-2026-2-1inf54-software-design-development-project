@@ -1,0 +1,1324 @@
+﻿
+> paqrap-front@0.0.0 dev
+> vite
+
+[2m8:59:41 p.┬ám.[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because vite config has changed
+
+  [32m[1mVITE[22m v8.3.5[39m  [2mready in [0m[1m5688[22m[2m[0m ms[22m
+
+  [32mÔ×£[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5173[22m/[39m
+[2m  [32mÔ×£[39m  [1mNetwork[22m[2m: use [22m[1m--host[22m[2m to expose[22m
+[2m[32m  Ô×£[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m
+[2m8:59:42 p.┬ám.[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [optimizer] scanning dependencies...
+[2m8:59:43 p.┬ám.[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [optimizer] bundling dependencies...
+node.exe : [2m8:59:55 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: 
+/api/escenarios?page=0&size=100[39m
+En D:\Jorge Chamorro\Programas\njs\npm.ps1: 29 Carácter: 3
++   & $NODE_EXE $NPM_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([2m8:59:55 p.┬...0&size=100[39m:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m8:59:55 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m8:59:55 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/vehiculos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m8:59:55 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/pedidos/periodos-cargados[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m8:59:55 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: 
+/api/incidencias/averias/configuracion/MINOR[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m8:59:55 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/tipos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m8:59:55 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/tipos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m8:59:55 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: 
+/api/incidencias/averias/configuracion/MINOR[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m8:59:55 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/vehiculos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m8:59:55 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/pedidos/periodos-cargados[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m8:59:58 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:00 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:01 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:04 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:25 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:29 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:32 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:35 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:35 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:37 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:38 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:38 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:38 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:42 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: 
+/api/incidencias/averias/configuracion/MINOR[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:42 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/tipos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:42 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/vehiculos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:42 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/pedidos/periodos-cargados[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:42 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: 
+/api/incidencias/averias/configuracion/MINOR[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:42 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:42 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/tipos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:42 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/vehiculos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:42 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/pedidos/periodos-cargados[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:42 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:46 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:49 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:00:53 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:01:04 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:01:18 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:01:21 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:01:24 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:01:29 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:01:32 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:01:37 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:01:40 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:01:44 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:01:48 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:01:52 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:01:56 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:02:00 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:02:04 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:02:08 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:02:12 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:02:16 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:02:20 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:02:24 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:02:28 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:02:37 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:02:45 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:02:49 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:02:53 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:02:57 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:03:01 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:03:05 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:03:09 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:03:13 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:03:17 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:03:21 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:03:25 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:03:29 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:03:33 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:03:37 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:03:41 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:03:45 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:03:49 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:03:53 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:03:57 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:04:01 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:04:05 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:04:09 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:04:13 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:04:17 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:04:31 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:04:34 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:04:38 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:04:42 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:04:46 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:04:50 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:04:54 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:04:58 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:05:02 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:05:06 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:05:10 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:05:14 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:05:18 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:05:22 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:05:26 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:05:30 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:05:34 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:05:38 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:05:42 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:05:46 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:05:50 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:05:54 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:05:58 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:06:02 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:06:06 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:06:10 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:06:14 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:06:18 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:06:22 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:06:26 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:06:30 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:06:34 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:06:38 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:06:42 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:05 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:05 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:07 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/tipos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:07 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: 
+/api/incidencias/averias/configuracion/MINOR[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:07 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/vehiculos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:07 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:07 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/pedidos/periodos-cargados[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:07 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: 
+/api/incidencias/averias/configuracion/MINOR[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:07 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/tipos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:07 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/vehiculos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:07 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/pedidos/periodos-cargados[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:07 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:10 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:13 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:16 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:17 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:19 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: 
+/api/incidencias/averias/configuracion/MINOR[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:19 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/tipos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:19 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/vehiculos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:19 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/pedidos/periodos-cargados[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:19 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: 
+/api/incidencias/averias/configuracion/MINOR[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:19 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/tipos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:19 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/vehiculos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:19 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/pedidos/periodos-cargados[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:19 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:22 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:25 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:28 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:31 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:34 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:37 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:41 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:44 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:45 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:47 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:50 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:51 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:53 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:56 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:57 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/tipos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:57 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/vehiculos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:57 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/pedidos/periodos-cargados[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:58 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/tipos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:58 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/vehiculos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:58 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/pedidos/periodos-cargados[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:59 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:59 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/tipos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:59 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/vehiculos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:59 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/pedidos/periodos-cargados[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:59 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/tipos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:59 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/vehiculos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:59 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/pedidos/periodos-cargados[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:59 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/tipos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:59 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/vehiculos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:10:59 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/pedidos/periodos-cargados[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:00 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/tipos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:00 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/vehiculos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:00 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/pedidos/periodos-cargados[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:00 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/tipos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:00 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/vehiculos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:00 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/pedidos/periodos-cargados[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:02 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:05 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:06 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:08 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:11 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:14 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:17 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:21 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:25 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:25 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:28 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:31 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:31 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:34 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:37 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:40 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:43 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:46 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:49 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:52 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:55 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:11:58 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:12:01 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:12:04 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:12:07 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:12:10 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:12:13 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:12:16 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:12:19 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:12:22 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:12:25 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:12:28 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:12:31 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:12:34 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:12:37 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:12:40 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:12:43 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:12:46 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:12:49 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:12:52 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:12:56 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:13:00 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:13:04 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:13:08 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:13:12 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:13:16 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:13:20 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:13:24 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:13:28 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:13:32 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:13:36 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:13:40 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:13:44 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:13:48 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:13:52 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:13:56 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:14:00 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:14:04 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:14:08 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:14:12 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:14:16 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:14:20 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:14:24 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:14:28 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:14:32 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:14:36 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:14:40 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:14:44 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:14:48 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:14:52 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:14:56 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:15:00 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:15:04 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:15:08 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:15:12 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:15:16 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:15:20 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:15:24 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:15:28 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:15:32 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:15:36 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:15:40 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:15:44 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:15:48 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:15:52 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:15:56 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:16:00 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:16:04 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:16:08 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:16:12 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:16:16 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:16:20 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:16:24 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:16:28 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:16:32 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:16:36 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:16:40 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:16:45 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:16:48 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:16:52 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:16:56 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:17:00 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:17:04 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:17:08 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:17:12 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:17:16 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:17:20 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:17:24 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:17:28 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:17:32 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:17:36 p.┬ám.[22m [36m[1m[vite][22m[39m [32mvite.config.ts changed, restarting server...[39m
+[2m9:17:37 p.┬ám.[22m [36m[1m[vite][22m[39m [32mvite.config.ts changed, restarting server...[39m
+[2m9:17:37 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:17:38 p.┬ám.[22m [36m[1m[vite][22m[39m server restarted.
+[2m9:17:58 p.┬ám.[22m [36m[1m[vite][22m[39m server restarted.
+[2m9:18:06 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: 
+/api/incidencias/averias/configuracion/MINOR[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:18:06 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/tipos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:18:06 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/vehiculos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:18:06 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/pedidos/periodos-cargados[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:18:06 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:18:06 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: 
+/api/incidencias/averias/configuracion/MINOR[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:18:06 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/tipos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:18:06 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/vehiculos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:18:06 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/pedidos/periodos-cargados[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:18:06 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:18:08 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:18:09 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:18:12 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:18:32 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:18:35 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:18:39 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:18:43 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:18:47 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:18:51 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:18:55 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:18:59 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:19:03 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:19:07 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:19:11 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:19:16 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: 
+/api/incidencias/averias/configuracion/MINOR[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:19:16 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/tipos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:19:16 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/vehiculos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:19:16 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/pedidos/periodos-cargados[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:19:16 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:19:16 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: 
+/api/incidencias/averias/configuracion/MINOR[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:19:16 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/tipos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:19:16 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/flota/vehiculos[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:19:16 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/pedidos/periodos-cargados[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:19:16 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m9:19:19 p.┬ám.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/escenarios?page=0&size=100[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)

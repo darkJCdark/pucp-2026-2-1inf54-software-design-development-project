@@ -50,23 +50,30 @@ export function limitarEscala(
 
 /*
  * Ancho que ocupan los paneles flotantes sobre el mapa.
- * Debe coincidir con las clases de EjecucionPage y DetalleOperacionPanel:
- * columna izquierda left-5 + w-[min(430px,32vw)] min-w-[300px];
- * detalle right-5 + w-[min(370px,30vw)] min-w-[260px].
+ *
+ * El panel izquierdo (botón "Panel") está plegado por defecto y, al abrirse,
+ * se dibuja encima del mapa sin moverlo. Solo cuenta como margen cuando
+ * está abierto (o se va a abrir al seleccionar algo en el mapa):
+ * left-5 + w-[min(430px,32vw)] min-w-[300px].
+ * Detalle derecho: right-5 + w-[min(370px,30vw)] min-w-[260px].
  */
+export const MARGEN_IZQUIERDO_LIBRE = 12;
+
 export function margenesPaneles(
   anchoVentana: number,
   hayDetalleAbierto: boolean,
+  hayPanelIzquierdoAbierto: boolean,
 ): Margenes {
   const separacion = 20 + 10;
 
   return {
-    izquierda:
-      separacion +
-      Math.max(
-        300,
-        Math.min(430, anchoVentana * 0.32),
-      ),
+    izquierda: hayPanelIzquierdoAbierto
+      ? separacion +
+        Math.max(
+          300,
+          Math.min(430, anchoVentana * 0.32),
+        )
+      : MARGEN_IZQUIERDO_LIBRE,
 
     derecha: hayDetalleAbierto
       ? separacion +
@@ -128,8 +135,8 @@ export interface Rectangulo {
   alto: number;
 }
 
-/** Alto reservado arriba para la barra de filtros y acciones. */
-export const MARGEN_SUPERIOR_AJUSTE = 64;
+/** Alto reservado arriba para la barra de estado (2 filas) y las acciones. */
+export const MARGEN_SUPERIOR_AJUSTE = 120;
 
 /** Alto reservado abajo (leyenda minimizada). */
 export const MARGEN_INFERIOR_AJUSTE = 16;

@@ -1,0 +1,28 @@
+﻿
+> paqrap-front@0.0.0 test
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.1.0 [39m[90mD:/Claude-DP1/pucp-2026-2-1inf54-software-design-development-project/paqrap-front[39m
+
+ [32mÔ£ô[39m src/lib/ejecuciones.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32mÔ£ô[39m src/features/ejecucion/operacionesAlmacen.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32mÔ£ô[39m src/features/ejecucion/vistaMapa.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32mÔ£ô[39m src/features/configuracion/semaforo.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32mÔ£ô[39m src/services/escenarios.activas.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 52[2mms[22m[39m
+ [32mÔ£ô[39m src/services/planificacion.adapter.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32mÔ£ô[39m src/services/pedidos.ejecucion.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+ [32mÔ£ô[39m src/services/resultados.service.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32mÔ£ô[39m src/features/configuracion/duracionAveria.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32mÔ£ô[39m src/context/ConfiguracionContext.test.tsx [2m([22m[2m1 test[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32mÔ£ô[39m src/features/ejecucion/DetalleOperacionPanel.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32mÔ£ô[39m src/features/ejecucion/BarraEstadoMapa.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m12 passed[39m[22m[90m (12)[39m
+[2m      Tests [22m [1m[32m69 passed[39m[22m[90m (69)[39m
+[2m   Start at [22m 20:28:41
+[2m   Duration [22m 1.83s[2m (transform 50%, import 40%, tests 5%, worker 5%)[22m
+
+[2m    Isolate [22m [33m12 workers spawned[39m[2m ┬À ~379ms startup each (spawn + environment, per file)[22m
+[2m            [22m [2mat least ~270ms faster with [22m[33misolate: false[39m[2m ÔÇö reuses workers across files instead of one per file[22m
+
